@@ -50,20 +50,20 @@ prior_week_deliveries AS (
   GROUP BY grain
 ),
 current_exports AS (
+  -- Sum all grades per grain (CGC uses individual grades for most grains, not 'All grades combined')
   SELECT grain, SUM(ktonnes) as cy_exports
   FROM cgc_observations o, latest l
   WHERE o.crop_year = l.crop_year AND o.grain_week = l.max_week
     AND worksheet = 'Terminal Exports' AND metric = 'Exports' AND period = 'Crop Year'
-    AND grade = 'All grades combined'
   GROUP BY grain
 ),
 current_crush AS (
+  -- Process/crush data is reported nationally (region = ''), not by province
   SELECT grain, SUM(ktonnes) as cy_crush
   FROM cgc_observations o, latest l
   WHERE o.crop_year = l.crop_year AND o.grain_week = l.max_week
     AND worksheet = 'Process' AND metric = 'Milled/Mfg Grain' AND period = 'Crop Year'
-    AND region IN ('Alberta', 'Saskatchewan', 'Manitoba')
-    AND grade = ''
+    AND region = ''
   GROUP BY grain
 ),
 current_stocks AS (
@@ -99,7 +99,6 @@ prior_exports AS (
   FROM cgc_observations o, latest l, prior_year py
   WHERE o.crop_year = py.crop_year AND o.grain_week = l.max_week
     AND worksheet = 'Terminal Exports' AND metric = 'Exports' AND period = 'Crop Year'
-    AND grade = 'All grades combined'
   GROUP BY grain
 ),
 prior_crush AS (
@@ -107,8 +106,7 @@ prior_crush AS (
   FROM cgc_observations o, latest l, prior_year py
   WHERE o.crop_year = py.crop_year AND o.grain_week = l.max_week
     AND worksheet = 'Process' AND metric = 'Milled/Mfg Grain' AND period = 'Crop Year'
-    AND region IN ('Alberta', 'Saskatchewan', 'Manitoba')
-    AND grade = ''
+    AND region = ''
   GROUP BY grain
 )
 SELECT
