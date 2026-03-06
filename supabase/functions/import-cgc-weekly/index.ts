@@ -193,6 +193,27 @@ Deno.serve(async (req) => {
       status: skipped > 0 ? "partial" : "success",
     });
 
+    // Chain-trigger intelligence generation
+    if (skipped === 0) {
+      try {
+        console.log("Triggering intelligence generation...");
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
+          }
+        );
+      } catch (chainErr) {
+        console.error("Intelligence chain-trigger failed:", chainErr);
+        // Don't fail the import — intelligence generation is best-effort
+      }
+    }
+
     return new Response(
       JSON.stringify({ week: targetWeek, crop_year: cropYear, inserted, skipped }),
       { status: 200, headers: { "Content-Type": "application/json" } }
