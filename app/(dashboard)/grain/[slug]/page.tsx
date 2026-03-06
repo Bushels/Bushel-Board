@@ -122,7 +122,7 @@ export default async function GrainDetailPage({ params }: Props) {
       )}
 
       {intelligence?.kpi_data && (
-        <IntelligenceKpis data={intelligence.kpi_data as any} />
+        <IntelligenceKpis data={intelligence.kpi_data} />
       )}
 
       {supplyPipeline && intelligence?.kpi_data?.cy_deliveries_kt != null && (

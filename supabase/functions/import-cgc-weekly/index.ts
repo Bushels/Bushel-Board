@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
     if (skipped === 0) {
       try {
         console.log("Triggering intelligence generation...");
-        await fetch(
+        const intRes = await fetch(
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
           {
             method: "POST",
@@ -208,6 +208,11 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
           }
         );
+        console.log(`Intelligence trigger: HTTP ${intRes.status}`);
+        if (!intRes.ok) {
+          const errBody = await intRes.text();
+          console.error(`Intelligence trigger failed: ${errBody.slice(0, 300)}`);
+        }
       } catch (chainErr) {
         console.error("Intelligence chain-trigger failed:", chainErr);
         // Don't fail the import — intelligence generation is best-effort

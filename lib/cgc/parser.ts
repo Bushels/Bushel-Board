@@ -40,6 +40,9 @@ export function parseCgcCsv(csvText: string): CgcRow[] {
     const line = lines[i].trim();
     if (!line) continue;
 
+    // NOTE: Simple comma split — CGC data does not contain commas inside fields.
+    // If CGC changes their format to include intra-field commas, this needs
+    // a proper RFC 4180 parser. See also the Edge Function copy.
     const parts = line.split(",");
     if (parts.length < 10) continue;
 

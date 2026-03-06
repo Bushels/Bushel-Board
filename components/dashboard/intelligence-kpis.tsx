@@ -10,37 +10,49 @@ interface KpiData {
   wow_stocks_change_kt: number;
 }
 
-export function IntelligenceKpis({ data }: { data: KpiData }) {
+export function IntelligenceKpis({ data }: { data: Partial<KpiData> }) {
+  const d = {
+    cy_deliveries_kt: data.cy_deliveries_kt ?? 0,
+    cw_deliveries_kt: data.cw_deliveries_kt ?? 0,
+    wow_deliveries_pct: data.wow_deliveries_pct ?? null,
+    cy_exports_kt: data.cy_exports_kt ?? 0,
+    yoy_exports_pct: data.yoy_exports_pct ?? null,
+    cy_crush_kt: data.cy_crush_kt ?? 0,
+    yoy_crush_pct: data.yoy_crush_pct ?? null,
+    commercial_stocks_kt: data.commercial_stocks_kt ?? 0,
+    wow_stocks_change_kt: data.wow_stocks_change_kt ?? 0,
+  };
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <KpiCard
         label="Producer Deliveries"
-        value={`${data.cw_deliveries_kt.toFixed(1)}`}
+        value={`${d.cw_deliveries_kt.toFixed(1)}`}
         unit="Kt this week"
-        change={data.wow_deliveries_pct}
+        change={d.wow_deliveries_pct}
         changeLabel="WoW"
-        subtext={`CY: ${formatKt(data.cy_deliveries_kt)}`}
+        subtext={`CY: ${formatKt(d.cy_deliveries_kt)}`}
         highlight
       />
       <KpiCard
         label="Commercial Stocks"
-        value={`${formatKt(data.commercial_stocks_kt)}`}
+        value={`${formatKt(d.commercial_stocks_kt)}`}
         unit="Kt total"
-        changeKt={data.wow_stocks_change_kt}
+        changeKt={d.wow_stocks_change_kt}
         changeLabel="from last week"
       />
       <KpiCard
         label="CY Exports"
-        value={`${formatKt(data.cy_exports_kt)}`}
+        value={`${formatKt(d.cy_exports_kt)}`}
         unit="Kt to date"
-        change={data.yoy_exports_pct}
+        change={d.yoy_exports_pct}
         changeLabel="YoY"
       />
       <KpiCard
         label="CY Crush"
-        value={`${formatKt(data.cy_crush_kt)}`}
+        value={`${formatKt(d.cy_crush_kt)}`}
         unit="Kt to date"
-        change={data.yoy_crush_pct}
+        change={d.yoy_crush_pct}
         changeLabel="YoY"
       />
     </div>

@@ -9,10 +9,11 @@ interface SupplyPipelineProps {
 export function SupplyPipeline({
   carry_in_kt, production_kt, total_supply_kt, cy_deliveries_kt, grain,
 }: SupplyPipelineProps) {
-  const onFarm = total_supply_kt - cy_deliveries_kt;
-  const deliveredPct = ((cy_deliveries_kt / total_supply_kt) * 100).toFixed(1);
-  const onFarmPct = ((onFarm / total_supply_kt) * 100).toFixed(1);
-  const max = total_supply_kt * 1.05; // 5% padding
+  const safeDivisor = total_supply_kt > 0 ? total_supply_kt : 1;
+  const onFarm = Math.max(0, total_supply_kt - cy_deliveries_kt);
+  const deliveredPct = ((cy_deliveries_kt / safeDivisor) * 100).toFixed(1);
+  const onFarmPct = ((onFarm / safeDivisor) * 100).toFixed(1);
+  const max = Math.max(total_supply_kt * 1.05, 1);
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
