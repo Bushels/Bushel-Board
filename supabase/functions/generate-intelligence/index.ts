@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-5-20250514",
+            model: "claude-3-haiku-20240307",
             max_tokens: 1024,
             messages: [{ role: "user", content: prompt }],
           }),
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
             insights: intelligence.insights,
             kpi_data: intelligence.kpi_data,
             generated_at: new Date().toISOString(),
-            model_used: "claude-sonnet-4-5-20250514",
+            model_used: "claude-3-haiku-20240307",
           }, {
             onConflict: "grain,crop_year,grain_week",
           });
