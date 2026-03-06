@@ -105,6 +105,14 @@ export default async function GrainDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {!intelligence && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Market intelligence is being generated. Check back after the next Thursday data update.
+          </p>
+        </div>
+      )}
+
       {/* AI Intelligence Section */}
       {intelligence?.thesis_title && (
         <ThesisBanner
