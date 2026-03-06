@@ -5,7 +5,7 @@ interface ThesisBannerProps {
 
 export function ThesisBanner({ title, body }: ThesisBannerProps) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-canola/20 bg-gradient-to-r from-canola/5 to-transparent p-5 pl-7">
+    <div className="relative overflow-hidden rounded-xl border border-canola/20 bg-gradient-to-r from-canola/5 to-transparent p-4 sm:p-5 pl-6 sm:pl-7">
       {/* Gold left accent bar */}
       <div className="absolute left-0 top-0 h-full w-1 bg-canola" />
 
