@@ -2,7 +2,7 @@
  * Supabase Edge Function: generate-intelligence
  *
  * After weekly CGC data import, generates AI market intelligence for each grain.
- * Calls Claude Sonnet API per grain, stores results in grain_intelligence table.
+ * Calls OpenAI GPT-4o API per grain, stores results in grain_intelligence table.
  *
  * Triggered by import-cgc-weekly on success, or manually via POST.
  *
@@ -15,7 +15,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildIntelligencePrompt, type GrainContext } from "./prompt-template.ts";
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+const MODEL = "gpt-4o";
 
 Deno.serve(async (req) => {
   const startTime = Date.now();
@@ -26,10 +27,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) {
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openaiKey) {
       return new Response(
-        JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+        JSON.stringify({ error: "OPENAI_API_KEY not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -102,16 +103,15 @@ Deno.serve(async (req) => {
 
         const prompt = buildIntelligencePrompt(ctx);
 
-        // Call Claude Sonnet API
-        const response = await fetch(ANTHROPIC_API_URL, {
+        // Call OpenAI GPT-4o API
+        const response = await fetch(OPENAI_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-api-key": anthropicKey,
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${openaiKey}`,
           },
           body: JSON.stringify({
-            model: "claude-3-haiku-20240307",
+            model: MODEL,
             max_tokens: 1024,
             messages: [{ role: "user", content: prompt }],
           }),
@@ -119,19 +119,21 @@ Deno.serve(async (req) => {
 
         if (!response.ok) {
           const errText = await response.text();
-          results.push({ grain: grainName, status: "failed", error: `Claude API ${response.status}: ${errText.slice(0, 200)}` });
+          results.push({ grain: grainName, status: "failed", error: `OpenAI API ${response.status}: ${errText.slice(0, 200)}` });
           continue;
         }
 
         const aiResponse = await response.json();
-        const content = aiResponse.content?.[0]?.text ?? "";
+        const content = aiResponse.choices?.[0]?.message?.content ?? "";
 
-        // Parse the JSON response from Claude
+        // Parse the JSON response
         let intelligence;
         try {
-          intelligence = JSON.parse(content);
+          // Strip markdown code fences if present (GPT-4o sometimes wraps JSON in ```json)
+          const cleaned = content.replace(/^```json\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+          intelligence = JSON.parse(cleaned);
         } catch {
-          results.push({ grain: grainName, status: "failed", error: "Failed to parse Claude response as JSON" });
+          results.push({ grain: grainName, status: "failed", error: `Failed to parse AI response as JSON: ${content.slice(0, 100)}` });
           continue;
         }
 
@@ -147,7 +149,7 @@ Deno.serve(async (req) => {
             insights: intelligence.insights,
             kpi_data: intelligence.kpi_data,
             generated_at: new Date().toISOString(),
-            model_used: "claude-3-haiku-20240307",
+            model_used: MODEL,
           }, {
             onConflict: "grain,crop_year,grain_week",
           });
