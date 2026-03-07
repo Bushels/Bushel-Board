@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bushel Board
+
+Prairie grain market intelligence dashboard for Canadian farmers (AB, SK, MB).
+
+## What It Does
+
+- Displays weekly CGC (Canadian Grain Commission) grain statistics
+- Shows supply/disposition balance for 16 Canadian grain types
+- Interactive waterfall charts showing where grain goes (exports, processing, feed)
+- Cumulative pace charts comparing producer deliveries vs domestic disappearance
+- Storage breakdown by elevator type (primary, process, terminal)
+- Personal farm tracking: log your deliveries and track selling pace
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router, Server Components)
+- **Database:** Supabase (PostgreSQL + Auth + Edge Functions)
+- **UI:** shadcn/ui + Tailwind CSS 4 + Recharts
+- **Fonts:** DM Sans (body) + Fraunces (display)
+- **Auth:** Supabase Auth (email/password, magic link planned)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 20+
+- A Supabase project (free tier works)
+
+### Environment Setup
+
+Create `.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For the intelligence pipeline (Edge Function secrets — set via Supabase Dashboard or CLI):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx supabase secrets set OPENAI_API_KEY=sk-your-key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Install & Run
 
-## Learn More
+```bash
+npm install
+npx supabase db push          # Apply database migrations
+npm run backfill              # Load CGC historical data (~118k rows)
+npm run seed-supply           # Seed AAFC supply/disposition data
+npm run dev                   # Start dev server at localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run backfill` | Load historical CGC CSV data into Supabase |
+| `npm run seed-supply` | Seed AAFC supply/disposition balance sheets |
+| `npm run test` | Run tests |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```
+app/
+  (auth)/           # Login, signup, password reset
+  (dashboard)/      # Protected pages
+    overview/       # Main dashboard with charts
+    grains/         # All grains table
+    grain/[slug]/   # Individual grain detail
+    my-farm/        # Personal crop & delivery tracking
+components/
+  dashboard/        # Waterfall, pace chart, storage, summary cards
+  layout/           # Nav, logo, theme toggle
+  ui/               # shadcn/ui components
+lib/
+  queries/          # Server-side Supabase query functions
+  supabase/         # Auth clients (server, browser, middleware)
+  utils/            # Formatting, colors, province helpers
+supabase/
+  migrations/       # SQL schema migrations
+  functions/        # Edge Functions (weekly CGC import)
+scripts/            # CLI tools (backfill, seed)
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Data Sources
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **CGC Weekly Grain Statistics:** Updated every Thursday ~1pm MST from grainscanada.gc.ca
+- **AAFC Crop Outlook:** Annual supply/disposition balance sheets from Agriculture Canada
+- **StatsCan:** November crop production estimates (PrincipleFieldCrops)
+
+## Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `cgc_observations` | 118k+ rows of weekly grain statistics |
+| `grains` | 16 Canadian grain types with slugs |
+| `supply_disposition` | AAFC balance sheet data per grain/year |
+| `crop_plans` | User-selected crops with delivery logging |
+| `profiles` | User profiles (farm name, province) |
+| `grain_intelligence` | AI-generated weekly grain narratives and KPIs |
+| `cgc_imports` | Audit log of data loads |
+
+## License
+
+Private — not yet licensed for distribution.

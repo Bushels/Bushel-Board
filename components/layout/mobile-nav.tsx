@@ -75,7 +75,7 @@ export function MobileNav({ allGrains, unlockedGrains }: MobileNavProps) {
                     href={`/grain/${g.slug}`}
                     className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm"
                   >
-                    <Check className="h-3.5 w-3.5 text-prairie" />
+                    <Check className="h-3.5 w-3.5 text-prairie" aria-hidden="true" />
                     {g.name}
                   </Link>
                 ))
@@ -92,7 +92,7 @@ export function MobileNav({ allGrains, unlockedGrains }: MobileNavProps) {
                   onClick={() => setUnlockGrain(g)}
                   className="flex w-full items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-left"
                 >
-                  <Lock className="h-3.5 w-3.5" />
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
                   {g.name}
                 </button>
               ))}

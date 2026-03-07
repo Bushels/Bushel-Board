@@ -40,9 +40,6 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
   const deliveredPct = ctx.total_supply_kt && ctx.total_supply_kt > 0
     ? ((ctx.cy_deliveries_kt / ctx.total_supply_kt) * 100).toFixed(1)
     : "N/A";
-  const onFarmEst = ctx.total_supply_kt
-    ? (ctx.total_supply_kt - ctx.cy_deliveries_kt).toFixed(0)
-    : "N/A";
 
   return `You are a grain market analyst writing intelligence briefings for Canadian prairie farmers (Alberta, Saskatchewan, Manitoba). Your tone is direct, data-driven, and actionable — like a Bloomberg terminal meets a coffee shop conversation with a sharp grain buyer.
 
@@ -64,45 +61,16 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 - Projected Exports: ${ctx.projected_exports_kt ?? "N/A"} Kt
 - Projected Crush: ${ctx.projected_crush_kt ?? "N/A"} Kt
 - Projected Carry-out: ${ctx.projected_carry_out_kt ?? "N/A"} Kt
-- Estimated Delivered: ${deliveredPct}% of total supply
-- Estimated On-Farm: ${onFarmEst} Kt
+- Delivered to Date: ${deliveredPct}% of total supply
 
 ## Your Task
 
-Generate a JSON object with this exact structure:
-
-{
-  "thesis_title": "5-8 word market thesis title",
-  "thesis_body": "2-3 sentences. Reference specific numbers. Explain the key dynamic at play for farmers deciding whether to hold or deliver. Be direct.",
-  "insights": [
-    {
-      "signal": "bullish",
-      "title": "4-8 word insight headline",
-      "body": "2-3 sentences with specific data points. Explain WHY this is bullish/bearish/watch."
-    }
-  ],
-  "kpi_data": {
-    "cy_deliveries_kt": ${ctx.cy_deliveries_kt},
-    "cw_deliveries_kt": ${ctx.cw_deliveries_kt},
-    "wow_deliveries_pct": ${ctx.wow_deliveries_pct},
-    "cy_exports_kt": ${ctx.cy_exports_kt},
-    "yoy_exports_pct": ${ctx.yoy_exports_pct},
-    "cy_crush_kt": ${ctx.cy_crush_kt},
-    "yoy_crush_pct": ${ctx.yoy_crush_pct},
-    "commercial_stocks_kt": ${ctx.commercial_stocks_kt},
-    "wow_stocks_change_kt": ${ctx.wow_stocks_change_kt},
-    "total_supply_kt": ${ctx.total_supply_kt ?? "null"},
-    "delivered_pct": ${deliveredPct === "N/A" ? "null" : deliveredPct},
-    "on_farm_estimate_kt": ${onFarmEst === "N/A" ? "null" : onFarmEst},
-    "yoy_deliveries_pct": ${ctx.yoy_deliveries_pct}
-  }
-}
+Generate a JSON object with the intelligence analysis. Include 3-6 insight cards (at least one "watch" signal). The kpi_data must echo the exact numbers from above — do not invent new metrics.
 
 ## Rules
-- Generate 3-6 insight cards. At least one must be "watch" signal.
 - Every insight MUST reference specific numbers from the data.
 - If data is insufficient (e.g. N/A values), note the gap rather than speculating.
 - Do NOT give financial advice. Frame insights as "data suggests" or "the numbers show".
 - For grains with minimal data (low volumes, few regions), generate fewer insights (2-3).
-- Return ONLY the JSON object, no markdown fences, no explanation.`;
+- Return ONLY the JSON object.`;
 }

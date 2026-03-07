@@ -66,7 +66,7 @@ export function GrainDropdown({
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
                 >
-                  <Check className="h-3.5 w-3.5 text-prairie" />
+                  <Check className="h-3.5 w-3.5 text-prairie" aria-hidden="true" />
                   {g.name}
                 </Link>
               ))
@@ -92,7 +92,7 @@ export function GrainDropdown({
                 }}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
               >
-                <Lock className="h-3.5 w-3.5" />
+                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
                 {g.name}
               </button>
             ))}

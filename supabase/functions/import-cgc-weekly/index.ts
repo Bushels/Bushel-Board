@@ -7,7 +7,7 @@
  * Triggered by pg_cron every Thursday at 8pm UTC (1pm MST) or manually via POST.
  *
  * Request body (optional):
- *   { "week": 29, "crop_year": "2025-2026" }
+ *   { "week": 29, "crop_year": "2025-26" }
  *
  * If no body is provided, auto-detects the current grain week and crop year.
  */
@@ -90,14 +90,14 @@ function parseCgcCsv(csvText: string): CgcRow[] {
 // Crop year / week helpers
 // ---------------------------------------------------------------------------
 
+/** Returns crop year in short format: "2025-26" (matches CGC CSV convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed: 7 = August
-  if (month >= 7) {
-    return `${year}-${year + 1}`;
-  }
-  return `${year - 1}-${year}`;
+  const startYear = month >= 7 ? year : year - 1;
+  const endYear = (startYear + 1) % 100;
+  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
 }
 
 function getCurrentGrainWeek(): number {

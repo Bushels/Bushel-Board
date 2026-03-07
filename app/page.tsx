@@ -1,65 +1,126 @@
-import Image from "next/image";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { BarChart3, TrendingUp, MapPin } from "lucide-react";
+import { Logo } from "@/components/layout/logo";
 
-export default function Home() {
+export default async function RootPage() {
+  // Check if user is authenticated — if so, redirect to dashboard
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      redirect("/overview");
+    }
+  } catch {
+    // Supabase not configured — show landing page
+  }
+
+  return <LandingPage />;
+}
+
+function LandingPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-wheat-50 dark:bg-wheat-900">
+      {/* Header */}
+      <header className="mx-auto max-w-5xl px-4 py-6 flex items-center justify-between">
+        <span className="font-display text-xl text-canola font-semibold flex items-center gap-2">
+          <Logo /> Bushel Board
+        </span>
+        <Link href="/login">
+          <Button variant="outline" size="sm">
+            Sign In
+          </Button>
+        </Link>
+      </header>
+
+      {/* Hero */}
+      <main className="mx-auto max-w-3xl px-4 pt-24 pb-16 text-center space-y-8">
+        <div className="flex justify-center mb-6">
+          <Logo size={120} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <h1 className="text-4xl sm:text-5xl font-display font-bold leading-tight">
+          Prairie Grain Market
+          <br />
+          <span className="text-canola">Intelligence</span>
+        </h1>
+        <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+          Real-time Canadian grain statistics, delivered every Thursday from the
+          Canadian Grain Commission. Built for farmers in Alberta, Saskatchewan,
+          and Manitoba.
+        </p>
+        <div className="flex gap-3 justify-center">
+          <Link href="/signup">
+            <Button
+              size="lg"
+              className="bg-canola hover:bg-canola-dark text-white"
+            >
+              Get Started
+            </Button>
+          </Link>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Free during early access. No credit card required.
+        </p>
       </main>
+
+      {/* Features */}
+      <section className="mx-auto max-w-5xl px-4 pb-24">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <FeatureBlock
+            icon={<BarChart3 className="h-8 w-8 text-canola" />}
+            title="Weekly CGC Data"
+            description="Automatic imports of Canadian Grain Commission statistics every Thursday. Deliveries, shipments, and stocks at a glance."
+          />
+          <FeatureBlock
+            icon={<MapPin className="h-8 w-8 text-province-ab" />}
+            title="Provincial Breakdown"
+            description="Compare grain activity across Alberta, Saskatchewan, and Manitoba with province-level detail."
+          />
+          <FeatureBlock
+            icon={<TrendingUp className="h-8 w-8 text-prairie" />}
+            title="Trend Analysis"
+            description="Track week-over-week changes, crop year totals, and seasonal patterns across 16 grain types."
+          />
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
+        <p>
+          Data source:{" "}
+          <a
+            href="https://www.grainscanada.gc.ca"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-canola transition-colors"
+          >
+            Canadian Grain Commission
+          </a>
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+function FeatureBlock({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="text-center space-y-3 p-6">
+      <div className="flex justify-center">{icon}</div>
+      <h3 className="font-display text-lg font-semibold">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
     </div>
   );
 }

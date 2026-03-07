@@ -63,7 +63,7 @@ export default async function GrainDetailPage({ params }: Props) {
   const isUnlocked = !!userPlan;
 
   if (!isUnlocked) {
-    return <GrainLockedView grain={grain.name} slug={slug} />;
+    return <GrainLockedView grain={grain.name} />;
   }
 
   const [deliveries, provincial, distribution, weeklyData, storageData, intelligence, supplyPipeline] = await Promise.all([
@@ -181,7 +181,7 @@ export default async function GrainDetailPage({ params }: Props) {
   );
 }
 
-function GrainLockedView({ grain, slug }: { grain: string; slug: string }) {
+function GrainLockedView({ grain }: { grain: string }) {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">

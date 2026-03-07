@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#c17f24">
+  <!-- Sun arc -->
+  <path d="M16 11a7.5 7.5 0 0 1 7.5 7.5H8.5A7.5 7.5 0 0 1 16 11z" opacity="0.3"/>
+  <!-- Horizon -->
+  <rect x="2" y="18.5" width="28" height="2" rx="1"/>
+  <!-- Grain elevator -->
+  <rect x="13.5" y="8" width="5" height="10.5" rx="0.5"/>
+  <polygon points="14,8 18,8 19.5,8 16,5 12.5,8"/>
+  <!-- Small bin -->
+  <rect x="8" y="14" width="3.5" height="4.5" rx="0.5"/>
+  <rect x="20.5" y="15" width="3.5" height="3.5" rx="0.5"/>
+</svg>

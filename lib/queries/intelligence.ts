@@ -47,6 +47,7 @@ export async function getSupplyPipeline(
     .from("v_supply_pipeline")
     .select("carry_in_kt, production_kt, total_supply_kt")
     .eq("grain_slug", grainSlug)
+    .eq("crop_year", CURRENT_CROP_YEAR)
     .single();
 
   return data;

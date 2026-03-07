@@ -7,7 +7,7 @@
  * Triggered by import-cgc-weekly on success, or manually via POST.
  *
  * Request body (optional):
- *   { "crop_year": "2025-2026", "grain_week": 29, "grains": ["Canola"] }
+ *   { "crop_year": "2025-26", "grain_week": 29, "grains": ["Canola"] }
  *
  * If grains is omitted, generates for all 16 Canadian grains.
  */
@@ -56,13 +56,14 @@ Deno.serve(async (req) => {
       .from("v_grain_yoy_comparison")
       .select("*");
 
-    // Get supply pipeline data
+    // Get supply pipeline data — filter by crop year to avoid cross-year contamination
     const { data: supplyData } = await supabase
       .from("v_supply_pipeline")
-      .select("*");
+      .select("*")
+      .eq("crop_year", cropYear);
 
-    const yoyByGrain = new Map((yoyData ?? []).map((r: any) => [r.grain, r]));
-    const supplyByGrain = new Map((supplyData ?? []).map((r: any) => [r.grain_name, r]));
+    const yoyByGrain = new Map((yoyData ?? []).map((r: Record<string, unknown>) => [r.grain, r]));
+    const supplyByGrain = new Map((supplyData ?? []).map((r: Record<string, unknown>) => [r.grain_name, r]));
 
     const results: { grain: string; status: string; error?: string }[] = [];
 
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
 
         const prompt = buildIntelligencePrompt(ctx);
 
-        // Call OpenAI GPT-4o API
+        // Call OpenAI GPT-4o API with structured outputs
         const response = await fetch(OPENAI_API_URL, {
           method: "POST",
           headers: {
@@ -114,6 +115,59 @@ Deno.serve(async (req) => {
             model: MODEL,
             max_tokens: 1024,
             messages: [{ role: "user", content: prompt }],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "grain_intelligence",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    thesis_title: { type: "string" },
+                    thesis_body: { type: "string" },
+                    insights: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          signal: { type: "string", enum: ["bullish", "bearish", "watch"] },
+                          title: { type: "string" },
+                          body: { type: "string" },
+                        },
+                        required: ["signal", "title", "body"],
+                        additionalProperties: false,
+                      },
+                    },
+                    kpi_data: {
+                      type: "object",
+                      properties: {
+                        cy_deliveries_kt: { type: "number" },
+                        cw_deliveries_kt: { type: "number" },
+                        wow_deliveries_pct: { type: ["number", "null"] },
+                        cy_exports_kt: { type: "number" },
+                        yoy_exports_pct: { type: ["number", "null"] },
+                        cy_crush_kt: { type: "number" },
+                        yoy_crush_pct: { type: ["number", "null"] },
+                        commercial_stocks_kt: { type: "number" },
+                        wow_stocks_change_kt: { type: "number" },
+                        total_supply_kt: { type: ["number", "null"] },
+                        delivered_pct: { type: ["number", "null"] },
+                        yoy_deliveries_pct: { type: ["number", "null"] },
+                      },
+                      required: [
+                        "cy_deliveries_kt", "cw_deliveries_kt", "wow_deliveries_pct",
+                        "cy_exports_kt", "yoy_exports_pct", "cy_crush_kt", "yoy_crush_pct",
+                        "commercial_stocks_kt", "wow_stocks_change_kt", "total_supply_kt",
+                        "delivered_pct", "yoy_deliveries_pct",
+                      ],
+                      additionalProperties: false,
+                    },
+                  },
+                  required: ["thesis_title", "thesis_body", "insights", "kpi_data"],
+                  additionalProperties: false,
+                },
+              },
+            },
           }),
         });
 
@@ -124,20 +178,21 @@ Deno.serve(async (req) => {
         }
 
         const aiResponse = await response.json();
+        const finishReason = aiResponse.choices?.[0]?.finish_reason ?? "unknown";
+        const requestId = aiResponse.id ?? null;
+        const usage = aiResponse.usage ?? {};
         const content = aiResponse.choices?.[0]?.message?.content ?? "";
 
-        // Parse the JSON response
+        // Structured outputs guarantees valid JSON — parse directly
         let intelligence;
         try {
-          // Strip markdown code fences if present (GPT-4o sometimes wraps JSON in ```json)
-          const cleaned = content.replace(/^```json\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
-          intelligence = JSON.parse(cleaned);
+          intelligence = JSON.parse(content);
         } catch {
-          results.push({ grain: grainName, status: "failed", error: `Failed to parse AI response as JSON: ${content.slice(0, 100)}` });
+          results.push({ grain: grainName, status: "failed", error: `JSON parse failed (finish_reason: ${finishReason}): ${content.slice(0, 100)}` });
           continue;
         }
 
-        // Upsert into grain_intelligence
+        // Upsert into grain_intelligence (includes LLM metadata for observability)
         const { error: upsertError } = await supabase
           .from("grain_intelligence")
           .upsert({
@@ -150,6 +205,7 @@ Deno.serve(async (req) => {
             kpi_data: intelligence.kpi_data,
             generated_at: new Date().toISOString(),
             model_used: MODEL,
+            llm_metadata: { request_id: requestId, finish_reason: finishReason, total_tokens: usage.total_tokens ?? null },
           }, {
             onConflict: "grain,crop_year,grain_week",
           });
@@ -171,6 +227,24 @@ Deno.serve(async (req) => {
 
     console.log(`Intelligence generation complete: ${succeeded} ok, ${failed} failed, ${skipped} skipped (${duration}ms)`);
 
+    // Chain trigger: generate farm summaries after intelligence
+    try {
+      await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
+        }
+      );
+      console.log("Triggered generate-farm-summary");
+    } catch (err) {
+      console.log("Farm summary trigger failed (non-blocking):", err);
+    }
+
     return new Response(
       JSON.stringify({ results, duration_ms: duration, succeeded, failed, skipped }),
       { status: 200, headers: { "Content-Type": "application/json" } }
@@ -186,12 +260,14 @@ Deno.serve(async (req) => {
 
 // --- Helpers (same as import-cgc-weekly) ---
 
+/** Returns crop year in short format: "2025-26" (matches app convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  if (month >= 7) return `${year}-${year + 1}`;
-  return `${year - 1}-${year}`;
+  const startYear = month >= 7 ? year : year - 1;
+  const endYear = (startYear + 1) % 100;
+  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
 }
 
 function getCurrentGrainWeek(): number {
