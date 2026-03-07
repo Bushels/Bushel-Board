@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 
 export interface GrainIntelligence {
   grain: string;
@@ -22,6 +23,7 @@ export async function getGrainIntelligence(
     .from("grain_intelligence")
     .select("*")
     .eq("grain", grainName)
+    .eq("crop_year", CURRENT_CROP_YEAR)
     .order("grain_week", { ascending: false })
     .limit(1)
     .single();
@@ -48,4 +50,32 @@ export async function getSupplyPipeline(
     .single();
 
   return data;
+}
+
+export interface FarmSummary {
+  user_id: string;
+  crop_year: string;
+  grain_week: number;
+  summary_text: string;
+  percentiles: Record<string, number>;
+  generated_at: string;
+}
+
+/**
+ * Get the latest farm summary for a user.
+ */
+export async function getFarmSummary(
+  userId: string
+): Promise<FarmSummary | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("farm_summaries")
+    .select("*")
+    .eq("user_id", userId)
+    .order("grain_week", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data as FarmSummary;
 }
