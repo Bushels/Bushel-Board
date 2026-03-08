@@ -2,7 +2,7 @@
  * Supabase Edge Function: generate-intelligence
  *
  * After weekly CGC data import, generates AI market intelligence for each grain.
- * Calls OpenAI GPT-4o API per grain, stores results in grain_intelligence table.
+ * Calls xAI Grok Responses API per grain with x_search for real-time X/Twitter agriculture sentiment, stores results in grain_intelligence table.
  *
  * Triggered by import-cgc-weekly on success, or manually via POST.
  *
@@ -15,8 +15,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildIntelligencePrompt, type GrainContext } from "./prompt-template.ts";
 
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4o";
+const XAI_API_URL = "https://api.x.ai/v1/responses";
+const MODEL = "grok-4-1-fast-reasoning";
 
 Deno.serve(async (req) => {
   const startTime = Date.now();
@@ -27,10 +27,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
+    const xaiKey = Deno.env.get("XAI_API_KEY");
+    if (!xaiKey) {
       return new Response(
-        JSON.stringify({ error: "OPENAI_API_KEY not configured" }),
+        JSON.stringify({ error: "XAI_API_KEY not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -104,67 +104,71 @@ Deno.serve(async (req) => {
 
         const prompt = buildIntelligencePrompt(ctx);
 
-        // Call OpenAI GPT-4o API with structured outputs
-        const response = await fetch(OPENAI_API_URL, {
+        // Call xAI Grok Responses API with x_search and structured outputs
+        const { from_date, to_date } = getXSearchDateRange();
+        const response = await fetch(XAI_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${openaiKey}`,
+            "Authorization": `Bearer ${xaiKey}`,
           },
           body: JSON.stringify({
             model: MODEL,
-            max_tokens: 1024,
-            messages: [{ role: "user", content: prompt }],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "grain_intelligence",
-                strict: true,
-                schema: {
-                  type: "object",
-                  properties: {
-                    thesis_title: { type: "string" },
-                    thesis_body: { type: "string" },
-                    insights: {
-                      type: "array",
-                      items: {
+            max_output_tokens: 1024,
+            input: [{ role: "user", content: prompt }],
+            tools: [{ type: "x_search", from_date, to_date }],
+            text: {
+              format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "grain_intelligence",
+                  strict: true,
+                  schema: {
+                    type: "object",
+                    properties: {
+                      thesis_title: { type: "string" },
+                      thesis_body: { type: "string" },
+                      insights: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            signal: { type: "string", enum: ["bullish", "bearish", "watch", "social"] },
+                            title: { type: "string" },
+                            body: { type: "string" },
+                          },
+                          required: ["signal", "title", "body"],
+                          additionalProperties: false,
+                        },
+                      },
+                      kpi_data: {
                         type: "object",
                         properties: {
-                          signal: { type: "string", enum: ["bullish", "bearish", "watch"] },
-                          title: { type: "string" },
-                          body: { type: "string" },
+                          cy_deliveries_kt: { type: "number" },
+                          cw_deliveries_kt: { type: "number" },
+                          wow_deliveries_pct: { type: ["number", "null"] },
+                          cy_exports_kt: { type: "number" },
+                          yoy_exports_pct: { type: ["number", "null"] },
+                          cy_crush_kt: { type: "number" },
+                          yoy_crush_pct: { type: ["number", "null"] },
+                          commercial_stocks_kt: { type: "number" },
+                          wow_stocks_change_kt: { type: "number" },
+                          total_supply_kt: { type: ["number", "null"] },
+                          delivered_pct: { type: ["number", "null"] },
+                          yoy_deliveries_pct: { type: ["number", "null"] },
                         },
-                        required: ["signal", "title", "body"],
+                        required: [
+                          "cy_deliveries_kt", "cw_deliveries_kt", "wow_deliveries_pct",
+                          "cy_exports_kt", "yoy_exports_pct", "cy_crush_kt", "yoy_crush_pct",
+                          "commercial_stocks_kt", "wow_stocks_change_kt", "total_supply_kt",
+                          "delivered_pct", "yoy_deliveries_pct",
+                        ],
                         additionalProperties: false,
                       },
                     },
-                    kpi_data: {
-                      type: "object",
-                      properties: {
-                        cy_deliveries_kt: { type: "number" },
-                        cw_deliveries_kt: { type: "number" },
-                        wow_deliveries_pct: { type: ["number", "null"] },
-                        cy_exports_kt: { type: "number" },
-                        yoy_exports_pct: { type: ["number", "null"] },
-                        cy_crush_kt: { type: "number" },
-                        yoy_crush_pct: { type: ["number", "null"] },
-                        commercial_stocks_kt: { type: "number" },
-                        wow_stocks_change_kt: { type: "number" },
-                        total_supply_kt: { type: ["number", "null"] },
-                        delivered_pct: { type: ["number", "null"] },
-                        yoy_deliveries_pct: { type: ["number", "null"] },
-                      },
-                      required: [
-                        "cy_deliveries_kt", "cw_deliveries_kt", "wow_deliveries_pct",
-                        "cy_exports_kt", "yoy_exports_pct", "cy_crush_kt", "yoy_crush_pct",
-                        "commercial_stocks_kt", "wow_stocks_change_kt", "total_supply_kt",
-                        "delivered_pct", "yoy_deliveries_pct",
-                      ],
-                      additionalProperties: false,
-                    },
+                    required: ["thesis_title", "thesis_body", "insights", "kpi_data"],
+                    additionalProperties: false,
                   },
-                  required: ["thesis_title", "thesis_body", "insights", "kpi_data"],
-                  additionalProperties: false,
                 },
               },
             },
@@ -173,22 +177,28 @@ Deno.serve(async (req) => {
 
         if (!response.ok) {
           const errText = await response.text();
-          results.push({ grain: grainName, status: "failed", error: `OpenAI API ${response.status}: ${errText.slice(0, 200)}` });
+          results.push({ grain: grainName, status: "failed", error: `Grok API ${response.status}: ${errText.slice(0, 200)}` });
           continue;
         }
 
         const aiResponse = await response.json();
-        const finishReason = aiResponse.choices?.[0]?.finish_reason ?? "unknown";
         const requestId = aiResponse.id ?? null;
         const usage = aiResponse.usage ?? {};
-        const content = aiResponse.choices?.[0]?.message?.content ?? "";
+
+        // Extract text content from Grok Responses API output array
+        const messageOutput = (aiResponse.output ?? []).find(
+          (o: { type: string }) => o.type === "message"
+        );
+        const content = messageOutput?.content?.find(
+          (c: { type: string }) => c.type === "text"
+        )?.text ?? "";
 
         // Structured outputs guarantees valid JSON — parse directly
         let intelligence;
         try {
           intelligence = JSON.parse(content);
         } catch {
-          results.push({ grain: grainName, status: "failed", error: `JSON parse failed (finish_reason: ${finishReason}): ${content.slice(0, 100)}` });
+          results.push({ grain: grainName, status: "failed", error: `JSON parse failed: ${content.slice(0, 100)}` });
           continue;
         }
 
@@ -205,7 +215,7 @@ Deno.serve(async (req) => {
             kpi_data: intelligence.kpi_data,
             generated_at: new Date().toISOString(),
             model_used: MODEL,
-            llm_metadata: { request_id: requestId, finish_reason: finishReason, total_tokens: usage.total_tokens ?? null },
+            llm_metadata: { request_id: requestId, input_tokens: usage.input_tokens ?? null, output_tokens: usage.output_tokens ?? null },
           }, {
             onConflict: "grain,crop_year,grain_week",
           });
@@ -276,4 +286,14 @@ function getCurrentGrainWeek(): number {
   const month = now.getMonth();
   const start = month >= 7 ? new Date(year, 7, 1) : new Date(year - 1, 7, 1);
   return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
+}
+
+/** Returns ISO8601 date strings for the past 7 days (for x_search tool). */
+function getXSearchDateRange(): { from_date: string; to_date: string } {
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return {
+    from_date: weekAgo.toISOString().slice(0, 10),
+    to_date: now.toISOString().slice(0, 10),
+  };
 }

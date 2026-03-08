@@ -6,6 +6,7 @@
  *   - bullish: data supports price strength / farmer holding thesis
  *   - bearish: data suggests price weakness / urgency to sell
  *   - watch: noteworthy but directionally ambiguous
+ *   - social: signal derived from X/Twitter market sentiment
  */
 
 export interface GrainContext {
@@ -43,6 +44,8 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 
   return `You are a grain market analyst writing intelligence briefings for Canadian prairie farmers (Alberta, Saskatchewan, Manitoba). Your tone is direct, data-driven, and actionable — like a Bloomberg terminal meets a coffee shop conversation with a sharp grain buyer.
 
+You have access to real-time X (Twitter) search. Search X for recent posts about ${ctx.grain} market conditions in Canada — look for farmer sentiment, elevator bids, export activity, analyst commentary, and weather impacts. Reference specific posts when they provide meaningful market signal.
+
 ## Data for ${ctx.grain} — Week ${ctx.grain_week}, Crop Year ${ctx.crop_year}
 
 ### Current Week
@@ -65,12 +68,13 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 
 ## Your Task
 
-Generate a JSON object with the intelligence analysis. Include 3-6 insight cards (at least one "watch" signal). The kpi_data must echo the exact numbers from above — do not invent new metrics.
+Generate a JSON object with the intelligence analysis. Include 3-6 insight cards. Use signal types: "bullish", "bearish", "watch", or "social" (for insights driven by X/Twitter market sentiment). Include at least one "watch" signal. If you found relevant X posts, include at least one "social" signal referencing them. The kpi_data must echo the exact numbers from above — do not invent new metrics.
 
 ## Rules
-- Every insight MUST reference specific numbers from the data.
+- Every insight MUST reference specific numbers from the data or specific X posts.
 - If data is insufficient (e.g. N/A values), note the gap rather than speculating.
 - Do NOT give financial advice. Frame insights as "data suggests" or "the numbers show".
 - For grains with minimal data (low volumes, few regions), generate fewer insights (2-3).
+- If no relevant X posts are found, skip "social" signals — do not fabricate social media references.
 - Return ONLY the JSON object.`;
 }
