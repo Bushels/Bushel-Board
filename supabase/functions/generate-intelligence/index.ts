@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
     const cropYear: string = body.crop_year || getCurrentCropYear();
     const grainWeek: number = body.grain_week || getCurrentGrainWeek();
     const targetGrains: string[] | undefined = body.grains;
+    const BATCH_SIZE = 4; // Process 4 grains per invocation to stay within Edge Function timeout
 
     console.log(`Generating intelligence for week ${grainWeek}, crop year ${cropYear}`);
 
@@ -49,7 +50,9 @@ Deno.serve(async (req) => {
       .eq("category", "Canadian")
       .order("display_order");
 
-    const grainNames = targetGrains || (grains ?? []).map((g: { name: string }) => g.name);
+    const allGrainNames = targetGrains || (grains ?? []).map((g: { name: string }) => g.name);
+    const grainNames = allGrainNames.slice(0, BATCH_SIZE);
+    const remainingGrains = allGrainNames.slice(BATCH_SIZE);
 
     // Get YoY comparison data for all grains
     const { data: yoyData } = await supabase
@@ -235,26 +238,47 @@ Deno.serve(async (req) => {
 
     console.log(`Intelligence generation complete: ${succeeded} ok, ${failed} failed, ${skipped} skipped (${duration}ms)`);
 
-    // Chain trigger: generate farm summaries after intelligence
-    try {
-      await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
-        }
-      );
-      console.log("Triggered generate-farm-summary");
-    } catch (err) {
-      console.log("Farm summary trigger failed (non-blocking):", err);
+    if (remainingGrains.length > 0) {
+      // Self-trigger for next batch of grains
+      console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
+      try {
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek, grains: remainingGrains }),
+          }
+        );
+        console.log("Triggered next batch");
+      } catch (err) {
+        console.log("Next batch trigger failed:", err);
+      }
+    } else {
+      // Last batch — chain trigger: generate farm summaries
+      try {
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
+          }
+        );
+        console.log("Triggered generate-farm-summary");
+      } catch (err) {
+        console.log("Farm summary trigger failed (non-blocking):", err);
+      }
     }
 
     return new Response(
-      JSON.stringify({ results, duration_ms: duration, succeeded, failed, skipped }),
+      JSON.stringify({ results, duration_ms: duration, succeeded, failed, skipped, remaining: remainingGrains.length }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
