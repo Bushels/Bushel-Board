@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         );
         const summaryText = outputMessages
           .flatMap((m: { content: { type: string; text: string }[] }) =>
-            (m.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text)
+            (m.content ?? []).filter((c: { type: string }) => c.type === "output_text").map((c: { text: string }) => c.text)
           )
           .join("")
           .trim();

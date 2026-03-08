@@ -120,55 +120,53 @@ Deno.serve(async (req) => {
             text: {
               format: {
                 type: "json_schema",
-                json_schema: {
-                  name: "grain_intelligence",
-                  strict: true,
-                  schema: {
-                    type: "object",
-                    properties: {
-                      thesis_title: { type: "string" },
-                      thesis_body: { type: "string" },
-                      insights: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            signal: { type: "string", enum: ["bullish", "bearish", "watch", "social"] },
-                            title: { type: "string" },
-                            body: { type: "string" },
-                          },
-                          required: ["signal", "title", "body"],
-                          additionalProperties: false,
-                        },
-                      },
-                      kpi_data: {
+                name: "grain_intelligence",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    thesis_title: { type: "string" },
+                    thesis_body: { type: "string" },
+                    insights: {
+                      type: "array",
+                      items: {
                         type: "object",
                         properties: {
-                          cy_deliveries_kt: { type: "number" },
-                          cw_deliveries_kt: { type: "number" },
-                          wow_deliveries_pct: { type: ["number", "null"] },
-                          cy_exports_kt: { type: "number" },
-                          yoy_exports_pct: { type: ["number", "null"] },
-                          cy_crush_kt: { type: "number" },
-                          yoy_crush_pct: { type: ["number", "null"] },
-                          commercial_stocks_kt: { type: "number" },
-                          wow_stocks_change_kt: { type: "number" },
-                          total_supply_kt: { type: ["number", "null"] },
-                          delivered_pct: { type: ["number", "null"] },
-                          yoy_deliveries_pct: { type: ["number", "null"] },
+                          signal: { type: "string", enum: ["bullish", "bearish", "watch", "social"] },
+                          title: { type: "string" },
+                          body: { type: "string" },
                         },
-                        required: [
-                          "cy_deliveries_kt", "cw_deliveries_kt", "wow_deliveries_pct",
-                          "cy_exports_kt", "yoy_exports_pct", "cy_crush_kt", "yoy_crush_pct",
-                          "commercial_stocks_kt", "wow_stocks_change_kt", "total_supply_kt",
-                          "delivered_pct", "yoy_deliveries_pct",
-                        ],
+                        required: ["signal", "title", "body"],
                         additionalProperties: false,
                       },
                     },
-                    required: ["thesis_title", "thesis_body", "insights", "kpi_data"],
-                    additionalProperties: false,
+                    kpi_data: {
+                      type: "object",
+                      properties: {
+                        cy_deliveries_kt: { type: "number" },
+                        cw_deliveries_kt: { type: "number" },
+                        wow_deliveries_pct: { type: ["number", "null"] },
+                        cy_exports_kt: { type: "number" },
+                        yoy_exports_pct: { type: ["number", "null"] },
+                        cy_crush_kt: { type: "number" },
+                        yoy_crush_pct: { type: ["number", "null"] },
+                        commercial_stocks_kt: { type: "number" },
+                        wow_stocks_change_kt: { type: "number" },
+                        total_supply_kt: { type: ["number", "null"] },
+                        delivered_pct: { type: ["number", "null"] },
+                        yoy_deliveries_pct: { type: ["number", "null"] },
+                      },
+                      required: [
+                        "cy_deliveries_kt", "cw_deliveries_kt", "wow_deliveries_pct",
+                        "cy_exports_kt", "yoy_exports_pct", "cy_crush_kt", "yoy_crush_pct",
+                        "commercial_stocks_kt", "wow_stocks_change_kt", "total_supply_kt",
+                        "delivered_pct", "yoy_deliveries_pct",
+                      ],
+                      additionalProperties: false,
+                    },
                   },
+                  required: ["thesis_title", "thesis_body", "insights", "kpi_data"],
+                  additionalProperties: false,
                 },
               },
             },
@@ -190,7 +188,7 @@ Deno.serve(async (req) => {
           (o: { type: string }) => o.type === "message"
         );
         const content = messageOutput?.content?.find(
-          (c: { type: string }) => c.type === "text"
+          (c: { type: string }) => c.type === "output_text"
         )?.text ?? "";
 
         // Structured outputs guarantees valid JSON — parse directly
