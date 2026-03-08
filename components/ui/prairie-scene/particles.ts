@@ -51,7 +51,7 @@ export function createMotes(
   const motes: GrainMote[] = [];
   for (let i = 0; i < count; i++) {
     const x = Math.random() * canvasW;
-    const y = horizonY * 0.3 + Math.random() * horizonY * 0.8;
+    const y = horizonY * 0.1 + Math.random() * horizonY * 0.85;
     motes.push(new GrainMote(x, y));
   }
   return motes;
