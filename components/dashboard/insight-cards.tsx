@@ -1,5 +1,5 @@
 interface Insight {
-  signal: "bullish" | "bearish" | "watch";
+  signal: "bullish" | "bearish" | "watch" | "social";
   title: string;
   body: string;
 }
@@ -8,6 +8,7 @@ const signalConfig = {
   bullish: { icon: "\u{1F7E2}", border: "border-t-prairie", bg: "bg-prairie/5" },
   bearish: { icon: "\u{1F534}", border: "border-t-error", bg: "bg-error/5" },
   watch:   { icon: "\u{1F7E1}", border: "border-t-canola", bg: "bg-canola/5" },
+  social:  { icon: "\u{1F535}", border: "border-t-blue-500", bg: "bg-blue-50/50 dark:bg-blue-950/20" },
 };
 
 export function InsightCards({ insights }: { insights: Insight[] }) {
