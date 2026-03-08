@@ -3,7 +3,8 @@
  *
  * Generates personalized weekly farm summaries for users with active crop plans.
  * Uses delivery percentile rankings to compare farmers against peers.
- * Calls OpenAI GPT-4o API per user, stores results in farm_summaries table.
+ * Calls xAI Grok Responses API per user with x_search for market sentiment.
+ * Stores results in farm_summaries table.
  *
  * Triggered manually via POST, or chained after generate-intelligence.
  *
@@ -13,12 +14,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4o";
+const XAI_API_URL = "https://api.x.ai/v1/responses";
+const MODEL = "grok-4-1-fast-reasoning";
 const DEFAULT_BATCH_SIZE = 50;
 
 const SYSTEM_PROMPT =
-  "You are a concise agricultural market analyst writing personalized farm summaries for Canadian prairie farmers. Write 2-4 sentences. Be specific with numbers. Use a warm but professional tone.";
+  "You are a concise agricultural market analyst writing personalized farm summaries for Canadian prairie farmers. Write 2-4 sentences. Be specific with numbers. Use a warm but professional tone. When relevant X/Twitter posts about their grains are found, briefly mention market sentiment.";
 
 interface CropPlan {
   user_id: string;
@@ -45,10 +46,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
+    const xaiKey = Deno.env.get("XAI_API_KEY");
+    if (!xaiKey) {
       return new Response(
-        JSON.stringify({ error: "OPENAI_API_KEY not configured" }),
+        JSON.stringify({ error: "XAI_API_KEY not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -121,7 +122,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. For each user in batch: generate summary via GPT-4o
+    // 4. For each user in batch: generate summary via Grok
     const results: { user_id: string; status: string; error?: string }[] = [];
 
     for (const userId of batchUserIds) {
@@ -130,19 +131,26 @@ Deno.serve(async (req) => {
         const userPercentiles = percentileLookup.get(userId);
 
         const prompt = buildFarmSummaryPrompt(userPlans, userPercentiles);
+        const { from_date, to_date } = getXSearchDateRange();
 
-        const response = await fetch(OPENAI_API_URL, {
+        const response = await fetch(XAI_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${xaiKey}`,
           },
           body: JSON.stringify({
             model: MODEL,
-            max_tokens: 512,
-            messages: [
+            input: [
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: prompt },
+            ],
+            tools: [
+              {
+                type: "x_search",
+                from_date,
+                to_date,
+              },
             ],
           }),
         });
@@ -152,20 +160,29 @@ Deno.serve(async (req) => {
           results.push({
             user_id: userId,
             status: "failed",
-            error: `OpenAI API ${response.status}: ${errText.slice(0, 200)}`,
+            error: `Grok API ${response.status}: ${errText.slice(0, 200)}`,
           });
           continue;
         }
 
         const aiResponse = await response.json();
-        const summaryText =
-          aiResponse.choices?.[0]?.message?.content?.trim() ?? "";
+
+        // Grok Responses API: extract text from output array
+        const outputMessages = (aiResponse.output ?? []).filter(
+          (o: { type: string }) => o.type === "message"
+        );
+        const summaryText = outputMessages
+          .flatMap((m: { content: { type: string; text: string }[] }) =>
+            (m.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text)
+          )
+          .join("")
+          .trim();
 
         if (!summaryText) {
           results.push({
             user_id: userId,
             status: "failed",
-            error: "Empty response from OpenAI",
+            error: "Empty response from Grok",
           });
           continue;
         }
@@ -303,4 +320,14 @@ function buildFarmSummaryPrompt(
   );
 
   return lines.join("\n");
+}
+
+/** Returns ISO8601 date strings for the past 7 days (for x_search tool). */
+function getXSearchDateRange(): { from_date: string; to_date: string } {
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return {
+    from_date: weekAgo.toISOString().slice(0, 10),
+    to_date: now.toISOString().slice(0, 10),
+  };
 }
