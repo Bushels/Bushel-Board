@@ -66,6 +66,32 @@ export async function getGrainBySlug(slug: string): Promise<Grain | null> {
 }
 
 /**
+ * Fetch a single grain's overview row from v_grain_overview.
+ * Returns CW/CY deliveries that include both Primary + Process pathways.
+ */
+export async function getGrainOverviewBySlug(
+  slug: string
+): Promise<GrainOverviewRow | null> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("v_grain_overview")
+      .select("*")
+      .eq("slug", slug)
+      .single();
+
+    if (error) {
+      console.error("getGrainOverviewBySlug error:", error.message);
+      return null;
+    }
+    return data as GrainOverviewRow;
+  } catch (err) {
+    console.error("getGrainOverviewBySlug failed:", err);
+    return null;
+  }
+}
+
+/**
  * Fetch all grains ordered by display order.
  */
 export async function getGrainList(): Promise<

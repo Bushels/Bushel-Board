@@ -1,9 +1,14 @@
+import Link from "next/link";
 import { getGrainOverview } from "@/lib/queries/grains";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
 import { getCumulativeTimeSeries, getStorageBreakdown } from "@/lib/queries/observations";
+import { getGrainIntelligence } from "@/lib/queries/intelligence";
+import type { GrainIntelligence } from "@/lib/queries/intelligence";
 import type { SupplyDisposition } from "@/lib/queries/supply-disposition";
 import type { CumulativeWeekRow, StorageBreakdown } from "@/lib/queries/observations";
 import { CropSummaryCard } from "@/components/dashboard/crop-summary-card";
+import { AnimatedCard } from "@/components/motion/animated-card";
+import { StaggerGroup } from "@/components/motion/stagger-group";
 import { OverviewCharts } from "./client";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { createClient } from "@/lib/supabase/server";
@@ -43,13 +48,14 @@ export default async function OverviewPage() {
   }
 
   // Fetch all data in parallel
-  const [grainOverview, supplyData, ...weeklyAndStorage] = await Promise.all([
+  const [grainOverview, supplyData, ...weeklyStorageAndIntel] = await Promise.all([
     getGrainOverview(),
     getSupplyDispositionForGrains(activeGrains),
-    // Cumulative time series and storage for each grain (CGC uses grain names, not slugs)
+    // Cumulative time series, storage, and intelligence for each grain
     ...activeGrains.flatMap((slug) => [
       getCumulativeTimeSeries(GRAIN_NAMES[slug] ?? slug),
       getStorageBreakdown(GRAIN_NAMES[slug] ?? slug),
+      getGrainIntelligence(GRAIN_NAMES[slug] ?? slug),
     ]),
   ]);
 
@@ -59,12 +65,14 @@ export default async function OverviewPage() {
     supplyBySlug[row.grain_slug] = row;
   }
 
-  // Build weekly and storage data lookups
+  // Build weekly, storage, and intelligence data lookups
   const weeklyBySlug: Record<string, CumulativeWeekRow[]> = {};
   const storageBySlug: Record<string, StorageBreakdown[]> = {};
+  const intelBySlug: Record<string, GrainIntelligence | null> = {};
   activeGrains.forEach((slug, i) => {
-    weeklyBySlug[slug] = weeklyAndStorage[i * 2] as CumulativeWeekRow[];
-    storageBySlug[slug] = weeklyAndStorage[i * 2 + 1] as StorageBreakdown[];
+    weeklyBySlug[slug] = weeklyStorageAndIntel[i * 3] as CumulativeWeekRow[];
+    storageBySlug[slug] = weeklyStorageAndIntel[i * 3 + 1] as StorageBreakdown[];
+    intelBySlug[slug] = weeklyStorageAndIntel[i * 3 + 2] as GrainIntelligence | null;
   });
 
   // Build summary card data: match overview rows to supply data
@@ -102,6 +110,9 @@ export default async function OverviewPage() {
         </div>
       </section>
 
+      {/* Market Pulse — condensed intelligence cards */}
+      <MarketPulseSection intelBySlug={intelBySlug} grainNames={GRAIN_NAMES} activeGrains={activeGrains} />
+
       {/* Interactive Charts Section */}
       <section>
         <OverviewCharts
@@ -127,5 +138,102 @@ export default async function OverviewPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// --- Market Pulse Section ---
+
+const SENTIMENT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  bullish: { bg: "bg-prairie/10", text: "text-prairie", label: "Bullish" },
+  bearish: { bg: "bg-amber-500/10", text: "text-amber-600", label: "Bearish" },
+  neutral: { bg: "bg-muted", text: "text-muted-foreground", label: "Neutral" },
+};
+
+function MarketPulseSection({
+  intelBySlug,
+  grainNames,
+  activeGrains,
+}: {
+  intelBySlug: Record<string, GrainIntelligence | null>;
+  grainNames: Record<string, string>;
+  activeGrains: string[];
+}) {
+  const grainsWithIntel = activeGrains.filter(
+    (slug) => intelBySlug[slug]?.thesis_title
+  );
+
+  const hasAny = grainsWithIntel.length > 0;
+
+  return (
+    <section>
+      <h2 className="text-lg font-display font-semibold mb-4">Market Pulse</h2>
+
+      {!hasAny && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Intelligence generating... Check back after the next Thursday data update.
+          </p>
+        </div>
+      )}
+
+      {hasAny && (
+        <StaggerGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {grainsWithIntel.map((slug, i) => {
+            const intel = intelBySlug[slug]!;
+            const name = grainNames[slug] ?? slug;
+
+            // Derive dominant sentiment from insight signals
+            const signals = (intel.insights ?? []).map((i) => i.signal);
+            const bullishCount = signals.filter((s) => s === "bullish").length;
+            const bearishCount = signals.filter((s) => s === "bearish").length;
+            const sentimentKey = bullishCount > bearishCount
+              ? "bullish"
+              : bearishCount > bullishCount
+                ? "bearish"
+                : "neutral";
+            const style = SENTIMENT_STYLES[sentimentKey] ?? SENTIMENT_STYLES.neutral;
+
+            // Truncate thesis body to ~150 characters
+            const preview = intel.thesis_body
+              ? intel.thesis_body.length > 150
+                ? intel.thesis_body.slice(0, 147) + "..."
+                : intel.thesis_body
+              : "";
+
+            return (
+              <AnimatedCard key={slug} index={i}>
+                <Link
+                  href={`/grain/${slug}`}
+                  className="group flex flex-col gap-2.5 rounded-xl border border-border/40 bg-card/40 backdrop-blur-sm p-4 transition-colors duration-300 hover:border-canola/30 hover:shadow-lg"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-display font-semibold text-sm text-foreground">
+                      {name}
+                    </h3>
+                    <span className={`text-[0.6rem] font-semibold uppercase tracking-[2px] px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
+                      {style.label}
+                    </span>
+                  </div>
+
+                  <p className="font-display text-base font-semibold text-foreground leading-snug">
+                    {intel.thesis_title}
+                  </p>
+
+                  {preview && (
+                    <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">
+                      {preview}
+                    </p>
+                  )}
+
+                  <span className="text-[0.6rem] font-medium uppercase tracking-[2px] text-canola mt-auto pt-1 group-hover:underline">
+                    View Details
+                  </span>
+                </Link>
+              </AnimatedCard>
+            );
+          })}
+        </StaggerGroup>
+      )}
+    </section>
   );
 }

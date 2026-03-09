@@ -2,13 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Lock, Wheat } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getGrainBySlug } from "@/lib/queries/grains";
+import { getGrainBySlug, getGrainOverviewBySlug } from "@/lib/queries/grains";
 import {
   getDeliveryTimeSeries,
   getProvincialDeliveries,
   getShipmentDistribution,
   getCumulativeTimeSeries,
   getStorageBreakdown,
+  getWeekOverWeekComparison,
 } from "@/lib/queries/observations";
 import { getGrainIntelligence, getSupplyPipeline } from "@/lib/queries/intelligence";
 import { getXSignalsForGrain } from "@/lib/queries/x-signals";
@@ -31,6 +32,7 @@ import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
+import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
 import { GrainPageTransition } from "./client";
 
 interface Props {
@@ -65,7 +67,7 @@ export default async function GrainDetailPage({ params }: Props) {
     return <GrainLockedView grain={grain.name} />;
   }
 
-  const [deliveries, provincial, distribution, weeklyData, storageData, intelligence, supplyPipeline, xSignals] = await Promise.all([
+  const [deliveries, provincial, distribution, weeklyData, storageData, intelligence, supplyPipeline, xSignals, wowComparison, grainOverview] = await Promise.all([
     getDeliveryTimeSeries(grain.name),
     getProvincialDeliveries(grain.name),
     getShipmentDistribution(grain.name),
@@ -74,6 +76,8 @@ export default async function GrainDetailPage({ params }: Props) {
     getGrainIntelligence(grain.name),
     getSupplyPipeline(grain.slug),
     getXSignalsForGrain(grain.name),
+    getWeekOverWeekComparison(grain.name),
+    getGrainOverviewBySlug(grain.slug),
   ]);
 
   // Determine current grain week from delivery data
@@ -89,6 +93,21 @@ export default async function GrainDetailPage({ params }: Props) {
 
   // Aggregate total deliveries
   const totalDeliveries = deliveries.reduce((acc, row) => acc + row.ktonnes, 0);
+
+  // Override AI-generated delivery KPIs with v_grain_overview values.
+  // The AI kpi_data undercounts because the intelligence pipeline only used
+  // Primary Elevator deliveries. v_grain_overview includes both Primary +
+  // direct-to-processor (Process) pathways using actual period='Current Week'
+  // values, which avoids the cumulative differencing error where CGC revisions
+  // cause CY(week N) - CY(week N-1) ≠ CW(week N).
+  const correctedKpiData = intelligence?.kpi_data
+    ? { ...intelligence.kpi_data }
+    : undefined;
+  if (correctedKpiData && grainOverview) {
+    correctedKpiData.cw_deliveries_kt = grainOverview.cw_deliveries_kt;
+    correctedKpiData.cy_deliveries_kt = grainOverview.cy_deliveries_kt;
+    correctedKpiData.wow_deliveries_pct = grainOverview.wow_pct_change;
+  }
 
   // Extract user's deliveries from crop plan (or empty array)
   const userDeliveries: DeliveryEntry[] = userPlan?.deliveries ?? [];
@@ -146,14 +165,20 @@ export default async function GrainDetailPage({ params }: Props) {
 
       {/* ═══ Zone 2: Market Signals ═══ */}
       <StaggerGroup className="space-y-6">
-        {intelligence?.kpi_data && (
+        {correctedKpiData && (
           <AnimatedCard index={0}>
-            <IntelligenceKpis data={intelligence.kpi_data} />
+            <IntelligenceKpis data={correctedKpiData} />
+          </AnimatedCard>
+        )}
+
+        {wowComparison && (
+          <AnimatedCard index={1}>
+            <WoWComparisonCard data={wowComparison} />
           </AnimatedCard>
         )}
 
         {supplyPipeline && (
-          <AnimatedCard index={1}>
+          <AnimatedCard index={2}>
             <SupplyPipeline
               carry_in_kt={supplyPipeline.carry_in_kt}
               production_kt={supplyPipeline.production_kt}
@@ -168,7 +193,7 @@ export default async function GrainDetailPage({ params }: Props) {
         )}
 
         {intelligence?.insights && intelligence.insights.length > 0 && (
-          <AnimatedCard index={2}>
+          <AnimatedCard index={3}>
             <div className="space-y-3">
               <h2 className="text-lg font-display font-semibold">Market Signals</h2>
               <InsightCards insights={intelligence.insights} xSignals={xSignals} grainName={grain.name} />
@@ -236,7 +261,7 @@ export default async function GrainDetailPage({ params }: Props) {
       <StaggerGroup className="space-y-6">
         <AnimatedCard index={0}>
           <div className="pt-4">
-            <h2 className="text-xl font-display font-semibold mb-4">Delivery Velocity vs Disappearance</h2>
+            <h2 className="text-xl font-display font-semibold mb-4">Pipeline Velocity</h2>
             <GamifiedGrainChart
               weeklyData={weeklyData}
               userDeliveries={userDeliveries}

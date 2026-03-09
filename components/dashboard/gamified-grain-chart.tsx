@@ -52,7 +52,7 @@ export function GamifiedGrainChart({
 
   // Merge CGC weekly data with user deliveries (forward-fill last known value)
   const chartData = weeklyData.reduce<
-    { week: number; weekDate: string; deliveries: number; disappearance: number; exports: number; processing: number; userDeliveries: number | undefined }[]
+    { week: number; weekDate: string; deliveries: number; terminalReceipts: number; exports: number; processing: number; userDeliveries: number | undefined }[]
   >((acc, row) => {
     const userVal = userByWeek.get(row.grain_week);
     const prev = acc.length > 0 ? acc[acc.length - 1].userDeliveries ?? 0 : 0;
@@ -61,7 +61,7 @@ export function GamifiedGrainChart({
       week: row.grain_week,
       weekDate: row.week_ending_date,
       deliveries: row.producer_deliveries_kt,
-      disappearance: row.domestic_disappearance_kt,
+      terminalReceipts: row.terminal_receipts_kt,
       exports: row.exports_kt,
       processing: row.processing_kt,
       userDeliveries: currentVal > 0 ? currentVal : undefined,
@@ -143,13 +143,36 @@ export function GamifiedGrainChart({
             strokeWidth={2}
           />
 
-          {/* Domestic disappearance line */}
+          {/* Terminal Receipts - solid line (grain reaching terminals) */}
           <Line
             yAxisId="left"
             type="monotone"
-            dataKey="disappearance"
-            name="Domestic Disappearance"
+            dataKey="terminalReceipts"
+            name="Terminal Receipts"
+            stroke="var(--color-province-sk)"
+            strokeWidth={2}
+            dot={false}
+          />
+
+          {/* Exports - dashed line */}
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="exports"
+            name="Exports"
             stroke="var(--color-prairie)"
+            strokeWidth={2}
+            strokeDasharray="8 4"
+            dot={false}
+          />
+
+          {/* Processing / Crush - dotted line */}
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="processing"
+            name="Processing"
+            stroke="var(--color-province-mb)"
             strokeWidth={2}
             strokeDasharray="4 4"
             dot={false}

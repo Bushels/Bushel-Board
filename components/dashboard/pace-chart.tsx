@@ -20,7 +20,11 @@ interface TooltipPayloadEntry {
   color: string;
   name: string;
   value: number;
-  payload?: { exports_kt?: number; processing_kt?: number };
+  payload?: {
+    exports_kt?: number;
+    processing_kt?: number;
+    terminal_receipts_kt?: number;
+  };
 }
 
 function PaceTooltip({
@@ -34,7 +38,7 @@ function PaceTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border bg-card/95 backdrop-blur-sm p-3 shadow-lg min-w-[200px]">
+    <div className="rounded-lg border bg-card/95 backdrop-blur-sm p-3 shadow-lg min-w-[220px]">
       <p className="font-semibold text-sm mb-1">{label}</p>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex justify-between text-sm gap-4">
@@ -43,14 +47,10 @@ function PaceTooltip({
         </div>
       ))}
       {payload[0]?.payload && (
-        <div className="mt-1 pt-1 border-t text-xs text-muted-foreground">
+        <div className="mt-1 pt-1 border-t text-xs text-muted-foreground space-y-0.5">
           <div className="flex justify-between">
-            <span>Exports</span>
-            <span>{fmtKt(payload[0].payload.exports_kt ?? 0)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Processing</span>
-            <span>{fmtKt(payload[0].payload.processing_kt ?? 0)}</span>
+            <span>Terminal Receipts</span>
+            <span>{fmtKt(payload[0].payload.terminal_receipts_kt ?? 0)}</span>
           </div>
         </div>
       )}
@@ -114,14 +114,37 @@ export function PaceChart({
             animationDuration={1000}
           />
 
-          {/* Domestic Disappearance - dashed line */}
+          {/* Terminal Receipts - solid line (grain reaching terminals) */}
           <Line
             type="monotone"
-            dataKey="domestic_disappearance_kt"
-            name="Domestic Disappearance"
+            dataKey="terminal_receipts_kt"
+            name="Terminal Receipts"
+            stroke="var(--color-province-sk)"
+            strokeWidth={2}
+            dot={false}
+            animationDuration={1000}
+          />
+
+          {/* Exports - dashed line */}
+          <Line
+            type="monotone"
+            dataKey="exports_kt"
+            name="Exports"
             stroke="var(--color-prairie)"
             strokeWidth={2}
             strokeDasharray="8 4"
+            dot={false}
+            animationDuration={1000}
+          />
+
+          {/* Processing / Crush - dotted line */}
+          <Line
+            type="monotone"
+            dataKey="processing_kt"
+            name="Processing"
+            stroke="var(--color-province-mb)"
+            strokeWidth={2}
+            strokeDasharray="4 4"
             dot={false}
             animationDuration={1000}
           />
