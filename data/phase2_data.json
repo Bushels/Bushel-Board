@@ -1,0 +1,777 @@
+{
+  "cot": {
+    "canola": {
+      "label": "Canola",
+      "market": "CANOLA - ICE FUTURES U.S.",
+      "data": [
+        {
+          "date": "2025-12-09",
+          "open_interest": 306627,
+          "commercial_long": 195813,
+          "commercial_short": 133250,
+          "noncommercial_long": 51609,
+          "noncommercial_short": 112939,
+          "noncommercial_spread": 57047,
+          "net_commercial": 62563,
+          "net_noncommercial": -61330,
+          "change_oi": 7947
+        },
+        {
+          "date": "2025-12-16",
+          "open_interest": 295130,
+          "commercial_long": 195382,
+          "commercial_short": 110627,
+          "noncommercial_long": 51719,
+          "noncommercial_short": 135472,
+          "noncommercial_spread": 46706,
+          "net_commercial": 84755,
+          "net_noncommercial": -83753,
+          "change_oi": -11497
+        },
+        {
+          "date": "2025-12-23",
+          "open_interest": 286809,
+          "commercial_long": 193978,
+          "commercial_short": 94630,
+          "noncommercial_long": 49252,
+          "noncommercial_short": 148128,
+          "noncommercial_spread": 42062,
+          "net_commercial": 99348,
+          "net_noncommercial": -98876,
+          "change_oi": -8321
+        },
+        {
+          "date": "2025-12-30",
+          "open_interest": 282341,
+          "commercial_long": 191994,
+          "commercial_short": 93078,
+          "noncommercial_long": 48268,
+          "noncommercial_short": 146647,
+          "noncommercial_spread": 40727,
+          "net_commercial": 98916,
+          "net_noncommercial": -98379,
+          "change_oi": -4468
+        },
+        {
+          "date": "2026-01-06",
+          "open_interest": 271818,
+          "commercial_long": 184887,
+          "commercial_short": 87866,
+          "noncommercial_long": 48993,
+          "noncommercial_short": 145675,
+          "noncommercial_spread": 33787,
+          "net_commercial": 97021,
+          "net_noncommercial": -96682,
+          "change_oi": -10523
+        },
+        {
+          "date": "2026-01-13",
+          "open_interest": 276695,
+          "commercial_long": 192781,
+          "commercial_short": 100325,
+          "noncommercial_long": 49323,
+          "noncommercial_short": 140532,
+          "noncommercial_spread": 33304,
+          "net_commercial": 92456,
+          "net_noncommercial": -91209,
+          "change_oi": 4876
+        },
+        {
+          "date": "2026-01-20",
+          "open_interest": 300661,
+          "commercial_long": 208734,
+          "commercial_short": 122516,
+          "noncommercial_long": 48748,
+          "noncommercial_short": 133508,
+          "noncommercial_spread": 41828,
+          "net_commercial": 86218,
+          "net_noncommercial": -84760,
+          "change_oi": 23967
+        },
+        {
+          "date": "2026-01-27",
+          "open_interest": 302891,
+          "commercial_long": 208143,
+          "commercial_short": 132290,
+          "noncommercial_long": 46560,
+          "noncommercial_short": 121002,
+          "noncommercial_spread": 46825,
+          "net_commercial": 75853,
+          "net_noncommercial": -74442,
+          "change_oi": 2230
+        },
+        {
+          "date": "2026-02-03",
+          "open_interest": 310967,
+          "commercial_long": 209829,
+          "commercial_short": 144307,
+          "noncommercial_long": 51057,
+          "noncommercial_short": 114969,
+          "noncommercial_spread": 48558,
+          "net_commercial": 65522,
+          "net_noncommercial": -63912,
+          "change_oi": 8075
+        },
+        {
+          "date": "2026-02-10",
+          "open_interest": 322036,
+          "commercial_long": 208667,
+          "commercial_short": 181975,
+          "noncommercial_long": 63083,
+          "noncommercial_short": 88383,
+          "noncommercial_spread": 48871,
+          "net_commercial": 26692,
+          "net_noncommercial": -25300,
+          "change_oi": 11069
+        },
+        {
+          "date": "2026-02-17",
+          "open_interest": 323526,
+          "commercial_long": 203402,
+          "commercial_short": 181842,
+          "noncommercial_long": 69074,
+          "noncommercial_short": 89169,
+          "noncommercial_spread": 48952,
+          "net_commercial": 21560,
+          "net_noncommercial": -20095,
+          "change_oi": 1490
+        },
+        {
+          "date": "2026-02-24",
+          "open_interest": 310667,
+          "commercial_long": 184875,
+          "commercial_short": 188287,
+          "noncommercial_long": 82534,
+          "noncommercial_short": 77405,
+          "noncommercial_spread": 41390,
+          "net_commercial": -3412,
+          "net_noncommercial": 5129,
+          "change_oi": -12859
+        }
+      ]
+    },
+    "wheat_hrs": {
+      "label": "HRS Wheat",
+      "market": "WHEAT-HRSpring - MIAX FUTURES EXCHANGE",
+      "data": [
+        {
+          "date": "2025-12-09",
+          "open_interest": 68859,
+          "commercial_long": 40017,
+          "commercial_short": 23316,
+          "noncommercial_long": 13361,
+          "noncommercial_short": 30137,
+          "noncommercial_spread": 5995,
+          "net_commercial": 16701,
+          "net_noncommercial": -16776,
+          "change_oi": 555
+        },
+        {
+          "date": "2025-12-16",
+          "open_interest": 70236,
+          "commercial_long": 40474,
+          "commercial_short": 23024,
+          "noncommercial_long": 12208,
+          "noncommercial_short": 30505,
+          "noncommercial_spread": 6874,
+          "net_commercial": 17450,
+          "net_noncommercial": -18297,
+          "change_oi": 1377
+        },
+        {
+          "date": "2025-12-23",
+          "open_interest": 69598,
+          "commercial_long": 40476,
+          "commercial_short": 23493,
+          "noncommercial_long": 12629,
+          "noncommercial_short": 29989,
+          "noncommercial_spread": 6728,
+          "net_commercial": 16983,
+          "net_noncommercial": -17360,
+          "change_oi": -638
+        },
+        {
+          "date": "2025-12-30",
+          "open_interest": 68475,
+          "commercial_long": 38847,
+          "commercial_short": 23529,
+          "noncommercial_long": 13564,
+          "noncommercial_short": 29161,
+          "noncommercial_spread": 7008,
+          "net_commercial": 15318,
+          "net_noncommercial": -15597,
+          "change_oi": -1123
+        },
+        {
+          "date": "2026-01-06",
+          "open_interest": 69063,
+          "commercial_long": 38756,
+          "commercial_short": 22872,
+          "noncommercial_long": 12847,
+          "noncommercial_short": 29122,
+          "noncommercial_spread": 7529,
+          "net_commercial": 15884,
+          "net_noncommercial": -16275,
+          "change_oi": 589
+        },
+        {
+          "date": "2026-01-13",
+          "open_interest": 73153,
+          "commercial_long": 42217,
+          "commercial_short": 25873,
+          "noncommercial_long": 14048,
+          "noncommercial_short": 29987,
+          "noncommercial_spread": 8004,
+          "net_commercial": 16344,
+          "net_noncommercial": -15939,
+          "change_oi": 4090
+        },
+        {
+          "date": "2026-01-20",
+          "open_interest": 74649,
+          "commercial_long": 40832,
+          "commercial_short": 24259,
+          "noncommercial_long": 14354,
+          "noncommercial_short": 30988,
+          "noncommercial_spread": 9009,
+          "net_commercial": 16573,
+          "net_noncommercial": -16634,
+          "change_oi": 1495
+        },
+        {
+          "date": "2026-01-27",
+          "open_interest": 76038,
+          "commercial_long": 40204,
+          "commercial_short": 23828,
+          "noncommercial_long": 14367,
+          "noncommercial_short": 30944,
+          "noncommercial_spread": 10474,
+          "net_commercial": 16376,
+          "net_noncommercial": -16577,
+          "change_oi": 1389
+        },
+        {
+          "date": "2026-02-03",
+          "open_interest": 75979,
+          "commercial_long": 40613,
+          "commercial_short": 25992,
+          "noncommercial_long": 14550,
+          "noncommercial_short": 29589,
+          "noncommercial_spread": 10770,
+          "net_commercial": 14621,
+          "net_noncommercial": -15039,
+          "change_oi": -59
+        },
+        {
+          "date": "2026-02-10",
+          "open_interest": 73469,
+          "commercial_long": 40956,
+          "commercial_short": 26904,
+          "noncommercial_long": 13979,
+          "noncommercial_short": 27548,
+          "noncommercial_spread": 7375,
+          "net_commercial": 14052,
+          "net_noncommercial": -13569,
+          "change_oi": -2511
+        },
+        {
+          "date": "2026-02-17",
+          "open_interest": 74472,
+          "commercial_long": 42882,
+          "commercial_short": 29525,
+          "noncommercial_long": 15360,
+          "noncommercial_short": 28544,
+          "noncommercial_spread": 6028,
+          "net_commercial": 13357,
+          "net_noncommercial": -13184,
+          "change_oi": 1003
+        },
+        {
+          "date": "2026-02-24",
+          "open_interest": 69795,
+          "commercial_long": 36412,
+          "commercial_short": 32216,
+          "noncommercial_long": 19375,
+          "noncommercial_short": 23793,
+          "noncommercial_spread": 5006,
+          "net_commercial": 4196,
+          "net_noncommercial": -4418,
+          "change_oi": -4677
+        }
+      ]
+    }
+  },
+  "cn_rail": {
+    "label": "CN Rail Western Canadian Grain",
+    "ytd_tonnes_mmt": 16.5,
+    "vs_3yr_avg_pct": 9,
+    "vs_last_year_pct": 1,
+    "max_capacity_cars": 5350,
+    "max_capacity_tonnes": 595000,
+    "weekly": [
+      {
+        "week": 21,
+        "shipped_tonnes": 465000,
+        "cars_shipped": 3832,
+        "pct_capacity": 72,
+        "date": "2025-12-28"
+      },
+      {
+        "week": 22,
+        "shipped_tonnes": 551000,
+        "cars_shipped": 4250,
+        "pct_capacity": 79,
+        "date": "2026-01-04"
+      },
+      {
+        "week": 23,
+        "shipped_tonnes": 575000,
+        "cars_shipped": 4500,
+        "pct_capacity": 84,
+        "date": "2026-01-11"
+      },
+      {
+        "week": 24,
+        "shipped_tonnes": 633000,
+        "cars_shipped": 5608,
+        "pct_capacity": 105,
+        "date": "2026-01-18"
+      },
+      {
+        "week": 25,
+        "shipped_tonnes": 580000,
+        "cars_shipped": 5100,
+        "pct_capacity": 95,
+        "date": "2026-01-25"
+      },
+      {
+        "week": 26,
+        "shipped_tonnes": 683000,
+        "cars_shipped": 6063,
+        "pct_capacity": 113,
+        "date": "2026-02-01"
+      },
+      {
+        "week": 27,
+        "shipped_tonnes": 620000,
+        "cars_shipped": 5500,
+        "pct_capacity": 103,
+        "date": "2026-02-08"
+      },
+      {
+        "week": 28,
+        "shipped_tonnes": 640000,
+        "cars_shipped": 5700,
+        "pct_capacity": 107,
+        "date": "2026-02-15"
+      },
+      {
+        "week": 29,
+        "shipped_tonnes": 660000,
+        "cars_shipped": 5800,
+        "pct_capacity": 108,
+        "date": "2026-02-22"
+      }
+    ],
+    "disruptions": [
+      {
+        "week": 21,
+        "text": "Cold weather limiting train lengths across Western Canada"
+      },
+      {
+        "week": 24,
+        "text": "Yale subdivision washout causing out of car time"
+      },
+      {
+        "week": 26,
+        "text": "Nechako subdivision derailment reduced empty supply flowing back"
+      }
+    ],
+    "corridors": {
+      "vancouver": {
+        "ytd_mmt": 6.4,
+        "pct_total": 39
+      },
+      "prince_rupert": {
+        "ytd_mmt": 2.6,
+        "pct_total": 16
+      },
+      "thunder_bay": {
+        "ytd_mmt": 1.9,
+        "pct_total": 12
+      },
+      "domestic": {
+        "ytd_mmt": 2.7,
+        "pct_total": 16
+      },
+      "us_exports": {
+        "ytd_mmt": 0.0,
+        "pct_total": 0
+      }
+    }
+  },
+  "cp_rail": {
+    "label": "CPKC Western Canadian Grain",
+    "ytd_tonnes_mmt": 14.2,
+    "vs_3yr_avg_pct": 7,
+    "weekly_latest": {
+      "week": 29,
+      "shipped_tonnes": 550000,
+      "date": "2026-02-22"
+    }
+  },
+  "elevator_bids": {
+    "updated": "2026-02-27",
+    "source": "Alberta Agriculture / ICE Futures",
+    "locations": [
+      {
+        "name": "Lethbridge",
+        "province": "AB",
+        "lat": 49.6935,
+        "lng": -112.8328,
+        "company": "Viterra",
+        "bids": {
+          "Canola": 645.0,
+          "CWRS Wheat": 312.5,
+          "Feed Barley": 278.0,
+          "Durum": 395.0
+        }
+      },
+      {
+        "name": "Calgary",
+        "province": "AB",
+        "lat": 51.0447,
+        "lng": -114.0719,
+        "company": "Cargill",
+        "bids": {
+          "Canola": 642.0,
+          "CWRS Wheat": 310.0,
+          "Feed Barley": 275.0
+        }
+      },
+      {
+        "name": "Edmonton",
+        "province": "AB",
+        "lat": 53.5461,
+        "lng": -113.4938,
+        "company": "Richardson",
+        "bids": {
+          "Canola": 648.0,
+          "CWRS Wheat": 315.0,
+          "Feed Barley": 280.0,
+          "Oats": 245.0
+        }
+      },
+      {
+        "name": "Red Deer",
+        "province": "AB",
+        "lat": 52.2681,
+        "lng": -113.8112,
+        "company": "Parrish & Heimbecker",
+        "bids": {
+          "Canola": 640.0,
+          "CWRS Wheat": 308.0,
+          "Feed Barley": 272.0
+        }
+      },
+      {
+        "name": "Camrose",
+        "province": "AB",
+        "lat": 53.0168,
+        "lng": -112.8341,
+        "company": "Viterra",
+        "bids": {
+          "Canola": 643.0,
+          "CWRS Wheat": 311.0
+        }
+      },
+      {
+        "name": "Grande Prairie",
+        "province": "AB",
+        "lat": 55.1707,
+        "lng": -118.7887,
+        "company": "Pioneer",
+        "bids": {
+          "Canola": 635.0,
+          "CWRS Wheat": 305.0,
+          "Feed Barley": 268.0
+        }
+      },
+      {
+        "name": "Regina",
+        "province": "SK",
+        "lat": 50.4452,
+        "lng": -104.6189,
+        "company": "Viterra",
+        "bids": {
+          "Canola": 650.0,
+          "CWRS Wheat": 318.0,
+          "Feed Barley": 282.0,
+          "Durum": 400.0,
+          "Lentils": 680.0
+        }
+      },
+      {
+        "name": "Saskatoon",
+        "province": "SK",
+        "lat": 52.1332,
+        "lng": -106.67,
+        "company": "Cargill",
+        "bids": {
+          "Canola": 652.0,
+          "CWRS Wheat": 320.0,
+          "Feed Barley": 285.0,
+          "Flax": 595.0
+        }
+      },
+      {
+        "name": "Swift Current",
+        "province": "SK",
+        "lat": 50.2881,
+        "lng": -107.7938,
+        "company": "Richardson",
+        "bids": {
+          "Canola": 647.0,
+          "CWRS Wheat": 315.0,
+          "Durum": 397.0,
+          "Mustard": 720.0
+        }
+      },
+      {
+        "name": "Moose Jaw",
+        "province": "SK",
+        "lat": 50.3934,
+        "lng": -105.5519,
+        "company": "Viterra",
+        "bids": {
+          "Canola": 649.0,
+          "CWRS Wheat": 316.0,
+          "Feed Barley": 280.0
+        }
+      },
+      {
+        "name": "Yorkton",
+        "province": "SK",
+        "lat": 51.2139,
+        "lng": -102.4628,
+        "company": "Cargill",
+        "bids": {
+          "Canola": 653.0,
+          "CWRS Wheat": 322.0,
+          "Feed Barley": 288.0
+        }
+      },
+      {
+        "name": "North Battleford",
+        "province": "SK",
+        "lat": 52.7575,
+        "lng": -108.286,
+        "company": "Pioneer",
+        "bids": {
+          "Canola": 646.0,
+          "CWRS Wheat": 314.0
+        }
+      },
+      {
+        "name": "Winnipeg",
+        "province": "MB",
+        "lat": 49.8951,
+        "lng": -97.1384,
+        "company": "Richardson",
+        "bids": {
+          "Canola": 655.0,
+          "CWRS Wheat": 325.0,
+          "Feed Barley": 290.0,
+          "Oats": 250.0,
+          "Flax": 600.0
+        }
+      },
+      {
+        "name": "Brandon",
+        "province": "MB",
+        "lat": 49.844,
+        "lng": -99.953,
+        "company": "Cargill",
+        "bids": {
+          "Canola": 651.0,
+          "CWRS Wheat": 321.0,
+          "Feed Barley": 286.0
+        }
+      },
+      {
+        "name": "Portage la Prairie",
+        "province": "MB",
+        "lat": 49.9729,
+        "lng": -98.2925,
+        "company": "Viterra",
+        "bids": {
+          "Canola": 654.0,
+          "CWRS Wheat": 323.0,
+          "Oats": 248.0
+        }
+      },
+      {
+        "name": "Dauphin",
+        "province": "MB",
+        "lat": 51.1492,
+        "lng": -100.0502,
+        "company": "Parrish & Heimbecker",
+        "bids": {
+          "Canola": 648.0,
+          "CWRS Wheat": 318.0
+        }
+      }
+    ]
+  },
+  "port_data": {
+    "updated": "2026-02-27",
+    "terminals": [
+      {
+        "name": "Vancouver",
+        "type": "West Coast",
+        "lat": 49.2906,
+        "lng": -123.1086,
+        "facilities": [
+          "Viterra Pacific",
+          "Richardson International",
+          "Cargill",
+          "Alliance Grain Terminal"
+        ],
+        "capacity_mt_day": 95000,
+        "vessels_loading": 3,
+        "vessels_waiting": 5,
+        "ytd_exports_mmt": 9.4,
+        "weekly_exports_kt": 220.0,
+        "lineups_days": 12,
+        "status": "operational",
+        "notes": "Normal operations. 3 vessels at berth, 5 in anchorage."
+      },
+      {
+        "name": "Prince Rupert",
+        "type": "West Coast",
+        "lat": 54.315,
+        "lng": -130.3208,
+        "facilities": [
+          "Prince Rupert Grain Terminal"
+        ],
+        "capacity_mt_day": 28000,
+        "vessels_loading": 1,
+        "vessels_waiting": 2,
+        "ytd_exports_mmt": 2.6,
+        "weekly_exports_kt": 48.0,
+        "lineups_days": 8,
+        "status": "operational",
+        "notes": "Terminal does not operate 24/7. Normal throughput."
+      },
+      {
+        "name": "Thunder Bay",
+        "type": "Great Lakes",
+        "lat": 48.3809,
+        "lng": -89.2477,
+        "facilities": [
+          "Richardson",
+          "Viterra",
+          "Cargill",
+          "Superior Elevator"
+        ],
+        "capacity_mt_day": 65000,
+        "vessels_loading": 0,
+        "vessels_waiting": 0,
+        "ytd_exports_mmt": 1.9,
+        "weekly_exports_kt": 0,
+        "lineups_days": 0,
+        "status": "winter_closed",
+        "notes": "Seaway closed for winter. Reopens late March/April."
+      },
+      {
+        "name": "Churchill",
+        "type": "Hudson Bay",
+        "lat": 58.7684,
+        "lng": -94.165,
+        "facilities": [
+          "Hudson Bay Port Company"
+        ],
+        "capacity_mt_day": 10000,
+        "vessels_loading": 0,
+        "vessels_waiting": 0,
+        "ytd_exports_mmt": 0.0,
+        "weekly_exports_kt": 0,
+        "lineups_days": 0,
+        "status": "seasonal_closed",
+        "notes": "Seasonal port. Open Aug-Nov."
+      }
+    ]
+  },
+  "news_feed": [
+    {
+      "date": "2026-02-27",
+      "source": "GrainNews",
+      "title": "Canola futures rally on Chinese demand signals",
+      "category": "canola",
+      "impact": "bullish"
+    },
+    {
+      "date": "2026-02-26",
+      "source": "Reuters",
+      "title": "CFTC: Managed money flips net long on canola for first time since Oct",
+      "category": "canola",
+      "impact": "bullish"
+    },
+    {
+      "date": "2026-02-25",
+      "source": "Western Producer",
+      "title": "CN Rail: Nechako derailment cleaned up, grain corridor fully restored",
+      "category": "logistics",
+      "impact": "neutral"
+    },
+    {
+      "date": "2026-02-24",
+      "source": "MarketsFarm",
+      "title": "AAFC raises canola crush forecast to 12.0 Mt on strong margins",
+      "category": "canola",
+      "impact": "bullish"
+    },
+    {
+      "date": "2026-02-24",
+      "source": "DTN",
+      "title": "US tariff uncertainty pressures spring wheat basis",
+      "category": "wheat",
+      "impact": "bearish"
+    },
+    {
+      "date": "2026-02-21",
+      "source": "Alberta Farmer",
+      "title": "Feed barley basis strengthens on tight AB supplies",
+      "category": "barley",
+      "impact": "bullish"
+    },
+    {
+      "date": "2026-02-20",
+      "source": "GrainNews",
+      "title": "Seeding intentions survey: canola acres expected to rise 3%",
+      "category": "canola",
+      "impact": "bearish"
+    },
+    {
+      "date": "2026-02-19",
+      "source": "CGC",
+      "title": "Weekly deliveries down 12% WoW on winter storm disruptions",
+      "category": "general",
+      "impact": "neutral"
+    },
+    {
+      "date": "2026-02-18",
+      "source": "CPKC",
+      "title": "CPKC reports record grain movement through week 28",
+      "category": "logistics",
+      "impact": "bullish"
+    },
+    {
+      "date": "2026-02-17",
+      "source": "Western Producer",
+      "title": "India may lift wheat import duty, potential boon for CWRS exports",
+      "category": "wheat",
+      "impact": "bullish"
+    }
+  ]
+}

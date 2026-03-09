@@ -7,8 +7,9 @@
  * Triggered by pg_cron every Thursday at 8pm UTC (1pm MST) or manually via POST.
  *
  * Request body (optional):
- *   { "week": 29, "crop_year": "2025-26" }
+ *   { "week": 29, "crop_year": "2025-26", "csv_data": "..." }
  *
+ * If csv_data is provided, uses it directly instead of fetching from CGC.
  * If no body is provided, auto-detects the current grain week and crop year.
  */
 
@@ -128,37 +129,53 @@ Deno.serve(async (req) => {
     const cropYear: string = body.crop_year || getCurrentCropYear();
 
     console.log(
-      `Fetching CGC data for week ${targetWeek}, crop year ${cropYear}`
+      `Importing CGC data for week ${targetWeek}, crop year ${cropYear}`
     );
 
-    // Fetch the individual week CSV from CGC
-    const csvUrl = `${CGC_BASE_URL}gsw-shg-${targetWeek}-en.csv`;
-    const response = await fetch(csvUrl);
+    // Use pre-fetched CSV if provided (Vercel cron proxy), otherwise fetch from CGC
+    let csvText: string;
 
-    if (!response.ok) {
-      // Log the failure and return a non-500 so pg_cron does not retry
-      await supabase.from("cgc_imports").insert({
-        crop_year: cropYear,
-        grain_week: targetWeek,
-        source_file: `gsw-shg-${targetWeek}-en.csv`,
-        rows_inserted: 0,
-        rows_skipped: 0,
-        status: "failed",
-        error_message: `HTTP ${response.status}: ${response.statusText}`,
-      });
+    if (body.csv_data && typeof body.csv_data === "string") {
+      console.log(`Using pre-fetched CSV data (${body.csv_data.length} bytes)`);
+      csvText = body.csv_data;
+    } else {
+      const csvUrl = `${CGC_BASE_URL}gsw-shg-${targetWeek}-en.csv`;
+      console.log(`Fetching CSV from CGC: ${csvUrl}`);
+      const response = await fetch(csvUrl);
 
+      if (!response.ok) {
+        await supabase.from("cgc_imports").insert({
+          crop_year: cropYear,
+          grain_week: targetWeek,
+          source_file: `gsw-shg-${targetWeek}-en.csv`,
+          rows_inserted: 0,
+          rows_skipped: 0,
+          status: "failed",
+          error_message: `HTTP ${response.status}: ${response.statusText}`,
+        });
+
+        return new Response(
+          JSON.stringify({
+            error: `Failed to fetch week ${targetWeek}`,
+            status: response.status,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      csvText = await response.text();
+    }
+
+    const rows = parseCgcCsv(csvText);
+    console.log(`Parsed ${rows.length} rows`);
+
+    if (rows.length === 0) {
+      console.log(`No rows parsed for week ${targetWeek} — CSV may not be published yet`);
       return new Response(
-        JSON.stringify({
-          error: `Failed to fetch week ${targetWeek}`,
-          status: response.status,
-        }),
+        JSON.stringify({ week: targetWeek, crop_year: cropYear, inserted: 0, skipped: 0, message: "No data rows in CSV" }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     }
-
-    const csvText = await response.text();
-    const rows = parseCgcCsv(csvText);
-    console.log(`Parsed ${rows.length} rows`);
 
     // Batch upsert — 500 rows per batch (Edge Function has tighter limits)
     let inserted = 0;
@@ -193,12 +210,12 @@ Deno.serve(async (req) => {
       status: skipped > 0 ? "partial" : "success",
     });
 
-    // Chain-trigger: search-x-intelligence → generate-intelligence → generate-farm-summary
+    // Chain-trigger: validate-import → (if pass) search-x-intelligence → generate-intelligence → generate-farm-summary
     if (skipped === 0) {
       try {
-        console.log("Triggering X market signal search...");
-        const intRes = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-x-intelligence`,
+        console.log("Triggering post-import validation...");
+        const valRes = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/validate-import`,
           {
             method: "POST",
             headers: {
@@ -208,14 +225,14 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
           }
         );
-        console.log(`search-x-intelligence trigger: HTTP ${intRes.status}`);
-        if (!intRes.ok) {
-          const errBody = await intRes.text();
-          console.error(`search-x-intelligence trigger failed: ${errBody.slice(0, 300)}`);
+        console.log(`validate-import trigger: HTTP ${valRes.status}`);
+        if (!valRes.ok) {
+          const errBody = await valRes.text();
+          console.error(`validate-import trigger failed: ${errBody.slice(0, 300)}`);
         }
       } catch (chainErr) {
-        console.error("search-x-intelligence chain-trigger failed:", chainErr);
-        // Don't fail the import — intelligence pipeline is best-effort
+        console.error("validate-import chain-trigger failed:", chainErr);
+        // Don't fail the import — validation/intelligence pipeline is best-effort
       }
     }
 
