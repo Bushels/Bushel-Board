@@ -38,7 +38,7 @@ class Particle {
     this.speedY = (Math.random() - 0.5) * 0.3;
   }
 
-  update(mouse: { x: number; y: number; radius: number }, _canvasWidth: number, _canvasHeight: number) {
+  update(mouse: { x: number; y: number; radius: number }) {
     // Interactivity: React to mouse
     const dx = mouse.x - this.x;
     const dy = mouse.y - this.y;
@@ -159,7 +159,7 @@ export function GrainParticles() {
     function animate() {
       ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
       for (let i = 0; i < particlesArray.length; i++) {
-        particlesArray[i].update(mouse, canvas!.width, canvas!.height);
+        particlesArray[i].update(mouse);
         particlesArray[i].draw(ctx!);
       }
       // Light connections

@@ -13,7 +13,7 @@ export class WheatStalk {
   headDroop: number;
   thickness: number;
 
-  constructor(x: number, baseY: number, depth: number, _canvasH: number) {
+  constructor(x: number, baseY: number, depth: number) {
     this.x = x;
     this.baseY = baseY;
     const depthScale = 0.5 + depth * 0.5;
@@ -96,7 +96,7 @@ export function createWheatField(
     const x = Math.random() * canvasW;
     const depth = Math.random();
     const baseY = fieldTop + depth * (fieldBottom - fieldTop);
-    stalks.push(new WheatStalk(x, baseY, depth, canvasH));
+    stalks.push(new WheatStalk(x, baseY, depth));
   }
 
   stalks.sort((a, b) => a.baseY - b.baseY);
