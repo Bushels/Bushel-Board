@@ -91,5 +91,14 @@ Generate a JSON object with the intelligence analysis. Include 3-6 insight cards
 - Do NOT give financial advice. Frame insights as "data suggests" or "the numbers show".
 - For grains with minimal data (low volumes, few regions), generate fewer insights (2-3).
 - If no relevant X posts are found, skip "social" signals — do not fabricate social media references.
-- Return ONLY the JSON object.`;
+- Return ONLY the JSON object.
+10. Each insight MUST include a "sources" array listing data provenance:
+    - "CGC" for Canadian Grain Commission weekly data (deliveries, shipments, stocks)
+    - "AAFC" for Agriculture & Agri-Food Canada balance sheet (production, supply, carry-out)
+    - "X" for X/Twitter social signal (only if referencing social data)
+    - "Derived" for calculated metrics (ratios, percentages, comparisons)
+11. Each insight MUST include a "confidence" field:
+    - "high" — based on official data with clear directional signal
+    - "medium" — based on partial data or mixed signals
+    - "low" — speculative or based primarily on social sentiment`;
 }
