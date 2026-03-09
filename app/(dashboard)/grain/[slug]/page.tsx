@@ -13,16 +13,20 @@ import {
 import { getGrainIntelligence, getSupplyPipeline } from "@/lib/queries/intelligence";
 import { getXSignalsForGrain } from "@/lib/queries/x-signals";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
+import { SignalTape } from "@/components/dashboard/signal-tape";
 import { IntelligenceKpis } from "@/components/dashboard/intelligence-kpis";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
 import { InsightCards } from "@/components/dashboard/insight-cards";
-import { ProvincialCards } from "@/components/dashboard/provincial-cards";
 import { DispositionBar } from "@/components/dashboard/disposition-bar";
 import { Button } from "@/components/ui/button";
 
 import { FlowBreakdownWidget } from "@/components/dashboard/flow-breakdown-widget";
-import { StockMapWidget } from "@/components/dashboard/stock-map-widget";
+import { GrainElevator } from "@/components/dashboard/grain-elevator";
+import { SupplySankey } from "@/components/dashboard/supply-sankey";
+import { PrairiePulseMap } from "@/components/dashboard/prairie-pulse-map";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
+import { StaggerGroup } from "@/components/motion/stagger-group";
+import { AnimatedCard } from "@/components/motion/animated-card";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
@@ -93,7 +97,7 @@ export default async function GrainDetailPage({ params }: Props) {
     <GrainPageTransition>
     <div className="space-y-8">
 
-      {/* Header */}
+      {/* ═══ Zone 1: Header + Signal Tape ═══ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
         <div className="flex items-center gap-3">
           <Link href="/overview">
@@ -121,7 +125,6 @@ export default async function GrainDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* AI Intelligence Section */}
       {intelligence?.thesis_title && (
         <ThesisBanner
           title={intelligence.thesis_title}
@@ -129,29 +132,50 @@ export default async function GrainDetailPage({ params }: Props) {
         />
       )}
 
-      {intelligence?.kpi_data && (
-        <IntelligenceKpis data={intelligence.kpi_data} />
-      )}
-
-      {supplyPipeline && (
-        <SupplyPipeline
-          carry_in_kt={supplyPipeline.carry_in_kt}
-          production_kt={supplyPipeline.production_kt}
-          total_supply_kt={supplyPipeline.total_supply_kt}
-          exports_kt={supplyPipeline.exports_kt ?? undefined}
-          food_industrial_kt={supplyPipeline.food_industrial_kt ?? undefined}
-          feed_waste_kt={supplyPipeline.feed_waste_kt ?? undefined}
-          carry_out_kt={supplyPipeline.carry_out_kt ?? undefined}
-          grain={grain.name}
+      {/* Signal Tape — ticker of X/social signals below thesis banner */}
+      {xSignals && xSignals.length > 0 && (
+        <SignalTape
+          signals={xSignals.map((s) => ({
+            sentiment: s.sentiment,
+            category: s.category,
+            post_summary: s.post_summary,
+            grain: grain.name,
+          }))}
         />
       )}
 
-      {intelligence?.insights && intelligence.insights.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-display font-semibold">Market Signals</h2>
-          <InsightCards insights={intelligence.insights} xSignals={xSignals} grainName={grain.name} />
-        </div>
-      )}
+      {/* ═══ Zone 2: Market Signals ═══ */}
+      <StaggerGroup className="space-y-6">
+        {intelligence?.kpi_data && (
+          <AnimatedCard index={0}>
+            <IntelligenceKpis data={intelligence.kpi_data} />
+          </AnimatedCard>
+        )}
+
+        {supplyPipeline && (
+          <AnimatedCard index={1}>
+            <SupplyPipeline
+              carry_in_kt={supplyPipeline.carry_in_kt}
+              production_kt={supplyPipeline.production_kt}
+              total_supply_kt={supplyPipeline.total_supply_kt}
+              exports_kt={supplyPipeline.exports_kt ?? undefined}
+              food_industrial_kt={supplyPipeline.food_industrial_kt ?? undefined}
+              feed_waste_kt={supplyPipeline.feed_waste_kt ?? undefined}
+              carry_out_kt={supplyPipeline.carry_out_kt ?? undefined}
+              grain={grain.name}
+            />
+          </AnimatedCard>
+        )}
+
+        {intelligence?.insights && intelligence.insights.length > 0 && (
+          <AnimatedCard index={2}>
+            <div className="space-y-3">
+              <h2 className="text-lg font-display font-semibold">Market Signals</h2>
+              <InsightCards insights={intelligence.insights} xSignals={xSignals} grainName={grain.name} />
+            </div>
+          </AnimatedCard>
+        )}
+      </StaggerGroup>
 
       {/* Farmer Sentiment Poll */}
       <SentimentPoll
@@ -161,39 +185,74 @@ export default async function GrainDetailPage({ params }: Props) {
         initialAggregate={sentimentAggregate}
       />
 
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <FlowBreakdownWidget distribution={distribution} totalDeliveries={totalDeliveries} />
-        <StockMapWidget storageData={storageData} />
-      </div>
+      {/* ═══ Zone 3: Decision Window ═══ */}
+      <StaggerGroup className="space-y-6">
+        <AnimatedCard index={0}>
+          <h2 className="text-xl font-display font-semibold mb-4">Decision Window</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Supply Sankey — full-width flow diagram */}
+            {supplyPipeline && (
+              <div className="lg:col-span-2 rounded-xl border border-border/40 bg-card p-4">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Supply Flow</h3>
+                <SupplySankey
+                  carry_in_kt={supplyPipeline.carry_in_kt}
+                  production_kt={supplyPipeline.production_kt}
+                  total_supply_kt={supplyPipeline.total_supply_kt}
+                  exports_kt={supplyPipeline.exports_kt ?? undefined}
+                  food_industrial_kt={supplyPipeline.food_industrial_kt ?? undefined}
+                  feed_waste_kt={supplyPipeline.feed_waste_kt ?? undefined}
+                  carry_out_kt={supplyPipeline.carry_out_kt ?? undefined}
+                  grain={grain.name}
+                />
+              </div>
+            )}
 
-      {/* Gamified 3-Axis Chart */}
-      <div className="pt-4">
-        <h2 className="text-xl font-display font-semibold mb-4">Delivery Velocity vs Disappearance</h2>
-        <GamifiedGrainChart
-          weeklyData={weeklyData}
-          userDeliveries={userDeliveries}
-        />
-      </div>
+            {/* Grain Elevator — storage visualization */}
+            <div className="rounded-xl border border-border/40 bg-card p-4">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">Storage Levels</h3>
+              <GrainElevator storageData={storageData} />
+            </div>
+          </div>
+        </AnimatedCard>
 
-      {/* Contextual Grids */}
-      <div className="grid lg:grid-cols-2 gap-8 pt-4">
-        {/* Provincial Deliveries */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-display font-semibold">
-            Provincial Deliveries (CY Total)
-          </h2>
-          <ProvincialCards data={provincial} />
-        </div>
+        <AnimatedCard index={1}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Prairie Pulse Map — provincial deliveries */}
+            <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3">
+              <h3 className="text-lg font-display font-semibold">Provincial Deliveries (CY Total)</h3>
+              <PrairiePulseMap provinces={provincial.map((p) => ({
+                region: p.region,
+                ktonnes: p.ktonnes,
+              }))} />
+            </div>
 
-        {/* Shipment Distribution */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-display font-semibold">
-            Domestic Disappearance Breakdown
-          </h2>
-          <DispositionBar data={distribution} />
-        </div>
-      </div>
+            {/* Flow Breakdown */}
+            <FlowBreakdownWidget distribution={distribution} totalDeliveries={totalDeliveries} />
+          </div>
+        </AnimatedCard>
+      </StaggerGroup>
+
+      {/* ═══ Zone 4: Deep Dive ═══ */}
+      <StaggerGroup className="space-y-6">
+        <AnimatedCard index={0}>
+          <div className="pt-4">
+            <h2 className="text-xl font-display font-semibold mb-4">Delivery Velocity vs Disappearance</h2>
+            <GamifiedGrainChart
+              weeklyData={weeklyData}
+              userDeliveries={userDeliveries}
+            />
+          </div>
+        </AnimatedCard>
+
+        <AnimatedCard index={1}>
+          <div className="space-y-4">
+            <h2 className="text-lg font-display font-semibold">
+              Domestic Disappearance Breakdown
+            </h2>
+            <DispositionBar data={distribution} />
+          </div>
+        </AnimatedCard>
+      </StaggerGroup>
 
     </div>
     </GrainPageTransition>
