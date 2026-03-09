@@ -22,6 +22,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - `docs/plans/` — Design docs and implementation plans
 - `.claude/agents/` — Agent definitions (8 agents)
 - `data/` — Reference CGC CSV data (gsw-shg-en.csv, 118k rows)
+- `components/dashboard/wow-comparison.tsx` — Week-over-Week comparison card with composite metric system
 - New project will be at: `../bushel-board-app/`
 
 ## Agent Team
@@ -41,7 +42,15 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Updates every Thursday ~1pm MST
 - Format: Crop Year, Grain Week, Week Ending Date, worksheet, metric, period, grain, grade, Region, Ktonnes
 - 16 Canadian grain types, 12 worksheets, 19 metrics, 27 regions
+- 33 distinct worksheet/metric combinations exist in cgc_observations
+- Key worksheets: Primary, Process, Terminal Receipts, Terminal Exports, Summary, Primary Shipment Distribution
 - Stored in Supabase as long-format observations (one row per measurement)
+
+### CGC Data Nuances
+- **Exports:** CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct exports bypassing terminals)
+- **Producer Deliveries:** Primary.Deliveries (provincial: AB, SK, MB) + Process.Producer Deliveries (national total). Crush-heavy grains like Canola send ~31% directly to processors, so Primary alone undercounts.
+- **Domestic Disappearance:** A residual calculation, not a separate CSV metric
+- **FULL OUTER JOIN required:** When combining Primary + Process data, not all grains appear in both worksheets. Always use FULL OUTER JOIN to avoid dropping data.
 
 ## Design Tokens
 - Background: wheat-50 (#f5f3ee) / wheat-900 (#2a261e) dark
@@ -68,9 +77,9 @@ The current directory contains a vanilla JS prototype built by Perplexity Comput
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
 - **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
-- **Views:** `v_grain_yoy_comparison` (YoY metrics), `v_supply_pipeline` (AAFC balance sheet)
+- **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet)
 - **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; FarmSummaryCard + percentile badges on My Farm
-- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary)
+- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons)
 
 ## Pipeline Monitoring
 - Cron status: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';`
@@ -79,6 +88,8 @@ The current directory contains a vanilla JS prototype built by Perplexity Comput
 - Intelligence: `SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generated_at DESC LIMIT 5;`
 - Farm summaries: `SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;`
 - pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
+- Delivery audit (Primary by province): `SELECT grain, SUM(ktonnes) FROM cgc_observations WHERE crop_year='2025-2026' AND grain_week=30 AND metric='Deliveries' AND worksheet='Primary' AND period='Current Week' AND region IN ('Alberta','Saskatchewan','Manitoba') AND grade='' GROUP BY grain;`
+- Terminal Receipts check: `SELECT grain, ktonnes FROM cgc_observations WHERE worksheet='Terminal Receipts' AND metric='Receipts' AND period='Current Week' AND grain_week=30 AND crop_year='2025-2026';`
 
 ## Critical Framework Patterns
 
