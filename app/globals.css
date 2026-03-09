@@ -49,6 +49,7 @@
   --color-wheat-700: #5d5132;
   --color-wheat-800: #3e3621;
   --color-wheat-900: #2a261e;
+  --color-wheat-950: #1a1710;
 
   /* Canola (primary brand) */
   --color-canola: #c17f24;
@@ -188,4 +189,22 @@
     --stagger-delay: 40ms;
     animation-delay: calc(var(--child-index, 0) * var(--stagger-delay));
   }
+}
+
+/* Signal tape marquee */
+@keyframes scroll-tape {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll-tape {
+  animation: scroll-tape 30s linear infinite;
+}
+
+.animate-scroll-tape:hover {
+  animation-play-state: paused;
 }
