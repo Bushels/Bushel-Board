@@ -211,6 +211,9 @@ Deno.serve(async (req) => {
     });
 
     // Chain-trigger: validate-import → (if pass) search-x-intelligence → generate-intelligence → generate-farm-summary
+    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
+    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
+
     if (skipped === 0) {
       try {
         console.log("Triggering post-import validation...");
@@ -220,7 +223,7 @@ Deno.serve(async (req) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Authorization": `Bearer ${triggerKey}`,
             },
             body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
           }

@@ -210,6 +210,9 @@ Deno.serve(async (req) => {
 
     console.log(`search-x-intelligence complete: ${succeeded} ok, ${failed} failed, ${totalSignals} signals stored (${duration}ms)`);
 
+    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
+    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
+
     if (remainingGrains.length > 0) {
       // Self-trigger for next batch of grains
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
@@ -220,7 +223,7 @@ Deno.serve(async (req) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              Authorization: `Bearer ${triggerKey}`,
             },
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek, grains: remainingGrains }),
           }
@@ -239,7 +242,7 @@ Deno.serve(async (req) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              Authorization: `Bearer ${triggerKey}`,
             },
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
           }
