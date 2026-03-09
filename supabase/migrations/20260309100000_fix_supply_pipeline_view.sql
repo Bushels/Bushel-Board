@@ -1,7 +1,9 @@
 -- Fix v_supply_pipeline to expose all AAFC disposition columns
 -- with consistent naming (no "projected_" prefix aliasing).
 -- Adds feed_waste_kt which was previously missing.
-CREATE OR REPLACE VIEW v_supply_pipeline AS
+-- Must DROP first because CREATE OR REPLACE cannot rename columns.
+DROP VIEW IF EXISTS v_supply_pipeline;
+CREATE VIEW v_supply_pipeline AS
 SELECT
   sd.grain_slug,
   sd.crop_year,
