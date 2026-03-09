@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Lock, Menu } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Lock, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -12,15 +13,25 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { UnlockModal } from "@/components/dashboard/unlock-modal";
+import { createClient } from "@/lib/supabase/client";
 import type { GrainDef } from "@/lib/constants/grains";
 
 interface MobileNavProps {
   allGrains: GrainDef[];
   unlockedGrains: string[];
+  userEmail?: string | null;
 }
 
-export function MobileNav({ allGrains, unlockedGrains }: MobileNavProps) {
+export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavProps) {
   const [unlockGrain, setUnlockGrain] = useState<GrainDef | null>(null);
+  const router = useRouter();
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   const yourCrops = allGrains.filter((g) => unlockedGrains.includes(g.name));
   const lockedGrains = allGrains.filter(
@@ -100,6 +111,23 @@ export function MobileNav({ allGrains, unlockedGrains }: MobileNavProps) {
                 <p className="px-3 py-2 text-sm text-muted-foreground">
                   All grains unlocked!
                 </p>
+              )}
+
+              {/* Sign Out */}
+              {userEmail && (
+                <>
+                  <div className="h-px bg-border my-2" />
+                  <p className="px-3 text-xs text-muted-foreground truncate">
+                    {userEmail}
+                  </p>
+                  <button
+                    onClick={handleSignOut}
+                    className="flex w-full items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-left"
+                  >
+                    <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                    Sign out
+                  </button>
+                </>
               )}
             </nav>
           </SheetContent>

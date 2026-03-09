@@ -40,7 +40,7 @@ export async function addCropPlan(formData: FormData) {
     crop_year: CURRENT_CROP_YEAR,
     grain,
     acres_seeded: acres,
-    volume_left_to_sell_kt: volume,
+    volume_left_to_sell_kt: volume / 1000, // input is tonnes, store as kt
   }, {
     onConflict: "user_id,crop_year,grain",
   });

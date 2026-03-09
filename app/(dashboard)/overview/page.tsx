@@ -6,27 +6,50 @@ import type { CumulativeWeekRow, StorageBreakdown } from "@/lib/queries/observat
 import { CropSummaryCard } from "@/components/dashboard/crop-summary-card";
 import { OverviewCharts } from "./client";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
+import { createClient } from "@/lib/supabase/server";
+import { ALL_GRAINS } from "@/lib/constants/grains";
 
 export const revalidate = 3600; // Revalidate every hour
 
-const DEFAULT_GRAINS = ["wheat", "canola", "barley", "oats", "lentils"];
-const GRAIN_NAMES: Record<string, string> = {
-  wheat: "Wheat",
-  canola: "Canola",
-  barley: "Barley",
-  oats: "Oats",
-  lentils: "Lentils",
-};
+const FALLBACK_GRAINS = ["wheat", "canola", "barley", "oats", "lentils"];
 
 export default async function OverviewPage() {
+  // Fetch user's unlocked grains from crop_plans
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let userGrainSlugs: string[] = [];
+  if (user) {
+    const { data: plans } = await supabase
+      .from("crop_plans")
+      .select("grain")
+      .eq("user_id", user.id)
+      .eq("crop_year", CURRENT_CROP_YEAR);
+    if (plans && plans.length > 0) {
+      userGrainSlugs = plans.map((p) => {
+        const def = ALL_GRAINS.find((g) => g.name === p.grain);
+        return def?.slug ?? p.grain.toLowerCase().replace(/ /g, "-");
+      });
+    }
+  }
+
+  // Use user's unlocked grains, fall back to defaults if none unlocked
+  const activeGrains = userGrainSlugs.length > 0 ? userGrainSlugs : FALLBACK_GRAINS;
+
+  // Build name lookup from ALL_GRAINS
+  const GRAIN_NAMES: Record<string, string> = {};
+  for (const g of ALL_GRAINS) {
+    GRAIN_NAMES[g.slug] = g.name;
+  }
+
   // Fetch all data in parallel
   const [grainOverview, supplyData, ...weeklyAndStorage] = await Promise.all([
     getGrainOverview(),
-    getSupplyDispositionForGrains(DEFAULT_GRAINS),
+    getSupplyDispositionForGrains(activeGrains),
     // Cumulative time series and storage for each grain (CGC uses grain names, not slugs)
-    ...DEFAULT_GRAINS.flatMap((slug) => [
-      getCumulativeTimeSeries(GRAIN_NAMES[slug]),
-      getStorageBreakdown(GRAIN_NAMES[slug]),
+    ...activeGrains.flatMap((slug) => [
+      getCumulativeTimeSeries(GRAIN_NAMES[slug] ?? slug),
+      getStorageBreakdown(GRAIN_NAMES[slug] ?? slug),
     ]),
   ]);
 
@@ -39,13 +62,13 @@ export default async function OverviewPage() {
   // Build weekly and storage data lookups
   const weeklyBySlug: Record<string, CumulativeWeekRow[]> = {};
   const storageBySlug: Record<string, StorageBreakdown[]> = {};
-  DEFAULT_GRAINS.forEach((slug, i) => {
+  activeGrains.forEach((slug, i) => {
     weeklyBySlug[slug] = weeklyAndStorage[i * 2] as CumulativeWeekRow[];
     storageBySlug[slug] = weeklyAndStorage[i * 2 + 1] as StorageBreakdown[];
   });
 
   // Build summary card data: match overview rows to supply data
-  const summaryCards = DEFAULT_GRAINS.map((slug, i) => {
+  const summaryCards = activeGrains.map((slug, i) => {
     const displayName = GRAIN_NAMES[slug];
     const overview = grainOverview.find((g) => g.slug === slug);
     const supply = supplyBySlug[slug];
@@ -70,7 +93,7 @@ export default async function OverviewPage() {
       {/* Hero: Crop Year Summary Cards */}
       <section>
         <h2 className="text-lg font-display font-semibold mb-4">
-          {CURRENT_CROP_YEAR} Crop Year — Top Prairie Grains
+          {CURRENT_CROP_YEAR} Crop Year — Your Grains
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {summaryCards.map((card) => (
@@ -92,7 +115,7 @@ export default async function OverviewPage() {
           weeklyData={weeklyBySlug}
           storageData={storageBySlug}
           grainNames={GRAIN_NAMES}
-          defaultGrains={DEFAULT_GRAINS}
+          defaultGrains={activeGrains}
         />
       </section>
 

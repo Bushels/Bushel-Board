@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus, Trash2, Truck } from "lucide-react";
 import Link from "next/link";
-import { fmtKt } from "@/lib/utils/format";
+
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { LogDeliveryModal } from "@/components/dashboard/log-delivery-modal";
 import type { CropPlan } from "@/lib/queries/crop-plans";
@@ -74,7 +74,7 @@ export function MyFarmClient({ currentPlans, percentiles }: { currentPlans: Crop
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Est. Volume to Sell</span>
-                      <span className="font-semibold">{fmtKt(plan.volume_left_to_sell_kt ?? 0)} kt</span>
+                      <span className="font-semibold">{((plan.volume_left_to_sell_kt ?? 0) * 1000).toLocaleString("en-CA", { maximumFractionDigits: 0 })} t</span>
                     </div>
 
                     {(() => {
@@ -86,7 +86,7 @@ export function MyFarmClient({ currentPlans, percentiles }: { currentPlans: Crop
                         <div className="space-y-2 pt-1">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Delivered</span>
-                            <span className="font-semibold text-prairie">{fmtKt(totalDelivered)} kt</span>
+                            <span className="font-semibold text-prairie">{(totalDelivered * 1000).toLocaleString("en-CA", { maximumFractionDigits: 0 })} t</span>
                           </div>
                           <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                             <div
@@ -96,7 +96,7 @@ export function MyFarmClient({ currentPlans, percentiles }: { currentPlans: Crop
                           </div>
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{pct.toFixed(0)}% delivered</span>
-                            <span>{fmtKt(remaining)} kt remaining</span>
+                            <span>{(remaining * 1000).toLocaleString("en-CA", { maximumFractionDigits: 0 })} t remaining</span>
                           </div>
                         </div>
                       );
@@ -170,8 +170,8 @@ export function MyFarmClient({ currentPlans, percentiles }: { currentPlans: Crop
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="volume">Remaining Volume to Sell (kt)</Label>
-                  <Input id="volume" name="volume" type="number" placeholder="e.g. 1.5" required min="0" step="0.01"/>
+                  <Label htmlFor="volume">Remaining Volume to Sell (tonnes)</Label>
+                  <Input id="volume" name="volume" type="number" placeholder="e.g. 2500" required min="0" step="1"/>
                   <span className="text-xs text-muted-foreground">Total bins + contracts not yet delivered.</span>
                 </div>
 

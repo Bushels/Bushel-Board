@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./user-menu";
 import { MobileNav } from "./mobile-nav";
 import { CgcFreshness } from "./cgc-freshness";
 import { Logo } from "./logo";
@@ -11,8 +12,9 @@ import { getUserUnlockedGrains } from "@/lib/queries/crop-plans";
 import { ALL_GRAINS } from "@/lib/constants/grains";
 
 export async function Nav() {
-  // Fetch the current user's unlocked grains
+  // Fetch the current user's unlocked grains and email
   let unlockedGrains: string[] = [];
+  let userEmail: string | null = null;
   try {
     const supabase = await createClient();
     const {
@@ -20,6 +22,7 @@ export async function Nav() {
     } = await supabase.auth.getUser();
     if (user) {
       unlockedGrains = await getUserUnlockedGrains(user.id);
+      userEmail = user.email ?? null;
     }
   } catch {
     // If auth fails (e.g. no cookies context), show all grains as locked
@@ -61,9 +64,11 @@ export async function Nav() {
             <CgcFreshness />
           </Suspense>
           <ThemeToggle />
+          {userEmail && <UserMenu email={userEmail} />}
           <MobileNav
             allGrains={ALL_GRAINS}
             unlockedGrains={unlockedGrains}
+            userEmail={userEmail}
           />
         </div>
       </div>

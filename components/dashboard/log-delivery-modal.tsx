@@ -12,14 +12,35 @@ interface LogDeliveryModalProps {
   onClose: () => void;
 }
 
+const UNIT_TO_TONNES: Record<string, number> = {
+  tonnes: 1,
+  kg: 0.001,
+  lbs: 0.000453592,
+};
+
+function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function LogDeliveryModal({ grain, isOpen, onClose }: LogDeliveryModalProps) {
   const [pending, setPending] = useState(false);
+  const [unit, setUnit] = useState<"tonnes" | "kg" | "lbs">("tonnes");
 
   if (!isOpen) return null;
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
     formData.set("grain", grain);
+    // Convert user input to kt for storage
+    const rawAmount = Number(formData.get("amount_raw") || 0);
+    const tonnes = rawAmount * UNIT_TO_TONNES[unit];
+    const kt = tonnes / 1000;
+    formData.set("amount_kt", String(kt));
+    formData.delete("amount_raw");
     try {
       await logDelivery(formData);
       onClose();
@@ -44,20 +65,32 @@ export function LogDeliveryModal({ grain, isOpen, onClose }: LogDeliveryModalPro
               name="date"
               type="date"
               required
-              defaultValue={new Date().toISOString().split("T")[0]}
+              defaultValue={todayLocal()}
             />
           </div>
           <div>
-            <Label htmlFor="amount_kt">Amount (Ktonnes)</Label>
-            <Input
-              id="amount_kt"
-              name="amount_kt"
-              type="number"
-              step="0.001"
-              min="0"
-              required
-              placeholder="e.g. 0.5"
-            />
+            <Label htmlFor="amount_raw">Amount</Label>
+            <div className="flex gap-2">
+              <Input
+                id="amount_raw"
+                name="amount_raw"
+                type="number"
+                step="any"
+                min="0"
+                required
+                placeholder={unit === "tonnes" ? "e.g. 30" : unit === "kg" ? "e.g. 30000" : "e.g. 66000"}
+                className="flex-1"
+              />
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value as "tonnes" | "kg" | "lbs")}
+                className="rounded-md border bg-card px-3 py-2 text-sm"
+              >
+                <option value="tonnes">tonnes</option>
+                <option value="kg">kg</option>
+                <option value="lbs">lbs</option>
+              </select>
+            </div>
           </div>
           <div>
             <Label htmlFor="destination">Destination (optional)</Label>
