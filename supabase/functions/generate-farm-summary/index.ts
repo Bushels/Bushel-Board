@@ -9,7 +9,9 @@
  * Triggered manually via POST, or chained after generate-intelligence.
  *
  * Request body (optional):
- *   { "crop_year": "2025-26", "grain_week": 29, "batch_size": 50 }
+ *   { "crop_year": "2025-26", "grain_week": 29, "batch_size": 50, "user_ids": ["uuid1", "uuid2"] }
+ *
+ * If user_ids is provided, only those users are processed (used by self-trigger for batching).
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -58,16 +60,23 @@ Deno.serve(async (req) => {
     const cropYear: string = body.crop_year || getCurrentCropYear();
     const grainWeek: number = body.grain_week || getCurrentGrainWeek();
     const batchSize: number = body.batch_size || DEFAULT_BATCH_SIZE;
+    const targetUserIds: string[] | undefined = body.user_ids;
 
     console.log(
-      `Generating farm summaries for week ${grainWeek}, crop year ${cropYear}, batch size ${batchSize}`
+      `Generating farm summaries for week ${grainWeek}, crop year ${cropYear}, batch size ${batchSize}${targetUserIds ? `, ${targetUserIds.length} specific users` : ""}`
     );
 
-    // 1. Get all users with active crop plans for this crop year
-    const { data: cropPlans, error: plansError } = await supabase
+    // 1. Get crop plans — either for specific users (batched self-trigger) or all users
+    let cropPlansQuery = supabase
       .from("crop_plans")
       .select("user_id, crop_year, grain, acres_seeded, volume_left_to_sell_kt, deliveries")
       .eq("crop_year", cropYear);
+
+    if (targetUserIds) {
+      cropPlansQuery = cropPlansQuery.in("user_id", targetUserIds);
+    }
+
+    const { data: cropPlans, error: plansError } = await cropPlansQuery;
 
     if (plansError) {
       return new Response(
@@ -112,13 +121,15 @@ Deno.serve(async (req) => {
       plansByUser.get(plan.user_id)!.push(plan);
     }
 
-    const userIds = Array.from(plansByUser.keys());
-    const totalUsers = userIds.length;
-    const batchUserIds = userIds.slice(0, batchSize);
+    // If user_ids were provided (self-trigger), use them directly; otherwise derive from crop plans
+    const allUserIds = targetUserIds || Array.from(plansByUser.keys());
+    const totalUsers = allUserIds.length;
+    const batchUserIds = allUserIds.slice(0, batchSize);
+    const remainingUserIds = allUserIds.slice(batchSize);
 
     if (totalUsers > batchSize) {
       console.log(
-        `Processing ${batchSize} of ${totalUsers} users. Remaining ${totalUsers - batchSize} will be processed next run.`
+        `Processing ${batchSize} of ${totalUsers} users. ${remainingUserIds.length} remaining will be self-triggered.`
       );
     }
 
@@ -236,6 +247,32 @@ Deno.serve(async (req) => {
       `Farm summary generation complete: ${succeeded} ok, ${failed} failed, ${totalUsers} total users (${duration}ms)`
     );
 
+    // Self-trigger for remaining users (mirrors generate-intelligence batch pattern)
+    if (remainingUserIds.length > 0) {
+      console.log(`${remainingUserIds.length} users remaining — triggering next batch`);
+      try {
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              crop_year: cropYear,
+              grain_week: grainWeek,
+              batch_size: batchSize,
+              user_ids: remainingUserIds,
+            }),
+          }
+        );
+        console.log("Triggered next batch of farm summaries");
+      } catch (err) {
+        console.error("Next batch self-trigger failed:", err);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         results,
@@ -244,7 +281,7 @@ Deno.serve(async (req) => {
         failed,
         total_users: totalUsers,
         batch_size: batchSize,
-        remaining: Math.max(0, totalUsers - batchSize),
+        remaining: remainingUserIds.length,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

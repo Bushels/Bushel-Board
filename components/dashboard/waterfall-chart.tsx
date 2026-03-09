@@ -71,37 +71,37 @@ export function WaterfallChart({ data, grainName }: WaterfallChartProps) {
       name: "Carry-in",
       base: 0,
       value: carryIn,
-      color: "#437a22", // prairie green
+      color: "var(--color-prairie)",
     },
     {
       name: "Production",
       base: carryIn,
       value: production,
-      color: "#5a9e2e",
+      color: "var(--color-prairie-light)",
     },
     {
       name: "Exports",
       base: totalSupply - exports,
       value: exports,
-      color: "#b33a3a",
+      color: "var(--color-error)",
     },
     {
       name: "Food/Industrial",
       base: totalSupply - exports - foodIndustrial,
       value: foodIndustrial,
-      color: "#c17f24", // canola
+      color: "var(--color-canola)",
     },
     {
       name: "Feed/Waste",
       base: totalSupply - exports - foodIndustrial - feedWaste,
       value: feedWaste,
-      color: "#d4a855",
+      color: "var(--color-feed-waste)",
     },
     {
       name: "Carry-out",
       base: 0,
       value: carryOut,
-      color: "#2e6b9e", // AB blue
+      color: "var(--color-province-ab)",
     },
   ];
 

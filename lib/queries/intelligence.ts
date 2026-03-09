@@ -73,6 +73,7 @@ export async function getFarmSummary(
     .from("farm_summaries")
     .select("*")
     .eq("user_id", userId)
+    .eq("crop_year", CURRENT_CROP_YEAR)
     .order("grain_week", { ascending: false })
     .limit(1)
     .single();

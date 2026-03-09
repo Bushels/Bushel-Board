@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getFarmSummary } from "@/lib/queries/intelligence";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { FarmSummaryCard } from "@/components/dashboard/farm-summary-card";
 import { MyFarmClient } from "./client";
 import { Wheat } from "lucide-react";
@@ -13,6 +14,7 @@ export default async function MyFarmPage() {
       .from("crop_plans")
       .select("*")
       .eq("user_id", user?.id)
+      .eq("crop_year", CURRENT_CROP_YEAR)
       .order("created_at", { ascending: false }),
     user?.id ? getFarmSummary(user.id) : Promise.resolve(null),
   ]);

@@ -107,9 +107,9 @@ export function PaceChart({
             type="monotone"
             dataKey="producer_deliveries_kt"
             name="Producer Deliveries"
-            fill="#c17f24"
+            fill="var(--color-canola)"
             fillOpacity={0.25}
-            stroke="#c17f24"
+            stroke="var(--color-canola)"
             strokeWidth={2}
             animationDuration={1000}
           />
@@ -119,7 +119,7 @@ export function PaceChart({
             type="monotone"
             dataKey="domestic_disappearance_kt"
             name="Domestic Disappearance"
-            stroke="#437a22"
+            stroke="var(--color-prairie)"
             strokeWidth={2}
             strokeDasharray="8 4"
             dot={false}
@@ -132,10 +132,10 @@ export function PaceChart({
               type="stepAfter"
               dataKey="my_deliveries_kt"
               name="My Farm Deliveries"
-              stroke="#2e6b9e"
+              stroke="var(--color-province-ab)"
               strokeWidth={2}
               strokeDasharray="4 4"
-              dot={{ r: 3, fill: "#2e6b9e" }}
+              dot={{ r: 3, fill: "var(--color-province-ab)" }}
               connectNulls={false}
               animationDuration={1000}
             />

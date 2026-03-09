@@ -36,10 +36,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-For the intelligence pipeline (Edge Function secrets — set via Supabase Dashboard or CLI):
+For the intelligence pipeline (Edge Function secrets — set via Supabase Dashboard or CLI).
+The pipeline uses xAI's Grok model (`grok-4-1-fast-reasoning`) with X/Twitter search for real-time agriculture sentiment:
 
 ```bash
-npx supabase secrets set OPENAI_API_KEY=sk-your-key
+npx supabase secrets set XAI_API_KEY=xai-your-key
 ```
 
 ### Install & Run

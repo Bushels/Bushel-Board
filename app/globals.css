@@ -74,6 +74,11 @@
   --color-province-sk: #6d9e3a;
   --color-province-mb: #b37d24;
 
+  /* Destination/disposition colors */
+  --color-terminal-brown: #8b7355;
+  --color-elevator-gold: #9e7a3a;
+  --color-feed-waste: #d4a855;
+
   /* Fonts */
   --font-body: var(--font-dm-sans);
   --font-display: var(--font-fraunces);

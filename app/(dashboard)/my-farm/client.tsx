@@ -18,7 +18,7 @@ import type { CropPlan } from "@/lib/queries/crop-plans";
 const AVAILABLE_GRAINS = [
   "Wheat", "Canola", "Amber Durum", "Barley", "Peas", "Oats", "Lentils",
   "Soybeans", "Flaxseed", "Mustard Seed", "Corn", "Rye", "Chick Peas",
-  "Sunflower Seed", "Canaryseed", "Beans",
+  "Sunflower", "Canaryseed", "Beans",
 ];
 
 export function MyFarmClient({ currentPlans, percentiles }: { currentPlans: CropPlan[]; percentiles: Record<string, number> }) {

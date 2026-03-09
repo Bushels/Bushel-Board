@@ -14,13 +14,13 @@ import {
 } from "recharts";
 
 const DESTINATION_COLORS: Record<string, string> = {
-  Pacific: "#2e6b9e",
-  "Thunder Bay": "#437a22",
-  Churchill: "#6d9e3a",
-  "Eastern Terminals": "#8b7355",
-  "Canadian Domestic": "#b37d24",
-  "Process Elevators": "#9e7a3a",
-  "Export Destinations": "#c17f24",
+  Pacific: "var(--color-province-ab)",
+  "Thunder Bay": "var(--color-prairie)",
+  Churchill: "var(--color-province-sk)",
+  "Eastern Terminals": "var(--color-terminal-brown)",
+  "Canadian Domestic": "var(--color-province-mb)",
+  "Process Elevators": "var(--color-elevator-gold)",
+  "Export Destinations": "var(--color-canola)",
 };
 
 export function DispositionBar({
@@ -36,7 +36,7 @@ export function DispositionBar({
       .map((d) => ({
         ...d,
         pct: total > 0 ? (d.ktonnes / total) * 100 : 0,
-        color: DESTINATION_COLORS[d.region] || "#8b7355",
+        color: DESTINATION_COLORS[d.region] || "var(--color-terminal-brown)",
       }));
   }, [data]);
 

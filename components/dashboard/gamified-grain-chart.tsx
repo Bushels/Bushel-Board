@@ -149,7 +149,7 @@ export function GamifiedGrainChart({
             type="monotone"
             dataKey="disappearance"
             name="Domestic Disappearance"
-            stroke="#437a22"
+            stroke="var(--color-prairie)"
             strokeWidth={2}
             strokeDasharray="4 4"
             dot={false}
@@ -162,9 +162,9 @@ export function GamifiedGrainChart({
               type="stepAfter"
               dataKey="userDeliveries"
               name="Your Deliveries"
-              stroke="#c17f24"
+              stroke="var(--color-canola)"
               strokeWidth={3}
-              dot={{ r: 4, fill: "#c17f24" }}
+              dot={{ r: 4, fill: "var(--color-canola)" }}
               activeDot={{ r: 6 }}
               connectNulls={false}
             />

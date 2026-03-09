@@ -77,14 +77,14 @@ export function GrainChart({ deliveries, title }: GrainChartProps) {
             type="monotone"
             dataKey="total"
             name="Total"
-            stroke="#c17f24"
+            stroke="var(--color-canola)"
             strokeWidth={2}
             dot={false}
           />
           <Line
             type="monotone"
             dataKey="Alberta"
-            stroke="#2e6b9e"
+            stroke="var(--color-province-ab)"
             strokeWidth={1.5}
             dot={false}
             strokeDasharray="4 2"
@@ -92,7 +92,7 @@ export function GrainChart({ deliveries, title }: GrainChartProps) {
           <Line
             type="monotone"
             dataKey="Saskatchewan"
-            stroke="#6d9e3a"
+            stroke="var(--color-province-sk)"
             strokeWidth={1.5}
             dot={false}
             strokeDasharray="4 2"
@@ -100,7 +100,7 @@ export function GrainChart({ deliveries, title }: GrainChartProps) {
           <Line
             type="monotone"
             dataKey="Manitoba"
-            stroke="#b37d24"
+            stroke="var(--color-province-mb)"
             strokeWidth={1.5}
             dot={false}
             strokeDasharray="4 2"
