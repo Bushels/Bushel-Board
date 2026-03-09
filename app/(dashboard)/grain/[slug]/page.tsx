@@ -11,6 +11,7 @@ import {
   getStorageBreakdown,
 } from "@/lib/queries/observations";
 import { getGrainIntelligence, getSupplyPipeline } from "@/lib/queries/intelligence";
+import { getXSignalsForGrain } from "@/lib/queries/x-signals";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
 import { IntelligenceKpis } from "@/components/dashboard/intelligence-kpis";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
@@ -59,7 +60,7 @@ export default async function GrainDetailPage({ params }: Props) {
     return <GrainLockedView grain={grain.name} />;
   }
 
-  const [deliveries, provincial, distribution, weeklyData, storageData, intelligence, supplyPipeline] = await Promise.all([
+  const [deliveries, provincial, distribution, weeklyData, storageData, intelligence, supplyPipeline, xSignals] = await Promise.all([
     getDeliveryTimeSeries(grain.name),
     getProvincialDeliveries(grain.name),
     getShipmentDistribution(grain.name),
@@ -67,6 +68,7 @@ export default async function GrainDetailPage({ params }: Props) {
     getStorageBreakdown(grain.name),
     getGrainIntelligence(grain.name),
     getSupplyPipeline(grain.slug),
+    getXSignalsForGrain(grain.name),
   ]);
 
   // Determine current grain week from delivery data
@@ -145,7 +147,7 @@ export default async function GrainDetailPage({ params }: Props) {
       {intelligence?.insights && intelligence.insights.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-display font-semibold">Market Signals</h2>
-          <InsightCards insights={intelligence.insights} />
+          <InsightCards insights={intelligence.insights} xSignals={xSignals} grainName={grain.name} />
         </div>
       )}
 

@@ -7,7 +7,13 @@ export interface GrainIntelligence {
   grain_week: number;
   thesis_title: string | null;
   thesis_body: string | null;
-  insights: Array<{ signal: "bullish" | "bearish" | "watch" | "social"; title: string; body: string }>;
+  insights: Array<{
+    signal: "bullish" | "bearish" | "watch" | "social";
+    title: string;
+    body: string;
+    sources?: ("CGC" | "AAFC" | "X" | "Derived")[];
+    confidence?: "high" | "medium" | "low";
+  }>;
   kpi_data: Record<string, number | null>;
   generated_at: string;
 }
