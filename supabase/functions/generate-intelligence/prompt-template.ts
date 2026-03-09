@@ -35,6 +35,15 @@ export interface GrainContext {
   projected_exports_kt: number | null;
   projected_crush_kt: number | null;
   projected_carry_out_kt: number | null;
+  // Pre-scored social signals from x_market_signals table
+  socialSignals?: Array<{
+    sentiment: string;
+    category: string;
+    relevance_score: number;
+    confidence_score: number;
+    post_summary: string;
+    post_author?: string;
+  }>;
 }
 
 export function buildIntelligencePrompt(ctx: GrainContext): string {
@@ -43,8 +52,6 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
     : "N/A";
 
   return `You are a grain market analyst writing intelligence briefings for Canadian prairie farmers (Alberta, Saskatchewan, Manitoba). Your tone is direct, data-driven, and actionable — like a Bloomberg terminal meets a coffee shop conversation with a sharp grain buyer.
-
-You have access to real-time X (Twitter) search. Search X for recent posts about ${ctx.grain} market conditions in Canada — look for farmer sentiment, elevator bids, export activity, analyst commentary, and weather impacts. Reference specific posts when they provide meaningful market signal.
 
 ## Data for ${ctx.grain} — Week ${ctx.grain_week}, Crop Year ${ctx.crop_year}
 
@@ -65,6 +72,14 @@ You have access to real-time X (Twitter) search. Search X for recent posts about
 - Projected Crush: ${ctx.projected_crush_kt ?? "N/A"} Kt
 - Projected Carry-out: ${ctx.projected_carry_out_kt ?? "N/A"} Kt
 - Delivered to Date: ${deliveredPct}% of total supply
+
+## Recent X/Twitter Market Signals (pre-scored, relevance >= 60)
+
+${ctx.socialSignals?.length ? ctx.socialSignals.map(s =>
+  `- [${s.sentiment}/${s.category}] (relevance: ${s.relevance_score}, confidence: ${s.confidence_score}) ${s.post_summary}${s.post_author ? ` — @${s.post_author}` : ""}`
+).join("\n") : "No social signals available for this grain this week."}
+
+Reference these signals when generating "social" insights. Cite the author handle when available.
 
 ## Your Task
 

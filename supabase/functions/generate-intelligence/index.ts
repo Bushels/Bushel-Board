@@ -2,9 +2,10 @@
  * Supabase Edge Function: generate-intelligence
  *
  * After weekly CGC data import, generates AI market intelligence for each grain.
- * Calls xAI Grok Responses API per grain with x_search for real-time X/Twitter agriculture sentiment, stores results in grain_intelligence table.
+ * Reads pre-scored social signals from x_market_signals table and calls xAI Grok
+ * Responses API per grain with structured outputs. Stores results in grain_intelligence table.
  *
- * Triggered by import-cgc-weekly on success, or manually via POST.
+ * Triggered by search-x-intelligence on success, or manually via POST.
  *
  * Request body (optional):
  *   { "crop_year": "2025-26", "grain_week": 29, "grains": ["Canola"] }
@@ -80,6 +81,17 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Fetch pre-scored social signals from x_market_signals
+        const { data: socialSignals } = await supabase
+          .from("x_market_signals")
+          .select("*")
+          .eq("grain", grainName)
+          .eq("crop_year", cropYear)
+          .eq("grain_week", grainWeek)
+          .gte("relevance_score", 60)
+          .order("relevance_score", { ascending: false })
+          .limit(10);
+
         const ctx: GrainContext = {
           grain: grainName,
           crop_year: cropYear,
@@ -103,12 +115,19 @@ Deno.serve(async (req) => {
           projected_exports_kt: supply?.projected_exports_kt ?? null,
           projected_crush_kt: supply?.projected_crush_kt ?? null,
           projected_carry_out_kt: supply?.projected_carry_out_kt ?? null,
+          socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
+            sentiment: s.sentiment as string,
+            category: s.category as string,
+            relevance_score: s.relevance_score as number,
+            confidence_score: s.confidence_score as number,
+            post_summary: s.post_summary as string,
+            post_author: s.post_author as string | undefined,
+          })),
         };
 
         const prompt = buildIntelligencePrompt(ctx);
 
-        // Call xAI Grok Responses API with x_search and structured outputs
-        const { from_date, to_date } = getXSearchDateRange();
+        // Call xAI Grok Responses API with structured outputs (social signals pre-fetched from x_market_signals)
         const response = await fetch(XAI_API_URL, {
           method: "POST",
           headers: {
@@ -119,7 +138,6 @@ Deno.serve(async (req) => {
             model: MODEL,
             max_output_tokens: 1024,
             input: [{ role: "user", content: prompt }],
-            tools: [{ type: "x_search", from_date, to_date }],
             text: {
               format: {
                 type: "json_schema",
@@ -310,12 +328,3 @@ function getCurrentGrainWeek(): number {
   return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
 }
 
-/** Returns ISO8601 date strings for the past 7 days (for x_search tool). */
-function getXSearchDateRange(): { from_date: string; to_date: string } {
-  const now = new Date();
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  return {
-    from_date: weekAgo.toISOString().slice(0, 10),
-    to_date: now.toISOString().slice(0, 10),
-  };
-}

@@ -193,12 +193,12 @@ Deno.serve(async (req) => {
       status: skipped > 0 ? "partial" : "success",
     });
 
-    // Chain-trigger intelligence generation
+    // Chain-trigger: search-x-intelligence → generate-intelligence → generate-farm-summary
     if (skipped === 0) {
       try {
-        console.log("Triggering intelligence generation...");
+        console.log("Triggering X market signal search...");
         const intRes = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-x-intelligence`,
           {
             method: "POST",
             headers: {
@@ -208,14 +208,14 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
           }
         );
-        console.log(`Intelligence trigger: HTTP ${intRes.status}`);
+        console.log(`search-x-intelligence trigger: HTTP ${intRes.status}`);
         if (!intRes.ok) {
           const errBody = await intRes.text();
-          console.error(`Intelligence trigger failed: ${errBody.slice(0, 300)}`);
+          console.error(`search-x-intelligence trigger failed: ${errBody.slice(0, 300)}`);
         }
       } catch (chainErr) {
-        console.error("Intelligence chain-trigger failed:", chainErr);
-        // Don't fail the import — intelligence generation is best-effort
+        console.error("search-x-intelligence chain-trigger failed:", chainErr);
+        // Don't fail the import — intelligence pipeline is best-effort
       }
     }
 
