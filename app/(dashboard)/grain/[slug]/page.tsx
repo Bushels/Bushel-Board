@@ -19,12 +19,13 @@ import { ProvincialCards } from "@/components/dashboard/provincial-cards";
 import { DispositionBar } from "@/components/dashboard/disposition-bar";
 import { Button } from "@/components/ui/button";
 
-import { SupplyWidget } from "@/components/dashboard/supply-widget";
 import { FlowBreakdownWidget } from "@/components/dashboard/flow-breakdown-widget";
 import { StockMapWidget } from "@/components/dashboard/stock-map-widget";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
+import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
+import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -38,14 +39,6 @@ export default async function GrainDetailPage({ params }: Props) {
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
-  // Get macro estimates for the grain
-  const { data: macro } = await supabase
-    .from("macro_estimates")
-    .select("*")
-    .eq("crop_year", CURRENT_CROP_YEAR)
-    .ilike("grain", grain.name)
-    .single();
 
   // Check if user has unlocked this grain via my-farm
   let userPlan = null;
@@ -74,6 +67,17 @@ export default async function GrainDetailPage({ params }: Props) {
     getStorageBreakdown(grain.name),
     getGrainIntelligence(grain.name),
     getSupplyPipeline(grain.slug),
+  ]);
+
+  // Determine current grain week from delivery data
+  const latestGrainWeek = deliveries.length > 0
+    ? Math.max(...deliveries.map(d => d.grain_week))
+    : 1;
+
+  // Fetch sentiment data (user vote + aggregate)
+  const [userVote, sentimentAggregate] = await Promise.all([
+    getUserSentimentVote(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
+    getGrainSentiment(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
   ]);
 
   // Aggregate total deliveries
@@ -142,9 +146,16 @@ export default async function GrainDetailPage({ params }: Props) {
         </div>
       )}
 
+      {/* Farmer Sentiment Poll */}
+      <SentimentPoll
+        grain={grain.name}
+        grainWeek={latestGrainWeek}
+        initialVote={userVote}
+        initialAggregate={sentimentAggregate}
+      />
+
       {/* Primary KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <SupplyWidget macro={macro} />
         <FlowBreakdownWidget distribution={distribution} totalDeliveries={totalDeliveries} />
         <StockMapWidget storageData={storageData} />
       </div>
