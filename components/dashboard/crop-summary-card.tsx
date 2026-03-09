@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Lock, TrendingUp, TrendingDown } from "lucide-react";
 import { fmtKt, fmtPct } from "@/lib/utils/format";
+import { AnimatedCard } from "@/components/motion/animated-card";
 
 interface CropSummaryCardProps {
   grain: string;
@@ -29,12 +30,12 @@ export function CropSummaryCard({
   const isPositive = wowChange >= 0;
 
   return (
+    <AnimatedCard index={index}>
     <Link
       href={isUnlocked ? `/grain/${slug}` : "/my-farm"}
-      className={`group relative flex flex-col gap-3 rounded-xl border bg-card/40 backdrop-blur-sm p-4 transition-all duration-500 hover:-translate-y-1 hover:shadow-xl ${
+      className={`group relative flex flex-col gap-3 rounded-xl border bg-card/40 backdrop-blur-sm p-4 transition-colors duration-300 hover:shadow-xl ${
         !isUnlocked ? "opacity-60" : ""
       }`}
-      style={{ animationDelay: `${index * 40}ms` }}
     >
       {!isUnlocked && (
         <Lock className="absolute top-3 right-3 h-4 w-4 text-muted-foreground" />
@@ -77,5 +78,6 @@ export function CropSummaryCard({
         </span>
       </div>
     </Link>
+    </AnimatedCard>
   );
 }

@@ -27,6 +27,7 @@ import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
+import { GrainPageTransition } from "./client";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -89,7 +90,8 @@ export default async function GrainDetailPage({ params }: Props) {
   const userDeliveries: DeliveryEntry[] = userPlan?.deliveries ?? [];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <GrainPageTransition>
+    <div className="space-y-8">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-4">
@@ -194,6 +196,7 @@ export default async function GrainDetailPage({ params }: Props) {
       </div>
 
     </div>
+    </GrainPageTransition>
   );
 }
 

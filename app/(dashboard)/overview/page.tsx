@@ -97,13 +97,7 @@ export default async function OverviewPage() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {summaryCards.map((card) => (
-            <div
-              key={card.slug}
-              className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
-              style={{ animationDelay: `${card.index * 40}ms` }}
-            >
-              <CropSummaryCard {...card} />
-            </div>
+            <CropSummaryCard key={card.slug} {...card} />
           ))}
         </div>
       </section>
