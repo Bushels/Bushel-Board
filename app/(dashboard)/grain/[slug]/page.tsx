@@ -129,12 +129,15 @@ export default async function GrainDetailPage({ params }: Props) {
         <IntelligenceKpis data={intelligence.kpi_data} />
       )}
 
-      {supplyPipeline && intelligence?.kpi_data?.cy_deliveries_kt != null && (
+      {supplyPipeline && (
         <SupplyPipeline
           carry_in_kt={supplyPipeline.carry_in_kt}
           production_kt={supplyPipeline.production_kt}
           total_supply_kt={supplyPipeline.total_supply_kt}
-          cy_deliveries_kt={intelligence.kpi_data.cy_deliveries_kt as number}
+          exports_kt={supplyPipeline.exports_kt ?? undefined}
+          food_industrial_kt={supplyPipeline.food_industrial_kt ?? undefined}
+          feed_waste_kt={supplyPipeline.feed_waste_kt ?? undefined}
+          carry_out_kt={supplyPipeline.carry_out_kt ?? undefined}
           grain={grain.name}
         />
       )}

@@ -33,7 +33,7 @@ export async function getGrainIntelligence(
 }
 
 /**
- * Get supply pipeline data for a grain.
+ * Get supply pipeline data for a grain (AAFC balance sheet only).
  */
 export async function getSupplyPipeline(
   grainSlug: string
@@ -41,11 +41,15 @@ export async function getSupplyPipeline(
   carry_in_kt: number;
   production_kt: number;
   total_supply_kt: number;
+  exports_kt: number | null;
+  food_industrial_kt: number | null;
+  feed_waste_kt: number | null;
+  carry_out_kt: number | null;
 } | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("v_supply_pipeline")
-    .select("carry_in_kt, production_kt, total_supply_kt")
+    .select("carry_in_kt, production_kt, total_supply_kt, exports_kt, food_industrial_kt, feed_waste_kt, carry_out_kt")
     .eq("grain_slug", grainSlug)
     .eq("crop_year", CURRENT_CROP_YEAR)
     .single();
