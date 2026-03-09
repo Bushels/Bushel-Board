@@ -103,12 +103,12 @@ export function MyFarmClient({ currentPlans, percentiles }: { currentPlans: Crop
                     })()}
 
                     {percentiles[plan.grain] !== undefined && (
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex items-center gap-2 pt-1" title="Ranked by % of planned volume delivered, not absolute tonnage">
                         <span className="inline-flex items-center rounded-full bg-prairie/10 px-2.5 py-0.5 text-xs font-medium text-prairie">
-                          Top {100 - percentiles[plan.grain]}%
+                          {Math.round(percentiles[plan.grain])}th percentile
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          of farmers tracking {plan.grain}
+                          delivery pace for {plan.grain}
                         </span>
                       </div>
                     )}

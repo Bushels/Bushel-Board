@@ -36,6 +36,7 @@ interface PercentileRow {
   user_id: string;
   grain: string;
   total_delivered_kt: number;
+  delivery_pace_pct: number;
   percentile_rank: number;
 }
 
@@ -338,7 +339,7 @@ function buildFarmSummaryPrompt(
 
     const perc = percentiles?.get(plan.grain);
     const percStr = perc
-      ? ` | Percentile rank: ${Math.round(perc.percentile_rank)}th among all farmers for this grain`
+      ? ` | Delivery pace percentile: ${Math.round(perc.percentile_rank)}th (ranked by % of planned volume delivered)`
       : "";
 
     const remainingStr =
