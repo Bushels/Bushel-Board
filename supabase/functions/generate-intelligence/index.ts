@@ -81,16 +81,13 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Fetch pre-scored social signals from x_market_signals
-        const { data: socialSignals } = await supabase
-          .from("x_market_signals")
-          .select("*")
-          .eq("grain", grainName)
-          .eq("crop_year", cropYear)
-          .eq("grain_week", grainWeek)
-          .gte("relevance_score", 60)
-          .order("relevance_score", { ascending: false })
-          .limit(10);
+        // Fetch pre-scored social signals with farmer relevance blending
+        // RPC LEFT JOINs v_signal_relevance_scores for blended scoring + farmer validation data
+        const { data: socialSignals } = await supabase.rpc("get_signals_for_intelligence", {
+          p_grain: grainName,
+          p_crop_year: cropYear,
+          p_grain_week: grainWeek,
+        });
 
         const ctx: GrainContext = {
           grain: grainName,
@@ -122,6 +119,8 @@ Deno.serve(async (req) => {
             confidence_score: s.confidence_score as number,
             post_summary: s.post_summary as string,
             post_author: s.post_author as string | undefined,
+            total_votes: (s.total_votes as number) ?? 0,
+            farmer_relevance_pct: (s.farmer_relevance_pct as number) ?? null,
           })),
         };
 

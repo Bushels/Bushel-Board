@@ -35,7 +35,7 @@ export interface GrainContext {
   projected_exports_kt: number | null;
   projected_crush_kt: number | null;
   projected_carry_out_kt: number | null;
-  // Pre-scored social signals from x_market_signals table
+  // Pre-scored social signals from x_market_signals table (with farmer feedback)
   socialSignals?: Array<{
     sentiment: string;
     category: string;
@@ -43,6 +43,8 @@ export interface GrainContext {
     confidence_score: number;
     post_summary: string;
     post_author?: string;
+    total_votes?: number;
+    farmer_relevance_pct?: number | null;
   }>;
 }
 
@@ -73,13 +75,29 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 - Projected Carry-out: ${ctx.projected_carry_out_kt ?? "N/A"} Kt
 - Delivered to Date: ${deliveredPct}% of total supply
 
-## Recent X/Twitter Market Signals (pre-scored, relevance >= 60)
+## Recent X/Twitter Market Signals (scored by AI + verified by farmers)
 
-${ctx.socialSignals?.length ? ctx.socialSignals.map(s =>
-  `- [${s.sentiment}/${s.category}] (relevance: ${s.relevance_score}, confidence: ${s.confidence_score}) ${s.post_summary}${s.post_author ? ` — @${s.post_author}` : ""}`
-).join("\n") : "No social signals available for this grain this week."}
+${ctx.socialSignals?.length ? ctx.socialSignals.map(s => {
+  // Label signals based on farmer vote data
+  let farmerLabel = "unrated";
+  if ((s.total_votes ?? 0) >= 3) {
+    if ((s.farmer_relevance_pct ?? 0) >= 70) {
+      farmerLabel = "farmer-validated";
+    } else if ((s.farmer_relevance_pct ?? 100) < 40) {
+      farmerLabel = "farmer-dismissed";
+    } else {
+      farmerLabel = "mixed";
+    }
+  }
+  const votesInfo = (s.total_votes ?? 0) > 0
+    ? ` | farmer: ${s.farmer_relevance_pct ?? 0}% (${s.total_votes} votes) [${farmerLabel}]`
+    : ` [${farmerLabel}]`;
+  return `- [${s.sentiment}/${s.category}] (relevance: ${s.relevance_score}, confidence: ${s.confidence_score}${votesInfo}) ${s.post_summary}${s.post_author ? ` — @${s.post_author}` : ""}`;
+}).join("\n") : "No social signals available for this grain this week."}
 
 Reference these signals when generating "social" insights. Cite the author handle when available.
+
+Posts marked "farmer-validated" (farmer_relevance_pct >= 70%, votes >= 3) should be weighted heavily in your analysis — real farmers on the prairies confirmed these signals matter. Posts marked "farmer-dismissed" (farmer_relevance_pct < 40%, votes >= 3) should be deprioritized unless the underlying data contradicts farmer sentiment. Posts marked "unrated" have no farmer feedback yet — use AI scores as normal.
 
 ## Your Task
 

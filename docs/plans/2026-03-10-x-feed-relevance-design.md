@@ -1,7 +1,7 @@
 # X Feed & Relevance Scoring — Feature Design
 
 **Date:** 2026-03-10
-**Status:** Draft
+**Status:** Implemented
 **Author:** Kyle + Claude
 **Dependencies:** x_market_signals table, search-x-intelligence Edge Function, generate-intelligence Edge Function
 

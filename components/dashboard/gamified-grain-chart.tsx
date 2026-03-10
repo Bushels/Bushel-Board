@@ -12,7 +12,6 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
-import { format } from "date-fns";
 import type { CumulativeWeekRow } from "@/lib/queries/observations";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { fmtKt } from "@/lib/utils/format";
@@ -86,11 +85,8 @@ export function GamifiedGrainChart({
           />
 
           <XAxis
-            dataKey="weekDate"
-            tickFormatter={(val) => {
-              if (!val) return "";
-              return format(new Date(val), "MMM dd");
-            }}
+            dataKey="week"
+            tickFormatter={(val) => `Wk ${val}`}
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickMargin={10}
@@ -126,7 +122,8 @@ export function GamifiedGrainChart({
               borderRadius: "8px",
             }}
             itemStyle={{ color: "hsl(var(--foreground))" }}
-            formatter={(value) => [fmtKt(value as number), ""]}
+            labelFormatter={(val) => `Week ${val}`}
+            formatter={(value: number, name: string) => [fmtKt(value), name]}
           />
 
           <Legend wrapperStyle={{ paddingTop: "20px" }} />

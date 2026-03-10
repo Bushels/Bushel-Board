@@ -11,7 +11,7 @@ import {
   getWeekOverWeekComparison,
 } from "@/lib/queries/observations";
 import { getGrainIntelligence, getSupplyPipeline } from "@/lib/queries/intelligence";
-import { getXSignalsForGrain } from "@/lib/queries/x-signals";
+import { getXSignalsForGrain, getXSignalsWithFeedback } from "@/lib/queries/x-signals";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
 import { SignalTape } from "@/components/dashboard/signal-tape";
 import { IntelligenceKpis } from "@/components/dashboard/intelligence-kpis";
@@ -28,6 +28,7 @@ import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
+import { XSignalFeed } from "@/components/dashboard/x-signal-feed";
 import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
 import { GrainPageTransition } from "./client";
 
@@ -80,10 +81,13 @@ export default async function GrainDetailPage({ params }: Props) {
     ? Math.max(...deliveries.map(d => d.grain_week))
     : 1;
 
-  // Fetch sentiment data (user vote + aggregate)
-  const [userVote, sentimentAggregate] = await Promise.all([
+  // Fetch sentiment data + feedback-enriched X signals
+  const [userVote, sentimentAggregate, signalsWithFeedback] = await Promise.all([
     getUserSentimentVote(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
     getGrainSentiment(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
+    user
+      ? getXSignalsWithFeedback(supabase, grain.name, user.id, latestGrainWeek)
+      : Promise.resolve([]),
   ]);
 
   // Override AI-generated delivery KPIs with v_grain_overview values.
@@ -169,8 +173,19 @@ export default async function GrainDetailPage({ params }: Props) {
           </AnimatedCard>
         )}
 
-        {supplyPipeline && (
+        {signalsWithFeedback.length > 0 && (
           <AnimatedCard index={2}>
+            <XSignalFeed
+              signals={signalsWithFeedback}
+              grain={grain.name}
+              grainWeek={latestGrainWeek}
+              cropYear={CURRENT_CROP_YEAR}
+            />
+          </AnimatedCard>
+        )}
+
+        {supplyPipeline && (
+          <AnimatedCard index={3}>
             <SupplyPipeline
               carry_in_kt={supplyPipeline.carry_in_kt}
               production_kt={supplyPipeline.production_kt}
@@ -185,7 +200,7 @@ export default async function GrainDetailPage({ params }: Props) {
         )}
 
         {intelligence?.insights && intelligence.insights.length > 0 && (
-          <AnimatedCard index={3}>
+          <AnimatedCard index={4}>
             <div className="space-y-3">
               <h2 className="text-lg font-display font-semibold">Market Signals</h2>
               <InsightCards insights={intelligence.insights} xSignals={xSignals} grainName={grain.name} />

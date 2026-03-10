@@ -424,143 +424,57 @@ export async function getCumulativeTimeSeries(
   const supabase = await createClient();
   const year = cropYear ?? (await getLatestCropYear(supabase));
 
-  // Cumulative producer deliveries to primary elevators (prairie provinces)
-  const { data: deliveries } = await supabase
-    .from("cgc_observations")
-    .select("grain_week, week_ending_date, ktonnes")
-    .eq("crop_year", year)
-    .eq("grain", grainName)
-    .eq("grade", "")
-    .eq("worksheet", "Primary")
-    .eq("metric", "Deliveries")
-    .eq("period", "Crop Year")
-    .in("region", PRAIRIE_PROVINCES)
-    .order("grain_week", { ascending: true });
+  // Use server-side RPC to aggregate pipeline data in Postgres.
+  // This replaces 5 separate client queries that hit PostgREST's max_rows=1000
+  // limit — Terminal Receipts alone has ~3,648 rows per grain (20 grades × 6
+  // ports × 30 weeks), causing silent data truncation.
+  const { data: rows, error } = await supabase.rpc("get_pipeline_velocity", {
+    p_grain: grainName,
+    p_crop_year: year,
+  });
 
-  // Cumulative terminal receipts (grain arriving at terminals)
-  const { data: terminalReceipts } = await supabase
-    .from("cgc_observations")
-    .select("grain_week, ktonnes")
-    .eq("crop_year", year)
-    .eq("grain", grainName)
-    .eq("worksheet", "Terminal Receipts")
-    .eq("metric", "Receipts")
-    .eq("period", "Crop Year")
-    .order("grain_week", { ascending: true });
+  if (error || !rows || rows.length === 0) return [];
 
-  // Cumulative terminal exports
-  const { data: exports } = await supabase
-    .from("cgc_observations")
-    .select("grain_week, ktonnes")
-    .eq("crop_year", year)
-    .eq("grain", grainName)
-    .eq("worksheet", "Terminal Exports")
-    .eq("metric", "Exports")
-    .eq("period", "Crop Year")
-    .order("grain_week", { ascending: true });
+  // Coerce numeric strings (Supabase returns numeric columns as strings)
+  const kt = (v: unknown): number => Number(v) || 0;
 
-  // Cumulative processing (domestic use)
-  const { data: processing } = await supabase
-    .from("cgc_observations")
-    .select("grain_week, ktonnes")
-    .eq("crop_year", year)
-    .eq("grain", grainName)
-    .eq("grade", "")
-    .eq("worksheet", "Process")
-    .eq("metric", "Milled/Mfg Grain")
-    .eq("period", "Crop Year")
-    .order("grain_week", { ascending: true });
+  // Forward-fill: different CGC worksheets may report up to different weeks.
+  // When a metric has no observation for a given week, carry forward the last
+  // known cumulative value instead of defaulting to 0.
+  let prevDel = 0;
+  let prevRec = 0;
+  let prevExp = 0;
+  let prevProc = 0;
+  let prevDate = "";
 
-  // Cumulative direct-to-processor deliveries (national total)
-  // Process worksheet has region='' (national only, no provincial breakdown)
-  const { data: directProcessDeliveries } = await supabase
-    .from("cgc_observations")
-    .select("grain_week, ktonnes")
-    .eq("crop_year", year)
-    .eq("grain", grainName)
-    .eq("grade", "")
-    .eq("worksheet", "Process")
-    .eq("metric", "Producer Deliveries")
-    .eq("period", "Crop Year")
-    .order("grain_week", { ascending: true });
+  return (rows as Array<Record<string, unknown>>).map((row) => {
+    const del = kt(row.producer_deliveries_kt);
+    const rec = kt(row.terminal_receipts_kt);
+    const exp = kt(row.exports_kt);
+    const proc = kt(row.processing_kt);
+    const date = (row.week_ending_date as string) || prevDate;
 
-  // Sum deliveries by week across provinces
-  const deliveryByWeek = new Map<number, { total: number; date: string }>();
-  for (const d of deliveries ?? []) {
-    const existing = deliveryByWeek.get(d.grain_week);
-    if (existing) {
-      existing.total += d.ktonnes ?? 0;
-    } else {
-      deliveryByWeek.set(d.grain_week, {
-        total: d.ktonnes ?? 0,
-        date: d.week_ending_date,
-      });
-    }
-  }
+    // Forward-fill: use previous value if this week's value is 0
+    // (means that worksheet hasn't reported this week yet)
+    const delVal = del > 0 ? del : prevDel;
+    const recVal = rec > 0 ? rec : prevRec;
+    const expVal = exp > 0 ? exp : prevExp;
+    const procVal = proc > 0 ? proc : prevProc;
 
-  // Add direct-to-processor deliveries to the total
-  for (const d of directProcessDeliveries ?? []) {
-    const existing = deliveryByWeek.get(d.grain_week);
-    if (existing) {
-      existing.total += d.ktonnes ?? 0;
-    } else {
-      deliveryByWeek.set(d.grain_week, {
-        total: d.ktonnes ?? 0,
-        date: "", // will be filled by other data
-      });
-    }
-  }
+    prevDel = delVal;
+    prevRec = recVal;
+    prevExp = expVal;
+    prevProc = procVal;
+    if (date) prevDate = date;
 
-  // Sum terminal receipts by week across ports
-  const receiptByWeek = new Map<number, number>();
-  for (const r of terminalReceipts ?? []) {
-    receiptByWeek.set(
-      r.grain_week,
-      (receiptByWeek.get(r.grain_week) ?? 0) + (r.ktonnes ?? 0)
-    );
-  }
-
-  // Sum exports by week across terminal ports
-  const exportByWeek = new Map<number, number>();
-  for (const e of exports ?? []) {
-    exportByWeek.set(
-      e.grain_week,
-      (exportByWeek.get(e.grain_week) ?? 0) + (e.ktonnes ?? 0)
-    );
-  }
-
-  // Sum processing by week across provinces
-  const processByWeek = new Map<number, number>();
-  for (const p of processing ?? []) {
-    processByWeek.set(
-      p.grain_week,
-      (processByWeek.get(p.grain_week) ?? 0) + (p.ktonnes ?? 0)
-    );
-  }
-
-  // Merge all weeks
-  const allWeeks = new Set([
-    ...deliveryByWeek.keys(),
-    ...receiptByWeek.keys(),
-    ...exportByWeek.keys(),
-    ...processByWeek.keys(),
-  ]);
-
-  return Array.from(allWeeks)
-    .sort((a, b) => a - b)
-    .map((week) => {
-      const del = deliveryByWeek.get(week);
-      const rec = receiptByWeek.get(week) ?? 0;
-      const exp = exportByWeek.get(week) ?? 0;
-      const proc = processByWeek.get(week) ?? 0;
-      return {
-        grain_week: week,
-        week_ending_date: del?.date ?? "",
-        producer_deliveries_kt: del?.total ?? 0,
-        terminal_receipts_kt: rec,
-        exports_kt: exp,
-        processing_kt: proc,
-        domestic_disappearance_kt: exp + proc, // kept for backward compat
-      };
-    });
+    return {
+      grain_week: Number(row.grain_week),
+      week_ending_date: date,
+      producer_deliveries_kt: delVal,
+      terminal_receipts_kt: recVal,
+      exports_kt: expVal,
+      processing_kt: procVal,
+      domestic_disappearance_kt: expVal + procVal,
+    };
+  });
 }

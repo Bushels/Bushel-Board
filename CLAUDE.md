@@ -9,6 +9,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 **Implementation Plans:**
 - MVP: `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` (15 tasks)
 - Intelligence: `docs/plans/2026-03-06-grain-intelligence-implementation.md` (19 tasks, complete)
+- X Feed: `docs/plans/2026-03-10-x-feed-relevance-design.md` (Phases 1-4 complete)
 
 ## Tech Stack
 - **Frontend:** Next.js 16 (App Router) + TypeScript, deployed on Vercel
@@ -51,6 +52,9 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - **Producer Deliveries:** Primary.Deliveries (provincial: AB, SK, MB) + Process.Producer Deliveries (national total). Crush-heavy grains like Canola send ~31% directly to processors, so Primary alone undercounts.
 - **Domestic Disappearance:** A residual calculation, not a separate CSV metric
 - **FULL OUTER JOIN required:** When combining Primary + Process data, not all grains appear in both worksheets. Always use FULL OUTER JOIN to avoid dropping data.
+- **Forward-fill for cumulative series:** Different CGC worksheets (Primary, Terminal Exports, Process) may report up to different grain weeks. When merging `period: "Crop Year"` data across worksheets, missing weeks must carry forward the last known cumulative value — NOT default to 0. See `getCumulativeTimeSeries()` in `lib/queries/observations.ts`.
+- **PostgREST max_rows=1000 limit:** Supabase silently truncates query results exceeding 1,000 rows — no error returned. Terminal Receipts has ~3,648 rows per grain (20 grades × 6 ports × 30 weeks) and Terminal Exports ~1,050 rows. Always use server-side RPC with `SUM() GROUP BY` for these worksheets. Client `.limit()` does NOT override the server cap.
+- **No grade='' aggregates for Terminal Receipts/Exports:** Unlike Primary worksheet (which has pre-aggregated `grade=''` rows), Terminal Receipts and Terminal Exports only have per-grade rows. Must sum all grades in SQL.
 
 ## Design Tokens
 - Background: wheat-50 (#f5f3ee) / wheat-900 (#2a261e) dark
@@ -76,11 +80,13 @@ The current directory contains a vanilla JS prototype built by Perplexity Comput
 - **Edge Functions chain (5 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `generate-intelligence` → `generate-farm-summary`
 - **Batch processing:** `search-x-intelligence` and `generate-intelligence` process 4 grains per invocation then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
-- **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks)
+- **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
-- **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet)
-- **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; FarmSummaryCard + percentile badges on My Farm
-- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons)
+- **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (blended relevance: 60% Grok AI + 40% farmer consensus when votes >= 3)
+- **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role)
+- **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
+- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
+- **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
 - **Auth for chain triggers:** Edge Functions use `SUPABASE_ANON_KEY` (not service role key) in Authorization headers for function-to-function HTTP calls. Service role key is only for `createClient()` database operations. Using service role key for HTTP triggers causes 401 because Supabase's function relay rejects it with `verify_jwt: true`.
 
 ## Pipeline Monitoring
@@ -94,6 +100,10 @@ The current directory contains a vanilla JS prototype built by Perplexity Comput
 - pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
 - Delivery audit (Primary by province): `SELECT grain, SUM(ktonnes) FROM cgc_observations WHERE crop_year='2025-2026' AND grain_week=30 AND metric='Deliveries' AND worksheet='Primary' AND period='Current Week' AND region IN ('Alberta','Saskatchewan','Manitoba') AND grade='' GROUP BY grain;`
 - Terminal Receipts check: `SELECT grain, ktonnes FROM cgc_observations WHERE worksheet='Terminal Receipts' AND metric='Receipts' AND period='Current Week' AND grain_week=30 AND crop_year='2025-2026';`
+- Signal feedback: `SELECT grain, grain_week, COUNT(*) FROM signal_feedback GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
+- Blended scores: `SELECT signal_id, grain, blended_relevance, total_votes, farmer_relevance_pct FROM v_signal_relevance_scores ORDER BY blended_relevance DESC LIMIT 10;`
+- Pipeline velocity (per-grain): `SELECT * FROM get_pipeline_velocity('Wheat', '2025-2026') WHERE grain_week IN (10, 20, 30);`
+- Row count audit (check for PostgREST truncation): `SELECT worksheet, metric, COUNT(*) FROM cgc_observations WHERE grain='Wheat' AND crop_year='2025-2026' AND period='Crop Year' GROUP BY worksheet, metric HAVING COUNT(*) > 900;`
 
 ## Critical Framework Patterns
 
@@ -120,3 +130,4 @@ All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnost
 - `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` — 15-task MVP implementation plan
 - `docs/plans/2026-03-06-grain-intelligence-design.md` — Intelligence feature design doc
 - `docs/plans/2026-03-06-grain-intelligence-implementation.md` — 19-task intelligence plan (complete)
+- `docs/plans/2026-03-10-x-feed-relevance-design.md` — X Feed & Relevance Scoring design doc
