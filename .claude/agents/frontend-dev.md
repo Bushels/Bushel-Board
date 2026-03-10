@@ -21,7 +21,7 @@ description: Use this agent for building Next.js pages, React components, data f
   </example>
 
 model: inherit
-color: green
+color: teal
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "TodoWrite", "WebSearch"]
 ---
 
@@ -36,7 +36,7 @@ You are the Frontend Developer for Bushel Board. You build Next.js pages, React 
 6. Wire up the data query layer to page components
 
 **Tech Stack:**
-- Next.js 15 (App Router, Server Components, Server Actions)
+- Next.js 16 (App Router, Server Components, Server Actions)
 - TypeScript (strict mode)
 - Tailwind CSS with custom wheat palette
 - shadcn/ui component library

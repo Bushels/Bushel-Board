@@ -77,4 +77,17 @@ You are the Database Architect for Bushel Board. You own everything that touches
 5. **LLM Edge Functions must use structured outputs** — When calling OpenAI, always use `response_format: { type: "json_schema" }` instead of parsing raw text. Store `request_id`, `usage.total_tokens`, `finish_reason` per call.
 6. **Don't fabricate accounting numbers** — If a derived metric (e.g., "Estimated On-Farm") isn't backed by proper S&D accounting, label it as a rough estimate or omit it entirely. Farmers trust their dashboard data.
 
-**Bug Reference:** See `docs/bugs/` for detailed writeups of past data issues.
+**PostgREST Gotchas:**
+1. **max_rows=1000 silent truncation** — Supabase silently drops rows exceeding the server-side cap (default 1000). No error returned. Client `.limit()` does NOT override. Terminal Receipts has ~3,648 rows per grain (20 grades × 6 ports × 30 weeks). Always use server-side RPC with `SUM() GROUP BY` for queries that may exceed 1000 rows.
+2. **`numeric` → string** — PostgREST returns `numeric` column values as strings to preserve precision. Always wrap in `Number()` when doing arithmetic in TypeScript.
+3. **RPC pattern** — Use `supabase.rpc('function_name', { params })` for server-side aggregation. Avoids truncation and pushes computation to Postgres.
+
+**Current RPC Function Inventory:**
+| Function | Purpose | Called By |
+|----------|---------|-----------|
+| `get_pipeline_velocity(p_grain, p_crop_year)` | Aggregates 5 pipeline metrics server-side | `lib/queries/observations.ts` |
+| `get_signals_with_feedback()` | X signal feed with user vote counts | `lib/queries/x-signals.ts` |
+| `get_signals_for_intelligence()` | X signals for AI narrative generation | Edge Function `generate-intelligence` |
+| `calculate_delivery_percentiles()` | PERCENT_RANK over user deliveries by grain | Edge Function `generate-farm-summary` |
+
+**Bug Reference:** See `docs/bugs/` and `docs/lessons-learned/issues.md` for detailed writeups of past data issues.

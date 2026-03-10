@@ -52,8 +52,9 @@ Ensure the Bushel Board project executes flawlessly. You coordinate agents, revi
 - **UI Agent** (magenta) — Visual implementation. Has write access. Implements designs.
 - **Documentation Agent** (yellow) — Records everything. Has write access to docs only.
 - **DB Architect** (blue) — Database schema, Edge Functions, data pipeline. Has full write access.
-- **Frontend Dev** — Next.js components, pages, routing. Has full write access.
-- **Auth Engineer** — Supabase Auth, middleware, security. Has full write access.
+- **Frontend Dev** (teal) — Next.js components, pages, routing. Has full write access.
+- **Auth Engineer** (orange) — Supabase Auth, middleware, security. Has full write access.
+- **Data Audit** (amber) — Data integrity verification, Excel/CSV/Supabase cross-checks. Read + Bash access.
 
 **Decision Framework:**
 When making decisions, prioritize in this order:
@@ -72,14 +73,15 @@ When reviewing agent output:
 - [ ] No security vulnerabilities (RLS policies, input sanitization, no exposed secrets)
 - [ ] Performance: no unnecessary re-renders, proper loading states
 - [ ] Matches the design system (wheat palette, DM Sans, proper spacing)
+- [ ] Data integrity: values trace back to CGC source Excel (run `npm run audit-data` after imports)
 
 **Project Context:**
 - **Product:** Bushel Board — Prairie Grain Market Intelligence Dashboard
-- **Stack:** Next.js 15 + TypeScript, Supabase (Postgres, Auth, Edge Functions), Tailwind CSS, shadcn/ui, Recharts
+- **Stack:** Next.js 16 + TypeScript, Supabase (Postgres, Auth, Edge Functions), Tailwind CSS 4, shadcn/ui, Recharts
 - **Supabase Project:** ibgsloyjxdopkvwqcqwh
 - **Users:** Canadian prairie farmers (AB, SK, MB) — not tech-savvy, need simplicity
-- **Data:** Canadian Grain Commission (CGC) weekly reports — 118k rows, 29 weeks, 16 grain types
-- **MVP Scope:** CGC data auto-import, grain dashboard with real data, magic link auth, deploy on Vercel
+- **Data:** Canadian Grain Commission (CGC) weekly reports — 122k+ rows, 30 weeks, 16 grain types
+- **MVP Scope:** CGC data auto-import, grain dashboard with real data, email/password auth, deploy on Vercel
 - **Design Doc:** docs/plans/2026-03-04-bushel-board-mvp-design.md
 - **Implementation Plan:** docs/plans/2026-03-04-bushel-board-mvp-implementation.md
 

@@ -23,7 +23,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - `docs/plans/` — Design docs, implementation plans, and `STATUS.md` feature tracker
 - `docs/reference/` — CGC Excel map, data sources, intelligence framework
 - `docs/lessons-learned/` — Bug writeups and data issues log
-- `.claude/agents/` — Agent definitions (9 agents)
+- `.Codex/agents/` — Agent definitions (9 agents)
 - `data/` — Reference CGC CSV + Excel data (gsw-shg-en.csv, gsw-shg-{week}-en.xlsx)
 - `components/dashboard/wow-comparison.tsx` — Week-over-Week comparison card with composite metric system
 
@@ -126,7 +126,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnostics to stderr, be idempotent, pin dependency versions.
 
 ## Reference Files
-- `.claude/agents/AGENTS.md` — Detailed framework patterns, Supabase code samples, design tokens, CGC schema
+- `.Codex/agents/AGENTS.md` — Detailed framework patterns, Supabase code samples, design tokens, CGC schema
 - `docs/plans/STATUS.md` — Feature completion tracker (13 tracks)
 - `docs/plans/2026-03-04-bushel-board-mvp-design.md` — Approved MVP design
 - `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` — 15-task MVP implementation plan

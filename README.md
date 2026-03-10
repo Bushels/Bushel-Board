@@ -17,7 +17,7 @@ Prairie grain market intelligence dashboard for Canadian farmers (AB, SK, MB).
 - **Database:** Supabase (PostgreSQL + Auth + Edge Functions)
 - **UI:** shadcn/ui + Tailwind CSS 4 + Recharts
 - **Fonts:** DM Sans (body) + Fraunces (display)
-- **Auth:** Supabase Auth (email/password, magic link planned)
+- **Auth:** Supabase Auth (email/password via @supabase/ssr)
 
 ## Getting Started
 
@@ -61,6 +61,7 @@ npm run dev                   # Start dev server at localhost:3000
 | `npm run build` | Production build |
 | `npm run backfill` | Load historical CGC CSV data into Supabase |
 | `npm run seed-supply` | Seed AAFC supply/disposition balance sheets |
+| `npm run audit-data` | Run CGC data audit (Excel ↔ CSV ↔ Supabase) |
 | `npm run test` | Run tests |
 
 ## Project Structure
@@ -77,6 +78,7 @@ components/
   dashboard/        # Waterfall, pace chart, storage, summary cards
   layout/           # Nav, logo, theme toggle
   ui/               # shadcn/ui components
+data/               # Reference CGC CSV + Excel spreadsheets
 lib/
   queries/          # Server-side Supabase query functions
   supabase/         # Auth clients (server, browser, middleware)
@@ -103,6 +105,10 @@ scripts/            # CLI tools (backfill, seed)
 | `crop_plans` | User-selected crops with delivery logging |
 | `profiles` | User profiles (farm name, province) |
 | `grain_intelligence` | AI-generated weekly grain narratives and KPIs |
+| `farm_summaries` | Per-user weekly AI farm summaries + percentiles |
+| `x_market_signals` | X/Twitter posts scored per grain/week |
+| `validation_reports` | Post-import anomaly detection results |
+| `signal_feedback` | Farmer relevance votes on X signals |
 | `cgc_imports` | Audit log of data loads |
 
 ## License

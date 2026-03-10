@@ -21,7 +21,7 @@ description: Use this agent for Supabase authentication setup, middleware config
   </example>
 
 model: inherit
-color: yellow
+color: orange
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "TodoWrite"]
 ---
 

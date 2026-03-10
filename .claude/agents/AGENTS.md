@@ -5,14 +5,13 @@
 ## Project Quick Reference
 |key|value|
 |---|-----|
-|stack|Next.js 15 (App Router) + TypeScript + Supabase + Tailwind + shadcn/ui + Recharts|
+|stack|Next.js 16 (App Router) + TypeScript + Supabase + Tailwind CSS 4 + shadcn/ui + Recharts|
 |supabase_ref|ibgsloyjxdopkvwqcqwh|
 |deploy|Vercel|
-|data|CGC weekly grain statistics (118k rows, 16 grains, AB/SK/MB)|
-|auth|Supabase magic links via @supabase/ssr|
-|new_project_dir|../bushel-board-app/|
+|data|CGC weekly grain statistics (122k+ rows, 16 grains, AB/SK/MB)|
+|auth|Supabase email/password via @supabase/ssr|
 
-## Supabase Patterns (SSR with Next.js 15)
+## Supabase Patterns (SSR with Next.js 16)
 
 ### Server Component Data Fetching
 ```typescript
@@ -21,7 +20,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function createClient() {
-  const cookieStore = await cookies(); // async in Next.js 15!
+  const cookieStore = await cookies(); // async in Next.js 16!
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -64,7 +63,7 @@ Deno.serve(async (req) => {
 });
 ```
 
-## Next.js 15 Patterns
+## Next.js 16 Patterns
 
 ### Server Components (default)
 - All page.tsx files are Server Components by default — fetch data directly
@@ -80,9 +79,9 @@ Deno.serve(async (req) => {
 - `(dashboard)` — auth-protected routes with shared layout
 - `(auth)` — login/callback routes
 
-### Dynamic Params (Next.js 15)
+### Dynamic Params (Next.js 16)
 ```typescript
-// params is a Promise in Next.js 15!
+// params is a Promise in Next.js 16!
 interface Props { params: Promise<{ slug: string }> }
 export default async function Page({ params }: Props) {
   const { slug } = await params;
