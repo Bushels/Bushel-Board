@@ -46,6 +46,7 @@ import-cgc-weekly → validate-import → search-x-intelligence → generate-int
 | `x_market_signals` | ~80/week | X/Twitter posts scored per grain/week |
 | `validation_reports` | 1/import | Post-import anomaly detection results |
 | `signal_feedback` | varies | Farmer relevance votes on X signals |
+| `grain_sentiment_votes` | varies | Weekly haul/hold/neutral farmer sentiment votes per grain |
 | `cgc_imports` | 1/import | Audit log of data loads |
 
 ## Key Views & RPC Functions

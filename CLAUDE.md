@@ -134,11 +134,12 @@ All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnost
 
 ## Reference Files
 - `.claude/agents/AGENTS.md` — Detailed framework patterns, Supabase code samples, design tokens, CGC schema
-- `docs/plans/STATUS.md` — Feature completion tracker (13 tracks)
+- `docs/plans/STATUS.md` — Feature completion tracker (14 tracks)
 - `docs/plans/2026-03-04-bushel-board-mvp-design.md` — Approved MVP design
 - `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` — 15-task MVP implementation plan
 - `docs/plans/2026-03-06-grain-intelligence-design.md` — Intelligence feature design doc
 - `docs/plans/2026-03-06-grain-intelligence-implementation.md` — 19-task intelligence plan (complete)
 - `docs/plans/2026-03-10-x-feed-relevance-design.md` — X Feed & Relevance Scoring design doc
+- `docs/plans/2026-03-11-farmer-engagement-design.md` — Farmer Engagement & Input System design doc
 - `docs/reference/cgc-excel-map.md` — CGC Excel spreadsheet structure map (14 sheets)
 - `docs/lessons-learned/issues.md` — Data bugs and root cause analyses
