@@ -123,7 +123,7 @@ export function GamifiedGrainChart({
             }}
             itemStyle={{ color: "hsl(var(--foreground))" }}
             labelFormatter={(val) => `Week ${val}`}
-            formatter={(value: number, name: string) => [fmtKt(value), name]}
+            formatter={(value: number | undefined, name: string) => [fmtKt(value ?? 0), name]}
           />
 
           <Legend wrapperStyle={{ paddingTop: "20px" }} />
