@@ -8,7 +8,6 @@ import {
   getProvincialDeliveries,
   getShipmentDistribution,
   getCumulativeTimeSeries,
-  getStorageBreakdown,
   getWeekOverWeekComparison,
 } from "@/lib/queries/observations";
 import { getGrainIntelligence, getSupplyPipeline } from "@/lib/queries/intelligence";
@@ -21,10 +20,7 @@ import { InsightCards } from "@/components/dashboard/insight-cards";
 import { DispositionBar } from "@/components/dashboard/disposition-bar";
 import { Button } from "@/components/ui/button";
 
-import { FlowBreakdownWidget } from "@/components/dashboard/flow-breakdown-widget";
-import { GrainElevator } from "@/components/dashboard/grain-elevator";
-import { SupplySankey } from "@/components/dashboard/supply-sankey";
-import { PrairiePulseMap } from "@/components/dashboard/prairie-pulse-map";
+import { ProvinceMap } from "@/components/dashboard/province-map";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
 import { StaggerGroup } from "@/components/motion/stagger-group";
 import { AnimatedCard } from "@/components/motion/animated-card";
@@ -67,12 +63,11 @@ export default async function GrainDetailPage({ params }: Props) {
     return <GrainLockedView grain={grain.name} />;
   }
 
-  const [deliveries, provincial, distribution, weeklyData, storageData, intelligence, supplyPipeline, xSignals, wowComparison, grainOverview] = await Promise.all([
+  const [deliveries, provincial, distribution, weeklyData, intelligence, supplyPipeline, xSignals, wowComparison, grainOverview] = await Promise.all([
     getDeliveryTimeSeries(grain.name),
     getProvincialDeliveries(grain.name),
     getShipmentDistribution(grain.name),
     getCumulativeTimeSeries(grain.name),
-    getStorageBreakdown(grain.name),
     getGrainIntelligence(grain.name),
     getSupplyPipeline(grain.slug),
     getXSignalsForGrain(grain.name),
@@ -90,9 +85,6 @@ export default async function GrainDetailPage({ params }: Props) {
     getUserSentimentVote(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
     getGrainSentiment(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
   ]);
-
-  // Aggregate total deliveries
-  const totalDeliveries = deliveries.reduce((acc, row) => acc + row.ktonnes, 0);
 
   // Override AI-generated delivery KPIs with v_grain_overview values.
   // The AI kpi_data undercounts because the intelligence pipeline only used
@@ -210,56 +202,19 @@ export default async function GrainDetailPage({ params }: Props) {
         initialAggregate={sentimentAggregate}
       />
 
-      {/* ═══ Zone 3: Decision Window ═══ */}
+      {/* ═══ Zone 3: Deep Dive ═══ */}
       <StaggerGroup className="space-y-6">
         <AnimatedCard index={0}>
-          <h2 className="text-xl font-display font-semibold mb-4">Decision Window</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Supply Sankey — full-width flow diagram */}
-            {supplyPipeline && (
-              <div className="lg:col-span-2 rounded-xl border border-border/40 bg-card p-4">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Supply Flow</h3>
-                <SupplySankey
-                  carry_in_kt={supplyPipeline.carry_in_kt}
-                  production_kt={supplyPipeline.production_kt}
-                  total_supply_kt={supplyPipeline.total_supply_kt}
-                  exports_kt={supplyPipeline.exports_kt ?? undefined}
-                  food_industrial_kt={supplyPipeline.food_industrial_kt ?? undefined}
-                  feed_waste_kt={supplyPipeline.feed_waste_kt ?? undefined}
-                  carry_out_kt={supplyPipeline.carry_out_kt ?? undefined}
-                  grain={grain.name}
-                />
-              </div>
-            )}
-
-            {/* Grain Elevator — storage visualization */}
-            <div className="rounded-xl border border-border/40 bg-card p-4">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-3">Storage Levels</h3>
-              <GrainElevator storageData={storageData} />
-            </div>
+          <div className="space-y-3">
+            <h2 className="text-lg font-display font-semibold">Provincial Deliveries (CY Total)</h2>
+            <ProvinceMap provinces={provincial.map((p) => ({
+              region: p.region,
+              ktonnes: p.ktonnes,
+            }))} />
           </div>
         </AnimatedCard>
 
         <AnimatedCard index={1}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Prairie Pulse Map — provincial deliveries */}
-            <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3">
-              <h3 className="text-lg font-display font-semibold">Provincial Deliveries (CY Total)</h3>
-              <PrairiePulseMap provinces={provincial.map((p) => ({
-                region: p.region,
-                ktonnes: p.ktonnes,
-              }))} />
-            </div>
-
-            {/* Flow Breakdown */}
-            <FlowBreakdownWidget distribution={distribution} totalDeliveries={totalDeliveries} />
-          </div>
-        </AnimatedCard>
-      </StaggerGroup>
-
-      {/* ═══ Zone 4: Deep Dive ═══ */}
-      <StaggerGroup className="space-y-6">
-        <AnimatedCard index={0}>
           <div className="pt-4">
             <h2 className="text-xl font-display font-semibold mb-4">Pipeline Velocity</h2>
             <GamifiedGrainChart
@@ -269,7 +224,7 @@ export default async function GrainDetailPage({ params }: Props) {
           </div>
         </AnimatedCard>
 
-        <AnimatedCard index={1}>
+        <AnimatedCard index={2}>
           <div className="space-y-4">
             <h2 className="text-lg font-display font-semibold">
               Domestic Disappearance Breakdown

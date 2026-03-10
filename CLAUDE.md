@@ -73,18 +73,22 @@ The current directory contains a vanilla JS prototype built by Perplexity Comput
 - `npx @next/codemod@canary agents-md` — Generate AGENTS.md with Next.js 15 docs
 
 ## Intelligence Pipeline
-- **Edge Functions:** `import-cgc-weekly` → `generate-intelligence` → `generate-farm-summary` (chain triggers)
+- **Edge Functions chain (5 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `generate-intelligence` → `generate-farm-summary`
+- **Batch processing:** `search-x-intelligence` and `generate-intelligence` process 4 grains per invocation then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
-- **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles)
+- **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
 - **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet)
 - **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; FarmSummaryCard + percentile badges on My Farm
 - **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons)
+- **Auth for chain triggers:** Edge Functions use `SUPABASE_ANON_KEY` (not service role key) in Authorization headers for function-to-function HTTP calls. Service role key is only for `createClient()` database operations. Using service role key for HTTP triggers causes 401 because Supabase's function relay rejects it with `verify_jwt: true`.
 
 ## Pipeline Monitoring
 - Cron status: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';`
 - Import audit: `SELECT * FROM cgc_imports ORDER BY imported_at DESC LIMIT 5;`
 - Data freshness: `SELECT * FROM v_latest_import;`
+- Validation: `SELECT * FROM validation_reports ORDER BY created_at DESC LIMIT 5;`
+- X signals: `SELECT grain, grain_week, COUNT(*) FROM x_market_signals GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 20;`
 - Intelligence: `SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generated_at DESC LIMIT 5;`
 - Farm summaries: `SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;`
 - pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
