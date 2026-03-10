@@ -9,6 +9,7 @@ const addCropPlanSchema = z.object({
   grain: z.string().min(1, "Grain is required"),
   acres: z.coerce.number().int().positive("Acres must be a positive integer"),
   volume: z.coerce.number().nonnegative("Volume cannot be negative"),
+  contracted: z.coerce.number().nonnegative("Contracted volume cannot be negative").default(0),
 });
 
 const logDeliverySchema = z.object({
@@ -27,13 +28,16 @@ export async function addCropPlan(formData: FormData) {
     grain: formData.get("grain"),
     acres: formData.get("acres"),
     volume: formData.get("volume"),
+    contracted: formData.get("contracted") || 0,
   });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
   }
 
-  const { grain, acres, volume } = parsed.data;
+  const { grain, acres, volume, contracted } = parsed.data;
+  const contractedKt = contracted / 1000;
+  const uncontractedKt = Math.max(0, volume / 1000 - contractedKt);
 
   const { error } = await supabase.from("crop_plans").upsert({
     user_id: user.id,
@@ -41,6 +45,8 @@ export async function addCropPlan(formData: FormData) {
     grain,
     acres_seeded: acres,
     volume_left_to_sell_kt: volume / 1000, // input is tonnes, store as kt
+    contracted_kt: contractedKt,
+    uncontracted_kt: uncontractedKt,
   }, {
     onConflict: "user_id,crop_year,grain",
   });

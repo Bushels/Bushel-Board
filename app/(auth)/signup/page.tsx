@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/layout/logo";
+import { Wheat, Eye } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -15,8 +16,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+
+type AccountRole = "farmer" | "observer";
 
 export default function SignupPage() {
+  const [role, setRole] = useState<AccountRole>("farmer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [farmName, setFarmName] = useState("");
@@ -26,6 +31,8 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const isFarmer = role === "farmer";
+
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -33,14 +40,14 @@ export default function SignupPage() {
 
     const supabase = createClient();
 
-    // 1. Create the auth account
+    // 1. Create the auth account with role in metadata
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          farm_name: farmName,
-          farmer_name: farmerName,
+          role,
+          ...(isFarmer ? { farm_name: farmName, farmer_name: farmerName } : {}),
         },
       },
     });
@@ -51,20 +58,22 @@ export default function SignupPage() {
       return;
     }
 
-    // 2. Update the auto-created profile with farm info
+    // 2. Update the auto-created profile with farm info + role
     if (authData.user) {
+      const profileUpdate: Record<string, string> = { role };
+      if (isFarmer) {
+        profileUpdate.farm_name = farmName;
+        profileUpdate.farmer_name = farmerName;
+        profileUpdate.postal_code = postalCode.trim().toUpperCase();
+      }
+
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({
-          farm_name: farmName,
-          farmer_name: farmerName,
-          postal_code: postalCode.trim().toUpperCase(),
-        })
+        .update(profileUpdate)
         .eq("id", authData.user.id);
 
       if (profileError) {
         console.error("Profile update error:", profileError.message);
-        // Don't block signup — profile can be updated later
       }
     }
 
@@ -83,56 +92,105 @@ export default function SignupPage() {
             Join Bushel Board
           </CardTitle>
           <CardDescription>
-            Create your farm dashboard in 30 seconds.
+            {isFarmer
+              ? "Create your farm dashboard in 30 seconds."
+              : "Browse prairie grain market intelligence."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">
+            {/* Role toggle */}
             <div className="space-y-2">
-              <Label htmlFor="farmerName">Your Name</Label>
-              <Input
-                id="farmerName"
-                type="text"
-                placeholder="John Smith"
-                value={farmerName}
-                onChange={(e) => setFarmerName(e.target.value)}
-                required
-                autoFocus
-              />
+              <Label>I want to</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRole("farmer")}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all",
+                    isFarmer
+                      ? "border-canola bg-canola/10 ring-1 ring-canola/30 text-foreground"
+                      : "border-border/50 bg-background text-muted-foreground hover:border-canola/50 hover:bg-canola/5"
+                  )}
+                >
+                  <Wheat className="h-4 w-4" />
+                  Farm & Track
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole("observer")}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all",
+                    !isFarmer
+                      ? "border-canola bg-canola/10 ring-1 ring-canola/30 text-foreground"
+                      : "border-border/50 bg-background text-muted-foreground hover:border-canola/50 hover:bg-canola/5"
+                  )}
+                >
+                  <Eye className="h-4 w-4" />
+                  Just Browse
+                </button>
+              </div>
+              {!isFarmer && (
+                <p className="text-xs text-muted-foreground">
+                  Observers can view dashboards and market data. Upgrade to a farmer account anytime.
+                </p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="farmName">Farm Name</Label>
-              <Input
-                id="farmName"
-                type="text"
-                placeholder="Smith Family Farm"
-                value={farmName}
-                onChange={(e) => setFarmName(e.target.value)}
-                required
-              />
+
+            {/* Farm fields — only required for farmers */}
+            <div className={cn("space-y-4 transition-all duration-300", !isFarmer && "opacity-40 pointer-events-none")}>
+              <div className="space-y-2">
+                <Label htmlFor="farmerName">Your Name</Label>
+                <Input
+                  id="farmerName"
+                  type="text"
+                  placeholder="John Smith"
+                  value={farmerName}
+                  onChange={(e) => setFarmerName(e.target.value)}
+                  required={isFarmer}
+                  autoFocus={isFarmer}
+                  tabIndex={isFarmer ? 0 : -1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="farmName">Farm Name</Label>
+                <Input
+                  id="farmName"
+                  type="text"
+                  placeholder="Smith Family Farm"
+                  value={farmName}
+                  onChange={(e) => setFarmName(e.target.value)}
+                  required={isFarmer}
+                  tabIndex={isFarmer ? 0 : -1}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="postalCode">Postal Code</Label>
+                <Input
+                  id="postalCode"
+                  type="text"
+                  placeholder="T0C 2V0"
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  required={isFarmer}
+                  maxLength={7}
+                  tabIndex={isFarmer ? 0 : -1}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="postalCode">Postal Code</Label>
-              <Input
-                id="postalCode"
-                type="text"
-                placeholder="T0C 2V0"
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
-                required
-                maxLength={7}
-              />
-            </div>
+
+            {/* Account fields — always required */}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="farmer@example.com"
+                placeholder={isFarmer ? "farmer@example.com" : "you@example.com"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
+                autoFocus={!isFarmer}
               />
             </div>
             <div className="space-y-2">
@@ -156,7 +214,9 @@ export default function SignupPage() {
               className="w-full bg-canola hover:bg-canola-dark text-white"
               disabled={loading}
             >
-              {loading ? "Creating your farm..." : "Create Account"}
+              {loading
+                ? isFarmer ? "Creating your farm..." : "Setting up access..."
+                : isFarmer ? "Create Farm Account" : "Create Observer Account"}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
               Already have an account?{" "}

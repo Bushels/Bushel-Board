@@ -35,6 +35,13 @@ export interface GrainContext {
   projected_exports_kt: number | null;
   projected_crush_kt: number | null;
   projected_carry_out_kt: number | null;
+  // Farmer sentiment poll data (from grain_sentiment_votes view)
+  farmerSentiment?: {
+    vote_count: number;
+    pct_holding: number;
+    pct_hauling: number;
+    pct_neutral: number;
+  } | null;
   // Pre-scored social signals from x_market_signals table (with farmer feedback)
   socialSignals?: Array<{
     sentiment: string;
@@ -74,6 +81,12 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 - Projected Crush: ${ctx.projected_crush_kt ?? "N/A"} Kt
 - Projected Carry-out: ${ctx.projected_carry_out_kt ?? "N/A"} Kt
 - Delivered to Date: ${deliveredPct}% of total supply
+
+### Farmer Sentiment (from Bushel Board poll — this week)
+${ctx.farmerSentiment && ctx.farmerSentiment.vote_count >= 5
+  ? `- ${ctx.farmerSentiment.vote_count} farmers voted: ${ctx.farmerSentiment.pct_holding}% holding, ${ctx.farmerSentiment.pct_hauling}% hauling, ${ctx.farmerSentiment.pct_neutral}% neutral
+- Consider divergence between farmer sentiment and social/market signals when generating insights.`
+  : "Insufficient farmer votes this week (need ≥ 5 for privacy). Skip sentiment analysis."}
 
 ## Recent X/Twitter Market Signals (scored by AI + verified by farmers)
 

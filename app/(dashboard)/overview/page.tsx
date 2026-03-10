@@ -3,14 +3,17 @@ import { getGrainOverview } from "@/lib/queries/grains";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
 import { getCumulativeTimeSeries, getStorageBreakdown } from "@/lib/queries/observations";
 import { getGrainIntelligence } from "@/lib/queries/intelligence";
+import { getSentimentOverview } from "@/lib/queries/sentiment";
+import { getUserRole } from "@/lib/auth/role-guard";
 import type { GrainIntelligence } from "@/lib/queries/intelligence";
 import type { SupplyDisposition } from "@/lib/queries/supply-disposition";
 import type { CumulativeWeekRow, StorageBreakdown } from "@/lib/queries/observations";
 import { CropSummaryCard } from "@/components/dashboard/crop-summary-card";
+import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { StaggerGroup } from "@/components/motion/stagger-group";
 import { OverviewCharts } from "./client";
-import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
+import { CURRENT_CROP_YEAR, getCurrentGrainWeek } from "@/lib/utils/crop-year";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_GRAINS } from "@/lib/constants/grains";
 
@@ -47,10 +50,14 @@ export default async function OverviewPage() {
     GRAIN_NAMES[g.slug] = g.name;
   }
 
+  const grainWeek = getCurrentGrainWeek();
+
   // Fetch all data in parallel
-  const [grainOverview, supplyData, ...weeklyStorageAndIntel] = await Promise.all([
+  const [grainOverview, supplyData, sentimentData, role, ...weeklyStorageAndIntel] = await Promise.all([
     getGrainOverview(),
     getSupplyDispositionForGrains(activeGrains),
+    getSentimentOverview(CURRENT_CROP_YEAR, grainWeek),
+    getUserRole(),
     // Cumulative time series, storage, and intelligence for each grain
     ...activeGrains.flatMap((slug) => [
       getCumulativeTimeSeries(GRAIN_NAMES[slug] ?? slug),
@@ -109,6 +116,9 @@ export default async function OverviewPage() {
           ))}
         </div>
       </section>
+
+      {/* Cross-grain farmer sentiment banner */}
+      <SentimentBanner sentimentData={sentimentData} grainWeek={grainWeek} />
 
       {/* Market Pulse — condensed intelligence cards */}
       <MarketPulseSection intelBySlug={intelBySlug} grainNames={GRAIN_NAMES} activeGrains={activeGrains} />

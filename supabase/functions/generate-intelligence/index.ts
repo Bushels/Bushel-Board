@@ -66,8 +66,25 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("crop_year", cropYear);
 
+    // Get farmer sentiment data for each grain this week
+    const { data: sentimentData } = await supabase.rpc("get_sentiment_overview", {
+      p_crop_year: cropYear,
+      p_grain_week: grainWeek,
+    });
+
     const yoyByGrain = new Map((yoyData ?? []).map((r: Record<string, unknown>) => [r.grain, r]));
     const supplyByGrain = new Map((supplyData ?? []).map((r: Record<string, unknown>) => [r.grain_name, r]));
+    const sentimentByGrain = new Map(
+      (sentimentData ?? []).map((r: Record<string, unknown>) => [
+        r.grain as string,
+        {
+          vote_count: Number(r.vote_count),
+          pct_holding: Number(r.pct_holding),
+          pct_hauling: Number(r.pct_hauling),
+          pct_neutral: Number(r.pct_neutral),
+        },
+      ])
+    );
 
     const results: { grain: string; status: string; error?: string }[] = [];
 
@@ -112,6 +129,7 @@ Deno.serve(async (req) => {
           projected_exports_kt: supply?.projected_exports_kt ?? null,
           projected_crush_kt: supply?.projected_crush_kt ?? null,
           projected_carry_out_kt: supply?.projected_carry_out_kt ?? null,
+          farmerSentiment: sentimentByGrain.get(grainName) ?? null,
           socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
             sentiment: s.sentiment as string,
             category: s.category as string,

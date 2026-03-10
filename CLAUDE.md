@@ -10,6 +10,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - MVP: `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` (15 tasks)
 - Intelligence: `docs/plans/2026-03-06-grain-intelligence-implementation.md` (19 tasks, complete)
 - X Feed: `docs/plans/2026-03-10-x-feed-relevance-design.md` (Phases 1-4 complete)
+- Farmer Engagement: `docs/plans/2026-03-11-farmer-engagement-design.md` (22 tasks, complete)
 
 ## Tech Stack
 - **Frontend:** Next.js 16 (App Router) + TypeScript, deployed on Vercel
@@ -84,9 +85,11 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
 - **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (blended relevance: 60% Grok AI + 40% farmer consensus when votes >= 3)
-- **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role)
-- **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
-- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
+- **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role), `get_sentiment_overview(p_crop_year, p_grain_week)` (per-grain sentiment aggregates for overview banner), `get_delivery_analytics(p_crop_year, p_grain)` (anonymized delivery stats with privacy threshold ≥5 farmers, excludes observers)
+- **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm; SentimentBanner cross-grain overview; DeliveryPaceCard percentile comparison; MicroCelebration first-time action glow; YourImpact inline banners
+- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats), `lib/queries/delivery-analytics.ts` (getDeliveryAnalytics), `lib/queries/sentiment.ts` (getSentimentOverview)
+- **Auth:** `lib/auth/role-guard.ts` — `getUserRole()` server-side, `isObserver()` helper. Observer role: UI-level gating (soft nudge), not route-level. Observers see data but can't vote/input. `profiles.role` column ('farmer'|'observer'), DEFAULT 'farmer'.
+- **Engagement:** `crop_plans.contracted_kt` + `uncontracted_kt` columns for contracted grain tracking. Stacked progress bar (delivered/contracted/uncontracted) on My Farm. `generate-intelligence` prompt now includes farmer sentiment data. `generate-farm-summary` prompt includes contracted position.
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
 - **Auth for chain triggers:** Edge Functions use `SUPABASE_ANON_KEY` (not service role key) in Authorization headers for function-to-function HTTP calls. Service role key is only for `createClient()` database operations. Using service role key for HTTP triggers causes 401 because Supabase's function relay rejects it with `verify_jwt: true`.
 
@@ -105,6 +108,10 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Blended scores: `SELECT signal_id, grain, blended_relevance, total_votes, farmer_relevance_pct FROM v_signal_relevance_scores ORDER BY blended_relevance DESC LIMIT 10;`
 - Pipeline velocity (per-grain): `SELECT * FROM get_pipeline_velocity('Wheat', '2025-2026') WHERE grain_week IN (10, 20, 30);`
 - Row count audit (check for PostgREST truncation): `SELECT worksheet, metric, COUNT(*) FROM cgc_observations WHERE grain='Wheat' AND crop_year='2025-2026' AND period='Crop Year' GROUP BY worksheet, metric HAVING COUNT(*) > 900;`
+- Sentiment overview: `SELECT * FROM get_sentiment_overview('2025-2026', 32);`
+- Delivery analytics: `SELECT * FROM get_delivery_analytics('2025-2026');`
+- Observer accounts: `SELECT role, COUNT(*) FROM profiles GROUP BY role;`
+- Contracted grain: `SELECT grain, contracted_kt, uncontracted_kt FROM crop_plans WHERE crop_year='2025-2026' AND (contracted_kt > 0 OR uncontracted_kt > 0) LIMIT 10;`
 
 ## Critical Framework Patterns
 

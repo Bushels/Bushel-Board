@@ -27,6 +27,7 @@ import { AnimatedCard } from "@/components/motion/animated-card";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
+import { getUserRole } from "@/lib/auth/role-guard";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
 import { XSignalFeed } from "@/components/dashboard/x-signal-feed";
 import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
@@ -81,13 +82,14 @@ export default async function GrainDetailPage({ params }: Props) {
     ? Math.max(...deliveries.map(d => d.grain_week))
     : 1;
 
-  // Fetch sentiment data + feedback-enriched X signals
-  const [userVote, sentimentAggregate, signalsWithFeedback] = await Promise.all([
+  // Fetch sentiment data + feedback-enriched X signals + user role
+  const [userVote, sentimentAggregate, signalsWithFeedback, role] = await Promise.all([
     getUserSentimentVote(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
     getGrainSentiment(supabase, grain.name, CURRENT_CROP_YEAR, latestGrainWeek),
     user
       ? getXSignalsWithFeedback(supabase, grain.name, user.id, latestGrainWeek)
       : Promise.resolve([]),
+    getUserRole(),
   ]);
 
   // Override AI-generated delivery KPIs with v_grain_overview values.
@@ -180,6 +182,7 @@ export default async function GrainDetailPage({ params }: Props) {
               grain={grain.name}
               grainWeek={latestGrainWeek}
               cropYear={CURRENT_CROP_YEAR}
+              role={role}
             />
           </AnimatedCard>
         )}
@@ -215,6 +218,7 @@ export default async function GrainDetailPage({ params }: Props) {
         grainWeek={latestGrainWeek}
         initialVote={userVote}
         initialAggregate={sentimentAggregate}
+        role={role}
       />
 
       {/* ═══ Zone 3: Deep Dive ═══ */}

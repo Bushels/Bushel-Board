@@ -30,5 +30,16 @@ export function cropYearStartDate(cropYear?: string): Date {
   return new Date(startYear, 7, 1);
 }
 
+/**
+ * Calculate the current CGC grain week (1-52).
+ * Week 1 starts Aug 1 of the crop year start.
+ */
+export function getCurrentGrainWeek(now = new Date()): number {
+  const start = cropYearStartDate(getCurrentCropYear(now));
+  const diffMs = now.getTime() - start.getTime();
+  const week = Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000));
+  return Math.max(1, Math.min(52, week));
+}
+
 /** The current crop year, evaluated once at module load. */
 export const CURRENT_CROP_YEAR = getCurrentCropYear();

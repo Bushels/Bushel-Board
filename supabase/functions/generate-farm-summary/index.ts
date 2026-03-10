@@ -29,6 +29,8 @@ interface CropPlan {
   grain: string;
   acres_seeded: number;
   volume_left_to_sell_kt: number | null;
+  contracted_kt: number | null;
+  uncontracted_kt: number | null;
   deliveries: { date: string; amount_kt: number; destination?: string }[];
 }
 
@@ -70,7 +72,7 @@ Deno.serve(async (req) => {
     // 1. Get crop plans — either for specific users (batched self-trigger) or all users
     let cropPlansQuery = supabase
       .from("crop_plans")
-      .select("user_id, crop_year, grain, acres_seeded, volume_left_to_sell_kt, deliveries")
+      .select("user_id, crop_year, grain, acres_seeded, volume_left_to_sell_kt, contracted_kt, uncontracted_kt, deliveries")
       .eq("crop_year", cropYear);
 
     if (targetUserIds) {
@@ -350,14 +352,21 @@ function buildFarmSummaryPrompt(
         ? ` | Remaining to sell: ${plan.volume_left_to_sell_kt} Kt`
         : "";
 
+    const contractedKt = Number(plan.contracted_kt ?? 0);
+    const uncontractedKt = Number(plan.uncontracted_kt ?? 0);
+    const positionStr =
+      contractedKt > 0 || uncontractedKt > 0
+        ? ` | Contracted: ${contractedKt.toFixed(2)} Kt | Uncontracted: ${uncontractedKt.toFixed(2)} Kt`
+        : "";
+
     lines.push(
-      `- ${plan.grain}: ${plan.acres_seeded} acres seeded | ${deliveryCount} deliveries totalling ${totalDelivered.toFixed(2)} Kt${remainingStr}${percStr}`
+      `- ${plan.grain}: ${plan.acres_seeded} acres seeded | ${deliveryCount} deliveries totalling ${totalDelivered.toFixed(2)} Kt${remainingStr}${positionStr}${percStr}`
     );
   }
 
   lines.push("");
   lines.push(
-    "Please provide: (1) delivery progress highlights, (2) how this farmer compares to peers via percentile rankings, and (3) any actionable observations for the weeks ahead."
+    "Please provide: (1) delivery progress highlights, (2) how this farmer compares to peers via percentile rankings, (3) contracted vs uncontracted position observations if applicable, and (4) any actionable observations for the weeks ahead."
   );
 
   return lines.join("\n");

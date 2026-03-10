@@ -1,6 +1,6 @@
 # Bushel Board — Feature Status Tracker
 
-Last updated: 2026-03-10
+Last updated: 2026-03-11
 
 ## Feature Tracks
 
@@ -19,6 +19,7 @@ Last updated: 2026-03-10
 | 11 | Pipeline Velocity Chart (RPC-based) | ✅ Complete | 2026-03-10 | `components/dashboard/gamified-grain-chart.tsx`, `supabase/migrations/20260310200000_pipeline_velocity_rpc.sql` |
 | 12 | Import Validation (post-import anomaly detection) | ✅ Complete | 2026-03-07 | `supabase/functions/validate-import/` |
 | 13 | Prairie Landing Page | 🔧 In Progress | 2026-03-10 | `app/page.tsx` |
+| 14 | Farmer Engagement & Input System | ✅ Complete | 2026-03-11 | `lib/auth/role-guard.ts`, `components/dashboard/sentiment-banner.tsx`, `components/dashboard/delivery-pace-card.tsx` |
 
 ## Intelligence Pipeline
 
@@ -38,8 +39,8 @@ import-cgc-weekly → validate-import → search-x-intelligence → generate-int
 | `cgc_observations` | 122k+ | Weekly grain statistics (long format) |
 | `grains` | 16 | Canadian grain types with slugs |
 | `supply_disposition` | ~200 | AAFC balance sheet data per grain/year |
-| `crop_plans` | varies | User crop plans with delivery logs |
-| `profiles` | varies | User profiles (farm name, province) |
+| `crop_plans` | varies | User crop plans with delivery logs, contracted/uncontracted splits |
+| `profiles` | varies | User profiles (farm name, province, role) |
 | `grain_intelligence` | ~16/week | AI-generated grain market narratives + KPIs |
 | `farm_summaries` | ~users/week | Per-user weekly AI farm summaries |
 | `x_market_signals` | ~80/week | X/Twitter posts scored per grain/week |
@@ -59,3 +60,5 @@ import-cgc-weekly → validate-import → search-x-intelligence → generate-int
 | `get_signals_with_feedback()` | RPC | X signal feed with user votes |
 | `get_signals_for_intelligence()` | RPC | Edge Function intelligence generation |
 | `calculate_delivery_percentiles()` | RPC | PERCENT_RANK over user deliveries by grain |
+| `get_sentiment_overview()` | RPC | Per-grain sentiment aggregates for overview banner |
+| `get_delivery_analytics()` | RPC | Anonymized delivery stats with privacy threshold (≥5 farmers) |

@@ -14,6 +14,8 @@ export interface CropPlan {
   grain: string;
   acres_seeded: number;
   volume_left_to_sell_kt?: number;
+  contracted_kt?: number;
+  uncontracted_kt?: number;
   deliveries?: DeliveryEntry[];
 }
 
