@@ -1,18 +1,17 @@
 import Link from "next/link";
 import { getGrainOverview } from "@/lib/queries/grains";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
-import { getCumulativeTimeSeries, getStorageBreakdown } from "@/lib/queries/observations";
 import { getGrainIntelligence } from "@/lib/queries/intelligence";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
+import { getLatestXSignals } from "@/lib/queries/x-signals";
 import { getUserRole } from "@/lib/auth/role-guard";
 import type { GrainIntelligence } from "@/lib/queries/intelligence";
 import type { SupplyDisposition } from "@/lib/queries/supply-disposition";
-import type { CumulativeWeekRow, StorageBreakdown } from "@/lib/queries/observations";
 import { CropSummaryCard } from "@/components/dashboard/crop-summary-card";
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
+import { SignalTape } from "@/components/dashboard/signal-tape";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { StaggerGroup } from "@/components/motion/stagger-group";
-import { OverviewCharts } from "./client";
 import { CURRENT_CROP_YEAR, getCurrentGrainWeek } from "@/lib/utils/crop-year";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_GRAINS } from "@/lib/constants/grains";
@@ -53,17 +52,16 @@ export default async function OverviewPage() {
   const grainWeek = getCurrentGrainWeek();
 
   // Fetch all data in parallel
-  const [grainOverview, supplyData, sentimentData, role, ...weeklyStorageAndIntel] = await Promise.all([
+  const [grainOverview, supplyData, sentimentData, xSignals, role, ...intelResults] = await Promise.all([
     getGrainOverview(),
     getSupplyDispositionForGrains(activeGrains),
     getSentimentOverview(CURRENT_CROP_YEAR, grainWeek),
+    getLatestXSignals(20),
     getUserRole(),
-    // Cumulative time series, storage, and intelligence for each grain
-    ...activeGrains.flatMap((slug) => [
-      getCumulativeTimeSeries(GRAIN_NAMES[slug] ?? slug),
-      getStorageBreakdown(GRAIN_NAMES[slug] ?? slug),
-      getGrainIntelligence(GRAIN_NAMES[slug] ?? slug),
-    ]),
+    // Intelligence for each grain (for Market Pulse cards)
+    ...activeGrains.map((slug) =>
+      getGrainIntelligence(GRAIN_NAMES[slug] ?? slug)
+    ),
   ]);
 
   // Build supply lookup by slug
@@ -72,14 +70,10 @@ export default async function OverviewPage() {
     supplyBySlug[row.grain_slug] = row;
   }
 
-  // Build weekly, storage, and intelligence data lookups
-  const weeklyBySlug: Record<string, CumulativeWeekRow[]> = {};
-  const storageBySlug: Record<string, StorageBreakdown[]> = {};
+  // Build intelligence data lookup
   const intelBySlug: Record<string, GrainIntelligence | null> = {};
   activeGrains.forEach((slug, i) => {
-    weeklyBySlug[slug] = weeklyStorageAndIntel[i * 3] as CumulativeWeekRow[];
-    storageBySlug[slug] = weeklyStorageAndIntel[i * 3 + 1] as StorageBreakdown[];
-    intelBySlug[slug] = weeklyStorageAndIntel[i * 3 + 2] as GrainIntelligence | null;
+    intelBySlug[slug] = intelResults[i] as GrainIntelligence | null;
   });
 
   // Build summary card data: match overview rows to supply data
@@ -120,19 +114,20 @@ export default async function OverviewPage() {
       {/* Cross-grain farmer sentiment banner */}
       <SentimentBanner sentimentData={sentimentData} grainWeek={grainWeek} />
 
+      {/* Cross-grain X signal tape — scrolling ticker of latest market signals */}
+      {xSignals.length > 0 && (
+        <SignalTape
+          signals={xSignals.map((s) => ({
+            sentiment: s.sentiment,
+            category: s.category,
+            post_summary: s.post_summary,
+            grain: s.grain ?? "",
+          }))}
+        />
+      )}
+
       {/* Market Pulse — condensed intelligence cards */}
       <MarketPulseSection intelBySlug={intelBySlug} grainNames={GRAIN_NAMES} activeGrains={activeGrains} />
-
-      {/* Interactive Charts Section */}
-      <section>
-        <OverviewCharts
-          supplyData={supplyBySlug}
-          weeklyData={weeklyBySlug}
-          storageData={storageBySlug}
-          grainNames={GRAIN_NAMES}
-          defaultGrains={activeGrains}
-        />
-      </section>
 
       {/* No data fallback */}
       {grainOverview.length === 0 && (

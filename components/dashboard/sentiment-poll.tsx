@@ -94,10 +94,14 @@ export function SentimentPoll({
                   whileHover={{ scale: 1.03 }}
                   animate={
                     userVote === option.value
-                      ? { scale: [1, 1.12, 1] }
+                      ? { scale: 1.0 }
                       : { scale: 1 }
                   }
-                  transition={springTransition}
+                  transition={
+                    userVote === option.value
+                      ? { type: "spring" as const, damping: 8, stiffness: 400 }
+                      : springTransition
+                  }
                   initial={{ opacity: 0, y: 8 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface XMarketSignal {
   id: string;
+  grain: string;
   post_summary: string;
   post_author: string | null;
   post_date: string | null;
@@ -80,6 +81,7 @@ export async function getXSignalsWithFeedback(
 
   return (data ?? []).map((row: Record<string, unknown>) => ({
     id: row.id as string,
+    grain: row.grain as string,
     post_summary: row.post_summary as string,
     post_author: row.post_author as string | null,
     post_date: row.post_date as string | null,
@@ -92,6 +94,25 @@ export async function getXSignalsWithFeedback(
     user_relevant: row.user_relevant as boolean | null,
     blended_relevance: row.blended_relevance as number,
   }));
+}
+
+/**
+ * Get latest X signals across ALL grains for the overview signal tape.
+ * No grain filter — returns the most recent high-relevance signals.
+ */
+export async function getLatestXSignals(
+  limit = 20
+): Promise<XMarketSignal[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("x_market_signals")
+    .select("*")
+    .eq("crop_year", CURRENT_CROP_YEAR)
+    .gte("relevance_score", 60)
+    .order("grain_week", { ascending: false })
+    .order("relevance_score", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as XMarketSignal[];
 }
 
 /**

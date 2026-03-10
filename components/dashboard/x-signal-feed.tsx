@@ -128,7 +128,7 @@ export function XSignalFeed({
       <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-6 text-center">
         <Radio className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
         <p className="text-sm text-muted-foreground">
-          No market signals from X this week.
+          No X signals scored for {grain} this week. Check back after Thursday.
         </p>
       </div>
     );

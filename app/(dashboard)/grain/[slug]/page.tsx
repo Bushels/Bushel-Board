@@ -8,9 +8,11 @@ import {
   getProvincialDeliveries,
   getShipmentDistribution,
   getCumulativeTimeSeries,
+  getStorageBreakdown,
   getWeekOverWeekComparison,
 } from "@/lib/queries/observations";
 import { getGrainIntelligence, getSupplyPipeline } from "@/lib/queries/intelligence";
+import { getSupplyDisposition } from "@/lib/queries/supply-disposition";
 import { getXSignalsForGrain, getXSignalsWithFeedback } from "@/lib/queries/x-signals";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
 import { SignalTape } from "@/components/dashboard/signal-tape";
@@ -18,6 +20,8 @@ import { IntelligenceKpis } from "@/components/dashboard/intelligence-kpis";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
 import { InsightCards } from "@/components/dashboard/insight-cards";
 import { DispositionBar } from "@/components/dashboard/disposition-bar";
+import { WaterfallChart } from "@/components/dashboard/waterfall-chart";
+import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
 import { Button } from "@/components/ui/button";
 
 import { ProvinceMap } from "@/components/dashboard/province-map";
@@ -65,7 +69,7 @@ export default async function GrainDetailPage({ params }: Props) {
     return <GrainLockedView grain={grain.name} />;
   }
 
-  const [deliveries, provincial, distribution, weeklyData, intelligence, supplyPipeline, xSignals, wowComparison, grainOverview] = await Promise.all([
+  const [deliveries, provincial, distribution, weeklyData, intelligence, supplyPipeline, xSignals, wowComparison, grainOverview, supplyDisposition, storageData] = await Promise.all([
     getDeliveryTimeSeries(grain.name),
     getProvincialDeliveries(grain.name),
     getShipmentDistribution(grain.name),
@@ -75,6 +79,8 @@ export default async function GrainDetailPage({ params }: Props) {
     getXSignalsForGrain(grain.name),
     getWeekOverWeekComparison(grain.name),
     getGrainOverviewBySlug(grain.slug),
+    getSupplyDisposition(grain.slug),
+    getStorageBreakdown(grain.name),
   ]);
 
   // Determine current grain week from delivery data
@@ -175,17 +181,15 @@ export default async function GrainDetailPage({ params }: Props) {
           </AnimatedCard>
         )}
 
-        {signalsWithFeedback.length > 0 && (
-          <AnimatedCard index={2}>
-            <XSignalFeed
-              signals={signalsWithFeedback}
-              grain={grain.name}
-              grainWeek={latestGrainWeek}
-              cropYear={CURRENT_CROP_YEAR}
-              role={role}
-            />
-          </AnimatedCard>
-        )}
+        <AnimatedCard index={2}>
+          <XSignalFeed
+            signals={signalsWithFeedback}
+            grain={grain.name}
+            grainWeek={latestGrainWeek}
+            cropYear={CURRENT_CROP_YEAR}
+            role={role}
+          />
+        </AnimatedCard>
 
         {supplyPipeline && (
           <AnimatedCard index={3}>
@@ -243,7 +247,21 @@ export default async function GrainDetailPage({ params }: Props) {
           </div>
         </AnimatedCard>
 
-        <AnimatedCard index={2}>
+        {/* Supply Disposition Waterfall + Storage Breakdown */}
+        {supplyDisposition && (
+          <AnimatedCard index={2}>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <WaterfallChart data={supplyDisposition} grainName={grain.name} />
+              </div>
+              <div>
+                <StorageBreakdown data={storageData} grainName={grain.name} />
+              </div>
+            </div>
+          </AnimatedCard>
+        )}
+
+        <AnimatedCard index={3}>
           <div className="space-y-4">
             <h2 className="text-lg font-display font-semibold">
               Domestic Disappearance Breakdown
