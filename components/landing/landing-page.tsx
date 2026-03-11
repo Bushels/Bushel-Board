@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { BarChart3, ChevronDown, ClipboardList, Database } from "lucide-react";
@@ -9,30 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { CommunityStatsDisplay } from "@/components/dashboard/community-stats";
 import { PrairieScene } from "@/components/ui/prairie-scene";
-import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
 import type { CommunityStats } from "@/lib/queries/community";
-import { createClient } from "@/lib/supabase/client";
 
 interface LandingPageProps {
   communityStats: CommunityStats | null;
 }
 
 export function LandingPage({ communityStats }: LandingPageProps) {
-  const router = useRouter();
-
-  useEffect(() => {
-    async function checkUser() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        router.replace(await getPostAuthDestination(supabase, user));
-      }
-    }
-    checkUser();
-  }, [router]);
-
   return (
     <div className="relative min-h-screen overflow-hidden font-sans">
       <PrairieScene />

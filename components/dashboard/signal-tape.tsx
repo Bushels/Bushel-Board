@@ -12,6 +12,7 @@ interface SignalTapeProps {
     post_url?: string | null;
     post_author?: string | null;
     grain: string;
+    searched_at?: string | null;
   }>;
 }
 
@@ -29,10 +30,29 @@ function truncate(text: string, max: number): string {
   return `${text.slice(0, max).trimEnd()}...`;
 }
 
+function formatTimeAgo(isoStr: string): string {
+  try {
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return "just now";
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  } catch {
+    return "";
+  }
+}
+
 export function SignalTape({ signals }: SignalTapeProps) {
   if (!signals || signals.length === 0) return null;
 
   const visibleSignals = signals.slice(0, 6);
+  const latestSearchedAt = visibleSignals.reduce<string | null>((latest, s) => {
+    if (!s.searched_at) return latest;
+    if (!latest) return s.searched_at;
+    return s.searched_at > latest ? s.searched_at : latest;
+  }, null);
+  const freshness = latestSearchedAt ? formatTimeAgo(latestSearchedAt) : null;
 
   return (
     <section className="space-y-4" aria-label="Latest X market posts">
@@ -48,6 +68,7 @@ export function SignalTape({ signals }: SignalTapeProps) {
         </div>
         <span className="text-xs text-muted-foreground">
           {visibleSignals.length} recent post{visibleSignals.length !== 1 ? "s" : ""}
+          {freshness ? ` · Updated ${freshness}` : ""}
         </span>
       </div>
 

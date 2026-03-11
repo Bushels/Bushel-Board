@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
           {
             method: "POST",
             headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
+            body: JSON.stringify({ mode: "deep", crop_year: cropYear, grain_week: grainWeek }),
           }
         );
         console.log(`search-x-intelligence trigger: HTTP ${chainRes.status}`);

@@ -14,12 +14,16 @@ export interface XMarketSignal {
   category: string;
   confidence_score: number;
   search_query: string;
+  searched_at?: string | null;
+  source?: "x" | "web" | null;
+  search_mode?: "pulse" | "deep" | null;
 }
 
 export interface XSignalWithFeedback extends XMarketSignal {
   user_voted: boolean;
   user_relevant: boolean | null;
   blended_relevance: number;
+  is_new: boolean;
 }
 
 export interface FeedStats {
@@ -54,20 +58,22 @@ export async function getXSignalsForGrain(
  * Get X signals for a grain with the current user's feedback status.
  * LEFT JOINs signal_feedback to show vote state on each card,
  * and LEFT JOINs v_signal_relevance_scores for blended relevance ordering.
+ * Includes searched_at, source, search_mode, and is_new fields.
  */
 export async function getXSignalsWithFeedback(
   supabase: SupabaseClient,
   grainName: string,
-  grainWeek?: number
+  grainWeek?: number,
+  lastSeen?: string | null
 ): Promise<XSignalWithFeedback[]> {
   const { data, error } = await supabase.rpc("get_signals_with_feedback", {
     p_grain: grainName,
     p_crop_year: CURRENT_CROP_YEAR,
     p_grain_week: grainWeek ?? null,
+    p_last_seen: lastSeen ?? null,
   });
 
   if (error) {
-    // Fallback: if the RPC doesn't exist yet, return basic signals
     console.error("getXSignalsWithFeedback error:", error.message);
     const basic = await getXSignalsForGrain(grainName, grainWeek);
     return basic.map((s) => ({
@@ -75,6 +81,7 @@ export async function getXSignalsWithFeedback(
       user_voted: false,
       user_relevant: null,
       blended_relevance: s.relevance_score,
+      is_new: false,
     }));
   }
 
@@ -90,6 +97,10 @@ export async function getXSignalsWithFeedback(
     category: row.category as string,
     confidence_score: row.confidence_score as number,
     search_query: row.search_query as string,
+    searched_at: (row.searched_at as string | null | undefined) ?? null,
+    source: (row.source as "x" | "web" | null | undefined) ?? null,
+    search_mode: (row.search_mode as "pulse" | "deep" | null | undefined) ?? null,
+    is_new: (row.is_new as boolean | undefined) ?? false,
     user_voted: row.user_voted as boolean,
     user_relevant: row.user_relevant as boolean | null,
     blended_relevance: row.blended_relevance as number,
@@ -109,7 +120,7 @@ export async function getLatestXSignals(
     .select("*")
     .eq("crop_year", CURRENT_CROP_YEAR)
     .gte("relevance_score", 60)
-    .order("grain_week", { ascending: false })
+    .order("searched_at", { ascending: false })
     .order("relevance_score", { ascending: false })
     .limit(limit);
   return (data ?? []) as XMarketSignal[];

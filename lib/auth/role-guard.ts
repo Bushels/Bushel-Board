@@ -10,7 +10,8 @@ export interface AuthenticatedUserContext {
 
 /**
  * Get the current authenticated user and their role.
- * Missing profiles default to observer so writes remain deny-by-default.
+ * Authenticated users default to "farmer" (matching DB column default).
+ * Only unauthenticated visitors get "observer".
  */
 export async function getAuthenticatedUserContext(): Promise<AuthenticatedUserContext> {
   const supabase = await createClient();
@@ -28,7 +29,9 @@ export async function getAuthenticatedUserContext(): Promise<AuthenticatedUserCo
     .eq("id", user.id)
     .maybeSingle();
 
-  const role = (profile?.role as UserRole | undefined) ?? "observer";
+  // Authenticated users default to "farmer" — matches profiles.role DB default.
+  // Only explicitly set "observer" profiles get observer treatment.
+  const role = (profile?.role as UserRole | undefined) ?? "farmer";
 
   return { user, role };
 }

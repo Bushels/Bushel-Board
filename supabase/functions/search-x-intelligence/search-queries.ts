@@ -93,21 +93,37 @@ export const SEASONAL_TOPICS: Record<Season, string[]> = {
   ],
 };
 
+// --- Grain Tiers ---
+
+/**
+ * Major grains: scanned every pulse (3x/day).
+ * These are the highest-volume, most-traded prairie grains that farmers
+ * check most frequently.
+ */
+export const MAJOR_GRAINS = [
+  "Wheat", "Canola", "Amber Durum", "Barley", "Oats", "Peas",
+];
+
+/**
+ * Minor grains: scanned 1x/day (morning pulse only).
+ * Lower volume or niche crops where intraday X chatter is sparse.
+ */
+export const MINOR_GRAINS = [
+  "Lentils", "Flaxseed", "Soybeans", "Corn", "Rye",
+  "Mustard Seed", "Chick Peas", "Sunflower", "Canaryseed", "Beans",
+];
+
+export function isMajorGrain(grain: string): boolean {
+  return MAJOR_GRAINS.includes(grain);
+}
+
 // --- Query Builder ---
 
 const GEO_SCOPE = "Canada prairies western Canadian";
 
 /**
- * Builds 3-5 search queries for a given grain and date.
- *
- * Strategy:
- *   1. Primary query: grain name + top hashtag + geographic scope
- *   2. Seasonal query: grain name + two seasonal topics + geographic scope
- *   3. Hashtag combo: all grain hashtags joined (broad social sweep)
- *   4. (If 3+ hashtags) Niche hashtag query: secondary hashtags + seasonal topic
- *   5. (If 3+ seasonal topics available, always) Market-focused: grain + "price" or "export" + seasonal topic
- *
- * Returns between 3 and 5 queries depending on the grain's hashtag count.
+ * Builds 3-5 search queries for a given grain and date (original weekly mode).
+ * Kept for backward compatibility.
  */
 export function buildSearchQueries(grain: string, date: Date): string[] {
   const hashtags = GRAIN_HASHTAGS[grain] ?? [`#${grain.toLowerCase().replace(/\s+/g, "")}`];
@@ -132,6 +148,48 @@ export function buildSearchQueries(grain: string, date: Date): string[] {
 
   // Query 5: Market-focused — grain + price/export keyword + seasonal topic
   queries.push(`${grain} price export ${topics[3]} ${GEO_SCOPE}`);
+
+  return queries;
+}
+
+/**
+ * Pulse mode: 2 queries per grain — fast, lightweight, X-only.
+ * Runs 3x/day. Focuses on the two most productive query patterns.
+ */
+export function buildPulseQueries(grain: string, date: Date): string[] {
+  const hashtags = GRAIN_HASHTAGS[grain] ?? [`#${grain.toLowerCase().replace(/\s+/g, "")}`];
+  const season = getSeason(date);
+  const topics = SEASONAL_TOPICS[season];
+
+  return [
+    // Primary: grain name + lead hashtag + geo (highest signal-to-noise)
+    `${grain} ${hashtags[0]} ${GEO_SCOPE}`,
+    // Market-focused: grain + price/export + seasonal topic
+    `${grain} price export ${topics[0]} ${GEO_SCOPE}`,
+  ];
+}
+
+/**
+ * Deep mode: 6-8 queries per grain — thorough, X + web search.
+ * Runs after Thursday CGC data drop. Includes government, analyst,
+ * and international demand queries for comprehensive thesis building.
+ */
+export function buildDeepQueries(grain: string, date: Date): string[] {
+  // Start with all standard queries (3-5)
+  const queries = buildSearchQueries(grain, date);
+  const season = getSeason(date);
+  const topics = SEASONAL_TOPICS[season];
+
+  // Query 6: Government/policy — AAFC, CGC announcements
+  queries.push(`${grain} "Agriculture Canada" OR "AAFC" OR "CGC" ${topics[4]} ${GEO_SCOPE}`);
+
+  // Query 7: Analyst/news — market analysis, price forecasts
+  queries.push(`${grain} "market analysis" OR "price forecast" Canada`);
+
+  // Query 8: International demand (major grains only — these have active export markets)
+  if (isMajorGrain(grain)) {
+    queries.push(`${grain} export "China" OR "India" OR "EU" OR "Japan" Canada`);
+  }
 
   return queries;
 }

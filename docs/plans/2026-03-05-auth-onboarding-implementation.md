@@ -12,6 +12,16 @@
 
 **Project Dir:** `c:/Users/kyle/Agriculture/bushel-board-app/`
 
+## 2026-03-11 Auth/Nav Polish Addendum
+
+Shipped follow-up polish after the original auth rollout:
+
+- Moved authenticated `/` handling from client-side landing-page logic to a server redirect in `app/page.tsx` to eliminate the prairie landing flash for signed-in users.
+- Updated the dashboard header brand in `components/layout/nav.tsx` to use the compact mark and route to the signed-in user's role-aware home instead of `/`.
+- Added a shared prairie auth shell in `components/auth/` with prairie-time day/evening variants backed by `lib/auth/auth-scene.ts`.
+- Applied the shared shell to login, signup, reset-password, and update-password.
+- Added test coverage for the prairie-time scene switch in `tests/lib/auth-scene.test.ts`.
+
 ---
 
 ## Agent Assignment

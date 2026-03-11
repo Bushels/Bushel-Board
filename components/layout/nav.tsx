@@ -7,6 +7,7 @@ import { CgcFreshness } from "./cgc-freshness";
 import { Logo } from "./logo";
 import { DesktopNavLinks } from "./desktop-nav-links";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { createClient } from "@/lib/supabase/server";
 import { getUserUnlockedGrains } from "@/lib/queries/crop-plans";
 import { ALL_GRAINS } from "@/lib/constants/grains";
@@ -15,6 +16,7 @@ export async function Nav() {
   // Fetch the current user's unlocked grains and email
   let unlockedGrains: string[] = [];
   let userEmail: string | null = null;
+  let homeHref: "/" | "/overview" | "/my-farm" = "/overview";
   try {
     const supabase = await createClient();
     const {
@@ -23,6 +25,7 @@ export async function Nav() {
     if (user) {
       unlockedGrains = await getUserUnlockedGrains(user.id);
       userEmail = user.email ?? null;
+      homeHref = await getPostAuthDestination(supabase, user);
     }
   } catch {
     // If auth fails (e.g. no cookies context), show all grains as locked
@@ -36,10 +39,11 @@ export async function Nav() {
           <div className="flex min-h-[4.25rem] items-center justify-between gap-4 px-4 sm:px-5">
             <div className="flex min-w-0 items-center gap-3 sm:gap-5">
               <Link
-                href="/"
+                href={homeHref}
+                aria-label="Go to your Bushel Board home"
                 className="shrink-0 rounded-[1.4rem] border border-white/30 bg-white/40 px-3 py-2 shadow-[0_14px_32px_-24px_rgba(42,38,30,0.45)] transition-colors hover:bg-white/55 dark:border-white/8 dark:bg-white/6 dark:hover:bg-white/10"
               >
-                <Logo size={86} className="block" />
+                <Logo variant="mark" size={28} className="block" />
               </Link>
               <DesktopNavLinks
                 allGrains={ALL_GRAINS}

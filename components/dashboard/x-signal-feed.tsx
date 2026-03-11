@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ExternalLink, Radio, X } from "lucide-react";
+import { Check, ExternalLink, Globe, Radio, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { voteSignalRelevance } from "@/app/(dashboard)/grain/[slug]/signal-actions";
 import { useCelebration, MicroCelebration } from "@/components/motion/micro-celebration";
@@ -36,6 +36,29 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return "";
   }
+}
+
+function formatTimeAgo(isoStr: string | null | undefined): string {
+  if (!isoStr) return "";
+  try {
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return "just now";
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  } catch {
+    return "";
+  }
+}
+
+/** Simple inline X logo for source indicator */
+function XLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-label="X">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
 }
 
 const cardVariants = {
@@ -79,6 +102,12 @@ export function XSignalFeed({
   const relevantCount = localSignals.filter(
     (s) => s.user_voted && s.user_relevant === true
   ).length;
+  const newCount = localSignals.filter((s) => s.is_new).length;
+  const latestSearchedAt = localSignals.reduce<string | null>((latest, s) => {
+    if (!s.searched_at) return latest;
+    if (!latest) return s.searched_at;
+    return s.searched_at > latest ? s.searched_at : latest;
+  }, null);
 
   function handleVote(signalId: string, relevant: boolean) {
     const previousSignal = localSignals.find((signal) => signal.id === signalId);
@@ -147,7 +176,13 @@ export function XSignalFeed({
               <span className="inline-flex rounded-full border border-canola/15 bg-canola/8 px-2.5 py-1 text-[11px] font-medium text-canola">
                 Week {grainWeek} · {localSignals.length} post
                 {localSignals.length !== 1 ? "s" : ""}
+                {newCount > 0 ? ` · ${newCount} new` : ""}
               </span>
+              {latestSearchedAt && (
+                <span className="text-[11px] text-muted-foreground">
+                  Updated {formatTimeAgo(latestSearchedAt)}
+                </span>
+              )}
               {isObserver && (
                 <span className="inline-flex rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[11px] text-muted-foreground">
                   Farmer accounts can rate these posts
@@ -255,6 +290,11 @@ function SignalCard({
     >
       <div className="space-y-2.5">
         <div className="flex flex-wrap items-center gap-1.5">
+          {signal.is_new && (
+            <span className="inline-flex items-center rounded-full bg-canola px-2 py-0.5 text-[10px] font-bold text-white">
+              NEW
+            </span>
+          )}
           <span
             className={cn(
               "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize",
@@ -266,6 +306,11 @@ function SignalCard({
           <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             {categoryLabels[signal.category] ?? signal.category}
           </span>
+          {signal.source === "web" ? (
+            <Globe className="h-3 w-3 text-muted-foreground" aria-label="Web source" />
+          ) : (
+            <XLogo className="h-3 w-3 text-muted-foreground" aria-label="X source" />
+          )}
         </div>
 
         <p className="line-clamp-2 text-[0.95rem] leading-relaxed text-foreground">

@@ -1,22 +1,34 @@
 /**
  * Supabase Edge Function: search-x-intelligence
  *
- * Searches X/Twitter for grain-related posts using xAI Grok Responses API
- * with x_search tool. Scores posts for relevance and sentiment, stores
+ * Searches X/Twitter (and optionally the web) for grain-related posts using
+ * xAI Grok Responses API. Scores posts for relevance and sentiment, stores
  * results in x_market_signals table.
  *
- * Pipeline position: import-cgc-weekly -> search-x-intelligence -> generate-intelligence -> generate-farm-summary
+ * Two modes:
+ *   - pulse (3x/day): Quick X-only scan, 2 queries/grain, no chain trigger.
+ *   - deep  (weekly):  Comprehensive X + web search, 6-8 queries/grain,
+ *                       chains to generate-intelligence on last batch.
  *
- * Triggered by import-cgc-weekly on success, or manually via POST.
+ * Pipeline position:
+ *   import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intelligence
  *
- * Request body (optional):
- *   { "crop_year": "2025-26", "grain_week": 29, "grains": ["Canola"] }
- *
- * If grains is omitted, processes all 16 Canadian grains.
+ * Request body:
+ *   {
+ *     "mode": "pulse" | "deep",         // default: "deep"
+ *     "crop_year": "2025-26",
+ *     "grain_week": 29,
+ *     "grains": ["Canola"],             // optional subset
+ *     "morning_pulse": true              // include minor grains (morning only)
+ *   }
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildSearchQueries } from "./search-queries.ts";
+import {
+  buildPulseQueries,
+  buildDeepQueries,
+  MAJOR_GRAINS,
+} from "./search-queries.ts";
 import {
   buildInternalHeaders,
   requireInternalRequest,
@@ -24,7 +36,8 @@ import {
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
-const BATCH_SIZE = 4;
+const PULSE_BATCH_SIZE = 8;
+const DEEP_BATCH_SIZE = 4;
 
 const ALL_GRAINS = [
   "Wheat", "Canola", "Amber Durum", "Barley", "Oats", "Peas",
@@ -32,13 +45,14 @@ const ALL_GRAINS = [
   "Chick Peas", "Sunflower", "Canaryseed", "Beans",
 ];
 
+type ScanMode = "pulse" | "deep";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
   }
@@ -65,29 +79,53 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+    const mode: ScanMode = body.mode === "pulse" ? "pulse" : "deep";
     const cropYear: string = body.crop_year || getCurrentCropYear();
     const grainWeek: number = body.grain_week || getCurrentGrainWeek();
+    const morningPulse: boolean = body.morning_pulse === true;
     const targetGrains: string[] | undefined = body.grains;
 
-    console.log(`search-x-intelligence: week ${grainWeek}, crop year ${cropYear}`);
+    const batchSize = mode === "pulse" ? PULSE_BATCH_SIZE : DEEP_BATCH_SIZE;
+
+    console.log(`search-x-intelligence [${mode}]: week ${grainWeek}, crop year ${cropYear}`);
 
     // Determine which grains to process
-    const allGrainNames = targetGrains || ALL_GRAINS;
-    const grainNames = allGrainNames.slice(0, BATCH_SIZE);
-    const remainingGrains = allGrainNames.slice(BATCH_SIZE);
+    let allGrainNames: string[];
+    if (targetGrains) {
+      allGrainNames = targetGrains;
+    } else if (mode === "pulse" && !morningPulse) {
+      // Midday/evening pulse: major grains only
+      allGrainNames = [...MAJOR_GRAINS];
+    } else {
+      // Deep mode or morning pulse: all 16 grains
+      allGrainNames = [...ALL_GRAINS];
+    }
 
-    console.log(`Processing batch: [${grainNames.join(", ")}] (${remainingGrains.length} remaining)`);
+    const grainNames = allGrainNames.slice(0, batchSize);
+    const remainingGrains = allGrainNames.slice(batchSize);
+
+    console.log(`Processing batch [${mode}]: [${grainNames.join(", ")}] (${remainingGrains.length} remaining)`);
 
     const results: { grain: string; status: string; signals_found?: number; error?: string }[] = [];
 
     for (const grainName of grainNames) {
       try {
-        // Build search queries for this grain
-        const queries = buildSearchQueries(grainName, new Date());
-        console.log(`${grainName}: searching with ${queries.length} queries`);
+        const now = new Date();
+        const queries = mode === "pulse"
+          ? buildPulseQueries(grainName, now)
+          : buildDeepQueries(grainName, now);
 
-        // Call Grok Responses API with x_search tool and structured output
-        const { from_date, to_date } = getXSearchDateRange();
+        console.log(`${grainName}: searching with ${queries.length} queries [${mode}]`);
+
+        // Configure tools based on mode
+        const { from_date, to_date } = getXSearchDateRange(mode);
+        const tools: Array<Record<string, unknown>> = [
+          { type: "x_search", from_date, to_date },
+        ];
+        if (mode === "deep") {
+          tools.push({ type: "web_search" });
+        }
+
         const response = await fetch(XAI_API_URL, {
           method: "POST",
           headers: {
@@ -96,12 +134,12 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             model: MODEL,
-            max_output_tokens: 2048,
+            max_output_tokens: mode === "deep" ? 2048 : 1024,
             input: [{
               role: "user",
-              content: buildScoringPrompt(grainName, queries),
+              content: buildScoringPrompt(grainName, queries, mode),
             }],
-            tools: [{ type: "x_search", from_date, to_date }],
+            tools,
             text: {
               format: {
                 type: "json_schema",
@@ -123,8 +161,9 @@ Deno.serve(async (req) => {
                           sentiment: { type: "string", enum: ["bullish", "bearish", "neutral"] },
                           category: { type: "string", enum: ["farmer_report", "analyst_commentary", "elevator_bid", "export_news", "weather", "policy", "other"] },
                           confidence_score: { type: "number" },
+                          source: { type: "string", enum: ["x", "web"] },
                         },
-                        required: ["post_summary", "post_url", "post_author", "post_date", "relevance_score", "sentiment", "category", "confidence_score"],
+                        required: ["post_summary", "post_url", "post_author", "post_date", "relevance_score", "sentiment", "category", "confidence_score", "source"],
                         additionalProperties: false,
                       },
                     },
@@ -146,7 +185,6 @@ Deno.serve(async (req) => {
         const aiResponse = await response.json();
         const usage = aiResponse.usage ?? {};
 
-        // Extract text content from Grok Responses API output array
         const messageOutput = (aiResponse.output ?? []).find(
           (o: { type: string }) => o.type === "message"
         );
@@ -154,7 +192,6 @@ Deno.serve(async (req) => {
           (c: { type: string }) => c.type === "output_text"
         )?.text ?? "";
 
-        // Structured outputs guarantees valid JSON -- parse directly
         let parsed: { signals: Array<{
           post_summary: string;
           post_url: string | null;
@@ -164,6 +201,7 @@ Deno.serve(async (req) => {
           sentiment: "bullish" | "bearish" | "neutral";
           category: string;
           confidence_score: number;
+          source: "x" | "web";
         }> };
         try {
           parsed = JSON.parse(content);
@@ -172,12 +210,10 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Filter to only signals with relevance >= 60 (double-check, prompt already requests this)
         const relevantSignals = parsed.signals.filter(s => s.relevance_score >= 60);
         console.log(`${grainName}: ${parsed.signals.length} total signals, ${relevantSignals.length} with relevance >= 60`);
 
         if (relevantSignals.length > 0) {
-          // Upsert into x_market_signals
           const { error: upsertError } = await supabase
             .from("x_market_signals")
             .upsert(
@@ -194,6 +230,9 @@ Deno.serve(async (req) => {
                 category: s.category,
                 confidence_score: s.confidence_score,
                 search_query: queries.join(" | "),
+                searched_at: new Date().toISOString(),
+                search_mode: mode,
+                source: s.source,
                 raw_context: null,
               })),
               { onConflict: "grain,crop_year,grain_week,post_summary" }
@@ -205,11 +244,10 @@ Deno.serve(async (req) => {
             results.push({ grain: grainName, status: "success", signals_found: relevantSignals.length });
           }
         } else {
-          // No relevant signals is still a success -- just nothing to store
           results.push({ grain: grainName, status: "success", signals_found: 0 });
         }
 
-        console.log(`${grainName}: tokens used — input: ${usage.input_tokens ?? "?"}, output: ${usage.output_tokens ?? "?"}`);
+        console.log(`${grainName}: tokens — input: ${usage.input_tokens ?? "?"}, output: ${usage.output_tokens ?? "?"}`);
       } catch (err) {
         results.push({ grain: grainName, status: "failed", error: String(err).slice(0, 200) });
       }
@@ -220,10 +258,25 @@ Deno.serve(async (req) => {
     const failed = results.filter(r => r.status === "failed").length;
     const totalSignals = results.reduce((sum, r) => sum + (r.signals_found ?? 0), 0);
 
-    console.log(`search-x-intelligence complete: ${succeeded} ok, ${failed} failed, ${totalSignals} signals stored (${duration}ms)`);
+    console.log(`search-x-intelligence [${mode}] complete: ${succeeded} ok, ${failed} failed, ${totalSignals} signals (${duration}ms)`);
+
+    // Log to signal_scan_log
+    try {
+      await supabase.from("signal_scan_log").insert({
+        crop_year: cropYear,
+        grain_week: grainWeek,
+        scan_mode: mode,
+        grains_scanned: grainNames,
+        signals_found: totalSignals,
+        duration_ms: duration,
+        completed_at: new Date().toISOString(),
+      });
+    } catch (logErr) {
+      console.error("Failed to log scan:", logErr);
+    }
 
     if (remainingGrains.length > 0) {
-      // Self-trigger for next batch of grains
+      // Self-trigger for next batch
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
       try {
         await fetch(
@@ -231,16 +284,22 @@ Deno.serve(async (req) => {
           {
             method: "POST",
             headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek, grains: remainingGrains }),
+            body: JSON.stringify({
+              mode,
+              crop_year: cropYear,
+              grain_week: grainWeek,
+              grains: remainingGrains,
+              morning_pulse: morningPulse,
+            }),
           }
         );
         console.log("Triggered next batch of search-x-intelligence");
       } catch (err) {
         console.error("Next batch trigger failed:", err);
       }
-    } else {
-      // Last batch — chain-trigger: generate-intelligence
-      console.log("All grains searched — triggering generate-intelligence");
+    } else if (mode === "deep") {
+      // Deep mode last batch — chain to generate-intelligence
+      console.log("All grains searched [deep] — triggering generate-intelligence");
       try {
         await fetch(
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
@@ -254,10 +313,14 @@ Deno.serve(async (req) => {
       } catch (err) {
         console.error("generate-intelligence chain-trigger failed (non-blocking):", err);
       }
+    } else {
+      // Pulse mode last batch — no chain trigger
+      console.log("All grains searched [pulse] — scan complete, no chain trigger");
     }
 
     return new Response(
       JSON.stringify({
+        mode,
         results,
         duration_ms: duration,
         succeeded,
@@ -280,8 +343,8 @@ Deno.serve(async (req) => {
 // Prompt builder
 // ---------------------------------------------------------------------------
 
-function buildScoringPrompt(grain: string, queries: string[]): string {
-  return `You are a Canadian prairie agriculture social media analyst.
+function buildScoringPrompt(grain: string, queries: string[], mode: ScanMode): string {
+  const basePrompt = `You are a Canadian prairie agriculture social media analyst.
 
 Search X/Twitter for the following topics related to ${grain} in Canadian prairie agriculture:
 ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
@@ -295,17 +358,32 @@ For each relevant post you find, provide:
 - sentiment: "bullish", "bearish", or "neutral"
 - category: one of "farmer_report", "analyst_commentary", "elevator_bid", "export_news", "weather", "policy", "other"
 - confidence_score: 0-100, how confident are you in this classification?
+- source: "x" if found on X/Twitter, "web" if found via web search
 
 Only include posts with relevance_score >= 60. If no relevant posts found, return an empty array.
 Focus on: Canadian prairie agriculture, elevator bids, crop conditions, export activity, transport/rail, crush/processing capacity.
 Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content.`;
+
+  if (mode === "deep") {
+    return basePrompt + `
+
+DEEP ANALYSIS MODE: Also search the broader web for:
+- Government reports and announcements (AAFC, CGC, provincial agriculture ministries)
+- Commodity analyst articles and price forecasts
+- Port authority export data and vessel lineups
+- Railway shipping reports and grain car allocations
+- International buyer activity and trade policy updates
+
+Include web sources alongside X posts in your analysis. Mark web results with source "web" and classify them into the appropriate category. Prioritize Canadian prairie-specific content over generic commodity news.`;
+  }
+
+  return basePrompt;
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (same as generate-intelligence)
+// Helpers
 // ---------------------------------------------------------------------------
 
-/** Returns crop year in short format: "2025-26" (matches app convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -323,12 +401,13 @@ function getCurrentGrainWeek(): number {
   return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
 }
 
-/** Returns ISO8601 date strings for the past 7 days (for x_search tool). */
-function getXSearchDateRange(): { from_date: string; to_date: string } {
+/** Returns ISO8601 date range. Pulse: 2-day lookback. Deep: 7-day lookback. */
+function getXSearchDateRange(mode: ScanMode): { from_date: string; to_date: string } {
   const now = new Date();
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const lookbackDays = mode === "pulse" ? 2 : 7;
+  const past = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
   return {
-    from_date: weekAgo.toISOString().slice(0, 10),
+    from_date: past.toISOString().slice(0, 10),
     to_date: now.toISOString().slice(0, 10),
   };
 }

@@ -8,6 +8,29 @@
 
 Replace magic link authentication with email/password. Add a signup page that collects farm name, farmer name, and postal code. Implement a crop-gated unlock system where farmers can only access grain detail pages for crops they've added to their crop plan.
 
+## 2026-03-11 Auth Surface Addendum
+
+The original auth design covered fields and redirect destinations, but not the visual/authenticated routing edge cases introduced by the later prairie landing page and nav polish.
+
+### Header brand behavior
+
+- The dashboard header brand must behave like an in-app home control, not a marketing-site link.
+- Signed-in users clicking the top-left brand should land on their role-aware home (`/my-farm` for farmers, `/overview` for observers).
+- The dashboard header should use a compact mark that reads at nav scale, not the full lockup asset that is intended for larger hero surfaces.
+
+### Public root behavior
+
+- The public prairie landing page remains the unauthenticated home at `/`.
+- Authenticated users hitting `/` must be redirected server-side before the landing page renders. A client-side redirect causes a visible prairie/sunset flash before returning to the dashboard, which looks broken.
+
+### Day and evening auth variants
+
+- Signup now has intentional time-aware presentation instead of incidentally borrowing the prairie landing visuals.
+- The auth shell uses prairie time (`America/Edmonton`) to choose between:
+  - `day`: 06:00 through 17:59
+  - `evening`: 18:00 through 05:59
+- The time-aware shell is shared across login, signup, reset-password, and update-password so the auth surface feels cohesive.
+
 ## Auth Flow
 
 ### Signup (`/signup`)

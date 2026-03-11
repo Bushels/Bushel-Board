@@ -1,5 +1,28 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-11 - Dashboard Brand Links Must Not Bounce Through Public Landing Routes
+
+**Symptom:** The top-left dashboard brand chip looked empty, and clicking it briefly flashed the prairie landing page before returning to the dashboard. Users experienced it as a broken nav control rather than a purposeful transition.
+
+**Root Cause:** The shared dashboard nav linked its brand control to `/`, which is the public landing page. The landing page then checked auth client-side and redirected back into the product after render. At the same time, the header used the full lockup SVG at a very small nav size, so the brand was not legible enough to read as a logo.
+
+**Solution:** Changed the dashboard brand control to use the compact mark and route directly to the signed-in user's role-aware home. Moved authenticated `/` handling into a server redirect in `app/page.tsx`, so signed-in users no longer render the public landing page first. Added a shared day/evening auth shell so prairie visual treatment on auth routes is intentional rather than a side effect of bouncing through `/`.
+
+**Prevention:**
+- Treat dashboard brand controls as in-app home links, not generic site-home links
+- Server-redirect authenticated users away from public marketing routes before render
+- Use mark-sized brand assets in compact nav surfaces; reserve full lockups for larger hero placements
+
+**Files modified:**
+- `app/page.tsx`
+- `components/landing/landing-page.tsx`
+- `components/layout/nav.tsx`
+- `components/layout/logo.tsx`
+- `components/auth/`
+- `lib/auth/auth-scene.ts`
+
+**Tags:** #ux #navigation #branding #auth
+
 ## 2026-03-10 - Pipeline Velocity Chart: Silent Data Truncation
 
 **Symptom:** Pipeline Velocity chart showed flat lines for Terminal Receipts and Terminal Exports. Terminal Receipts displayed ~4,226 kt at week 20 instead of the correct 11,087 kt. Lines appeared to stop increasing around week 8, and "lower totals plotted above higher totals."
