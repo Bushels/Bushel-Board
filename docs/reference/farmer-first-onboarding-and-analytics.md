@@ -61,6 +61,7 @@ Every empty state should answer two questions:
 
 - The overview and grain-preview X surfaces should look like post cards, not a ticker ribbon.
 - On data-heavy pages, X previews should stay compact enough that they support the CGC and farm data rather than dominating the scroll.
+- Do not show the same X source layer twice on a grain page. Overview can preview cross-grain social activity; grain detail should expose one dedicated evidence/feed section only.
 - Every X card should offer an outbound "Open post" action.
 - Store canonical `post_url` during ingestion when available.
 - If canonical URL is missing, fall back to an X search URL built from author + summary.

@@ -8,7 +8,6 @@ import { ProvinceMap } from "@/components/dashboard/province-map";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
-import { SignalTape } from "@/components/dashboard/signal-tape";
 import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
@@ -113,7 +112,8 @@ export default async function GrainDetailPage({ params }: Props) {
     deliverySeriesResult.error ? [] : deliverySeriesResult.data ?? [],
     intelligence?.grain_week ?? null
   );
-  const role = roleResult.error ? "observer" : (roleResult.data ?? "observer");
+  // Authenticated users (who passed the crop plan check above) default to "farmer"
+  const role = roleResult.error ? "farmer" : (roleResult.data ?? "farmer");
 
   const [sentimentResult, signalFeedResult] = await Promise.all([
     safeQuery("Farmer sentiment", async () => ({
@@ -187,19 +187,6 @@ export default async function GrainDetailPage({ params }: Props) {
                   body={intelligence.thesis_body ?? ""}
                 />
               )}
-
-              {xSignals.length > 0 && (
-                <SignalTape
-                  signals={xSignals.map((signal) => ({
-                    sentiment: signal.sentiment,
-                    category: signal.category,
-                    post_summary: signal.post_summary,
-                    post_url: signal.post_url,
-                    post_author: signal.post_author,
-                    grain: grain.name,
-                  }))}
-                />
-              )}
             </div>
           </SectionBoundary>
         )}
@@ -231,28 +218,6 @@ export default async function GrainDetailPage({ params }: Props) {
               </SectionBoundary>
             </AnimatedCard>
           ) : null}
-
-          {signalFeedResult.error ? (
-            <SectionStateCard
-              title="Signal feedback feed unavailable"
-              message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
-            />
-          ) : (
-            <AnimatedCard index={2}>
-              <SectionBoundary
-                title="Signal feedback feed unavailable"
-                message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
-              >
-                <XSignalFeed
-                  signals={signalFeedResult.data ?? []}
-                  grain={grain.name}
-                  grainWeek={latestGrainWeek}
-                  cropYear={CURRENT_CROP_YEAR}
-                  role={role}
-                />
-              </SectionBoundary>
-            </AnimatedCard>
-          )}
 
           {supplyPipelineResult.error ? (
             <SectionStateCard
@@ -296,6 +261,28 @@ export default async function GrainDetailPage({ params }: Props) {
               </SectionBoundary>
             </AnimatedCard>
           ) : null}
+
+          {signalFeedResult.error ? (
+            <SectionStateCard
+              title="Signal feedback feed unavailable"
+              message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
+            />
+          ) : (
+            <AnimatedCard index={5}>
+              <SectionBoundary
+                title="Signal feedback feed unavailable"
+                message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
+              >
+                <XSignalFeed
+                  signals={signalFeedResult.data ?? []}
+                  grain={grain.name}
+                  grainWeek={latestGrainWeek}
+                  cropYear={CURRENT_CROP_YEAR}
+                  role={role}
+                />
+              </SectionBoundary>
+            </AnimatedCard>
+          )}
         </StaggerGroup>
 
         {sentimentResult.error ? (

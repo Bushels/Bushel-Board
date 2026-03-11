@@ -246,3 +246,21 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 - `components/dashboard/x-signal-feed.tsx`
 
 **Tags:** #ux #ui #x-feed #hierarchy
+
+## 2026-03-11 - A Grain Page Should Have One Social Surface, Not Two
+
+**Symptom:** The grain page showed X-derived content twice: once as a top preview strip near the thesis and again as the full interactive signal feed later on. Even after compacting the cards, the repeated presence still made the page feel cluttered and logically messy.
+
+**Root Cause:** The app reused both the overview-style preview treatment and the dedicated grain-page feed on the same screen. That duplicated the source layer instead of clarifying it.
+
+**Solution:** Removed the top `SignalTape` from the grain detail page and kept one dedicated X evidence/feed section lower in the page. The overview still uses the lighter cross-grain social preview, while grain detail now has a single source-of-truth social module.
+
+**Prevention:**
+- Distinguish clearly between overview preview components and detail-page evidence components
+- Do not render two views of the same source data on the same page unless they answer different user questions
+- On detail pages, supporting context should appear once in the hierarchy with a clear purpose
+
+**Files modified:**
+- `app/(dashboard)/grain/[slug]/page.tsx`
+
+**Tags:** #ux #hierarchy #x-feed #grain-page
