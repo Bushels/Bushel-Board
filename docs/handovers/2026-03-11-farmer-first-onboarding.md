@@ -19,6 +19,7 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 - [x] Reworked the landing page again to remove the competing header CTA, restore a clear Bushel Board brand anchor, and quiet sign-in as a secondary action
 - [x] Fixed the dashboard header brand duplication by removing the extra wordmark beside the full logo lockup
 - [x] Replaced the overview/grain X ticker ribbon with post-style cards so the feed reads like verifiable source content
+- [x] Compressed the grain-page X feed into slimmer post cards and reduced the follow-on status chrome so the feed stops crowding the market data
 
 ## In Progress
 
@@ -62,6 +63,7 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 - `components/layout/nav.tsx` - floating glass nav shell
 - `components/layout/desktop-nav-links.tsx` - active-state desktop nav
 - `components/dashboard/signal-tape.tsx` - converted ticker ribbon into X-style post cards
+- `components/dashboard/x-signal-feed.tsx` - compacted the main X feed into a sleeker supporting strip
 - `components/layout/mobile-nav.tsx` - polished mobile navigation and onboarding callout
 - `components/layout/grain-dropdown.tsx` - honest unlock-aware grain access
 - `components/layout/cgc-freshness.tsx` - polished freshness pill and encoding cleanup

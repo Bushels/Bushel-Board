@@ -60,6 +60,7 @@ Every empty state should answer two questions:
 ## X Feed Trust Rules
 
 - The overview and grain-preview X surfaces should look like post cards, not a ticker ribbon.
+- On data-heavy pages, X previews should stay compact enough that they support the CGC and farm data rather than dominating the scroll.
 - Every X card should offer an outbound "Open post" action.
 - Store canonical `post_url` during ingestion when available.
 - If canonical URL is missing, fall back to an X search URL built from author + summary.

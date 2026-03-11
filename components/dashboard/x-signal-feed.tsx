@@ -1,19 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Radio,
-  X,
-} from "lucide-react";
+import { Check, ExternalLink, Radio, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { voteSignalRelevance } from "@/app/(dashboard)/grain/[slug]/signal-actions";
 import { useCelebration, MicroCelebration } from "@/components/motion/micro-celebration";
-import { YourImpact } from "@/components/dashboard/your-impact";
 import { buildXPostHref } from "@/lib/utils/x-post";
 import type { XSignalWithFeedback } from "@/lib/queries/x-signals";
 import type { UserRole } from "@/lib/auth/role-guard";
@@ -47,20 +39,20 @@ function formatDate(dateStr: string | null): string {
 }
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, y: 10 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     transition: {
-      delay: i * 0.04,
-      duration: 0.4,
+      delay: i * 0.035,
+      duration: 0.32,
       ease: [0.16, 1, 0.3, 1] as const,
     },
   }),
 };
 
-const springTap = { scale: 0.95 };
-const springHover = { scale: 1.02 };
+const springTap = { scale: 0.97 };
+const springHover = { scale: 1.01 };
 
 interface XSignalFeedProps {
   signals: XSignalWithFeedback[];
@@ -80,7 +72,6 @@ export function XSignalFeed({
   const [localSignals, setLocalSignals] = useState(signals);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const celebration = useCelebration("firstSignalVote");
 
   const isObserver = role === "observer";
@@ -93,7 +84,6 @@ export function XSignalFeed({
     const previousSignal = localSignals.find((signal) => signal.id === signalId);
     setError(null);
 
-    // Optimistic update
     setLocalSignals((prev) =>
       prev.map((s) =>
         s.id === signalId
@@ -102,7 +92,6 @@ export function XSignalFeed({
       )
     );
 
-    // Trigger micro-celebration on first vote
     celebration.trigger();
 
     startTransition(async () => {
@@ -113,8 +102,8 @@ export function XSignalFeed({
         cropYear,
         grainWeek
       );
+
       if (result.error) {
-        // Revert on error
         setLocalSignals((prev) =>
           prev.map((s) =>
             s.id === signalId
@@ -134,19 +123,10 @@ export function XSignalFeed({
     });
   }
 
-  function scrollBy(direction: "left" | "right") {
-    if (!scrollRef.current) return;
-    const amount = scrollRef.current.clientWidth * 0.8;
-    scrollRef.current.scrollBy({
-      left: direction === "left" ? -amount : amount,
-      behavior: "smooth",
-    });
-  }
-
   if (localSignals.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-6 text-center">
-        <Radio className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+      <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-5 text-center">
+        <Radio className="mx-auto mb-2 h-7 w-7 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">
           No X signals scored for {grain} this week. Check back after Thursday.
         </p>
@@ -156,30 +136,29 @@ export function XSignalFeed({
 
   return (
     <MicroCelebration isActive={celebration.isActive}>
-      <div className="space-y-3">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+      <section className="space-y-2.5">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
-            <h2 className="text-lg font-display font-semibold flex items-center gap-2">
-              <Radio className="h-4 w-4 text-canola" />
-              Market Signals from X
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="flex items-center gap-2 text-base font-display font-semibold sm:text-lg">
+                <Radio className="h-4 w-4 text-canola" />
+                Market Signals from X
+              </h2>
+              <span className="inline-flex rounded-full border border-canola/15 bg-canola/8 px-2.5 py-1 text-[11px] font-medium text-canola">
+                Week {grainWeek} · {localSignals.length} post
+                {localSignals.length !== 1 ? "s" : ""}
+              </span>
+              {isObserver && (
+                <span className="inline-flex rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[11px] text-muted-foreground">
+                  Farmer accounts can rate these posts
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Farmer feedback re-ranks this feed so the strongest posts rise over time.
+              Compact source checks for the week, kept lightweight so the market data stays primary.
             </p>
           </div>
-          <span className="text-right text-xs text-muted-foreground">
-            Week {grainWeek} &middot; {localSignals.length} post
-            {localSignals.length !== 1 ? "s" : ""}
-          </span>
         </div>
-
-        {/* Observer nudge */}
-        {isObserver && (
-          <p className="text-xs text-muted-foreground bg-canola/5 border border-canola/10 rounded-lg px-3 py-2">
-            Farmer accounts can rate signals to improve feed quality for the community.
-          </p>
-        )}
 
         {error && (
           <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -187,79 +166,56 @@ export function XSignalFeed({
           </div>
         )}
 
-        {/* Scrollable card strip */}
-        <div className="relative group">
-          {/* Scroll arrows */}
-          <button
-            type="button"
-            onClick={() => scrollBy("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 hidden sm:group-hover:flex h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-sm hover:bg-muted transition-colors"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollBy("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 hidden sm:group-hover:flex h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-sm hover:bg-muted transition-colors"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-
-          <div
-            ref={scrollRef}
-            className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-hide"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {localSignals.map((signal, i) => (
-              <SignalCard
-                key={signal.id}
-                signal={signal}
-                index={i}
-                isPending={isPending}
-                onVote={handleVote}
-                isObserver={isObserver}
-              />
-            ))}
-          </div>
+        <div
+          className="flex gap-2.5 overflow-x-auto pb-1.5 scrollbar-hide"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {localSignals.map((signal, i) => (
+            <SignalCard
+              key={signal.id}
+              signal={signal}
+              index={i}
+              isPending={isPending}
+              onVote={handleVote}
+              isObserver={isObserver}
+            />
+          ))}
         </div>
 
-        {/* Your impact summary bar */}
-        <AnimatePresence>
-          {votedCount > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-center gap-3 rounded-lg border border-canola/20 bg-gradient-to-r from-canola/5 to-transparent p-3"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-canola/10">
-                <Check className="h-4 w-4 text-canola" />
-              </div>
-              <div className="text-sm">
-                <span className="font-medium">
-                  You rated {votedCount}/{localSignals.length} posts
-                </span>
+        {!isObserver && (
+          <AnimatePresence mode="wait">
+            {votedCount > 0 ? (
+              <motion.div
+                key="rated"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-wrap items-center gap-2 text-xs"
+              >
+                <CompactPill icon={<Check className="h-3.5 w-3.5" />}>
+                  You rated {votedCount}/{localSignals.length}
+                </CompactPill>
                 {relevantCount > 0 && (
-                  <span className="text-muted-foreground">
-                    {" "}&middot; {relevantCount} relevant to your farm
-                  </span>
+                  <CompactPill>{relevantCount} relevant to your farm</CompactPill>
                 )}
-                <span className="text-muted-foreground">
-                  {" "}&middot; Your feed is getting smarter
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Your impact indicator */}
-        {votedCount > 0 && (
-          <YourImpact variant="signal" />
+                <CompactPill>Your feed is getting smarter</CompactPill>
+              </motion.div>
+            ) : (
+              <motion.p
+                key="nudge"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="text-xs text-muted-foreground"
+              >
+                Rate a couple of posts to sharpen this feed for your farm.
+              </motion.p>
+            )}
+          </AnimatePresence>
         )}
-      </div>
+      </section>
     </MicroCelebration>
   );
 }
@@ -285,126 +241,135 @@ function SignalCard({
   );
 
   return (
-    <motion.div
+    <motion.article
       custom={index}
       variants={cardVariants}
       initial="hidden"
       animate="visible"
       className={cn(
-        "flex-shrink-0 w-[280px] sm:w-[300px] snap-start rounded-[1.35rem] border p-4 space-y-3 transition-colors duration-300 backdrop-blur-sm",
+        "flex w-[228px] shrink-0 snap-start flex-col justify-between rounded-[1.15rem] border p-3.5 transition-colors duration-300 backdrop-blur-sm sm:w-[240px]",
         isVoted
-          ? "border-canola/30 bg-muted/55 opacity-80"
-          : "border-border/70 bg-background/88 hover:border-canola/20 hover:shadow-[0_18px_36px_-28px_rgba(42,38,30,0.55)]"
+          ? "border-canola/25 bg-muted/45"
+          : "border-border/60 bg-background/84 hover:border-canola/18 hover:shadow-[0_14px_28px_-24px_rgba(42,38,30,0.48)]"
       )}
     >
-      {/* Top row: sentiment + category */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize",
-            sentimentColors[signal.sentiment] ?? sentimentColors.neutral
-          )}
-        >
-          {signal.sentiment}
-        </span>
-        <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-          {categoryLabels[signal.category] ?? signal.category}
-        </span>
-      </div>
-
-      {/* Post summary */}
-      <p className="text-sm leading-relaxed text-foreground line-clamp-3">
-        {signal.post_summary}
-      </p>
-
-      {/* Author + date */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        {signal.post_author && (
-          <span className="font-medium">
-            @{signal.post_author.replace(/^@/, "")}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize",
+              sentimentColors[signal.sentiment] ?? sentimentColors.neutral
+            )}
+          >
+            {signal.sentiment}
           </span>
-        )}
-        {signal.post_date && <span>{formatDate(signal.post_date)}</span>}
-        {postHref && (
-          <a
-            href={postHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto inline-flex items-center gap-1 font-medium text-canola transition-colors hover:text-canola-dark"
-          >
-            Open post
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        )}
+          <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {categoryLabels[signal.category] ?? signal.category}
+          </span>
+        </div>
+
+        <p className="line-clamp-2 text-[0.95rem] leading-relaxed text-foreground">
+          {signal.post_summary}
+        </p>
       </div>
 
-      {/* Vote buttons / vote state — hidden for observers */}
-      {isObserver ? null : isVoted ? (
-        <div className="flex items-center gap-2 pt-1">
-          {signal.user_relevant ? (
-            <motion.span
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", damping: 20, stiffness: 300 }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-prairie"
+      <div className="mt-3 space-y-2 border-t border-border/35 pt-2.5">
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="min-w-0 truncate font-medium">
+            {signal.post_author
+              ? `@${signal.post_author.replace(/^@/, "")}`
+              : "Prairie X"}
+          </span>
+          {signal.post_date && <span className="shrink-0">{formatDate(signal.post_date)}</span>}
+          {postHref && (
+            <a
+              href={postHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto inline-flex shrink-0 items-center gap-1 font-medium text-canola transition-colors hover:text-canola-dark"
             >
-              <Check className="h-3.5 w-3.5" />
-              Marked relevant
-            </motion.span>
-          ) : (
-            <motion.span
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", damping: 20, stiffness: 300 }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-              Not for you
-            </motion.span>
+              Open
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
           )}
-          <button
-            type="button"
-            onClick={() => onVote(signal.id, !signal.user_relevant)}
-            disabled={isPending}
-            className="ml-auto text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-          >
-            Change
-          </button>
         </div>
-      ) : (
-        <div className="flex gap-2 pt-1">
-          <motion.button
-            type="button"
-            onClick={() => onVote(signal.id, true)}
-            disabled={isPending}
-            whileTap={springTap}
-            whileHover={springHover}
-            className={cn(
-              "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-              "border-prairie/30 text-prairie hover:bg-prairie/10 hover:border-prairie/50",
-              isPending && "opacity-60 cursor-wait"
-            )}
-          >
-            <Check className="h-3.5 w-3.5" />
-            Relevant
-          </motion.button>
-          <motion.button
-            type="button"
-            onClick={() => onVote(signal.id, false)}
-            disabled={isPending}
-            whileTap={springTap}
-            whileHover={springHover}
-            className={cn(
-              "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-              "border-border text-muted-foreground hover:bg-muted hover:border-muted-foreground/30",
-              isPending && "opacity-60 cursor-wait"
-            )}
-          >
-            <X className="h-3.5 w-3.5" />
-            Not for me
-          </motion.button>
-        </div>
-      )}
-    </motion.div>
+
+        {isObserver ? null : isVoted ? (
+          <div className="flex items-center gap-2 text-[11px]">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium",
+                signal.user_relevant
+                  ? "bg-prairie/10 text-prairie"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {signal.user_relevant ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <X className="h-3 w-3" />
+              )}
+              {signal.user_relevant ? "Relevant" : "Skipped"}
+            </span>
+            <button
+              type="button"
+              onClick={() => onVote(signal.id, !signal.user_relevant)}
+              disabled={isPending}
+              className="ml-auto text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-1.5">
+            <motion.button
+              type="button"
+              onClick={() => onVote(signal.id, true)}
+              disabled={isPending}
+              whileTap={springTap}
+              whileHover={springHover}
+              className={cn(
+                "inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+                "border-prairie/25 text-prairie hover:border-prairie/45 hover:bg-prairie/10",
+                isPending && "cursor-wait opacity-60"
+              )}
+            >
+              <Check className="h-3 w-3" />
+              Relevant
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => onVote(signal.id, false)}
+              disabled={isPending}
+              whileTap={springTap}
+              whileHover={springHover}
+              className={cn(
+                "inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+                "border-border text-muted-foreground hover:border-muted-foreground/30 hover:bg-muted",
+                isPending && "cursor-wait opacity-60"
+              )}
+            >
+              <X className="h-3 w-3" />
+              Skip
+            </motion.button>
+          </div>
+        )}
+      </div>
+    </motion.article>
+  );
+}
+
+function CompactPill({
+  children,
+  icon,
+}: {
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-canola/15 bg-canola/6 px-2.5 py-1 text-muted-foreground">
+      {icon ? <span className="text-canola">{icon}</span> : null}
+      <span>{children}</span>
+    </span>
   );
 }

@@ -228,3 +228,21 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 - `components/dashboard/signal-tape.tsx`
 
 **Tags:** #ux #ui #x-feed #trust
+
+## 2026-03-11 - Supporting Social Context Should Stay Visually Subordinate To Core Market Data
+
+**Symptom:** The grain-page X feed became readable and source-verifiable, but the first card treatment consumed too much vertical and visual space. The section started competing with the CGC and farm metrics instead of supporting them.
+
+**Root Cause:** The redesign corrected the "ticker" problem by making the cards look more like posts, but overshot on card size, padding, and follow-on helper banners.
+
+**Solution:** Compacted the feed into slimmer horizontally scrollable post cards, reduced summary depth to two lines, turned feedback states into small pills, and removed the extra full-width helper chrome so the section reads as secondary context.
+
+**Prevention:**
+- On analytics-heavy pages, supporting content should be glanceable first and explorable second
+- When converting a ribbon into cards, revisit size hierarchy so the new treatment does not become the new primary module
+- Keep trust cues, but compress them into lightweight inline affordances when the page already contains large data blocks
+
+**Files modified:**
+- `components/dashboard/x-signal-feed.tsx`
+
+**Tags:** #ux #ui #x-feed #hierarchy
