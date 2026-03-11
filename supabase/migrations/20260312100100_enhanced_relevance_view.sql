@@ -74,6 +74,7 @@ GROUP BY sf.signal_id, xs.id, xs.grain, xs.crop_year, xs.grain_week,
 -- ═══════════════════════════════════════════════════════════════════════════
 
 DROP FUNCTION IF EXISTS public.get_signals_with_feedback(text, text, int);
+DROP FUNCTION IF EXISTS public.get_signals_with_feedback(text, text, int, timestamptz);
 
 CREATE OR REPLACE FUNCTION public.get_signals_with_feedback(
   p_grain text,
