@@ -14,8 +14,8 @@ Last updated: 2026-03-11
 | 6 | AI Grain Intelligence (Grok + x_search) | Complete | 2026-03-07 | `supabase/functions/generate-intelligence/`, `components/dashboard/thesis-banner.tsx` |
 | 7 | Week-over-Week Comparison (composite metrics) | Complete | 2026-03-08 | `components/dashboard/wow-comparison.tsx`, `lib/queries/observations.ts` |
 | 8 | X/Twitter Signal Feed + Relevance Voting | Complete | 2026-03-09 | `supabase/functions/search-x-intelligence/`, `components/dashboard/x-signal-feed.tsx` |
-| 9 | Farm Summary (per-user AI narratives + percentiles) | Complete | 2026-03-09 | `supabase/functions/generate-farm-summary/`, `components/dashboard/farm-summary-card.tsx` |
-| 10 | My Farm (crop plans, delivery tracking) | Complete | 2026-03-08 | `app/(dashboard)/my-farm/`, `lib/queries/crop-plans.ts`, `supabase/migrations/20260311113000_delivery_ledger_and_canonical_supply.sql` |
+| 9 | Farm Summary (per-user AI narratives + percentiles) | Complete | 2026-03-11 | `supabase/functions/generate-farm-summary/`, `components/dashboard/farm-summary-card.tsx` |
+| 10 | My Farm (crop plans, delivery tracking, inventory percentages) | Complete | 2026-03-11 | `app/(dashboard)/my-farm/`, `lib/queries/crop-plans.ts`, `supabase/migrations/20260312110000_crop_inventory_marketing_tracking.sql` |
 | 11 | Pipeline Velocity Chart (RPC-based) | Complete | 2026-03-10 | `components/dashboard/gamified-grain-chart.tsx`, `supabase/migrations/20260310200000_pipeline_velocity_rpc.sql` |
 | 12 | Import Validation (post-import anomaly detection) | Complete | 2026-03-07 | `supabase/functions/validate-import/` |
 | 13 | Prairie Landing Page | Complete | 2026-03-11 | `app/page.tsx`, `components/landing/landing-page.tsx`, `components/layout/logo.tsx` |
@@ -41,8 +41,8 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intell
 | `cgc_observations` | 122k+ | Weekly grain statistics in long format |
 | `grains` | 16 | Canadian grain types with slugs |
 | `supply_disposition` | ~200 | AAFC balance sheet data per grain/year/source |
-| `crop_plans` | varies | User crop plans with cached delivery projection and contract splits |
-| `crop_plan_deliveries` | varies | Append-only farmer delivery ledger with idempotency keys |
+| `crop_plans` | varies | User crop plans with starting grain, live remaining inventory, and contract splits |
+| `crop_plan_deliveries` | varies | Append-only farmer delivery ledger with idempotency keys and sale classification |
 | `profiles` | varies | User profiles with farm metadata and role |
 | `grain_intelligence` | ~16/week | AI-generated grain narratives and KPIs |
 | `farm_summaries` | ~users/week | Per-user weekly AI farm summaries |
@@ -64,6 +64,6 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intell
 | `get_pipeline_velocity()` | RPC | Five pipeline metrics server-side, bypassing PostgREST row limits |
 | `get_signals_with_feedback()` | RPC | X signal feed with current-user vote state |
 | `get_signals_for_intelligence()` | RPC | Service-only X signals for intelligence generation |
-| `calculate_delivery_percentiles()` | RPC | Percentile ranking over delivery pace by grain |
+| `calculate_delivery_percentiles()` | RPC | Percentile ranking over priced-progress pace by grain |
 | `get_sentiment_overview()` | RPC | Per-grain sentiment aggregates for the overview banner |
-| `get_delivery_analytics()` | RPC | Anonymized delivery stats with privacy threshold (>=5 farmers) |
+| `get_delivery_analytics()` | RPC | Anonymized delivery + marketing-position stats with privacy threshold (>=5 farmers) |

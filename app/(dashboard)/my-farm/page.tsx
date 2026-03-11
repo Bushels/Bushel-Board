@@ -39,7 +39,7 @@ export default async function MyFarmPage() {
           My Farm
         </h1>
         <p className="text-base text-muted-foreground mt-2 max-w-2xl">
-          Start with one crop, then make Bushel Board smarter with remaining tonnes, deliveries, and signal feedback.
+          Start with one crop, then make Bushel Board smarter with starting grain, what is left to sell, deliveries, and signal feedback.
         </p>
       </div>
 

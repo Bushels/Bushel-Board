@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addCropPlan, removeCropPlan } from "./actions";
 import { Button } from "@/components/ui/button";
@@ -25,26 +25,33 @@ import {
   BarChart3,
   type LucideIcon,
   Loader2,
+  PencilLine,
   Plus,
   Radio,
   Sparkles,
   Trash2,
   Truck,
 } from "lucide-react";
+import { ALL_GRAINS } from "@/lib/constants/grains";
 import { CURRENT_CROP_YEAR, cropYearLabel } from "@/lib/utils/crop-year";
 import { LogDeliveryModal } from "@/components/dashboard/log-delivery-modal";
 import type { CropPlan } from "@/lib/queries/crop-plans";
 import type { UserRole } from "@/lib/auth/role-guard";
-import { getCropPlanPaceBreakdown } from "@/lib/utils/crop-plan";
+import { getCropPlanMarketingBreakdown } from "@/lib/utils/crop-plan";
+import {
+  convertKtToTonnes,
+  convertMetricTonnesToUnit,
+  formatGrainUnitLabel,
+  getDefaultBushelWeightLbs,
+  getYieldMetrics,
+  type GrainAmountUnit,
+} from "@/lib/utils/grain-units";
 
-const AVAILABLE_GRAINS = [
-  "Wheat", "Canola", "Amber Durum", "Barley", "Peas", "Oats", "Lentils",
-  "Soybeans", "Flaxseed", "Mustard Seed", "Corn", "Rye", "Chick Peas",
-  "Sunflower", "Canaryseed", "Beans",
-];
+const AVAILABLE_GRAINS = ALL_GRAINS.map((grain) => grain.name);
 
 const fmtT = (kt: number) =>
   (kt * 1000).toLocaleString("en-CA", { maximumFractionDigits: 0 });
+const roundForInput = (value: number) => Number(value.toFixed(2));
 
 const FIRST_RUN_BENEFITS = [
   {
@@ -54,7 +61,7 @@ const FIRST_RUN_BENEFITS = [
   },
   {
     title: "Train the AI with your farm",
-    description: "Remaining tonnes and deliveries make the thesis more specific to your marketing reality.",
+    description: "Starting grain, grain left to sell, and deliveries make the thesis more specific to your marketing reality.",
     icon: BarChart3,
   },
   {
@@ -77,7 +84,8 @@ export function MyFarmClient({
 }: MyFarmClientProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deliveryGrain, setDeliveryGrain] = useState<string | null>(null);
+  const [deliveryGrain, setDeliveryGrain] = useState<CropPlan | null>(null);
+  const [editingPlan, setEditingPlan] = useState<CropPlan | null>(null);
   const setupCardRef = useRef<HTMLDivElement>(null);
 
   const isObserver = role === "observer";
@@ -102,6 +110,19 @@ export function MyFarmClient({
   async function handleRemove(grain: string) {
     setLoading(true);
     await removeCropPlan(grain);
+    setLoading(false);
+  }
+
+  async function handleEdit(formData: FormData) {
+    setLoading(true);
+    setError(null);
+    const result = await addCropPlan(formData);
+    if (result?.error) {
+      setError(result.error);
+      setLoading(false);
+      return;
+    }
+    setEditingPlan(null);
     setLoading(false);
   }
 
@@ -151,68 +172,11 @@ export function MyFarmClient({
           <form action={handleAdd} className="space-y-5">
             {error && <div className="text-sm font-medium text-error">{error}</div>}
 
-            <div className="space-y-2">
-              <Label htmlFor="grain">Commodity</Label>
-              <Select name="grain" required disabled={unusedGrains.length === 0}>
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={isFirstRun ? "Pick your first crop" : "Select grain to track..."}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {unusedGrains.map((grain) => (
-                    <SelectItem key={grain} value={grain}>
-                      {grain}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="acres">Estimated Acres Seeded</Label>
-              <Input
-                id="acres"
-                name="acres"
-                type="number"
-                placeholder="e.g. 1500"
-                required
-                min="1"
-                step="1"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="volume">Remaining Volume to Sell (tonnes)</Label>
-              <Input
-                id="volume"
-                name="volume"
-                type="number"
-                placeholder="e.g. 2500"
-                required
-                min="0"
-                step="1"
-              />
-              <span className="text-xs text-muted-foreground">
-                Total bins + contracts not yet delivered. This makes the AI and pace cards more specific.
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contracted">Of Which Contracted (tonnes)</Label>
-              <Input
-                id="contracted"
-                name="contracted"
-                type="number"
-                placeholder="0"
-                min="0"
-                step="1"
-                defaultValue="0"
-              />
-              <span className="text-xs text-muted-foreground">
-                Committed to a buyer. Uncontracted is auto-calculated.
-              </span>
-            </div>
+            <CropPlanFields
+              idPrefix="add"
+              grainOptions={unusedGrains}
+              grainPlaceholder={isFirstRun ? "Pick your first crop" : "Select grain to track..."}
+            />
 
             <Button
               type="submit"
@@ -250,8 +214,8 @@ export function MyFarmClient({
                 </h2>
                 <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
                   Add a crop plan to unlock its grain page, then make the AI more specific with
-                  remaining tonnes, deliveries, and signal feedback. The more grounded your farm
-                  data is, the less generic the product feels.
+                  starting grain, what is left to sell, deliveries, and signal feedback. The more
+                  grounded your farm data is, the less generic the product feels.
                 </p>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Button
@@ -263,7 +227,7 @@ export function MyFarmClient({
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                   <p className="text-xs text-muted-foreground sm:max-w-xs">
-                    Acres unlock the dashboard now. Deliveries and X ratings improve it over time.
+                    Acres unlock the dashboard now. Grain inventory, deliveries, and X ratings improve it over time.
                   </p>
                 </div>
               </div>
@@ -293,7 +257,7 @@ export function MyFarmClient({
                 Next unlock: log your first delivery.
               </div>
               <p className="mt-1 text-muted-foreground">
-                Your crop plan is live. Add one delivery on any crop card to sharpen pace tracking and your weekly AI brief.
+                Your crop plan is live. Add one delivery on any crop card to keep grain-left and contract percentages current for your weekly AI brief.
               </p>
             </div>
           )}
@@ -313,14 +277,24 @@ export function MyFarmClient({
                     (sum, delivery) => sum + delivery.amount_kt,
                     0
                   );
+                  const startingGrain = Number(plan.starting_grain_kt ?? 0);
+                  const bushelWeightLbs = Number(
+                    plan.bushel_weight_lbs ?? getDefaultBushelWeightLbs(plan.grain)
+                  );
+                  const inventoryUnit = plan.inventory_unit_preference ?? "metric_tonnes";
                   const remainingToSell = Number(plan.volume_left_to_sell_kt ?? 0);
                   const contracted = Number(plan.contracted_kt ?? 0);
                   const uncontracted = Number(plan.uncontracted_kt ?? 0);
-                  const pace = getCropPlanPaceBreakdown({
-                    deliveredKt: totalDelivered,
+                  const marketing = getCropPlanMarketingBreakdown({
+                    startingGrainKt: startingGrain,
                     remainingToSellKt: remainingToSell,
                     contractedKt: contracted,
                     uncontractedKt: uncontracted,
+                  });
+                  const yieldMetrics = getYieldMetrics({
+                    acres: plan.acres_seeded,
+                    startingGrainKt: marketing.startingGrainKt,
+                    bushelWeightLbs,
                   });
 
                   return (
@@ -335,80 +309,171 @@ export function MyFarmClient({
                             {cropYearLabel(CURRENT_CROP_YEAR, "Season")}
                           </CardDescription>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemove(plan.grain)}
-                          disabled={loading}
-                          className="text-muted-foreground hover:text-error"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setError(null);
+                              setEditingPlan(plan);
+                            }}
+                            disabled={loading}
+                            className="text-muted-foreground hover:text-canola"
+                          >
+                            <PencilLine className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemove(plan.grain)}
+                            disabled={loading}
+                            className="text-muted-foreground hover:text-error"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent className="space-y-3 pt-4">
                         <div className="flex justify-between">
                           <span className="text-sm text-muted-foreground">Area Seeded</span>
                           <span className="font-semibold">{plan.acres_seeded.toLocaleString()} ac</span>
                         </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-sm text-muted-foreground">Estimated Yield</span>
+                          <span className="text-right font-semibold">
+                            {yieldMetrics.bushelsPerAcre.toFixed(1)} bu/ac
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              {yieldMetrics.tonnesPerAcre.toFixed(2)} t/ac
+                            </span>
+                          </span>
+                        </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Remaining to Sell</span>
+                          <span className="text-sm text-muted-foreground">Starting Grain</span>
+                          <span className="font-semibold">{fmtT(marketing.startingGrainKt)} t</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Est. Left to Sell</span>
                           <span className="font-semibold">{fmtT(remainingToSell)} t</span>
+                        </div>
+
+                        <div className="grid gap-3 rounded-2xl border border-border/30 bg-muted/20 p-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                              In Bin
+                            </p>
+                            <p className="mt-1 font-display text-lg font-semibold text-foreground">
+                              {marketing.grainLeftPct.toFixed(0)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {fmtT(remainingToSell)} t still left to sell
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                              Priced
+                            </p>
+                            <p className="mt-1 font-display text-lg font-semibold text-prairie">
+                              {marketing.pricedPct.toFixed(0)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {fmtT(marketing.pricedKt)} t sold or already contracted
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                              Contracted
+                            </p>
+                            <p className="mt-1 font-display text-lg font-semibold text-canola">
+                              {marketing.contractedPct.toFixed(0)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {fmtT(contracted)} t outstanding
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                              Open Market
+                            </p>
+                            <p className="mt-1 font-display text-lg font-semibold text-foreground">
+                              {marketing.uncontractedPct.toFixed(0)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {fmtT(uncontracted)} t still open
+                            </p>
+                          </div>
                         </div>
 
                         <div className="space-y-2 pt-1">
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Delivered</span>
+                            <span className="text-muted-foreground">Market Position</span>
                             <span className="font-semibold text-prairie">
-                              {fmtT(totalDelivered)} t
+                              {fmtT(marketing.pricedKt)} t priced
                             </span>
                           </div>
                           <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full bg-prairie transition-all duration-500"
-                              style={{ width: `${pace.deliveredPct}%` }}
-                              title={`Delivered: ${fmtT(totalDelivered)} t`}
-                            />
-                            {contracted > 0 && (
+                            {marketing.marketedPct > 0 && (
                               <div
-                                className="h-full bg-canola/60 transition-all duration-500"
-                                style={{ width: `${pace.contractedPct}%` }}
-                                title={`Contracted: ${fmtT(contracted)} t`}
+                                className="h-full bg-prairie transition-all duration-500"
+                                style={{ width: `${marketing.marketedPct}%` }}
+                                title={`Already moved or sold: ${fmtT(marketing.marketedKt)} t`}
                               />
                             )}
-                            <div
-                              className="h-full bg-muted-foreground/20 transition-all duration-500"
-                              style={{ width: `${pace.uncontractedPct}%` }}
-                              title={`Open: ${fmtT(uncontracted)} t`}
-                            />
+                            {contracted > 0 && (
+                              <div
+                                className="h-full bg-canola/65 transition-all duration-500"
+                                style={{ width: `${marketing.contractedPct}%` }}
+                                title={`Contracted and undelivered: ${fmtT(contracted)} t`}
+                              />
+                            )}
+                            {uncontracted > 0 && (
+                              <div
+                                className="h-full bg-muted-foreground/25 transition-all duration-500"
+                                style={{ width: `${marketing.uncontractedPct}%` }}
+                                title={`Open market: ${fmtT(uncontracted)} t`}
+                              />
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <span className="inline-block h-2 w-2 rounded-full bg-prairie" />
-                              {pace.deliveredPct.toFixed(0)}% delivered
-                            </span>
+                            {marketing.marketedKt > 0 && (
+                              <span className="flex items-center gap-1">
+                                <span className="inline-block h-2 w-2 rounded-full bg-prairie" />
+                                {fmtT(marketing.marketedKt)} t already moved
+                              </span>
+                            )}
                             {contracted > 0 && (
                               <span className="flex items-center gap-1">
-                                <span className="inline-block h-2 w-2 rounded-full bg-canola/60" />
+                                <span className="inline-block h-2 w-2 rounded-full bg-canola/65" />
                                 {fmtT(contracted)} t contracted
                               </span>
                             )}
-                            <span className="flex items-center gap-1">
-                              <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/20" />
-                              {fmtT(uncontracted)} t open
-                            </span>
+                            {uncontracted > 0 && (
+                              <span className="flex items-center gap-1">
+                                <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/25" />
+                                {fmtT(uncontracted)} t open
+                              </span>
+                            )}
                           </div>
+                          <p className="text-xs text-muted-foreground">
+                            Logged deliveries: {fmtT(totalDelivered)} t. Contracted share of remaining:{" "}
+                            {marketing.contractedShareOfRemainingPct.toFixed(0)}%.
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Input preference: {formatGrainUnitLabel(inventoryUnit)}
+                            {inventoryUnit === "bushels" ? ` at ${bushelWeightLbs.toFixed(1)} lb/bu` : ""}
+                            .
+                          </p>
                         </div>
 
                         {percentiles[plan.grain] !== undefined && (
                           <div
                             className="flex items-center gap-2 pt-1"
-                            title="Ranked by the share of tracked crop-plan volume already delivered, not by absolute tonnage"
+                            title="Ranked by the share of estimated starting grain already priced or moved, not by absolute tonnage"
                           >
                             <span className="inline-flex items-center rounded-full bg-prairie/10 px-2.5 py-0.5 text-xs font-medium text-prairie">
                               {Math.round(percentiles[plan.grain])}th percentile
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              delivery pace for {plan.grain}
+                              marketing pace for {plan.grain}
                             </span>
                           </div>
                         )}
@@ -417,7 +482,8 @@ export function MyFarmClient({
                           <Button
                             variant="outline"
                             className="flex-1"
-                            onClick={() => setDeliveryGrain(plan.grain)}
+                            disabled={remainingToSell <= 0}
+                            onClick={() => setDeliveryGrain(plan)}
                           >
                             <Truck className="mr-2 h-4 w-4" />
                             Log Delivery
@@ -445,11 +511,320 @@ export function MyFarmClient({
 
       {deliveryGrain && (
         <LogDeliveryModal
-          grain={deliveryGrain}
+          grain={deliveryGrain.grain}
+          bushelWeightLbs={Number(
+            deliveryGrain.bushel_weight_lbs ?? getDefaultBushelWeightLbs(deliveryGrain.grain)
+          )}
+          contractedKt={Number(deliveryGrain.contracted_kt ?? 0)}
+          openKt={Math.max(
+            Number(
+              deliveryGrain.uncontracted_kt
+                ?? (
+                  Number(deliveryGrain.volume_left_to_sell_kt ?? 0)
+                  - Number(deliveryGrain.contracted_kt ?? 0)
+                )
+            ),
+            0
+          )}
+          remainingKt={Number(deliveryGrain.volume_left_to_sell_kt ?? 0)}
           isOpen={true}
           onClose={() => setDeliveryGrain(null)}
         />
       )}
+
+      {editingPlan && (
+        <CropPlanEditModal
+          key={editingPlan.grain}
+          plan={editingPlan}
+          pending={loading}
+          error={error}
+          onClose={() => {
+            setError(null);
+            setEditingPlan(null);
+          }}
+          onSubmit={handleEdit}
+        />
+      )}
+    </div>
+  );
+}
+
+function CropPlanFields({
+  idPrefix,
+  plan,
+  grainOptions = AVAILABLE_GRAINS,
+  grainPlaceholder = "Select grain",
+  grainLocked = false,
+}: {
+  idPrefix: string;
+  plan?: CropPlan;
+  grainOptions?: string[];
+  grainPlaceholder?: string;
+  grainLocked?: boolean;
+}) {
+  const initialGrain = plan?.grain ?? grainOptions[0] ?? "";
+  const initialUnit = plan?.inventory_unit_preference ?? "metric_tonnes";
+  const initialBushelWeight = Number(
+    plan?.bushel_weight_lbs ?? getDefaultBushelWeightLbs(initialGrain)
+  );
+
+  const [selectedGrain, setSelectedGrain] = useState(initialGrain);
+  const [inventoryUnit, setInventoryUnit] = useState<GrainAmountUnit>(initialUnit);
+  const [bushelWeightLbs, setBushelWeightLbs] = useState(initialBushelWeight);
+
+  useEffect(() => {
+    setSelectedGrain(initialGrain);
+    setInventoryUnit(initialUnit);
+    setBushelWeightLbs(initialBushelWeight);
+  }, [initialBushelWeight, initialGrain, initialUnit]);
+
+  useEffect(() => {
+    if (!selectedGrain || plan?.bushel_weight_lbs) {
+      return;
+    }
+    setBushelWeightLbs(getDefaultBushelWeightLbs(selectedGrain));
+  }, [plan?.bushel_weight_lbs, selectedGrain]);
+
+  const preferredBushelWeight = Number(
+    plan?.bushel_weight_lbs ?? getDefaultBushelWeightLbs(selectedGrain)
+  );
+  const displayStarting = plan
+    ? convertMetricTonnesToUnit(
+      convertKtToTonnes(
+        Number(plan.starting_grain_kt ?? plan.volume_left_to_sell_kt ?? 0)
+      ),
+      inventoryUnit,
+      preferredBushelWeight
+    )
+    : undefined;
+  const displayRemaining = plan
+    ? convertMetricTonnesToUnit(
+      convertKtToTonnes(Number(plan.volume_left_to_sell_kt ?? 0)),
+      inventoryUnit,
+      preferredBushelWeight
+    )
+    : undefined;
+  const displayContracted = plan
+    ? convertMetricTonnesToUnit(
+      convertKtToTonnes(Number(plan.contracted_kt ?? 0)),
+      inventoryUnit,
+      preferredBushelWeight
+    )
+    : undefined;
+
+  const unitLabel = formatGrainUnitLabel(inventoryUnit).toLowerCase();
+  const startingPlaceholder =
+    inventoryUnit === "metric_tonnes"
+      ? "e.g. 3200"
+      : inventoryUnit === "bushels"
+        ? "e.g. 64000"
+        : "e.g. 7050000";
+  const remainingPlaceholder =
+    inventoryUnit === "metric_tonnes"
+      ? "e.g. 2500"
+      : inventoryUnit === "bushels"
+        ? "e.g. 50000"
+        : "e.g. 5510000";
+
+  return (
+    <>
+      {grainLocked ? (
+        <>
+          <input type="hidden" name="grain" value={selectedGrain} />
+          <div className="space-y-2">
+            <Label>Commodity</Label>
+            <div className="rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm font-medium">
+              {selectedGrain}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-grain`}>Commodity</Label>
+          <Select
+            name="grain"
+            required
+            value={selectedGrain}
+            onValueChange={setSelectedGrain}
+            disabled={grainOptions.length === 0}
+          >
+            <SelectTrigger id={`${idPrefix}-grain`} className="w-full">
+              <SelectValue placeholder={grainPlaceholder} />
+            </SelectTrigger>
+            <SelectContent>
+              {grainOptions.map((grain) => (
+                <SelectItem key={grain} value={grain}>
+                  {grain}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-acres`}>Estimated Acres Seeded</Label>
+        <Input
+          id={`${idPrefix}-acres`}
+          name="acres"
+          type="number"
+          placeholder="e.g. 1500"
+          required
+          min="1"
+          step="1"
+          defaultValue={plan?.acres_seeded}
+        />
+      </div>
+
+      <div className="grid gap-4 rounded-2xl border border-canola/15 bg-canola/5 p-4">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-inventory-unit`}>Crop Amount Unit</Label>
+          <select
+            id={`${idPrefix}-inventory-unit`}
+            name="inventory_unit"
+            value={inventoryUnit}
+            onChange={(event) => setInventoryUnit(event.target.value as GrainAmountUnit)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          >
+            <option value="metric_tonnes">Metric tonnes</option>
+            <option value="bushels">Bushels</option>
+            <option value="pounds">Pounds</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Bushel Board converts this to metric tonnes before saving so it lines up with CGC data.
+          </p>
+        </div>
+
+        {inventoryUnit === "bushels" ? (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-bushel-weight`}>Bushel Weight (lb/bu)</Label>
+            <Input
+              id={`${idPrefix}-bushel-weight`}
+              name="bushel_weight_lbs"
+              type="number"
+              min="0.1"
+              step="0.1"
+              required
+              value={bushelWeightLbs}
+              onChange={(event) => setBushelWeightLbs(Number(event.target.value || 0))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Default for {selectedGrain}: {getDefaultBushelWeightLbs(selectedGrain).toFixed(1)} lb/bu.
+            </p>
+          </div>
+        ) : (
+          <input type="hidden" name="bushel_weight_lbs" value={bushelWeightLbs} />
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-starting`}>
+          Estimated Starting Grain Amount ({unitLabel})
+        </Label>
+        <Input
+          id={`${idPrefix}-starting`}
+          name="starting"
+          type="number"
+          placeholder={startingPlaceholder}
+          required
+          min="0.01"
+          step="any"
+          defaultValue={
+            displayStarting !== undefined ? roundForInput(displayStarting) : undefined
+          }
+        />
+        <span className="text-xs text-muted-foreground">
+          With acres, this lets Bushel Board show estimated yield in both bu/ac and t/ac.
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-volume`}>
+          Est. Grain Left to Sell ({unitLabel})
+        </Label>
+        <Input
+          id={`${idPrefix}-volume`}
+          name="volume"
+          type="number"
+          placeholder={remainingPlaceholder}
+          required
+          min="0"
+          step="any"
+          defaultValue={displayRemaining !== undefined ? roundForInput(displayRemaining) : undefined}
+        />
+        <span className="text-xs text-muted-foreground">
+          Current bins plus undelivered contracts. Deliveries will reduce this automatically.
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-contracted`}>
+          Of Which Contracted ({unitLabel})
+        </Label>
+        <Input
+          id={`${idPrefix}-contracted`}
+          name="contracted"
+          type="number"
+          placeholder="0"
+          min="0"
+          step="any"
+          defaultValue={
+            displayContracted !== undefined ? roundForInput(displayContracted) : "0"
+          }
+        />
+        <span className="text-xs text-muted-foreground">
+          The committed part of what is still left to sell. Open tonnes are auto-calculated.
+        </span>
+      </div>
+    </>
+  );
+}
+
+function CropPlanEditModal({
+  plan,
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  plan: CropPlan;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (formData: FormData) => Promise<void>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+      <Card className="w-full max-w-lg border-canola/20 bg-background/95 shadow-2xl">
+        <CardHeader>
+          <CardTitle className="text-xl font-display text-canola">
+            Edit {plan.grain}
+          </CardTitle>
+          <CardDescription>
+            Update acres, starting grain, grain left to sell, and contracted tonnes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={onSubmit} className="space-y-5">
+            <CropPlanFields idPrefix="edit" plan={plan} grainLocked />
+
+            {error && <div className="text-sm font-medium text-error">{error}</div>}
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={pending}
+                className="bg-prairie font-semibold text-foreground hover:bg-prairie/90"
+              >
+                {pending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

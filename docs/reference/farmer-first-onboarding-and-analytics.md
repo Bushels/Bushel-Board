@@ -23,7 +23,7 @@ Bushel Board has to win over farmers who are actively looking for a reason not t
 
 - Step 1: Add one crop and acres.
   Value unlocked: grain page access and a farm-specific dashboard shell.
-- Step 2: Add remaining tonnes / contracted tonnes.
+- Step 2: Add starting grain, remaining tonnes, and contracted tonnes.
   Value unlocked: more specific AI framing and pacing context.
 - Step 3: Log deliveries.
   Value unlocked: delivery pace, percentile comparisons, sharper weekly summaries.

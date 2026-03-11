@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
+import type { GrainAmountUnit } from "@/lib/utils/grain-units";
+
+export type DeliveryMarketingType = "contracted" | "open" | "legacy_unspecified";
 
 export interface DeliveryEntry {
   date: string;
   amount_kt: number;
   destination?: string;
+  marketing_type?: DeliveryMarketingType;
 }
 
 export interface CropPlan {
@@ -13,6 +17,9 @@ export interface CropPlan {
   crop_year: string;
   grain: string;
   acres_seeded: number;
+  starting_grain_kt?: number;
+  bushel_weight_lbs?: number;
+  inventory_unit_preference?: GrainAmountUnit;
   volume_left_to_sell_kt?: number;
   contracted_kt?: number;
   uncontracted_kt?: number;

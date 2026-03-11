@@ -10,6 +10,16 @@ export interface DeliveryAnalytics {
   p25_pace_pct: number;
   p50_pace_pct: number;
   p75_pace_pct: number;
+  total_starting_kt: number;
+  total_remaining_kt: number;
+  total_contracted_kt: number;
+  total_uncontracted_kt: number;
+  mean_priced_pct: number;
+  mean_contracted_pct: number;
+  mean_open_pct: number;
+  mean_left_to_sell_pct: number;
+  farmers_with_contracts: number;
+  contracting_farmer_pct: number;
 }
 
 /**
@@ -43,5 +53,15 @@ export async function getDeliveryAnalytics(
     p25_pace_pct: Number(r.p25_pace_pct),
     p50_pace_pct: Number(r.p50_pace_pct),
     p75_pace_pct: Number(r.p75_pace_pct),
+    total_starting_kt: Number(r.total_starting_kt),
+    total_remaining_kt: Number(r.total_remaining_kt),
+    total_contracted_kt: Number(r.total_contracted_kt),
+    total_uncontracted_kt: Number(r.total_uncontracted_kt),
+    mean_priced_pct: Number(r.mean_priced_pct),
+    mean_contracted_pct: Number(r.mean_contracted_pct),
+    mean_open_pct: Number(r.mean_open_pct),
+    mean_left_to_sell_pct: Number(r.mean_left_to_sell_pct),
+    farmers_with_contracts: Number(r.farmers_with_contracts),
+    contracting_farmer_pct: Number(r.contracting_farmer_pct),
   }));
 }

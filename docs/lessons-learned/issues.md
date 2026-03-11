@@ -1,5 +1,27 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-11 - Hybrid Farm Units Need One Canonical Storage Unit
+
+**Symptom:** Farmers plan and talk in a mix of `bu/ac`, pounds, and tonnes, but CGC and community comparisons are metric-tonne based. Without a canonical storage rule, the same crop could be entered in different units and become hard to compare honestly across dashboards, AI summaries, and analytics RPCs.
+
+**Root Cause:** The crop-plan workflow originally assumed a single remaining-tonnes input. Once starting grain and yield calculations were added, the product needed to preserve the farmer's preferred unit while still normalizing data for government comparisons and percent-based analytics.
+
+**Solution:** Added `inventory_unit_preference` and `bushel_weight_lbs` to `crop_plans`, converted all farmer-entered crop amounts to canonical metric tonnes before saving, and derived `bu/ac` plus `t/ac` from acres plus starting grain. Delivery logging now supports bushel entry too, but still stores canonical metric-tonne ledger rows.
+
+**Prevention:**
+- Choose one canonical storage unit for every workflow before adding multiple user-facing units
+- Preserve the farmer's input preference separately from canonical numeric fields
+- Treat bushel-weight assumptions as explicit data, not hidden app constants, whenever those assumptions affect yield or MT comparisons
+
+**Files modified:**
+- `app/(dashboard)/my-farm/actions.ts`
+- `app/(dashboard)/my-farm/client.tsx`
+- `components/dashboard/log-delivery-modal.tsx`
+- `lib/utils/grain-units.ts`
+- `supabase/migrations/20260312113000_crop_inventory_unit_preferences.sql`
+
+**Tags:** #data-model #units #yield #crop-plans
+
 ## 2026-03-11 - Dashboard Brand Links Must Not Bounce Through Public Landing Routes
 
 **Symptom:** The top-left dashboard brand chip looked empty, and clicking it briefly flashed the prairie landing page before returning to the dashboard. Users experienced it as a broken nav control rather than a purposeful transition.
@@ -287,3 +309,23 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 - `app/(dashboard)/grain/[slug]/page.tsx`
 
 **Tags:** #ux #hierarchy #x-feed #grain-page
+
+## 2026-03-11 - Delivery Ledgers Need Sale Classification, Not Just Volume
+
+**Symptom:** The product could show deliveries and a remaining balance, but it could not honestly tell the farmer how much of the crop was contracted versus still open once deliveries started posting. Every new load made contract metrics drift.
+
+**Root Cause:** `crop_plan_deliveries` stored amount and destination, but not whether the load was delivered against a contract or sold into the open market. That meant the system had no defensible way to decrement `contracted_kt` versus `uncontracted_kt`.
+
+**Solution:** Added `marketing_type` to the delivery ledger, required new deliveries to be classified as `contracted` or `open`, and moved the crop-plan state update into a database trigger so `volume_left_to_sell_kt`, `contracted_kt`, and `uncontracted_kt` stay synchronized automatically.
+
+**Prevention:**
+- If a downstream metric depends on the type of transaction, capture that classification at write time
+- Do not try to infer contract posture from delivery volume alone once real farmer decisions diverge
+- Keep the append-only ledger canonical and derive cached UI projections from it
+
+**Files modified:**
+- `supabase/migrations/20260312110000_crop_inventory_marketing_tracking.sql`
+- `app/(dashboard)/my-farm/actions.ts`
+- `components/dashboard/log-delivery-modal.tsx`
+
+**Tags:** #data-model #delivery-ledger #contracts #marketing

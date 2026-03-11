@@ -2,7 +2,7 @@
  * Supabase Edge Function: generate-farm-summary
  *
  * Generates personalized weekly farm summaries for users with active crop plans.
- * Uses delivery percentile rankings to compare farmers against peers.
+ * Uses marketing percentile rankings to compare farmers against peers.
  * Calls xAI Grok Responses API per user with x_search for market sentiment.
  * Stores results in farm_summaries table.
  *
@@ -23,15 +23,38 @@ import {
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
 const DEFAULT_BATCH_SIZE = 50;
+const POUNDS_PER_METRIC_TONNE = 2204.6226218488;
+const DEFAULT_BUSHEL_WEIGHTS: Record<string, number> = {
+  Wheat: 60,
+  "Amber Durum": 60,
+  Canola: 50,
+  Barley: 48,
+  Oats: 34,
+  Peas: 60,
+  Lentils: 60,
+  Flaxseed: 56,
+  Soybeans: 60,
+  Corn: 56,
+  Rye: 56,
+  "Mustard Seed": 50,
+  Canaryseed: 50,
+  "Chick Peas": 60,
+  Sunflower: 30,
+  "Sunflower Seed": 30,
+  Beans: 60,
+};
 
 const SYSTEM_PROMPT =
-  "You are a concise agricultural market analyst writing personalized farm summaries for Canadian prairie farmers. Write 2-4 sentences. Be specific with numbers. Use a warm but professional tone. When relevant X/Twitter posts about their grains are found, briefly mention market sentiment. IMPORTANT: Do NOT place citation links inline within the text. Instead, collect all references and list them at the very end of your response under a 'Sources:' heading, formatted as numbered markdown links (e.g. [1] https://x.com/...). Keep the narrative body clean and readable.";
+  "You are a concise agricultural market analyst writing personalized farm summaries for Canadian prairie farmers. Write 2-4 sentences. Be specific with numbers. Use a warm but professional tone. When relevant X/Twitter posts about their grains are found, briefly mention market sentiment. If the prompt includes contracted-vs-open-market context or anonymized community contract ratios, use it. IMPORTANT: Do NOT place citation links inline within the text. Instead, collect all references and list them at the very end of your response under a 'Sources:' heading, formatted as numbered markdown links (e.g. [1] https://x.com/...). Keep the narrative body clean and readable.";
 
 interface CropPlan {
   user_id: string;
   crop_year: string;
   grain: string;
   acres_seeded: number;
+  starting_grain_kt: number | null;
+  bushel_weight_lbs: number | null;
+  inventory_unit_preference: "metric_tonnes" | "bushels" | "pounds" | null;
   volume_left_to_sell_kt: number | null;
   contracted_kt: number | null;
   uncontracted_kt: number | null;
@@ -44,6 +67,17 @@ interface PercentileRow {
   total_delivered_kt: number;
   delivery_pace_pct: number;
   percentile_rank: number;
+}
+
+interface CommunityAnalyticsRow {
+  grain: string;
+  farmer_count: number;
+  mean_pace_pct: number;
+  mean_priced_pct: number;
+  mean_contracted_pct: number;
+  mean_open_pct: number;
+  mean_left_to_sell_pct: number;
+  contracting_farmer_pct: number;
 }
 
 Deno.serve(async (req) => {
@@ -78,10 +112,9 @@ Deno.serve(async (req) => {
       `Generating farm summaries for week ${grainWeek}, crop year ${cropYear}, batch size ${batchSize}${targetUserIds ? `, ${targetUserIds.length} specific users` : ""}`
     );
 
-    // 1. Get crop plans — either for specific users (batched self-trigger) or all users
     let cropPlansQuery = supabase
       .from("crop_plans")
-      .select("user_id, crop_year, grain, acres_seeded, volume_left_to_sell_kt, contracted_kt, uncontracted_kt, deliveries")
+      .select("user_id, crop_year, grain, acres_seeded, starting_grain_kt, bushel_weight_lbs, inventory_unit_preference, volume_left_to_sell_kt, contracted_kt, uncontracted_kt, deliveries")
       .eq("crop_year", cropYear);
 
     if (targetUserIds) {
@@ -104,7 +137,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Call calculate_delivery_percentiles() via RPC
     const { data: percentiles, error: percError } = await supabase.rpc(
       "calculate_delivery_percentiles",
       { p_crop_year: cropYear }
@@ -112,10 +144,17 @@ Deno.serve(async (req) => {
 
     if (percError) {
       console.error("Percentile calculation error:", percError.message);
-      // Continue without percentiles — summaries can still be generated
     }
 
-    // Build percentile lookup: user_id -> grain -> percentile data
+    const { data: communityAnalytics, error: analyticsError } = await supabase.rpc(
+      "get_delivery_analytics",
+      { p_crop_year: cropYear, p_grain: null }
+    );
+
+    if (analyticsError) {
+      console.error("Community analytics error:", analyticsError.message);
+    }
+
     const percentileLookup = new Map<string, Map<string, PercentileRow>>();
     for (const row of (percentiles ?? []) as PercentileRow[]) {
       if (!percentileLookup.has(row.user_id)) {
@@ -124,7 +163,11 @@ Deno.serve(async (req) => {
       percentileLookup.get(row.user_id)!.set(row.grain, row);
     }
 
-    // 3. Group plans by user
+    const analyticsLookup = new Map<string, CommunityAnalyticsRow>();
+    for (const row of (communityAnalytics ?? []) as CommunityAnalyticsRow[]) {
+      analyticsLookup.set(row.grain, row);
+    }
+
     const plansByUser = new Map<string, CropPlan[]>();
     for (const plan of cropPlans as CropPlan[]) {
       if (!plansByUser.has(plan.user_id)) {
@@ -133,7 +176,6 @@ Deno.serve(async (req) => {
       plansByUser.get(plan.user_id)!.push(plan);
     }
 
-    // If user_ids were provided (self-trigger), use them directly; otherwise derive from crop plans
     const allUserIds = targetUserIds || Array.from(plansByUser.keys());
     const totalUsers = allUserIds.length;
     const batchUserIds = allUserIds.slice(0, batchSize);
@@ -145,15 +187,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. For each user in batch: generate summary via Grok
     const results: { user_id: string; status: string; error?: string }[] = [];
 
     for (const userId of batchUserIds) {
       try {
         const userPlans = plansByUser.get(userId)!;
         const userPercentiles = percentileLookup.get(userId);
-
-        const prompt = buildFarmSummaryPrompt(userPlans, userPercentiles);
+        const prompt = buildFarmSummaryPrompt(
+          userPlans,
+          userPercentiles,
+          analyticsLookup
+        );
         const { from_date, to_date } = getXSearchDateRange();
 
         const response = await fetch(XAI_API_URL, {
@@ -189,14 +233,14 @@ Deno.serve(async (req) => {
         }
 
         const aiResponse = await response.json();
-
-        // Grok Responses API: extract text from output array
         const outputMessages = (aiResponse.output ?? []).filter(
           (o: { type: string }) => o.type === "message"
         );
         const summaryText = outputMessages
           .flatMap((m: { content: { type: string; text: string }[] }) =>
-            (m.content ?? []).filter((c: { type: string }) => c.type === "output_text").map((c: { text: string }) => c.text)
+            (m.content ?? [])
+              .filter((c: { type: string }) => c.type === "output_text")
+              .map((c: { text: string }) => c.text)
           )
           .join("")
           .trim();
@@ -210,7 +254,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Build percentiles object for storage
         const percentilesObj: Record<string, number> = {};
         if (userPercentiles) {
           for (const [grain, pRow] of userPercentiles) {
@@ -218,7 +261,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // 5. Upsert into farm_summaries
         const { error: upsertError } = await supabase
           .from("farm_summaries")
           .upsert(
@@ -260,7 +302,7 @@ Deno.serve(async (req) => {
     );
 
     if (remainingUserIds.length > 0) {
-      console.log(`${remainingUserIds.length} users remaining — triggering next batch`);
+      console.log(`${remainingUserIds.length} users remaining - triggering next batch`);
       try {
         await fetch(
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
@@ -302,9 +344,6 @@ Deno.serve(async (req) => {
   }
 });
 
-// --- Helpers ---
-
-/** Returns crop year in short format: "2025-26" (matches app convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -314,7 +353,6 @@ function getCurrentCropYear(): string {
   return `${startYear}-${endYear.toString().padStart(2, "0")}`;
 }
 
-/** Approximate grain week number (1-52) since Aug 1 start of crop year. */
 function getCurrentGrainWeek(): number {
   const now = new Date();
   const year = now.getFullYear();
@@ -327,10 +365,10 @@ function getCurrentGrainWeek(): number {
   );
 }
 
-/** Build user prompt for GPT-4o with crop plan data and percentile rankings. */
 function buildFarmSummaryPrompt(
   plans: CropPlan[],
-  percentiles?: Map<string, PercentileRow>
+  percentiles?: Map<string, PercentileRow>,
+  analyticsByGrain?: Map<string, CommunityAnalyticsRow>
 ): string {
   const lines: string[] = [
     "Here is this farmer's current crop plan and delivery data:\n",
@@ -343,38 +381,71 @@ function buildFarmSummaryPrompt(
         (sum, d) => sum + (Number(d.amount_kt) || 0),
         0
       ) ?? 0;
+    const startingKt = Math.max(
+      Number(plan.starting_grain_kt ?? 0),
+      Number(plan.volume_left_to_sell_kt ?? 0),
+      0
+    );
+    const bushelWeightLbs = Math.max(
+      Number(
+        plan.bushel_weight_lbs ?? DEFAULT_BUSHEL_WEIGHTS[plan.grain] ?? 60
+      ),
+      0.0001
+    );
+    const remainingKt = Math.min(
+      Number(plan.volume_left_to_sell_kt ?? 0),
+      startingKt
+    );
+    const contractedKt = Math.min(Number(plan.contracted_kt ?? 0), remainingKt);
+    const uncontractedKt = Math.max(remainingKt - contractedKt, 0);
+    const marketedKt = Math.max(startingKt - remainingKt, 0);
+    const pricedKt = marketedKt + contractedKt;
+    const leftToSellPct =
+      startingKt > 0 ? ((remainingKt / startingKt) * 100).toFixed(1) : "0.0";
+    const pricedPct =
+      startingKt > 0 ? ((pricedKt / startingKt) * 100).toFixed(1) : "0.0";
+    const contractedPct =
+      startingKt > 0 ? ((contractedKt / startingKt) * 100).toFixed(1) : "0.0";
+    const tonnesPerAcre =
+      plan.acres_seeded > 0 ? (startingKt * 1000) / plan.acres_seeded : 0;
+    const bushelsPerAcre =
+      plan.acres_seeded > 0
+        ? ((startingKt * 1000 * POUNDS_PER_METRIC_TONNE) / bushelWeightLbs) /
+          plan.acres_seeded
+        : 0;
 
     const perc = percentiles?.get(plan.grain);
     const percStr = perc
-      ? ` | Delivery pace percentile: ${Math.round(perc.percentile_rank)}th (ranked by % of tracked crop-plan volume delivered)`
+      ? ` | Marketing pace percentile: ${Math.round(perc.percentile_rank)}th (ranked by % of estimated starting grain already priced or moved)`
       : "";
 
-    const remainingStr =
-      plan.volume_left_to_sell_kt != null
-        ? ` | Remaining to sell: ${plan.volume_left_to_sell_kt} Kt`
+    const positionStr =
+      startingKt > 0
+        ? ` | Starting grain: ${startingKt.toFixed(2)} Kt | Estimated yield: ${bushelsPerAcre.toFixed(1)} bu/ac (${tonnesPerAcre.toFixed(2)} t/ac) | Left to sell: ${remainingKt.toFixed(2)} Kt (${leftToSellPct}% left) | Priced: ${pricedKt.toFixed(2)} Kt (${pricedPct}%) | Contracted: ${contractedKt.toFixed(2)} Kt (${contractedPct}%) | Open: ${uncontractedKt.toFixed(2)} Kt`
         : "";
 
-    const contractedKt = Number(plan.contracted_kt ?? 0);
-    const uncontractedKt = Number(plan.uncontracted_kt ?? 0);
-    const positionStr =
-      contractedKt > 0 || uncontractedKt > 0
-        ? ` | Contracted: ${contractedKt.toFixed(2)} Kt | Uncontracted: ${uncontractedKt.toFixed(2)} Kt`
-        : "";
+    const unitPreferenceStr = plan.inventory_unit_preference
+      ? ` | Farmer enters crop amounts in ${plan.inventory_unit_preference.replace("_", " ")}`
+      : "";
+
+    const analytics = analyticsByGrain?.get(plan.grain);
+    const communityStr = analytics
+      ? ` | Community avg: ${analytics.mean_priced_pct.toFixed(1)}% priced, ${analytics.mean_contracted_pct.toFixed(1)}% contracted, ${analytics.mean_left_to_sell_pct.toFixed(1)}% still left to sell | Contract users: ${analytics.contracting_farmer_pct.toFixed(1)}% of ${analytics.farmer_count} farmers`
+      : "";
 
     lines.push(
-      `- ${plan.grain}: ${plan.acres_seeded} acres seeded | ${deliveryCount} deliveries totalling ${totalDelivered.toFixed(2)} Kt${remainingStr}${positionStr}${percStr}`
+      `- ${plan.grain}: ${plan.acres_seeded} acres seeded | ${deliveryCount} deliveries totalling ${totalDelivered.toFixed(2)} Kt${positionStr}${unitPreferenceStr}${percStr}${communityStr}`
     );
   }
 
   lines.push("");
   lines.push(
-    "Please provide: (1) delivery progress highlights, (2) how this farmer compares to peers via percentile rankings, (3) contracted vs uncontracted position observations if applicable, and (4) any actionable observations for the weeks ahead. Treat tracked crop-plan volume as delivered volume plus current remaining-to-sell inventory."
+    "Please provide: (1) marketing progress highlights, (2) how this farmer compares to peers via percentile rankings, (3) contracted vs open-market position observations, and (4) any actionable observations for the weeks ahead. If anonymized community stats are present, explain what the broader farmer cohort is doing in terms of pricing grain, using contracts, and leaving grain open."
   );
 
   return lines.join("\n");
 }
 
-/** Returns ISO8601 date strings for the past 7 days (for x_search tool). */
 function getXSearchDateRange(): { from_date: string; to_date: string } {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
