@@ -13,14 +13,17 @@ CREATE TABLE IF NOT EXISTS public.signal_scan_log (
   completed_at timestamptz
 );
 
-CREATE INDEX idx_scan_log_time ON public.signal_scan_log(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scan_log_time
+  ON public.signal_scan_log(started_at DESC);
 
 ALTER TABLE public.signal_scan_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public read scan_log" ON public.signal_scan_log;
 CREATE POLICY "Public read scan_log"
   ON public.signal_scan_log FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Service role manages scan_log" ON public.signal_scan_log;
 CREATE POLICY "Service role manages scan_log"
   ON public.signal_scan_log FOR ALL
   USING (auth.role() = 'service_role');
