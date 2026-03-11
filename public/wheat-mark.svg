@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Bushel Board mark — shield + wheat + data key -->
+
+  <!-- Shield outline -->
+  <path
+    d="M16 2 L27 7 V17 C27 23 22 28 16 30 C10 28 5 23 5 17 V7 Z"
+    stroke="#437a22"
+    stroke-width="1.6"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Wheat stalk (centered in shield) -->
+  <g transform="translate(16, 26)">
+    <!-- Stalk -->
+    <line x1="0" y1="0" x2="0" y2="-16" stroke="#437a22" stroke-width="1.2" stroke-linecap="round"/>
+
+    <!-- Kernel pairs — 3 tiers symmetrical leaves -->
+    <!-- Tier 1 (bottom, widest) -->
+    <path d="M0,-4 C-2.5,-5.5 -5,-8 -4,-11 C-1.5,-9.5 0,-7.5 0,-4Z" fill="#437a22"/>
+    <path d="M0,-4 C2.5,-5.5 5,-8 4,-11 C1.5,-9.5 0,-7.5 0,-4Z" fill="#437a22"/>
+
+    <!-- Tier 2 (mid) -->
+    <path d="M0,-8 C-2,-9.5 -4.2,-11.5 -3.2,-14 C-1,-12.5 0,-11 0,-8Z" fill="#437a22"/>
+    <path d="M0,-8 C2,-9.5 4.2,-11.5 3.2,-14 C1,-12.5 0,-11 0,-8Z" fill="#437a22"/>
+
+    <!-- Tier 3 (top) -->
+    <path d="M0,-11.5 C-1.5,-13 -3,-14.5 -2,-16.5 C-0.5,-15.5 0,-14 0,-11.5Z" fill="#437a22"/>
+    <path d="M0,-11.5 C1.5,-13 3,-14.5 2,-16.5 C0.5,-15.5 0,-14 0,-11.5Z" fill="#437a22"/>
+
+    <!-- Tip -->
+    <path d="M0,-14.5 C-0.8,-15.5 -1.2,-17 -0.5,-18 C0,-17 0,-16 0,-14.5Z" fill="#437a22"/>
+    <path d="M0,-14.5 C0.8,-15.5 1.2,-17 0.5,-18 C0,-17 0,-16 0,-14.5Z" fill="#437a22"/>
+  </g>
+
+  <!-- Golden data key badge (top center, overlapping shield point) -->
+  <circle cx="16" cy="4.5" r="3.2" fill="#c17f24" stroke="#fff" stroke-width="0.5"/>
+  <!-- Key icon inside badge -->
+  <circle cx="16" cy="4" r="1" stroke="#fff" stroke-width="0.6" fill="none"/>
+  <line x1="16" y1="5" x2="16" y2="6.5" stroke="#fff" stroke-width="0.6" stroke-linecap="round"/>
+  <line x1="16" y1="6" x2="16.8" y2="6" stroke="#fff" stroke-width="0.5" stroke-linecap="round"/>
+</svg>

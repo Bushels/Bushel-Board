@@ -16,7 +16,7 @@ export function Logo({
 }: LogoProps) {
   const width = size;
   const height = variant === "mark" ? size : Math.round(size * 0.75);
-  const src = variant === "mark" ? "/favicon.svg" : "/logo.svg";
+  const src = variant === "mark" ? "/wheat-mark.svg" : "/logo.svg";
   const alt = variant === "mark" ? "Bushel Board icon" : "Bushel Board";
 
   return (
@@ -26,7 +26,12 @@ export function Logo({
       width={width}
       height={height}
       priority={priority}
-      className={cn("h-auto w-auto object-contain", className)}
+      className={cn(
+        "object-contain",
+        variant === "mark" ? "shrink-0" : "h-auto w-auto",
+        className
+      )}
+      style={variant === "mark" ? { width: size, height: size } : undefined}
     />
   );
 }

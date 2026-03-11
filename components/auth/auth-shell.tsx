@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Logo } from "@/components/layout/logo";
 import { getAuthSceneContent, type AuthScene } from "@/lib/auth/auth-scene";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,38 @@ export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
           isEvening ? "bg-[#2f3f24]/60" : "bg-[#55622d]/55"
         )}
       />
+
+      {/* Scattered wheat stalks across the bottom */}
+      {[
+        { left: "3%", bottom: "2%", rotate: -8, scale: 1.1, opacity: 0.25 },
+        { left: "10%", bottom: "0%", rotate: 4, scale: 1.3, opacity: 0.3 },
+        { left: "18%", bottom: "1%", rotate: -3, scale: 1.0, opacity: 0.2 },
+        { left: "26%", bottom: "3%", rotate: 7, scale: 1.15, opacity: 0.22 },
+        { left: "35%", bottom: "0%", rotate: -5, scale: 1.25, opacity: 0.28 },
+        { left: "44%", bottom: "2%", rotate: 2, scale: 1.0, opacity: 0.18 },
+        { left: "52%", bottom: "1%", rotate: -6, scale: 1.2, opacity: 0.25 },
+        { left: "60%", bottom: "0%", rotate: 5, scale: 1.35, opacity: 0.3 },
+        { left: "68%", bottom: "3%", rotate: -2, scale: 1.05, opacity: 0.2 },
+        { left: "76%", bottom: "1%", rotate: 8, scale: 1.2, opacity: 0.26 },
+        { left: "84%", bottom: "0%", rotate: -4, scale: 1.15, opacity: 0.22 },
+        { left: "92%", bottom: "2%", rotate: 3, scale: 1.3, opacity: 0.28 },
+      ].map((stalk, i) => (
+        <Image
+          key={i}
+          src="/wheat-mark.svg"
+          alt=""
+          width={32}
+          height={32}
+          className="pointer-events-none absolute select-none"
+          style={{
+            left: stalk.left,
+            bottom: stalk.bottom,
+            transform: `rotate(${stalk.rotate}deg) scale(${stalk.scale})`,
+            opacity: isEvening ? stalk.opacity * 0.7 : stalk.opacity,
+            filter: isEvening ? "brightness(0.7) sepia(0.3)" : "none",
+          }}
+        />
+      ))}
 
       <div className="relative mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,480px)] lg:px-8 lg:py-10">
         <section className="flex flex-col justify-between gap-8 text-white">
