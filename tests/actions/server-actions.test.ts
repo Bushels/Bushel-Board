@@ -58,6 +58,17 @@ function createCropPlanLookup(plan: { id: string } | null) {
   return query;
 }
 
+function createCropPlanUpsertQuery(existingPlan: { deliveries?: { amount_kt?: number }[] } | null) {
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    maybeSingle: vi.fn().mockResolvedValue({ data: existingPlan, error: null }),
+    upsert: vi.fn().mockResolvedValue({ error: null }),
+  };
+
+  return query;
+}
+
 describe("server action authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -81,6 +92,7 @@ describe("server action authorization", () => {
       makeFormData({
         grain: "Wheat",
         acres: "1200",
+        starting: "3000",
         volume: "2500",
         contracted: "500",
       })
@@ -106,6 +118,7 @@ describe("server action authorization", () => {
         submission_id: "11111111-1111-4111-8111-111111111111",
         amount_kt: "0.5",
         date: "2026-01-15",
+        marketing_type: "open",
       })
     );
 
@@ -152,6 +165,58 @@ describe("server action authorization", () => {
   });
 });
 
+describe("addCropPlan", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAuthenticatedUserContext.mockResolvedValue({
+      user: { id: "user-1" },
+      role: "farmer",
+    });
+  });
+
+  it("converts bushel-based crop plans into canonical kt and stores the user's unit preference", async () => {
+    const cropPlansQuery = createCropPlanUpsertQuery(null);
+    const from = vi.fn((table: string) => {
+      if (table === "crop_plans") return cropPlansQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    mockCreateClient.mockResolvedValue({ from });
+
+    const result = await addCropPlan(
+      makeFormData({
+        grain: "Canola",
+        acres: "1500",
+        starting: "2000",
+        volume: "1200",
+        contracted: "300",
+        inventory_unit: "bushels",
+        bushel_weight_lbs: "50",
+      })
+    );
+
+    expect(result).toEqual({ success: true });
+    expect(cropPlansQuery.upsert).toHaveBeenCalledTimes(1);
+
+    const [payload, options] = cropPlansQuery.upsert.mock.calls[0];
+    expect(payload.user_id).toBe("user-1");
+    expect(payload.crop_year).toBe("2025-26");
+    expect(payload.grain).toBe("Canola");
+    expect(payload.acres_seeded).toBe(1500);
+    expect(payload.inventory_unit_preference).toBe("bushels");
+    expect(payload.bushel_weight_lbs).toBe(50);
+    expect(Number(payload.starting_grain_kt)).toBeCloseTo(0.045359237, 9);
+    expect(Number(payload.volume_left_to_sell_kt)).toBeCloseTo(0.0272155422, 9);
+    expect(Number(payload.contracted_kt)).toBeCloseTo(0.00680388555, 9);
+    expect(Number(payload.uncontracted_kt)).toBeCloseTo(0.02041165665, 9);
+    expect(options).toEqual({
+      onConflict: "user_id,crop_year,grain",
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/my-farm");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/overview");
+  });
+});
+
 describe("logDelivery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -167,7 +232,12 @@ describe("logDelivery", () => {
   });
 
   it("writes to the append-only delivery ledger", async () => {
-    const cropPlansQuery = createCropPlanLookup({ id: "plan-1" });
+    const cropPlansQuery = createCropPlanLookup({
+      id: "plan-1",
+      volume_left_to_sell_kt: 3,
+      contracted_kt: 2,
+      uncontracted_kt: 1,
+    });
     const deliveryInsert = {
       insert: vi.fn().mockResolvedValue({ error: null }),
     };
@@ -187,6 +257,7 @@ describe("logDelivery", () => {
         amount_kt: "1.25",
         date: "2026-02-01",
         destination: "Viterra Rosetown",
+        marketing_type: "contracted",
       })
     );
 
@@ -200,13 +271,19 @@ describe("logDelivery", () => {
       delivery_date: "2026-02-01",
       amount_kt: 1.25,
       destination: "Viterra Rosetown",
+      marketing_type: "contracted",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/my-farm");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/overview");
   });
 
   it("treats duplicate submission ids as idempotent success", async () => {
-    const cropPlansQuery = createCropPlanLookup({ id: "plan-1" });
+    const cropPlansQuery = createCropPlanLookup({
+      id: "plan-1",
+      volume_left_to_sell_kt: 3,
+      contracted_kt: 0,
+      uncontracted_kt: 3,
+    });
     const deliveryInsert = {
       insert: vi.fn().mockResolvedValue({
         error: {
@@ -230,6 +307,7 @@ describe("logDelivery", () => {
         submission_id: "33333333-3333-4333-8333-333333333333",
         amount_kt: "1.25",
         date: "2026-02-01",
+        marketing_type: "open",
       })
     );
 
@@ -255,6 +333,7 @@ describe("logDelivery", () => {
         submission_id: "44444444-4444-4444-8444-444444444444",
         amount_kt: "1.25",
         date: "2026-02-01",
+        marketing_type: "open",
       })
     );
 

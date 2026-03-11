@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Gauge } from "lucide-react";
 import type { DeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import type { CropPlan } from "@/lib/queries/crop-plans";
-import { getCropPlanPaceBreakdown } from "@/lib/utils/crop-plan";
+import { getCropPlanMarketingBreakdown } from "@/lib/utils/crop-plan";
 
 interface DeliveryPaceCardProps {
   plans: CropPlan[];
@@ -23,7 +23,7 @@ function getPaceBadge(percentile: number) {
 }
 
 /**
- * Shows the farmer's delivery pace compared to anonymized peer data.
+ * Shows the farmer's marketing pace compared to anonymized peer data.
  * Only renders for grains with >= 5 farmers (privacy threshold enforced by RPC).
  */
 export function DeliveryPaceCard({
@@ -44,19 +44,15 @@ export function DeliveryPaceCard({
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-display flex items-center gap-2">
           <Gauge className="h-5 w-5 text-canola" />
-          Your Delivery Pace
+          Your Marketing Pace
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {visibleGrains.map((plan) => {
           const percentile = Math.round(percentiles[plan.grain]);
           const analyticsRow = analyticsMap.get(plan.grain)!;
-          const totalDelivered = (plan.deliveries || []).reduce(
-            (sum, delivery) => sum + delivery.amount_kt,
-            0
-          );
-          const pace = getCropPlanPaceBreakdown({
-            deliveredKt: totalDelivered,
+          const marketing = getCropPlanMarketingBreakdown({
+            startingGrainKt: Number(plan.starting_grain_kt ?? 0),
             remainingToSellKt: Number(plan.volume_left_to_sell_kt ?? 0),
             contractedKt: Number(plan.contracted_kt ?? 0),
             uncontractedKt: Number(plan.uncontracted_kt ?? 0),
@@ -94,15 +90,22 @@ export function DeliveryPaceCard({
               </div>
 
               <p className="text-xs text-muted-foreground">
-                You&apos;ve delivered{" "}
+                You&apos;ve priced{" "}
                 <span className="font-semibold text-foreground">
-                  {pace.deliveredPct.toFixed(0)}%
+                  {marketing.pricedPct.toFixed(0)}%
                 </span>{" "}
-                of your tracked crop-plan volume, faster than{" "}
+                of your estimated starting grain, ahead of{" "}
                 <span className="font-semibold text-prairie">
                   {percentile}%
                 </span>{" "}
                 of {analyticsRow.farmer_count} farmers
+              </p>
+
+              <p className="text-xs text-muted-foreground">
+                Community avg: {analyticsRow.mean_priced_pct.toFixed(0)}% priced,{" "}
+                {analyticsRow.mean_contracted_pct.toFixed(0)}% currently contracted,{" "}
+                {analyticsRow.mean_left_to_sell_pct.toFixed(0)}% still left to sell.{" "}
+                {analyticsRow.contracting_farmer_pct.toFixed(0)}% of farmers on this grain use contracts.
               </p>
             </div>
           );

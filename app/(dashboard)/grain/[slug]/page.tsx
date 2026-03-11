@@ -461,7 +461,7 @@ function GrainLockedView({ grain }: { grain: string }) {
             {grain} analytics are locked
           </h2>
           <p className="text-base text-muted-foreground">
-            Add {grain} to My Farm to unlock its grain page now, then sharpen the insight with your remaining tonnes, deliveries, and X feedback over time.
+            Add {grain} to My Farm to unlock its grain page now, then sharpen the insight with your starting grain, remaining tonnes, deliveries, and X feedback over time.
           </p>
         </div>
         <div className="grid gap-3 text-left sm:grid-cols-3">
@@ -478,7 +478,7 @@ function GrainLockedView({ grain }: { grain: string }) {
               Sharpen later
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Remaining tonnes and deliveries make the pacing and thesis more farm-specific.
+              Starting grain, remaining tonnes, and deliveries make the pacing and thesis more farm-specific.
             </p>
           </div>
           <div className="rounded-2xl border border-canola/20 bg-background/70 p-4">

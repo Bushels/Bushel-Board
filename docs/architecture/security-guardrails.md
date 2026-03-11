@@ -33,15 +33,23 @@ These are the non-negotiable rules for Bushel Board's auth, workflow, and farmer
 
 ## Crop Plan Math
 
+- Crop inventory must be stored canonically in metric tonnes / kilotonnes even if the farmer enters bushels or pounds.
+- `inventory_unit_preference` is presentation/input metadata, not the canonical analytics unit.
+- `bushel_weight_lbs` must be stored whenever bushel-based conversion assumptions matter for yield or inventory math.
+- `starting_grain_kt` is the fixed denominator for grain-left and priced percentages.
 - `volume_left_to_sell_kt` means current remaining inventory, not original plan volume.
+- `contracted_kt` is the undelivered contracted subset of remaining inventory.
+- `uncontracted_kt` must always equal `volume_left_to_sell_kt - contracted_kt`.
 - Farmer delivery events belong in `crop_plan_deliveries`; `crop_plans.deliveries` is a derived compatibility projection.
-- Delivery pace and percentiles must use:
+- Delivery events must include `marketing_type` so contract ratios stay accurate.
+- Marketing pace and percentiles must use:
 
 ```text
-delivered_kt / (delivered_kt + remaining_to_sell_kt)
+(already_marketed_kt + contracted_kt) / starting_grain_kt
 ```
 
 - Any UI copy that says "planned volume" must be reviewed if it is sourced from `volume_left_to_sell_kt`.
+- Legacy backfills without delivery sale classification must be documented explicitly because they require assumptions.
 
 ## Supply Data
 

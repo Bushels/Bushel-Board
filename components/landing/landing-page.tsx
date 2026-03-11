@@ -104,7 +104,7 @@ export function LandingPage({ communityStats }: LandingPageProps) {
           </Link>
           <p className="max-w-xl text-center text-sm text-white/75">
             Start with one crop. Add acres now, then sharpen your AI insight with
-            remaining tonnes, deliveries, and signal feedback over time.
+            starting grain, remaining tonnes, deliveries, and signal feedback over time.
           </p>
           <p className="text-sm text-white/72">
             Already using Bushel Board?{" "}
