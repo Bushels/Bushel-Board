@@ -222,7 +222,6 @@ Deno.serve(async (req) => {
                 crop_year: cropYear,
                 grain_week: grainWeek,
                 post_summary: s.post_summary,
-                post_url: s.post_url,
                 post_author: s.post_author,
                 post_date: s.post_date,
                 relevance_score: s.relevance_score,
