@@ -16,6 +16,9 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 - [x] Added outbound X clickthrough to ticker and main X feed, plus schema support for canonical post URLs
 - [x] Cleaned encoding/polish issues in metadata and freshness/status copy
 - [x] Recorded the UX decisions and analytics plan in docs
+- [x] Reworked the landing page again to remove the competing header CTA, restore a clear Bushel Board brand anchor, and quiet sign-in as a secondary action
+- [x] Fixed the dashboard header brand duplication by removing the extra wordmark beside the full logo lockup
+- [x] Replaced the overview/grain X ticker ribbon with post-style cards so the feed reads like verifiable source content
 
 ## In Progress
 
@@ -29,6 +32,7 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 2. **Unlock messaging must be value-led:** The app now explains that acres unlock the page now, while tonnes, deliveries, and signal feedback sharpen AI and weekly summaries over time.
 3. **Fallback content must stay visibly non-personalized:** Showing prairie snapshots is fine, but they must not look like unlocked farm-specific content.
 4. **Summarized X signals need source verification:** Every trust-sensitive signal card should offer direct clickthrough to the underlying post whenever possible.
+5. **The full Bushel Board lockup counts as the wordmark:** If the header uses the lockup SVG, do not render a second adjacent `Bushel Board` text label.
 
 ## Issues Encountered
 
@@ -39,7 +43,7 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 
 1. Apply `supabase/migrations/20260311121500_x_market_signal_post_urls.sql` and deploy `supabase/functions/search-x-intelligence`
 2. Implement the first analytics collector around the documented onboarding funnel
-3. Run a final browser QA pass on desktop and mobile against a fresh farmer account
+3. Confirm the dashboard header and new X post-card layout against a signed-in farmer account on the latest preview
 
 ## Files Modified This Session
 
@@ -47,6 +51,7 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 - `app/(auth)/login/page.tsx` - farmer-first login destination and clearer value copy
 - `app/(auth)/signup/page.tsx` - farmer-first signup destination and unlock explanation
 - `components/landing/landing-page.tsx` - honest hero copy and value framing
+- `components/layout/logo.tsx` - normalized the lockup aspect ratio and reusable sizing
 - `app/(dashboard)/overview/page.tsx` - separated fallback grain display from unlock state
 - `app/(dashboard)/my-farm/page.tsx` - stronger farmer-first framing
 - `app/(dashboard)/my-farm/client.tsx` - new first-run hero, unlock ladder, and no-delivery empty state
@@ -56,6 +61,7 @@ This pass followed the local `frontend-dev`, `ui-agent`, and `documentation-agen
 - `components/dashboard/x-signal-feed.tsx` - clickable "Open post" action plus clearer feed rationale
 - `components/layout/nav.tsx` - floating glass nav shell
 - `components/layout/desktop-nav-links.tsx` - active-state desktop nav
+- `components/dashboard/signal-tape.tsx` - converted ticker ribbon into X-style post cards
 - `components/layout/mobile-nav.tsx` - polished mobile navigation and onboarding callout
 - `components/layout/grain-dropdown.tsx` - honest unlock-aware grain access
 - `components/layout/cgc-freshness.tsx` - polished freshness pill and encoding cleanup

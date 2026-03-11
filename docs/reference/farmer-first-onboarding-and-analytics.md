@@ -51,6 +51,7 @@ Every empty state should answer two questions:
 ## Navigation Direction
 
 - Use a floating glassmorphism shell for the main nav.
+- Use the actual Bushel Board lockup only once in the header. Do not pair the full lockup SVG with an extra text wordmark beside it.
 - Keep active states obvious and tactile, with soft shadows and pill selection.
 - Make grain access honest:
   unlocked grains jump straight in, locked grains explain the setup path.
@@ -58,6 +59,7 @@ Every empty state should answer two questions:
 
 ## X Feed Trust Rules
 
+- The overview and grain-preview X surfaces should look like post cards, not a ticker ribbon.
 - Every X card should offer an outbound "Open post" action.
 - Store canonical `post_url` during ingestion when available.
 - If canonical URL is missing, fall back to an X search URL built from author + summary.

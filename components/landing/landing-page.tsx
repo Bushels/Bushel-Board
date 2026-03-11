@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { BarChart3, Database, ClipboardList, ChevronDown } from "lucide-react";
-import { Logo } from "@/components/layout/logo";
-import { PrairieScene } from "@/components/ui/prairie-scene";
 import { motion } from "framer-motion";
-import type { CommunityStats } from "@/lib/queries/community";
+import { BarChart3, ChevronDown, ClipboardList, Database } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/layout/logo";
 import { CommunityStatsDisplay } from "@/components/dashboard/community-stats";
+import { PrairieScene } from "@/components/ui/prairie-scene";
 import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
+import type { CommunityStats } from "@/lib/queries/community";
+import { createClient } from "@/lib/supabase/client";
 
 interface LandingPageProps {
   communityStats: CommunityStats | null;
@@ -35,46 +35,36 @@ export function LandingPage({ communityStats }: LandingPageProps) {
 
   return (
     <div className="relative min-h-screen overflow-hidden font-sans">
-      {/* Prairie Background */}
       <PrairieScene />
 
-      {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative z-10 mx-auto max-w-6xl px-6 py-6 flex items-center justify-end"
+        className="relative z-10 mx-auto flex max-w-6xl items-center justify-start px-4 pt-6 sm:px-6"
       >
-        <Link href="/login">
-          <Button
-            variant="outline"
-            className="bg-white/20 border-white/30 hover:bg-white/40 text-white shadow-sm backdrop-blur-sm rounded-full px-6"
-          >
-            Sign In
-          </Button>
+        <Link
+          href="/"
+          className="rounded-[1.5rem] border border-white/30 bg-white/28 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(42,38,30,0.55)] backdrop-blur-xl transition-colors hover:bg-white/36"
+        >
+          <Logo size={104} />
         </Link>
       </motion.header>
 
-      {/* Hero — overlaid on the prairie scene */}
-      <main className="relative z-10 mx-auto max-w-4xl px-4 pt-4 pb-20 text-center space-y-6 min-h-[70vh] flex flex-col items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
-          className="flex justify-center mb-6"
-        >
-          <Logo size={120} />
-        </motion.div>
+      <main className="relative z-10 mx-auto flex min-h-[70vh] max-w-4xl flex-col items-center justify-center space-y-6 px-4 pb-20 pt-10 text-center">
 
         <motion.h1
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-          className="text-5xl sm:text-7xl font-display font-black leading-[1.1] text-white tracking-tight"
+          className="text-5xl font-display font-black leading-[1.1] tracking-tight text-white sm:text-7xl"
           style={{ textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}
         >
           Know what changed <br />
-          <span className="text-canola" style={{ textShadow: "0 2px 20px rgba(0,0,0,0.2)" }}>
+          <span
+            className="text-canola"
+            style={{ textShadow: "0 2px 20px rgba(0,0,0,0.2)" }}
+          >
             before you sell.
           </span>
         </motion.h1>
@@ -83,7 +73,7 @@ export function LandingPage({ communityStats }: LandingPageProps) {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
-          className="text-lg text-white/80 max-w-2xl mx-auto leading-relaxed"
+          className="mx-auto max-w-2xl text-lg leading-relaxed text-white/80"
           style={{ textShadow: "0 1px 10px rgba(0,0,0,0.3)" }}
         >
           Bushel Board combines weekly CGC prairie grain data, live X market
@@ -121,7 +111,7 @@ export function LandingPage({ communityStats }: LandingPageProps) {
           <Link href="/signup">
             <Button
               size="lg"
-              className="bg-canola hover:bg-canola-dark text-white px-10 py-6 text-lg rounded-full shadow-[0_4px_24px_rgba(193,127,36,0.4)] transition-all hover:-translate-y-1"
+              className="rounded-full bg-canola px-10 py-6 text-lg text-white shadow-[0_4px_24px_rgba(193,127,36,0.4)] transition-all hover:-translate-y-1 hover:bg-canola-dark"
             >
               Set Up My Farm
             </Button>
@@ -130,9 +120,17 @@ export function LandingPage({ communityStats }: LandingPageProps) {
             Start with one crop. Add acres now, then sharpen your AI insight with
             remaining tonnes, deliveries, and signal feedback over time.
           </p>
+          <p className="text-sm text-white/72">
+            Already using Bushel Board?{" "}
+            <Link
+              href="/login"
+              className="font-medium text-white underline decoration-white/40 underline-offset-4 transition-colors hover:decoration-white"
+            >
+              Sign in
+            </Link>
+          </p>
         </motion.div>
 
-        {/* Scroll indicator */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -148,9 +146,8 @@ export function LandingPage({ communityStats }: LandingPageProps) {
         </motion.div>
       </main>
 
-      {/* Features — below the fold */}
-      <section className="relative z-10 mx-auto max-w-5xl px-4 py-16 pb-32 bg-wheat-50 dark:bg-wheat-900">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+      <section className="relative z-10 mx-auto max-w-5xl bg-wheat-50 px-4 py-16 pb-32 dark:bg-wheat-900">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:gap-8">
           <FeatureBlock
             icon={<Database className="h-7 w-7 text-canola" />}
             title="Start With One Crop"
@@ -172,8 +169,7 @@ export function LandingPage({ communityStats }: LandingPageProps) {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 py-12 text-center text-sm text-wheat-400 bg-wheat-50 dark:bg-wheat-900">
+      <footer className="relative z-10 bg-wheat-50 py-12 text-center text-sm text-wheat-400 dark:bg-wheat-900">
         <p>&copy; {new Date().getFullYear()} Bushel Board.</p>
       </footer>
     </div>
@@ -197,15 +193,15 @@ function FeatureBlock({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: 0.6, delay, ease: "easeOut" }}
-      className="p-8 rounded-[2rem] bg-white dark:bg-wheat-800 border border-wheat-100 dark:border-wheat-700 shadow-sm hover:shadow-xl transition-all duration-300 text-left space-y-5"
+      className="space-y-5 rounded-[2rem] border border-wheat-100 bg-white p-8 text-left shadow-sm transition-all duration-300 hover:shadow-xl dark:border-wheat-700 dark:bg-wheat-800"
     >
-      <div className="inline-flex p-4 rounded-xl bg-wheat-50 dark:bg-wheat-700 border border-wheat-100 dark:border-wheat-600">
+      <div className="inline-flex rounded-xl border border-wheat-100 bg-wheat-50 p-4 dark:border-wheat-600 dark:bg-wheat-700">
         {icon}
       </div>
       <h3 className="font-display text-xl font-bold text-wheat-900 dark:text-wheat-100">
         {title}
       </h3>
-      <p className="text-wheat-500 dark:text-wheat-300 leading-relaxed text-base">
+      <p className="text-base leading-relaxed text-wheat-500 dark:text-wheat-300">
         {description}
       </p>
     </motion.div>

@@ -190,3 +190,41 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 - `components/dashboard/x-signal-feed.tsx`
 
 **Tags:** #ux #x-feed #trust #data-model
+
+## 2026-03-11 - Full Logo Lockups Should Not Be Paired With A Second Wordmark
+
+**Symptom:** The dashboard header looked broken and "tacky" because the navigation rendered the full Bushel Board lockup SVG and also rendered a separate `Bushel Board` text label beside it. In narrower widths this made the wordmark wrap and visually collide with the nav pills.
+
+**Root Cause:** `public/logo.svg` already contains the Bushel Board wordmark and subtitle, but the shared nav treated `Logo` like an icon-only mark and added another text span next to it.
+
+**Solution:** Normalized the `Logo` component to preserve the lockup aspect ratio, removed the duplicate nav text, and let the header brand render as a single lockup chip.
+
+**Prevention:**
+- Know whether a brand asset is a mark-only asset or a full lockup before pairing it with text
+- If a header uses the full lockup, never render a second adjacent wordmark
+- Test header composition at medium widths, not only wide desktop
+
+**Files modified:**
+- `components/layout/logo.tsx`
+- `components/layout/nav.tsx`
+- `components/layout/desktop-nav-links.tsx`
+
+**Tags:** #ui #branding #navigation
+
+## 2026-03-11 - Social Feed Previews Need To Look Like Posts, Not Motion Widgets
+
+**Symptom:** The overview X section looked like a decorative ribbon instead of a trustworthy source surface. Farmers were being asked to trust a moving tape rather than recognizable post previews.
+
+**Root Cause:** The component optimized for movement and density instead of recognizability. The result looked more like a market ticker than a source feed.
+
+**Solution:** Replaced the ticker treatment with compact post-style cards that show grain context, author handle when available, sentiment, summary, and an explicit outbound action.
+
+**Prevention:**
+- Trust-sensitive content should resemble the source it summarizes
+- Prefer readable cards over animated ribbons when the user may want to verify the source
+- Motion should support scanning, not replace information hierarchy
+
+**Files modified:**
+- `components/dashboard/signal-tape.tsx`
+
+**Tags:** #ux #ui #x-feed #trust

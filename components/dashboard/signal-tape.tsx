@@ -1,6 +1,8 @@
 "use client";
 
+import { ExternalLink, Radio } from "lucide-react";
 import { buildXPostHref } from "@/lib/utils/x-post";
+import { cn } from "@/lib/utils";
 
 interface SignalTapeProps {
   signals: Array<{
@@ -13,88 +15,99 @@ interface SignalTapeProps {
   }>;
 }
 
-const sentimentDotColor: Record<string, string> = {
-  bullish: "bg-prairie",
-  bearish: "bg-error",
-  neutral: "bg-warning",
+const sentimentBadgeClasses: Record<string, string> = {
+  bullish:
+    "border-prairie/20 bg-prairie/10 text-prairie dark:border-prairie/30 dark:bg-prairie/15",
+  bearish:
+    "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/12 dark:text-amber-300",
+  neutral:
+    "border-border bg-muted/70 text-muted-foreground dark:bg-muted/20",
 };
 
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
-  return text.slice(0, max).trimEnd() + "...";
+  return `${text.slice(0, max).trimEnd()}...`;
 }
 
 export function SignalTape({ signals }: SignalTapeProps) {
   if (!signals || signals.length === 0) return null;
 
-  const doubled = [...signals, ...signals];
+  const visibleSignals = signals.slice(0, 6);
 
   return (
-    <div className="space-y-3" aria-label="Market signal ticker">
-      <div className="sm:hidden">
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {signals.map((signal, index) => {
-            const href = buildXPostHref(
-              signal.post_url,
-              signal.post_author,
-              `${signal.grain} ${signal.post_summary}`
-            );
+    <section className="space-y-4" aria-label="Latest X market posts">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="flex items-center gap-2 text-lg font-display font-semibold">
+            <Radio className="h-4 w-4 text-canola" />
+            What farmers are seeing on X
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Recent grain posts scored for prairie relevance. Open any post to verify the source.
+          </p>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {visibleSignals.length} recent post{visibleSignals.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
-            return (
-              <a
-                key={`${signal.grain}-${index}`}
-                href={href ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-[17rem] flex-shrink-0 rounded-2xl border border-wheat-200 bg-card/80 px-4 py-3 shadow-[0_12px_30px_-26px_rgba(42,38,30,0.55)] backdrop-blur-sm"
-              >
-                <div className="flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.16em] text-muted-foreground">
-                  <span
-                    className={`inline-block h-2 w-2 rounded-full ${sentimentDotColor[signal.sentiment] ?? "bg-warning"}`}
-                  />
-                  <span>{signal.grain}</span>
+      <div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-3">
+        {visibleSignals.map((signal, index) => {
+          const href = buildXPostHref(
+            signal.post_url,
+            signal.post_author,
+            `${signal.grain} ${signal.post_summary}`
+          );
+
+          return (
+            <a
+              key={`${signal.grain}-${signal.post_author ?? "signal"}-${index}`}
+              href={href ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex min-w-[18rem] shrink-0 flex-col justify-between rounded-[1.4rem] border border-border/65 bg-background/88 p-4 shadow-[0_18px_36px_-28px_rgba(42,38,30,0.45)] backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-canola/25 hover:shadow-[0_24px_44px_-28px_rgba(42,38,30,0.58)] md:min-w-0"
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <span className="inline-flex rounded-full border border-canola/20 bg-canola/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-canola">
+                      {signal.grain}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {signal.post_author ? (
+                        <span className="font-medium text-foreground/80">
+                          @{signal.post_author.replace(/^@/, "")}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-foreground/70">Prairie X</span>
+                      )}
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize",
+                          sentimentBadgeClasses[signal.sentiment] ??
+                            sentimentBadgeClasses.neutral
+                        )}
+                      >
+                        {signal.sentiment}
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-canola" />
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-foreground">
-                  {truncate(signal.post_summary, 120)}
+
+                <p className="text-sm leading-relaxed text-foreground">
+                  {truncate(signal.post_summary, 170)}
                 </p>
-                <span className="mt-3 inline-block text-xs font-medium text-canola">
-                  Open on X
-                </span>
-              </a>
-            );
-          })}
-        </div>
-      </div>
+              </div>
 
-      <div className="relative hidden overflow-hidden border-y border-wheat-700/40 bg-wheat-900 py-2 dark:bg-wheat-950 sm:block">
-        <div className="animate-scroll-tape flex whitespace-nowrap gap-8 font-mono text-sm text-wheat-200">
-          {doubled.map((signal, index) => {
-            const href = buildXPostHref(
-              signal.post_url,
-              signal.post_author,
-              `${signal.grain} ${signal.post_summary}`
-            );
-
-            return (
-              <a
-                key={`${signal.grain}-${signal.sentiment}-${index}`}
-                href={href ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex shrink-0 items-center gap-2 rounded-full px-2 py-0.5 transition-opacity hover:opacity-80"
-              >
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${sentimentDotColor[signal.sentiment] ?? "bg-warning"}`}
-                />
-                <span className="font-bold">{signal.grain}</span>
-                <span className="opacity-80">
-                  {truncate(signal.post_summary, 88)}
-                </span>
-              </a>
-            );
-          })}
-        </div>
+              <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                <span className="truncate">{signal.category.replace(/_/g, " ")}</span>
+                <span className="font-medium text-canola">Open post</span>
+              </div>
+            </a>
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 }

@@ -47,3 +47,7 @@ next-env.d.ts
 build-log*.txt
 lint-output.txt
 lint-results*.json
+
+# local browser/debug artifacts
+.playwright-cli/
+output/
