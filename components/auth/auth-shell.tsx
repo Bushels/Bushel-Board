@@ -89,22 +89,39 @@ export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
         />
       ))}
 
+      {/* Top-left logo — always visible regardless of layout/viewport */}
+      <div className="absolute left-4 top-4 z-10 sm:left-6 sm:top-5">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2.5 rounded-[1.4rem] border border-white/30 bg-white/15 px-3 py-2 shadow-[0_14px_32px_-24px_rgba(22,25,18,0.55)] backdrop-blur-xl transition-colors hover:bg-white/22"
+        >
+          <span className="flex size-8 items-center justify-center rounded-full bg-white/90 shadow-sm">
+            <Logo variant="mark" size={18} />
+          </span>
+          <span className="text-sm font-semibold tracking-wide text-white">
+            Bushel Board
+          </span>
+        </Link>
+      </div>
+
       <div className="relative mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,480px)] lg:px-8 lg:py-10">
         <section className="flex flex-col justify-between gap-8 text-white">
           <div className="space-y-6">
-            <Link
-              href="/"
-              className="inline-flex w-fit items-center gap-3 rounded-full border border-white/25 bg-white/12 px-4 py-2.5 shadow-[0_18px_40px_-28px_rgba(22,25,18,0.65)] backdrop-blur-xl transition-colors hover:bg-white/18"
-            >
-              <span className="flex size-10 items-center justify-center rounded-full bg-white/88 shadow-sm">
-                <Logo variant="mark" size={20} />
-              </span>
-              <span className="text-sm font-semibold tracking-[0.08em] text-white">
-                Bushel Board
-              </span>
-            </Link>
+            <div className="hidden lg:block">
+              <Link
+                href="/"
+                className="inline-flex w-fit items-center gap-3 rounded-full border border-white/25 bg-white/12 px-4 py-2.5 shadow-[0_18px_40px_-28px_rgba(22,25,18,0.65)] backdrop-blur-xl transition-colors hover:bg-white/18"
+              >
+                <span className="flex size-10 items-center justify-center rounded-full bg-white/88 shadow-sm">
+                  <Logo variant="mark" size={20} />
+                </span>
+                <span className="text-sm font-semibold tracking-[0.08em] text-white">
+                  Bushel Board
+                </span>
+              </Link>
+            </div>
 
-            <div className="max-w-2xl space-y-4">
+            <div className="max-w-2xl space-y-4 pt-12 lg:pt-0">
               <div className="inline-flex rounded-full border border-white/25 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/85 backdrop-blur-xl">
                 {content.badge}
               </div>
