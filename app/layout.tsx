@@ -24,7 +24,10 @@ export const metadata: Metadata = {
   description:
     "Weekly CGC grain statistics dashboard for Canadian prairie farmers. Track deliveries, shipments, and stocks across Alberta, Saskatchewan, and Manitoba.",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/wheat-mark.svg",
   },
 };
 
