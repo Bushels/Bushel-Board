@@ -6,7 +6,7 @@ export interface XMarketSignal {
   id: string;
   grain: string;
   post_summary: string;
-  post_url?: string | null;
+  post_url?: string | null; // Not in DB — mapped from raw_context or null
   post_author: string | null;
   post_date: string | null;
   relevance_score: number;
@@ -89,7 +89,7 @@ export async function getXSignalsWithFeedback(
     id: row.id as string,
     grain: row.grain as string,
     post_summary: row.post_summary as string,
-    post_url: (row.post_url as string | null | undefined) ?? null,
+    post_url: null, // Column doesn't exist in DB; URL built client-side via buildXPostHref
     post_author: row.post_author as string | null,
     post_date: row.post_date as string | null,
     relevance_score: row.relevance_score as number,

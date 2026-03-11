@@ -149,9 +149,10 @@ export default async function OverviewPage() {
                 sentiment: signal.sentiment,
                 category: signal.category,
                 post_summary: signal.post_summary,
-                post_url: signal.post_url,
+                post_url: signal.post_url ?? null,
                 post_author: signal.post_author,
                 grain: signal.grain ?? "",
+                searched_at: signal.searched_at ?? null,
               }))}
             />
           </SectionBoundary>
