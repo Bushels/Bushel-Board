@@ -26,9 +26,14 @@ export function LandingPage({ communityStats }: LandingPageProps) {
       >
         <Link
           href="/"
-          className="rounded-[1.5rem] border border-white/30 bg-white/28 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(42,38,30,0.55)] backdrop-blur-xl transition-colors hover:bg-white/36"
+          className="inline-flex items-center gap-2.5 rounded-[1.4rem] border border-white/30 bg-white/20 px-3 py-2 shadow-[0_14px_32px_-24px_rgba(42,38,30,0.55)] backdrop-blur-xl transition-colors hover:bg-white/28"
         >
-          <Logo size={104} />
+          <span className="flex size-8 items-center justify-center rounded-full bg-white/90 shadow-sm">
+            <Logo variant="mark" size={18} />
+          </span>
+          <span className="text-sm font-semibold tracking-wide text-white">
+            Bushel Board
+          </span>
         </Link>
       </motion.header>
 
