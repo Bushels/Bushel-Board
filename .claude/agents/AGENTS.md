@@ -51,12 +51,14 @@ import { NextResponse, type NextRequest } from "next/server";
 -- Public read: USING (true)
 -- Auth write: WITH CHECK (auth.uid() = user_id)
 -- Service only: USING (auth.role() = 'service_role')
+-- Farmer-only write: WITH CHECK (auth.uid() = user_id AND public.is_farmer(auth.uid()))
 ```
 
 ### Edge Function Pattern (Deno)
 ```typescript
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 Deno.serve(async (req) => {
+  // Internal-only functions must verify x-bushel-internal-secret
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   // ... logic
   return new Response(JSON.stringify(result), { headers: { "Content-Type": "application/json" } });

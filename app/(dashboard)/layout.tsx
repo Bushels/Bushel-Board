@@ -13,7 +13,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <Nav />
-      <main className="mx-auto max-w-7xl px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 pb-6 pt-4">
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
       {communityStats && (

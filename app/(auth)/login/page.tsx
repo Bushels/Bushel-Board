@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/layout/logo";
+import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
 import {
   Card,
   CardContent,
@@ -29,7 +30,7 @@ export default function LoginPage() {
     setError("");
 
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -38,7 +39,7 @@ export default function LoginPage() {
       setError(authError.message);
       setLoading(false);
     } else {
-      router.push("/overview");
+      router.replace(await getPostAuthDestination(supabase, data.user));
       router.refresh();
     }
   }
@@ -47,14 +48,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-wheat-50 dark:bg-wheat-900 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <Logo size={48} />
+          <div className="flex justify-center mb-4">
+            <Logo size={96} />
           </div>
           <CardTitle className="text-2xl font-display text-canola">
             Bushel Board
           </CardTitle>
           <CardDescription>
-            Sign in to your farm dashboard.
+            Sign in to your farm dashboard and pick up where your crop plans left off.
           </CardDescription>
         </CardHeader>
         <CardContent>

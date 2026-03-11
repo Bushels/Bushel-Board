@@ -11,6 +11,7 @@ import { PrairieScene } from "@/components/ui/prairie-scene";
 import { motion } from "framer-motion";
 import type { CommunityStats } from "@/lib/queries/community";
 import { CommunityStatsDisplay } from "@/components/dashboard/community-stats";
+import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
 
 interface LandingPageProps {
   communityStats: CommunityStats | null;
@@ -26,7 +27,7 @@ export function LandingPage({ communityStats }: LandingPageProps) {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        router.push("/overview");
+        router.replace(await getPostAuthDestination(supabase, user));
       }
     }
     checkUser();
@@ -72,9 +73,9 @@ export function LandingPage({ communityStats }: LandingPageProps) {
           className="text-5xl sm:text-7xl font-display font-black leading-[1.1] text-white tracking-tight"
           style={{ textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}
         >
-          Deliver <br />
+          Know what changed <br />
           <span className="text-canola" style={{ textShadow: "0 2px 20px rgba(0,0,0,0.2)" }}>
-            with Data.
+            before you sell.
           </span>
         </motion.h1>
 
@@ -85,10 +86,21 @@ export function LandingPage({ communityStats }: LandingPageProps) {
           className="text-lg text-white/80 max-w-2xl mx-auto leading-relaxed"
           style={{ textShadow: "0 1px 10px rgba(0,0,0,0.3)" }}
         >
-          Harness your farm&apos;s production metrics to uncover clear insights.
-          Make confident, well-timed decisions on when to hold and when to sell
-          your grain.
+          Bushel Board combines weekly CGC prairie grain data, live X market
+          signals, and your farm inputs to show what moved, what matters, and
+          what deserves attention before you call the elevator.
         </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.43, ease: "easeOut" }}
+          className="flex flex-wrap items-center justify-center gap-3"
+        >
+          <ProofPill label="Weekly CGC refresh" />
+          <ProofPill label="Live X market signals" />
+          <ProofPill label="Farm data unlocks sharper AI" />
+        </motion.div>
 
         {communityStats && (
           <motion.div
@@ -111,9 +123,13 @@ export function LandingPage({ communityStats }: LandingPageProps) {
               size="lg"
               className="bg-canola hover:bg-canola-dark text-white px-10 py-6 text-lg rounded-full shadow-[0_4px_24px_rgba(193,127,36,0.4)] transition-all hover:-translate-y-1"
             >
-              Get Started
+              Set Up My Farm
             </Button>
           </Link>
+          <p className="max-w-xl text-center text-sm text-white/75">
+            Start with one crop. Add acres now, then sharpen your AI insight with
+            remaining tonnes, deliveries, and signal feedback over time.
+          </p>
         </motion.div>
 
         {/* Scroll indicator */}
@@ -137,20 +153,20 @@ export function LandingPage({ communityStats }: LandingPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           <FeatureBlock
             icon={<Database className="h-7 w-7 text-canola" />}
-            title="Track Inventory"
-            description="Quietly log your acreage, harvests, and contracts to build a private, comprehensive view of your entire operation."
+            title="Start With One Crop"
+            description="Add a crop and acres in under a minute to unlock that grain page without pretending the app already knows your farm."
             delay={0.2}
           />
           <FeatureBlock
             icon={<ClipboardList className="h-7 w-7 text-canola" />}
-            title="Analyze Margins"
-            description="Understand your delivery pace, progress, and exact profitability margins at a glance with clear, actionable visuals."
+            title="Unlock Sharper AI"
+            description="Crop plans, tonnes, deliveries, and signal feedback make the weekly thesis more specific to your operation instead of generic market noise."
             delay={0.3}
           />
           <FeatureBlock
             icon={<BarChart3 className="h-7 w-7 text-canola" />}
-            title="Sell with Confidence"
-            description="Use your localized numbers to make perfectly timed sales decisions, minimizing risk and maximizing your farm's revenue."
+            title="See What Matters This Week"
+            description="Watch prairie flow data, feedback-ranked X signals, and your own pace together so the next decision is clearer before the next elevator call."
             delay={0.4}
           />
         </div>
@@ -193,5 +209,13 @@ function FeatureBlock({
         {description}
       </p>
     </motion.div>
+  );
+}
+
+function ProofPill({ label }: { label: string }) {
+  return (
+    <div className="rounded-full border border-white/35 bg-white/15 px-4 py-2 text-sm text-white shadow-[0_10px_24px_-16px_rgba(42,38,30,0.55)] backdrop-blur-xl">
+      {label}
+    </div>
   );
 }

@@ -17,6 +17,10 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildSearchQueries } from "./search-queries.ts";
+import {
+  buildInternalHeaders,
+  requireInternalRequest,
+} from "../_shared/internal-auth.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
@@ -37,6 +41,11 @@ Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
+  }
+
+  const authError = requireInternalRequest(req);
+  if (authError) {
+    return authError;
   }
 
   const startTime = Date.now();
@@ -107,6 +116,7 @@ Deno.serve(async (req) => {
                         type: "object",
                         properties: {
                           post_summary: { type: "string" },
+                          post_url: { type: ["string", "null"] },
                           post_author: { type: ["string", "null"] },
                           post_date: { type: ["string", "null"] },
                           relevance_score: { type: "number" },
@@ -114,7 +124,7 @@ Deno.serve(async (req) => {
                           category: { type: "string", enum: ["farmer_report", "analyst_commentary", "elevator_bid", "export_news", "weather", "policy", "other"] },
                           confidence_score: { type: "number" },
                         },
-                        required: ["post_summary", "post_author", "post_date", "relevance_score", "sentiment", "category", "confidence_score"],
+                        required: ["post_summary", "post_url", "post_author", "post_date", "relevance_score", "sentiment", "category", "confidence_score"],
                         additionalProperties: false,
                       },
                     },
@@ -147,6 +157,7 @@ Deno.serve(async (req) => {
         // Structured outputs guarantees valid JSON -- parse directly
         let parsed: { signals: Array<{
           post_summary: string;
+          post_url: string | null;
           post_author: string | null;
           post_date: string | null;
           relevance_score: number;
@@ -175,6 +186,7 @@ Deno.serve(async (req) => {
                 crop_year: cropYear,
                 grain_week: grainWeek,
                 post_summary: s.post_summary,
+                post_url: s.post_url,
                 post_author: s.post_author,
                 post_date: s.post_date,
                 relevance_score: s.relevance_score,
@@ -210,9 +222,6 @@ Deno.serve(async (req) => {
 
     console.log(`search-x-intelligence complete: ${succeeded} ok, ${failed} failed, ${totalSignals} signals stored (${duration}ms)`);
 
-    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
-    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
-
     if (remainingGrains.length > 0) {
       // Self-trigger for next batch of grains
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
@@ -221,10 +230,7 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-x-intelligence`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${triggerKey}`,
-            },
+            headers: buildInternalHeaders(),
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek, grains: remainingGrains }),
           }
         );
@@ -240,10 +246,7 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${triggerKey}`,
-            },
+            headers: buildInternalHeaders(),
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
           }
         );
@@ -285,6 +288,7 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 
 For each relevant post you find, provide:
 - post_summary: 1-2 sentence summary of the post content
+- post_url: canonical https://x.com/... URL to the exact post when available
 - post_author: X handle if available (without @)
 - post_date: ISO date string if available
 - relevance_score: 0-100, how relevant is this to Canadian prairie ${grain} markets?

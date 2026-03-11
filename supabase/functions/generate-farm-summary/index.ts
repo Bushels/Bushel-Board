@@ -15,6 +15,10 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildInternalHeaders,
+  requireInternalRequest,
+} from "../_shared/internal-auth.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
@@ -43,6 +47,11 @@ interface PercentileRow {
 }
 
 Deno.serve(async (req) => {
+  const authError = requireInternalRequest(req);
+  if (authError) {
+    return authError;
+  }
+
   const startTime = Date.now();
 
   try {
@@ -250,10 +259,6 @@ Deno.serve(async (req) => {
       `Farm summary generation complete: ${succeeded} ok, ${failed} failed, ${totalUsers} total users (${duration}ms)`
     );
 
-    // Self-trigger for remaining users (mirrors generate-intelligence batch pattern)
-    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
-    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
-
     if (remainingUserIds.length > 0) {
       console.log(`${remainingUserIds.length} users remaining — triggering next batch`);
       try {
@@ -261,10 +266,7 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${triggerKey}`,
-            },
+            headers: buildInternalHeaders(),
             body: JSON.stringify({
               crop_year: cropYear,
               grain_week: grainWeek,
@@ -344,7 +346,7 @@ function buildFarmSummaryPrompt(
 
     const perc = percentiles?.get(plan.grain);
     const percStr = perc
-      ? ` | Delivery pace percentile: ${Math.round(perc.percentile_rank)}th (ranked by % of planned volume delivered)`
+      ? ` | Delivery pace percentile: ${Math.round(perc.percentile_rank)}th (ranked by % of tracked crop-plan volume delivered)`
       : "";
 
     const remainingStr =
@@ -366,7 +368,7 @@ function buildFarmSummaryPrompt(
 
   lines.push("");
   lines.push(
-    "Please provide: (1) delivery progress highlights, (2) how this farmer compares to peers via percentile rankings, (3) contracted vs uncontracted position observations if applicable, and (4) any actionable observations for the weeks ahead."
+    "Please provide: (1) delivery progress highlights, (2) how this farmer compares to peers via percentile rankings, (3) contracted vs uncontracted position observations if applicable, and (4) any actionable observations for the weeks ahead. Treat tracked crop-plan volume as delivered volume plus current remaining-to-sell inventory."
   );
 
   return lines.join("\n");

@@ -94,7 +94,7 @@ export function UnlockModal({ grain, slug, onClose }: UnlockModalProps) {
                 Unlock {grain}
               </CardTitle>
               <CardDescription>
-                Add {grain} to your crop plan to unlock its intelligence dashboard. We keep your Overview focused on the crops that matter to your farm.
+                Add {grain} to your crop plan to unlock its intelligence dashboard. Acres open the page now; remaining tonnes, deliveries, and X feedback make the AI more specific to your farm over time.
               </CardDescription>
             </CardHeader>
             <CardContent>

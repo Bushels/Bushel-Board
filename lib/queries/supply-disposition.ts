@@ -19,17 +19,15 @@ export interface SupplyDisposition {
 
 export async function getSupplyDisposition(
   grainSlug: string,
-  cropYear: string = CURRENT_CROP_YEAR,
-  source: string = "AAFC_2025-11-24"
+  cropYear: string = CURRENT_CROP_YEAR
 ): Promise<SupplyDisposition | null> {
   const supabase = await createClient();
   const { data } = await supabase
-    .from("supply_disposition")
+    .from("v_supply_disposition_current")
     .select("*")
     .eq("grain_slug", grainSlug)
     .eq("crop_year", cropYear)
-    .eq("source", source)
-    .single();
+    .maybeSingle();
   return data;
 }
 
@@ -39,10 +37,9 @@ export async function getSupplyDispositionForGrains(
 ): Promise<SupplyDisposition[]> {
   const supabase = await createClient();
   const { data } = await supabase
-    .from("supply_disposition")
+    .from("v_supply_disposition_current")
     .select("*")
     .in("grain_slug", grainSlugs)
-    .eq("crop_year", cropYear)
-    .eq("source", "AAFC_2025-11-24");
+    .eq("crop_year", cropYear);
   return data ?? [];
 }

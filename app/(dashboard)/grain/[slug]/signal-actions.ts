@@ -1,5 +1,7 @@
 "use server";
 
+import { getAuthenticatedUserContext } from "@/lib/auth/role-guard";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
@@ -13,6 +15,12 @@ const feedbackSchema = z.object({
   grainWeek: z.coerce.number().int().min(1).max(52),
 });
 
+const SIGNAL_FEEDBACK_RATE_LIMIT = {
+  limit: 40,
+  windowSeconds: 600,
+  errorMessage: "You are rating signals too quickly.",
+} as const;
+
 export async function voteSignalRelevance(
   signalId: string,
   relevant: boolean,
@@ -21,10 +29,9 @@ export async function voteSignalRelevance(
   grainWeek: number
 ) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, role } = await getAuthenticatedUserContext();
   if (!user) return { error: "Unauthorized" };
+  if (role !== "farmer") return { error: "Observer accounts cannot vote on signal relevance" };
 
   const parsed = feedbackSchema.safeParse({
     signalId,
@@ -35,6 +42,19 @@ export async function voteSignalRelevance(
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
+  }
+
+  const rateLimit = await consumeRateLimit(supabase, {
+    actionKey: `signal_feedback:${parsed.data.grain}:${parsed.data.grainWeek}`,
+    ...SIGNAL_FEEDBACK_RATE_LIMIT,
+  });
+
+  if (!rateLimit.allowed) {
+    return {
+      error: rateLimit.error ?? SIGNAL_FEEDBACK_RATE_LIMIT.errorMessage,
+      rateLimited: true,
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    };
   }
 
   // Snapshot user context at vote time

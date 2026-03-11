@@ -18,6 +18,15 @@ const UNIT_TO_TONNES: Record<string, number> = {
   lbs: 0.000453592,
 };
 
+function createSubmissionId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  const segment = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
+  return `${segment()}${segment()}-${segment()}-4${segment().slice(1)}-8${segment().slice(1)}-${segment()}${segment()}${segment()}`;
+}
+
 function todayLocal(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -28,12 +37,15 @@ function todayLocal(): string {
 
 export function LogDeliveryModal({ grain, isOpen, onClose }: LogDeliveryModalProps) {
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [unit, setUnit] = useState<"tonnes" | "kg" | "lbs">("tonnes");
+  const [submissionId] = useState(createSubmissionId);
 
   if (!isOpen) return null;
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
+    setError(null);
     formData.set("grain", grain);
     // Convert user input to kt for storage
     const rawAmount = Number(formData.get("amount_raw") || 0);
@@ -42,10 +54,15 @@ export function LogDeliveryModal({ grain, isOpen, onClose }: LogDeliveryModalPro
     formData.set("amount_kt", String(kt));
     formData.delete("amount_raw");
     try {
-      await logDelivery(formData);
+      const result = await logDelivery(formData);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
       onClose();
     } catch (err) {
       console.error("Failed to log delivery:", err);
+      setError("Delivery logging is temporarily unavailable. Please try again.");
     } finally {
       setPending(false);
     }
@@ -58,6 +75,7 @@ export function LogDeliveryModal({ grain, isOpen, onClose }: LogDeliveryModalPro
           Log Delivery — {grain}
         </h3>
         <form action={handleSubmit} className="space-y-4">
+          <input type="hidden" name="submission_id" value={submissionId} />
           <div>
             <Label htmlFor="date">Date</Label>
             <Input
@@ -101,6 +119,11 @@ export function LogDeliveryModal({ grain, isOpen, onClose }: LogDeliveryModalPro
               placeholder="e.g. Viterra Rosetown"
             />
           </div>
+          {error && (
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
           <div className="flex gap-3 justify-end">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

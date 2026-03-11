@@ -27,6 +27,9 @@ export default async function MyFarmPage() {
 
   const plans = cropPlans || [];
   const percentiles = farmSummary?.percentiles ?? {};
+  const hasLoggedDeliveries = plans.some(
+    (plan) => (plan.deliveries ?? []).length > 0
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -36,11 +39,15 @@ export default async function MyFarmPage() {
           My Farm
         </h1>
         <p className="text-base text-muted-foreground mt-2 max-w-2xl">
-          Track your crop deliveries and compare your pacing against other prairie farmers.
+          Start with one crop, then make Bushel Board smarter with remaining tonnes, deliveries, and signal feedback.
         </p>
       </div>
 
-      <FarmSummaryCard summary={farmSummary} />
+      <FarmSummaryCard
+        summary={farmSummary}
+        hasPlans={plans.length > 0}
+        hasLoggedDeliveries={hasLoggedDeliveries}
+      />
 
       {role === "farmer" && plans.length > 0 && (
         <>

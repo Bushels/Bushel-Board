@@ -44,11 +44,15 @@ export function SentimentPoll({
   const [aggregate, setAggregate] = useState(initialAggregate);
   const [isPending, startTransition] = useTransition();
   const [hasVoted, setHasVoted] = useState(initialVote !== null);
+  const [error, setError] = useState<string | null>(null);
   const celebration = useCelebration("firstVote");
 
   const isObserver = role === "observer";
 
   function handleVote(sentiment: number) {
+    const previousVote = userVote;
+    const previousHasVoted = hasVoted;
+    setError(null);
     setUserVote(sentiment);
 
     startTransition(async () => {
@@ -59,7 +63,12 @@ export function SentimentPoll({
         if (aggregate) {
           setAggregate({ ...aggregate });
         }
+        return;
       }
+
+      setUserVote(previousVote);
+      setHasVoted(previousHasVoted);
+      setError(result.error ?? "Sentiment voting is temporarily unavailable.");
     });
   }
 
@@ -84,7 +93,8 @@ export function SentimentPoll({
         <CardContent className="space-y-4">
           {/* Vote buttons — hidden for observers */}
           {!isObserver && (
-            <div className="flex gap-2">
+            <div className="space-y-3">
+              <div className="flex gap-2">
               {SENTIMENT_OPTIONS.map((option, i) => (
                 <motion.button
                   key={option.value}
@@ -119,6 +129,12 @@ export function SentimentPoll({
                   <span className="hidden sm:inline">{option.short}</span>
                 </motion.button>
               ))}
+              </div>
+              {error && (
+                <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
             </div>
           )}
 

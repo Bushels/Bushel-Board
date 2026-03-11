@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 
+const freshnessBadgeClasses =
+  "hidden items-center gap-1.5 rounded-full border border-white/40 bg-white/35 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-xl dark:border-white/10 dark:bg-white/6 sm:flex";
+
 export async function CgcFreshness() {
   try {
     const supabase = await createClient();
@@ -13,7 +16,7 @@ export async function CgcFreshness() {
 
     if (!data) {
       return (
-        <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className={freshnessBadgeClasses}>
           <span className="h-2 w-2 rounded-full bg-muted" />
           No data
         </div>
@@ -23,13 +26,11 @@ export async function CgcFreshness() {
     const importDate = new Date(data.imported_at);
     // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
-    const daysSince = Math.floor(
-      (now - importDate.getTime()) / 86400000
-    );
+    const daysSince = Math.floor((now - importDate.getTime()) / 86400000);
     const isFresh = daysSince <= 7;
 
     return (
-      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className={freshnessBadgeClasses}>
         <span
           className={`h-2 w-2 rounded-full ${
             isFresh ? "bg-prairie animate-pulse" : "bg-canola"
@@ -39,9 +40,8 @@ export async function CgcFreshness() {
       </div>
     );
   } catch {
-    // Supabase not configured or no data yet
     return (
-      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className={freshnessBadgeClasses}>
         <span className="h-2 w-2 rounded-full bg-muted" />
         CGC Data
       </div>

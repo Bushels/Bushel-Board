@@ -1,6 +1,37 @@
 import { createClient } from "@/lib/supabase/server";
+import type { User } from "@supabase/supabase-js";
 
 export type UserRole = "farmer" | "observer";
+
+export interface AuthenticatedUserContext {
+  user: User | null;
+  role: UserRole;
+}
+
+/**
+ * Get the current authenticated user and their role.
+ * Missing profiles default to observer so writes remain deny-by-default.
+ */
+export async function getAuthenticatedUserContext(): Promise<AuthenticatedUserContext> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { user: null, role: "observer" };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const role = (profile?.role as UserRole | undefined) ?? "observer";
+
+  return { user, role };
+}
 
 /**
  * Get the current user's role from their profile.
@@ -8,20 +39,8 @@ export type UserRole = "farmer" | "observer";
  * Call from Server Components only.
  */
 export async function getUserRole(): Promise<UserRole> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return "observer";
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  return (profile?.role as UserRole) ?? "farmer";
+  const { role } = await getAuthenticatedUserContext();
+  return role;
 }
 
 /**

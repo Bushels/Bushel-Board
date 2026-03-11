@@ -34,12 +34,15 @@ export function UserMenu({ email }: UserMenuProps) {
           variant="ghost"
           size="icon"
           aria-label="User menu"
-          className="hidden md:inline-flex"
+          className="hidden rounded-full border border-white/40 bg-white/35 shadow-[0_14px_32px_-22px_rgba(42,38,30,0.55)] backdrop-blur-xl hover:bg-white/55 dark:border-white/10 dark:bg-white/6 dark:hover:bg-white/10 md:inline-flex"
         >
           <User className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent
+        align="end"
+        className="w-56 rounded-3xl border border-white/50 bg-background/92 shadow-[0_24px_50px_-24px_rgba(42,38,30,0.55)] backdrop-blur-2xl dark:border-white/10 dark:bg-wheat-900/90"
+      >
         <DropdownMenuLabel className="font-normal">
           <p className="text-sm font-medium">{email}</p>
         </DropdownMenuLabel>

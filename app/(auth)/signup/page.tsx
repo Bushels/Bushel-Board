@@ -77,7 +77,7 @@ export default function SignupPage() {
       }
     }
 
-    router.push("/overview");
+    router.replace(isFarmer ? "/my-farm" : "/overview");
     router.refresh();
   }
 
@@ -93,7 +93,7 @@ export default function SignupPage() {
           </CardTitle>
           <CardDescription>
             {isFarmer
-              ? "Create your farm dashboard in 30 seconds."
+              ? "Create your account now. Crop setup comes next on My Farm."
               : "Browse prairie grain market intelligence."}
           </CardDescription>
         </CardHeader>
@@ -133,6 +133,11 @@ export default function SignupPage() {
               {!isFarmer && (
                 <p className="text-xs text-muted-foreground">
                   Observers can view dashboards and market data. Upgrade to a farmer account anytime.
+                </p>
+              )}
+              {isFarmer && (
+                <p className="text-xs text-muted-foreground">
+                  Your crop data comes next. Add one crop on My Farm to unlock tailored AI, pace tracking, and grain-specific insight.
                 </p>
               )}
             </div>

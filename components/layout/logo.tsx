@@ -8,6 +8,7 @@ export function Logo({ size = 32 }: { size?: number }) {
       width={size}
       height={size}
       priority
+      className="h-auto w-auto"
     />
   );
 }

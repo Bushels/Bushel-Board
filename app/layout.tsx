@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Bushel Board — Prairie Grain Intelligence",
+  title: "Bushel Board - Prairie Grain Intelligence",
   description:
     "Weekly CGC grain statistics dashboard for Canadian prairie farmers. Track deliveries, shipments, and stocks across Alberta, Saskatchewan, and Manitoba.",
   icons: {

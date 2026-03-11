@@ -9,6 +9,10 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildInternalHeaders,
+  requireInternalRequest,
+} from "../_shared/internal-auth.ts";
 
 // The 16 CGC grains present in Primary/Deliveries data
 const EXPECTED_GRAINS = [
@@ -33,6 +37,11 @@ interface CheckResult {
 }
 
 Deno.serve(async (req) => {
+  const authError = requireInternalRequest(req);
+  if (authError) {
+    return authError;
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -200,9 +209,6 @@ Deno.serve(async (req) => {
     console.log(`Validation ${status}: ${JSON.stringify(checks)}`);
 
     // ── Chain trigger (only on pass) ────────────────────────────────────
-    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
-    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
-
     if (allPassed) {
       try {
         console.log("Validation passed — triggering search-x-intelligence...");
@@ -210,10 +216,7 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-x-intelligence`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${triggerKey}`,
-            },
+            headers: buildInternalHeaders(),
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
           }
         );

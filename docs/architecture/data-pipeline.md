@@ -1,231 +1,173 @@
-# CGC Data Pipeline -- Architecture & Operations
+# CGC Data Pipeline - Architecture & Operations
 
 ## Overview
 
-The Bushel Board data pipeline automatically imports Canadian Grain Commission (CGC) weekly grain statistics into Supabase every Thursday. The pipeline uses pg_cron for scheduling, pg_net for async HTTP calls, and a Deno Edge Function for CSV download, parsing, and batch upsert. Historical data is loaded via a one-time backfill script.
+Bushel Board imports Canadian Grain Commission weekly data through a Vercel cron ingress and a chained set of Supabase Edge Functions.
+
+The production pipeline is now:
+
+1. Vercel cron calls `/api/cron/import-cgc`
+2. The route fetches the CGC CSV directly from `grainscanada.gc.ca`
+3. The route forwards the payload to `import-cgc-weekly`
+4. Internal Edge Functions chain through validation, X search, intelligence generation, and farm summaries
+
+The old Supabase `pg_cron` job has been unscheduled and is no longer the canonical trigger path.
 
 ## Data Flow
 
-```
-  grainscanada.gc.ca
-        |
-        | CSV download (HTTP GET)
-        v
-  +---------------------+
-  | pg_cron              |
-  | (Thursday 8pm UTC)   |
-  +---------------------+
-        |
-        | async HTTP POST via pg_net
-        v
-  +---------------------+
-  | Edge Function        |
-  | import-cgc-weekly    |
-  +---------------------+
-        |
-        | 1. Download CSV from CGC
-        | 2. Parse rows (lib/cgc/parser.ts)
-        | 3. Batch upsert (500/batch)
-        v
-  +---------------------+
-  | cgc_observations     |
-  | (Supabase table)     |
-  +---------------------+
-        |
-        | SQL views aggregate & filter
-        v
-  +---------------------+       +---------------------+
-  | Dashboard Views      | ----> | Next.js Dashboard   |
-  | (v_grain_deliveries, |       | (App Router SSR)    |
-  |  v_grain_shipments,  |       +---------------------+
-  |  v_grain_stocks,     |
-  |  v_terminal_exports, |
-  |  v_shipment_distrib, |
-  |  v_latest_import,    |
-  |  v_grain_overview)   |
-  +---------------------+
+```text
+  Vercel Cron
+       |
+       | GET /api/cron/import-cgc
+       v
+  Next.js route
+       |
+       | fetch CSV from CGC
+       v
+  import-cgc-weekly
+       |
+       v
+  validate-import
+       |
+       v
+  search-x-intelligence
+       |
+       v
+  generate-intelligence
+       |
+       v
+  generate-farm-summary
 ```
 
-## Components
+## Auth Model
 
-### pg_cron Schedule
+### Public ingress
 
-- **Job name:** `cgc-weekly-import`
-- **Schedule:** `0 20 * * 4` (every Thursday at 8:00 PM UTC / 1:00 PM MST)
-- **What it does:** Calls `net.http_post()` to invoke the Edge Function
-- **Migration:** `supabase/migrations/20260305500000_schedule_cgc_weekly_import.sql`
+- Only the Vercel cron route is public.
+- The route requires `Authorization: Bearer $CRON_SECRET`.
 
-The schedule runs 7 hours after the CGC typically publishes new data (~1pm MST), providing a comfortable buffer to ensure the CSV is available.
+### Internal function chain
 
-### pg_net
+- `import-cgc-weekly`
+- `validate-import`
+- `search-x-intelligence`
+- `generate-intelligence`
+- `generate-farm-summary`
 
-Makes asynchronous HTTP POST requests from within PostgreSQL. The cron job uses `net.http_post()` to call the Edge Function endpoint. Request and response details are logged in `net._http_response` for debugging.
+All five functions now:
 
-### Vault
+- set `verify_jwt = false` in `supabase/config.toml`
+- require `x-bushel-internal-secret`
+- reject requests that do not provide the exact `BUSHEL_INTERNAL_FUNCTION_SECRET`
 
-Supabase Vault securely stores two secrets used by the cron job:
+This secret must be identical in:
 
-| Secret name         | Purpose                                      |
-|---------------------|----------------------------------------------|
-| `project_url`       | Supabase project URL for Edge Function calls |
-| `project_anon_key`  | Anon key for Authorization header            |
+- Supabase Edge Function secrets
+- Vercel environment variables
 
-These are read at cron execution time via `vault.decrypted_secrets`, avoiding any hardcoded credentials in SQL.
+### Why this replaced anon-JWT chaining
 
-### Edge Function: `import-cgc-weekly`
+Using the public anon JWT for function-to-function calls made the chain publicly triggerable by anyone who knew the function URL. The new secret-based contract makes the pipeline private again while still allowing internal HTTP chaining.
 
-- **Location:** `supabase/functions/import-cgc-weekly/`
-- **Runtime:** Deno (Supabase Edge Functions)
-- **Auth:** Accepts anon key via Authorization header; uses service_role internally for writes
-- **Process:**
-  1. Downloads the current week's CSV from `grainscanada.gc.ca`
-  2. Parses CSV using the shared parser (`lib/cgc/parser.ts`)
-  3. Batch upserts parsed rows into `cgc_observations` (500 rows per batch)
-  4. Logs import result to `cgc_imports` audit table
-- **Idempotent:** Uses upsert on the composite unique constraint, so re-runs are safe
+## Scheduling
 
-### Backfill Script: `scripts/backfill.ts`
+### Canonical scheduler
 
-- **Purpose:** One-time historical load or full re-import
-- **Batch size:** 1,000 rows per batch (larger than Edge Function since it runs locally)
-- **Usage:** `npm run backfill`
-- **Accepts:** `--help` flag, outputs JSON to stdout, diagnostics to stderr
-- **Idempotent:** Safe to re-run; upserts all rows
+- Vercel cron
+- Route: `/api/cron/import-cgc`
+- Secret: `CRON_SECRET`
 
-### Parser: `lib/cgc/parser.ts`
+### Legacy scheduler
 
-Shared CSV parsing module used by both the Edge Function and backfill script. Handles:
-- CGC CSV format (Crop Year, Grain Week, Week Ending Date, worksheet, metric, period, grain, grade, Region, Ktonnes)
-- Data type coercion (numeric fields, date parsing)
-- Row validation and skip logic for malformed data
+- `pg_cron` job name: `cgc-weekly-import`
+- Status: unscheduled by migration `20260311110000_security_and_workflow_hardening.sql`
 
-## Database Tables
+If this job reappears, treat it as configuration drift.
 
-### `cgc_observations`
+## Key Tables and Views
 
-The primary data table storing all CGC grain statistics in long format (one row per measurement).
+### Raw and audit data
 
-| Column          | Type      | Description                           |
-|-----------------|-----------|---------------------------------------|
-| id              | uuid      | Primary key                           |
-| crop_year       | text      | e.g., "2025-26"                       |
-| grain_week      | integer   | Week number (1-52)                    |
-| week_ending     | date      | Week ending date                      |
-| worksheet       | text      | CGC worksheet identifier              |
-| metric          | text      | Measurement type                      |
-| period          | text      | Time period qualifier                 |
-| grain           | text      | Grain type (33 varieties)             |
-| grade           | text      | Grain grade                           |
-| region          | text      | Geographic region                     |
-| ktonnes         | numeric   | Value in kilotonnes                   |
-| created_at      | timestamp | Row creation time                     |
+- `cgc_observations`
+- `cgc_imports`
+- `validation_reports`
 
-**Current data:** 118,378 rows, crop year 2025-26, weeks 1-29, 33 grain types.
+### Intelligence data
 
-### `cgc_imports`
+- `x_market_signals`
+- `signal_feedback`
+- `grain_intelligence`
+- `farm_summaries`
+- `crop_plan_deliveries`
 
-Audit log tracking every import operation.
+### Derived views and RPCs
 
-| Column       | Type      | Description                        |
-|--------------|-----------|------------------------------------|
-| id           | uuid      | Primary key                        |
-| status       | text      | "success" or "error"               |
-| rows_upserted| integer   | Number of rows written             |
-| rows_skipped | integer   | Number of rows skipped             |
-| duration_ms  | integer   | Import duration in milliseconds    |
-| error_message| text      | Error details (if status = error)  |
-| imported_at  | timestamp | When the import ran                |
+- `v_grain_yoy_comparison`
+- `v_supply_pipeline`
+- `v_supply_disposition_current`
+- `v_signal_relevance_scores`
+- `get_pipeline_velocity(p_grain, p_crop_year)`
+- `get_signals_with_feedback(p_grain, p_crop_year, p_grain_week)`
+- `get_signals_for_intelligence(p_grain, p_crop_year, p_grain_week)`
+- `calculate_delivery_percentiles(p_crop_year)`
+- `get_delivery_analytics(p_crop_year, p_grain)`
 
-## Dashboard Views
+## Operational Guardrails
 
-| View                    | Purpose                                                |
-|-------------------------|--------------------------------------------------------|
-| `v_grain_deliveries`    | Weekly producer deliveries by grain and region         |
-| `v_grain_shipments`     | Domestic and export shipment volumes                   |
-| `v_grain_stocks`        | Current stocks in store by location type               |
-| `v_terminal_exports`    | Terminal elevator export activity                      |
-| `v_shipment_distribution` | Distribution of shipments across transport modes     |
-| `v_latest_import`       | Most recent import metadata (freshness indicator)      |
-| `v_grain_overview`      | Summary stats across all grains for dashboard cards    |
+- Never use `SUPABASE_ANON_KEY` or anon JWTs for internal function chaining.
+- Never trust UI-only role gating for farmer-only actions.
+- User-scoped RPCs must derive identity from `auth.uid()`, not caller-supplied IDs.
+- Service-only RPCs must revoke public execute permissions and grant `service_role` explicitly.
+- Delivery pace must use `delivered + remaining_to_sell` as the denominator when the stored field represents current remaining inventory.
+- `v_supply_pipeline` must return one canonical row per `grain_slug, crop_year`.
 
 ## Monitoring
 
-### Check cron job status
+### Vercel
 
-```sql
-SELECT * FROM cron.job;
-```
+- Confirm cron route deployments in Vercel production logs
+- Confirm `BUSHEL_INTERNAL_FUNCTION_SECRET` exists in production
+- Confirm `CRON_SECRET` exists in production
 
-### Check recent cron runs
-
-```sql
-SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 5;
-```
-
-### Check import audit log
+### Supabase
 
 ```sql
 SELECT * FROM cgc_imports ORDER BY imported_at DESC LIMIT 5;
+SELECT * FROM validation_reports ORDER BY created_at DESC LIMIT 5;
+SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generated_at DESC LIMIT 5;
+SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;
+SELECT grain, grain_week, COUNT(*) FROM x_market_signals GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 20;
 ```
 
-### Check pg_net HTTP responses
+### Drift checks
 
 ```sql
-SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;
+SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';
 ```
 
-### Check data freshness
-
-```sql
-SELECT * FROM v_latest_import;
-```
-
-### Quick data integrity check
-
-```sql
-SELECT
-  COUNT(*) AS total_rows,
-  COUNT(DISTINCT grain) AS grain_count,
-  COUNT(DISTINCT grain_week) AS week_count,
-  MIN(week_ending) AS earliest_week,
-  MAX(week_ending) AS latest_week
-FROM cgc_observations;
-```
+Expected result: zero rows.
 
 ## Troubleshooting
 
-### Import did not run on Thursday
+### Cron route fails with 401
 
-1. Check that pg_cron is enabled: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';`
-2. Check cron run history for errors: `SELECT * FROM cron.job_run_details WHERE jobname = 'cgc-weekly-import' ORDER BY start_time DESC LIMIT 5;`
-3. Verify Vault secrets are present: `SELECT name FROM vault.decrypted_secrets WHERE name IN ('project_url', 'project_anon_key');`
-4. Check pg_net response for HTTP errors: `SELECT status_code, content FROM net._http_response ORDER BY created DESC LIMIT 5;`
+- Check `CRON_SECRET` on Vercel
+- Check the request includes `Authorization: Bearer ...`
 
-### Edge Function returned an error
+### Edge Function returns 401
 
-1. Check Supabase Dashboard > Edge Functions > import-cgc-weekly > Logs
-2. Verify the CGC CSV URL is accessible (may be temporarily down)
-3. Check `cgc_imports` for error messages: `SELECT * FROM cgc_imports WHERE status = 'error' ORDER BY imported_at DESC LIMIT 5;`
+- Check `BUSHEL_INTERNAL_FUNCTION_SECRET` in Supabase secrets
+- Check the same secret exists in Vercel
+- Check the request sends `x-bushel-internal-secret`
 
-### Data looks stale or incomplete
+### Intelligence chain stops after import
 
-1. Check freshness: `SELECT * FROM v_latest_import;`
-2. Run a manual import by invoking the Edge Function directly via `curl` or the Supabase Dashboard
-3. If needed, run `npm run backfill` to re-import all historical data (safe due to upsert)
+- Check `validate-import` logs first
+- Then check `search-x-intelligence`, `generate-intelligence`, and `generate-farm-summary`
+- Verify all five functions were deployed after the latest auth helper change
 
-### Duplicate or missing rows
+### Data looks inconsistent
 
-The upsert strategy uses a composite unique constraint, so true duplicates should not exist. If rows appear missing:
-1. Verify the CGC CSV contains the expected weeks
-2. Check `cgc_imports` for partial imports (rows_skipped > 0)
-3. Re-run backfill for a clean slate
-
-## Key Files
-
-| File                                                          | Purpose                                    |
-|---------------------------------------------------------------|--------------------------------------------|
-| `supabase/functions/import-cgc-weekly/index.ts`               | Edge Function for weekly import            |
-| `lib/cgc/parser.ts`                                           | Shared CSV parser                          |
-| `scripts/backfill.ts`                                         | Historical data loader                     |
-| `supabase/migrations/20260305500000_schedule_cgc_weekly_import.sql` | pg_cron scheduling migration         |
-| `docs/architecture/data-pipeline.md`                          | This document                              |
+- Re-check `crop_year` filtering in the query layer
+- Confirm `v_supply_pipeline` returns one row per grain/year
+- Confirm delivery pace math is using delivered plus remaining inventory

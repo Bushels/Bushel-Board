@@ -59,13 +59,21 @@ export async function GET(request: Request) {
 
   // Forward CSV to Supabase Edge Function
   try {
+    if (!process.env.BUSHEL_INTERNAL_FUNCTION_SECRET) {
+      return Response.json(
+        { error: "BUSHEL_INTERNAL_FUNCTION_SECRET is not configured" },
+        { status: 500 }
+      );
+    }
+
     const edgeResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/import-cgc-weekly`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.SUPABASE_ANON_JWT}`,
+          "x-bushel-internal-secret":
+            process.env.BUSHEL_INTERNAL_FUNCTION_SECRET,
         },
         body: JSON.stringify({
           week: grainWeek,

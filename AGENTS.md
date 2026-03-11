@@ -13,7 +13,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 
 ## Tech Stack
 - **Frontend:** Next.js 16 (App Router) + TypeScript, deployed on Vercel
-- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions, pg_cron)
+- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions) + Vercel Cron ingress
 - **UI:** shadcn/ui + Tailwind CSS (custom wheat palette)
 - **Charts:** Recharts
 - **Fonts:** DM Sans (body) + Fraunces (display)
@@ -39,6 +39,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 | frontend-dev | Next.js pages, React components | Teal | Inherit |
 | auth-engineer | Supabase Auth, middleware, security | Orange | Inherit |
 | data-audit | Data integrity, Excel/CSV/Supabase verification | Amber | Inherit |
+| security-auditor | Security review, workflow hardening, release guardrails | Slate | Inherit |
 
 ## Data Source
 CGC weekly grain statistics CSV from grainscanada.gc.ca
@@ -88,10 +89,10 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
 - **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
-- **Auth for chain triggers:** Edge Functions use `SUPABASE_ANON_KEY` (not service role key) in Authorization headers for function-to-function HTTP calls. Service role key is only for `createClient()` database operations. Using service role key for HTTP triggers causes 401 because Supabase's function relay rejects it with `verify_jwt: true`.
+- **Auth for chain triggers:** Vercel cron is the only public ingress. Internal Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
 ## Pipeline Monitoring
-- Cron status: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';`
+- Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)
 - Import audit: `SELECT * FROM cgc_imports ORDER BY imported_at DESC LIMIT 5;`
 - Data freshness: `SELECT * FROM v_latest_import;`
 - Validation: `SELECT * FROM validation_reports ORDER BY created_at DESC LIMIT 5;`
@@ -121,6 +122,8 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Browser client: `createBrowserClient()` — only in `"use client"` components
 - Middleware: refresh session on every request via `supabase.auth.getUser()`
 - Service role: NEVER expose to browser. Only in Edge Functions and server-side scripts.
+- Farmer-only writes: enforce in both server actions and RLS. UI gating alone is never sufficient.
+- User-scoped RPCs: derive identity from `auth.uid()`. Never accept a caller-supplied user ID.
 
 ### Script Conventions
 All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnostics to stderr, be idempotent, pin dependency versions.

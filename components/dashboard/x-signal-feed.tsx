@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Radio, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Radio,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { voteSignalRelevance } from "@/app/(dashboard)/grain/[slug]/signal-actions";
 import { useCelebration, MicroCelebration } from "@/components/motion/micro-celebration";
 import { YourImpact } from "@/components/dashboard/your-impact";
+import { buildXPostHref } from "@/lib/utils/x-post";
 import type { XSignalWithFeedback } from "@/lib/queries/x-signals";
 import type { UserRole } from "@/lib/auth/role-guard";
 
@@ -71,6 +79,7 @@ export function XSignalFeed({
 }: XSignalFeedProps) {
   const [localSignals, setLocalSignals] = useState(signals);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const celebration = useCelebration("firstSignalVote");
 
@@ -81,6 +90,9 @@ export function XSignalFeed({
   ).length;
 
   function handleVote(signalId: string, relevant: boolean) {
+    const previousSignal = localSignals.find((signal) => signal.id === signalId);
+    setError(null);
+
     // Optimistic update
     setLocalSignals((prev) =>
       prev.map((s) =>
@@ -106,11 +118,19 @@ export function XSignalFeed({
         setLocalSignals((prev) =>
           prev.map((s) =>
             s.id === signalId
-              ? { ...s, user_voted: false, user_relevant: null }
+              ? {
+                  ...s,
+                  user_voted: previousSignal?.user_voted ?? false,
+                  user_relevant: previousSignal?.user_relevant ?? null,
+                }
               : s
           )
         );
+        setError(result.error);
+        return;
       }
+
+      setError(null);
     });
   }
 
@@ -138,12 +158,17 @@ export function XSignalFeed({
     <MicroCelebration isActive={celebration.isActive}>
       <div className="space-y-3">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-display font-semibold flex items-center gap-2">
-            <Radio className="h-4 w-4 text-canola" />
-            Market Signals from X
-          </h2>
-          <span className="text-xs text-muted-foreground">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+              <Radio className="h-4 w-4 text-canola" />
+              Market Signals from X
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Farmer feedback re-ranks this feed so the strongest posts rise over time.
+            </p>
+          </div>
+          <span className="text-right text-xs text-muted-foreground">
             Week {grainWeek} &middot; {localSignals.length} post
             {localSignals.length !== 1 ? "s" : ""}
           </span>
@@ -154,6 +179,12 @@ export function XSignalFeed({
           <p className="text-xs text-muted-foreground bg-canola/5 border border-canola/10 rounded-lg px-3 py-2">
             Farmer accounts can rate signals to improve feed quality for the community.
           </p>
+        )}
+
+        {error && (
+          <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
         )}
 
         {/* Scrollable card strip */}
@@ -247,6 +278,11 @@ function SignalCard({
   isObserver: boolean;
 }) {
   const isVoted = signal.user_voted;
+  const postHref = buildXPostHref(
+    signal.post_url,
+    signal.post_author,
+    signal.post_summary
+  );
 
   return (
     <motion.div
@@ -255,10 +291,10 @@ function SignalCard({
       initial="hidden"
       animate="visible"
       className={cn(
-        "flex-shrink-0 w-[280px] sm:w-[300px] snap-start rounded-lg border p-4 space-y-3 transition-colors duration-300",
+        "flex-shrink-0 w-[280px] sm:w-[300px] snap-start rounded-[1.35rem] border p-4 space-y-3 transition-colors duration-300 backdrop-blur-sm",
         isVoted
-          ? "border-canola/30 bg-muted/50 opacity-80"
-          : "border-border bg-background hover:border-canola/20 hover:shadow-sm"
+          ? "border-canola/30 bg-muted/55 opacity-80"
+          : "border-border/70 bg-background/88 hover:border-canola/20 hover:shadow-[0_18px_36px_-28px_rgba(42,38,30,0.55)]"
       )}
     >
       {/* Top row: sentiment + category */}
@@ -289,6 +325,17 @@ function SignalCard({
           </span>
         )}
         {signal.post_date && <span>{formatDate(signal.post_date)}</span>}
+        {postHref && (
+          <a
+            href={postHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex items-center gap-1 font-medium text-canola transition-colors hover:text-canola-dark"
+          >
+            Open post
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
       </div>
 
       {/* Vote buttons / vote state — hidden for observers */}

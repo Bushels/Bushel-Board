@@ -58,7 +58,7 @@ export async function getSupplyPipeline(
     .select("carry_in_kt, production_kt, total_supply_kt, exports_kt, food_industrial_kt, feed_waste_kt, carry_out_kt")
     .eq("grain_slug", grainSlug)
     .eq("crop_year", CURRENT_CROP_YEAR)
-    .single();
+    .maybeSingle();
 
   return data;
 }

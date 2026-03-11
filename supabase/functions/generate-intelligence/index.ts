@@ -15,11 +15,20 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildIntelligencePrompt, type GrainContext } from "./prompt-template.ts";
+import {
+  buildInternalHeaders,
+  requireInternalRequest,
+} from "../_shared/internal-auth.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
 
 Deno.serve(async (req) => {
+  const authError = requireInternalRequest(req);
+  if (authError) {
+    return authError;
+  }
+
   const startTime = Date.now();
 
   try {
@@ -275,9 +284,6 @@ Deno.serve(async (req) => {
 
     console.log(`Intelligence generation complete: ${succeeded} ok, ${failed} failed, ${skipped} skipped (${duration}ms)`);
 
-    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
-    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
-
     if (remainingGrains.length > 0) {
       // Self-trigger for next batch of grains
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
@@ -286,10 +292,7 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${triggerKey}`,
-            },
+            headers: buildInternalHeaders(),
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek, grains: remainingGrains }),
           }
         );
@@ -304,10 +307,7 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${triggerKey}`,
-            },
+            headers: buildInternalHeaders(),
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
           }
         );

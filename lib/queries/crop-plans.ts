@@ -76,27 +76,23 @@ export async function getUserDeliveryCumulative(
 ): Promise<{ grain_week: number; cumulative_kt: number }[]> {
   const supabase = await createClient();
   const { data } = await supabase
-    .from("crop_plans")
-    .select("deliveries")
+    .from("crop_plan_deliveries")
+    .select("delivery_date, amount_kt")
     .eq("user_id", userId)
     .eq("crop_year", cropYear)
     .eq("grain", grain)
-    .single();
+    .order("delivery_date", { ascending: true })
+    .order("created_at", { ascending: true });
 
-  if (!data?.deliveries?.length) return [];
-
-  const sorted = [...data.deliveries].sort(
-    (a: DeliveryEntry, b: DeliveryEntry) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
+  if (!data?.length) return [];
 
   const cropYearStart = parseInt(cropYear.split("-")[0]);
   const weekStart = new Date(cropYearStart, 7, 1); // Aug 1
 
   let cumulative = 0;
-  return sorted.map((d) => {
+  return data.map((d: { delivery_date: string; amount_kt: number }) => {
     cumulative += d.amount_kt;
-    const deliveryDate = new Date(d.date);
+    const deliveryDate = new Date(d.delivery_date);
     const weekNum = Math.ceil(
       (deliveryDate.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)
     );

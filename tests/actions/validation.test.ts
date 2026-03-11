@@ -10,6 +10,7 @@ const addCropPlanSchema = z.object({
 
 const logDeliverySchema = z.object({
   grain: z.string().min(1, "Grain is required"),
+  submission_id: z.string().uuid("Invalid submission id"),
   amount_kt: z.coerce.number().positive("Delivery amount must be positive"),
   date: z.string().date("Invalid date format"),
   destination: z.string().optional(),
@@ -73,6 +74,7 @@ describe("logDelivery validation", () => {
   it("accepts valid delivery", () => {
     const result = logDeliverySchema.safeParse({
       grain: "Wheat",
+      submission_id: "11111111-1111-4111-8111-111111111111",
       amount_kt: "0.5",
       date: "2026-01-15",
     });
@@ -82,6 +84,7 @@ describe("logDelivery validation", () => {
   it("rejects zero amount", () => {
     const result = logDeliverySchema.safeParse({
       grain: "Wheat",
+      submission_id: "11111111-1111-4111-8111-111111111111",
       amount_kt: 0,
       date: "2026-01-15",
     });
@@ -91,6 +94,7 @@ describe("logDelivery validation", () => {
   it("rejects negative amount", () => {
     const result = logDeliverySchema.safeParse({
       grain: "Wheat",
+      submission_id: "11111111-1111-4111-8111-111111111111",
       amount_kt: -1,
       date: "2026-01-15",
     });
@@ -100,6 +104,7 @@ describe("logDelivery validation", () => {
   it("rejects invalid date format", () => {
     const result = logDeliverySchema.safeParse({
       grain: "Wheat",
+      submission_id: "11111111-1111-4111-8111-111111111111",
       amount_kt: 1,
       date: "Jan 15 2026",
     });
@@ -109,6 +114,7 @@ describe("logDelivery validation", () => {
   it("rejects missing grain", () => {
     const result = logDeliverySchema.safeParse({
       grain: "",
+      submission_id: "11111111-1111-4111-8111-111111111111",
       amount_kt: 1,
       date: "2026-01-15",
     });
@@ -118,6 +124,7 @@ describe("logDelivery validation", () => {
   it("allows optional destination", () => {
     const result = logDeliverySchema.safeParse({
       grain: "Canola",
+      submission_id: "11111111-1111-4111-8111-111111111111",
       amount_kt: 2.0,
       date: "2026-02-01",
       destination: "Richardson Pioneer",
@@ -126,5 +133,15 @@ describe("logDelivery validation", () => {
     if (result.success) {
       expect(result.data.destination).toBe("Richardson Pioneer");
     }
+  });
+
+  it("rejects invalid submission id", () => {
+    const result = logDeliverySchema.safeParse({
+      grain: "Canola",
+      submission_id: "not-a-uuid",
+      amount_kt: 2.0,
+      date: "2026-02-01",
+    });
+    expect(result.success).toBe(false);
   });
 });

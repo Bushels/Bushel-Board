@@ -31,6 +31,7 @@ export function ThemeToggle() {
       size="icon"
       onClick={toggle}
       aria-label="Toggle theme"
+      className="rounded-full border border-white/40 bg-white/35 shadow-[0_14px_32px_-22px_rgba(42,38,30,0.55)] backdrop-blur-xl hover:bg-white/55 dark:border-white/10 dark:bg-white/6 dark:hover:bg-white/10"
     >
       {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </Button>

@@ -66,13 +66,15 @@ lib/
 ```
 
 **Coding Standards:**
-- Use `async` Server Components for data fetching — no useEffect for initial data
+- Use `async` Server Components for data fetching - no useEffect for initial data
 - Mark client components with `"use client"` only when required
 - Use Tailwind utilities, not inline styles
 - All numbers use `tabular-nums` class or font-variant
 - Loading states use Skeleton components, never spinners
 - All interactive elements have 44px min touch targets
-- Handle errors with error.tsx boundaries, not try-catch in components
+- Multi-source pages must isolate failures by section; one broken query should not take down the entire page
+- Server fetch wrappers must rethrow Next.js dynamic-rendering bailout errors instead of swallowing them
+- Surface action failures in the UI; do not leave farmers guessing whether a click worked
 
 **Design System Reference:**
 - Colors: wheat-50 (bg), canola (primary), prairie (success), province-ab/sk/mb
