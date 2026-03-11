@@ -292,6 +292,8 @@ $$;
 REVOKE ALL ON FUNCTION public.calculate_delivery_percentiles(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.calculate_delivery_percentiles(text) TO service_role;
 
+DROP FUNCTION IF EXISTS public.get_delivery_analytics(text, text);
+
 CREATE OR REPLACE FUNCTION public.get_delivery_analytics(
   p_crop_year text,
   p_grain text DEFAULT NULL
