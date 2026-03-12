@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-11
+Last updated: 2026-03-12
 
 ## Feature Tracks
 
@@ -21,30 +21,35 @@ Last updated: 2026-03-11
 | 13 | Prairie Landing Page | Complete | 2026-03-11 | `app/page.tsx`, `components/landing/landing-page.tsx`, `components/layout/logo.tsx` |
 | 14 | Farmer Engagement & Input System | Complete | 2026-03-11 | `lib/auth/role-guard.ts`, `components/dashboard/sentiment-banner.tsx`, `components/dashboard/delivery-pace-card.tsx` |
 | 15 | Farmer-First Onboarding, Unlock UX, and Nav Polish | Complete | 2026-03-11 | `lib/auth/post-auth-destination.ts`, `app/(dashboard)/my-farm/`, `components/layout/`, `components/auth/`, `components/dashboard/x-signal-feed.tsx` |
+| 16 | UX Layout & Hierarchy Redesign (P1) | Complete | 2026-03-11 | `components/dashboard/section-header.tsx`, `components/dashboard/compact-signal-strip.tsx`, `components/dashboard/supply-pipeline.tsx`, `app/(dashboard)/overview/page.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
+| 17 | Dual-LLM Intelligence Pipeline (Step 3.5 Flash + Grok debate) | Complete | 2026-03-12 | `supabase/functions/analyze-market-data/`, `supabase/functions/_shared/commodity-knowledge.ts`, `components/dashboard/bull-bear-cards.tsx`, `lib/queries/intelligence.ts` |
 
 ## Intelligence Pipeline
 
 ```text
-import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intelligence -> generate-farm-summary
+import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary
 ```
 
 - Trigger: Vercel cron -> `/api/cron/import-cgc`
 - Schedule: Thursday afternoon after the CGC weekly release window
-- Model: `grok-4-1-fast-reasoning` (xAI)
-- Cost: about `$0.04` per weekly run
-- Batch sizes: 4 grains per invocation for search/intelligence, 50 users per invocation for farm summaries
+- Round 1: `analyze-market-data` — Step 3.5 Flash (free via OpenRouter) produces data-driven thesis, bull/bear cases, historical context
+- Round 2: `generate-intelligence` — Grok reviews/challenges Step 3.5 Flash's thesis with X signals and farmer sentiment
+- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4-1-fast-reasoning` (xAI)
+- Cost: about `$0.04` per weekly run (Step 3.5 Flash is free, only Grok costs)
+- Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users per invocation for farm summaries
 
 ## Database Tables
 
 | Table | Rows (approx) | Purpose |
 |-------|---------------|---------|
-| `cgc_observations` | 122k+ | Weekly grain statistics in long format |
+| `cgc_observations` | ~1.1M | Weekly grain statistics in long format (6 crop years: 2020-2026) |
 | `grains` | 16 | Canadian grain types with slugs |
 | `supply_disposition` | ~200 | AAFC balance sheet data per grain/year/source |
 | `crop_plans` | varies | User crop plans with starting grain, live remaining inventory, and contract splits |
 | `crop_plan_deliveries` | varies | Append-only farmer delivery ledger with idempotency keys and sale classification |
 | `profiles` | varies | User profiles with farm metadata and role |
-| `grain_intelligence` | ~16/week | AI-generated grain narratives and KPIs |
+| `market_analysis` | ~16/week | Step 3.5 Flash data-driven thesis, bull/bear, historical context |
+| `grain_intelligence` | ~16/week | AI-generated grain narratives and KPIs (Grok round 2) |
 | `farm_summaries` | ~users/week | Per-user weekly AI farm summaries |
 | `x_market_signals` | ~80/week | X/Twitter posts scored per grain/week |
 | `validation_reports` | 1/import | Post-import anomaly detection results |
@@ -59,7 +64,7 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intell
 | `v_grain_yoy_comparison` | View | YoY metrics with FULL OUTER JOIN of Primary + Process + Terminal |
 | `v_supply_pipeline` | View | Canonical AAFC balance sheet for the supply pipeline component |
 | `v_supply_disposition_current` | View | Canonical latest supply-disposition row per grain/year |
-| `v_signal_relevance_scores` | View | Blended relevance: 60% AI + 40% farmer consensus |
+| `v_signal_relevance_scores` | View | Blended relevance: 50% recency-adjusted AI + 40% farmer + 10% bonuses |
 | `v_latest_import` | View | Data freshness check |
 | `get_pipeline_velocity()` | RPC | Five pipeline metrics server-side, bypassing PostgREST row limits |
 | `get_signals_with_feedback()` | RPC | X signal feed with current-user vote state |
@@ -67,3 +72,6 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intell
 | `calculate_delivery_percentiles()` | RPC | Percentile ranking over priced-progress pace by grain |
 | `get_sentiment_overview()` | RPC | Per-grain sentiment aggregates for the overview banner |
 | `get_delivery_analytics()` | RPC | Anonymized delivery + marketing-position stats with privacy threshold (>=5 farmers) |
+| `get_historical_average()` | RPC | 5-year historical average/min/max/stddev for any grain/metric/worksheet |
+| `get_seasonal_pattern()` | RPC | Weekly seasonal aggregates across multiple crop years |
+| `get_week_percentile()` | RPC | Where current value sits in 5-year historical range |

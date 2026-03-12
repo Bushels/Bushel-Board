@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { getUserRole } from "@/lib/auth/role-guard";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { getGrainBySlug, getGrainOverviewBySlug } from "@/lib/queries/grains";
-import { getGrainIntelligence } from "@/lib/queries/intelligence";
+import { BullBearCards } from "@/components/dashboard/bull-bear-cards";
+import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
 import {
   getCumulativeTimeSeries,
   getDeliveryTimeSeries,
@@ -84,13 +85,14 @@ export default async function GrainDetailPage({ params }: Props) {
     roleResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
-      const [intelligence, xSignals, grainOverview] = await Promise.all([
+      const [intelligence, xSignals, grainOverview, marketAnalysis] = await Promise.all([
         getGrainIntelligence(grain.name),
         getXSignalsForGrain(grain.name),
         getGrainOverviewBySlug(grain.slug),
+        getMarketAnalysis(grain.name),
       ]);
 
-      return { intelligence, xSignals, grainOverview };
+      return { intelligence, xSignals, grainOverview, marketAnalysis };
     }),
     safeQuery("Delivery activity", () => getDeliveryTimeSeries(grain.name)),
     safeQuery("Pipeline velocity", () => getCumulativeTimeSeries(grain.name)),
@@ -106,6 +108,7 @@ export default async function GrainDetailPage({ params }: Props) {
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
   const intelligence = marketCore?.intelligence ?? null;
   const xSignals = marketCore?.xSignals ?? [];
+  const marketAnalysis = marketCore?.marketAnalysis ?? null;
   const correctedKpiData = buildCorrectedKpiData(intelligence, marketCore?.grainOverview ?? null);
   const latestGrainWeek = getLatestGrainWeek(
     deliverySeriesResult.error ? [] : deliverySeriesResult.data ?? [],
@@ -192,6 +195,16 @@ export default async function GrainDetailPage({ params }: Props) {
                       <ThesisBanner
                         title={intelligence.thesis_title}
                         body={intelligence.thesis_body ?? ""}
+                        historicalContext={marketAnalysis?.historical_context ?? null}
+                      />
+                    )}
+
+                    {marketAnalysis && (
+                      <BullBearCards
+                        bullCase={marketAnalysis.bull_case}
+                        bearCase={marketAnalysis.bear_case}
+                        confidence={marketAnalysis.data_confidence}
+                        modelUsed={marketAnalysis.model_used}
                       />
                     )}
                   </div>

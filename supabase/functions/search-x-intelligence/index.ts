@@ -8,10 +8,10 @@
  * Two modes:
  *   - pulse (3x/day): Quick X-only scan, 2 queries/grain, no chain trigger.
  *   - deep  (weekly):  Comprehensive X + web search, 6-8 queries/grain,
- *                       chains to generate-intelligence on last batch.
+ *                       chains to analyze-market-data on last batch.
  *
  * Pipeline position:
- *   import-cgc-weekly -> validate-import -> search-x-intelligence -> generate-intelligence
+ *   import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence
  *
  * Request body:
  *   {
@@ -297,20 +297,21 @@ Deno.serve(async (req) => {
         console.error("Next batch trigger failed:", err);
       }
     } else if (mode === "deep") {
-      // Deep mode last batch — chain to generate-intelligence
-      console.log("All grains searched [deep] — triggering generate-intelligence");
+      // Deep mode last batch — chain to analyze-market-data (Step 3.5 Flash round 1)
+      // Pipeline: search-x-intelligence → analyze-market-data → generate-intelligence → generate-farm-summary
+      console.log("All grains searched [deep] — triggering analyze-market-data");
       try {
         await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-market-data`,
           {
             method: "POST",
             headers: buildInternalHeaders(),
             body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
           }
         );
-        console.log("Triggered generate-intelligence");
+        console.log("Triggered analyze-market-data");
       } catch (err) {
-        console.error("generate-intelligence chain-trigger failed (non-blocking):", err);
+        console.error("analyze-market-data chain-trigger failed (non-blocking):", err);
       }
     } else {
       // Pulse mode last batch — no chain trigger

@@ -11,6 +11,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - Intelligence: `docs/plans/2026-03-06-grain-intelligence-implementation.md` (19 tasks, complete)
 - X Feed: `docs/plans/2026-03-10-x-feed-relevance-design.md` (Phases 1-4 complete)
 - Farmer Engagement: `docs/plans/2026-03-11-farmer-engagement-design.md` (22 tasks, complete)
+- UX Layout & Hierarchy: `docs/plans/2026-03-11-ux-layout-hierarchy-design.md` (7 tasks, complete)
 
 ## Tech Stack
 - **Frontend:** Next.js 16 (App Router) + TypeScript, deployed on Vercel
@@ -69,6 +70,16 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Easing: cubic-bezier(0.16, 1, 0.3, 1)
 - Animation stagger: 40ms between siblings
 
+## Definition of Done
+Every piece of work must satisfy before being marked complete:
+1. `npm run build` passes with no errors
+2. No console errors on affected pages (verify with preview tools or browser)
+3. Types check — no `any` escape hatches without justification
+4. New UI changes verified visually on at least one page (preview_screenshot or manual)
+5. Lessons learned documented in `docs/lessons-learned/issues.md` if a non-obvious bug was encountered
+6. STATUS.md updated if a new feature track was completed
+7. Destructive changes (deleted files, removed exports) verified with grep to confirm nothing still imports them
+
 ## Commands
 - `npm run dev` — Start dev server
 - `npm run build` — Production build
@@ -80,20 +91,24 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
 ## Intelligence Pipeline
-- **Edge Functions chain (5 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `generate-intelligence` → `generate-farm-summary`
+- **Edge Functions chain (6 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary`
+- **Dual-LLM debate:** Step 3.5 Flash (free via OpenRouter) produces data-driven thesis + bull/bear cases + historical context (Round 1). Grok reviews/challenges with X signals and farmer sentiment (Round 2). Privacy: only aggregate data touches Step 3.5 Flash; PII stays on Grok.
+- **Free model:** `stepfun/step-3.5-flash:free` via OpenRouter (`OPENROUTER_API_KEY` secret). 196B MoE, 256K context, mandatory reasoning. Cost: $0/month.
 - **Batch processing:** `search-x-intelligence` and `generate-intelligence` process grains in batches then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
 - **Intraday scanning:** `search-x-intelligence` runs in two modes: **pulse** (3x/day, 2 queries/grain, X-only, 2-day lookback, batch size 8) and **deep** (weekly Thursday, 6-8 queries/grain, X + web search, 7-day lookback, batch size 4, chains to generate-intelligence). Pulse scans via `app/api/cron/scan-signals/route.ts` at 6AM/1PM/6PM MST. Grain tiering: major grains (Wheat, Canola, Durum, Barley, Oats, Peas) scanned every pulse; minor grains scanned morning pulse only. Cost: ~$5/month xAI API.
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` + `web_search` (deep mode) for real-time agriculture sentiment
-- **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week, includes `searched_at`, `search_mode`, `source` columns), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal), `signal_scan_log` (scan observability: mode, grains, signals found, duration), `grain_sentiment_votes` (per-grain Holding/Hauling farmer sentiment)
+- **Tables:** `grain_intelligence` (per-grain market analysis), `market_analysis` (Step 3.5 Flash round 1: thesis, bull/bear, historical context, key signals), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week, includes `searched_at`, `search_mode`, `source` columns), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal), `signal_scan_log` (scan observability: mode, grains, signals found, duration), `grain_sentiment_votes` (per-grain Holding/Hauling farmer sentiment)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
+- **Historical RPC functions:** `get_historical_average(p_grain, p_metric, p_worksheet, p_grain_week, p_years_back)`, `get_seasonal_pattern(...)`, `get_week_percentile(...)` — 5-year historical analysis for Step 3.5 Flash
 - **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (enhanced blended relevance: 50% recency-adjusted Grok + 40% farmer consensus + 10% bonuses for velocity/deep mode; recency decay -5pts/day; category diversity max 3 per category)
 - **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role), `get_sentiment_overview(p_crop_year, p_grain_week)` (per-grain sentiment aggregates for overview banner), `get_delivery_analytics(p_crop_year, p_grain)` (anonymized delivery stats with privacy threshold ≥5 farmers, excludes observers)
-- **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; **SentimentPoll** (Holding/Hauling 5-point scale per grain: Strongly Holding → Strongly Hauling, with aggregate results bar); FarmSummaryCard + percentile badges on My Farm; SentimentBanner cross-grain overview; DeliveryPaceCard percentile comparison; MicroCelebration first-time action glow; YourImpact inline banners
-- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats), `lib/queries/delivery-analytics.ts` (getDeliveryAnalytics), `lib/queries/sentiment.ts` (getSentimentOverview)
+- **UI:** ThesisBanner (with collapsible Historical Context from market_analysis), **BullBearCards** (side-by-side bull/bear cases from Step 3.5 Flash), IntelligenceKpis, SupplyPipeline (with collapsible domestic breakdown), XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; **SentimentPoll** (Holding/Hauling 5-point scale per grain); FarmSummaryCard + percentile badges on My Farm; SentimentBanner cross-grain overview; DeliveryPaceCard percentile comparison; MicroCelebration first-time action glow; YourImpact inline banners; **SectionHeader** (shared canola left-accent section divider); **CompactSignalStrip** (Overview-only horizontal scroll signal pills)
+- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getMarketAnalysis, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats), `lib/queries/delivery-analytics.ts` (getDeliveryAnalytics), `lib/queries/sentiment.ts` (getSentimentOverview)
 - **Auth:** `lib/auth/role-guard.ts` — `getUserRole()` server-side, `isObserver()` helper. Observer role: UI-level gating (soft nudge), not route-level. Observers see data but can't vote/input. `profiles.role` column ('farmer'|'observer'), DEFAULT 'farmer'. Authenticated users default to "farmer" in TypeScript (matching DB default). `handle_new_user()` trigger auto-creates profile rows on signup.
 - **Sentiment voting:** `components/dashboard/sentiment-poll.tsx` — 5-option Holding/Hauling poll per grain per week. Options: Strongly Holding (🔒), Holding (📦), Neutral (⚖️), Hauling (🚜), Strongly Hauling (🚛). Server action: `app/(dashboard)/grain/[slug]/actions.ts` → `voteSentiment()`. Table: `grain_sentiment_votes`. Query: `lib/queries/sentiment.ts` (getGrainSentiment, getUserSentimentVote, getSentimentOverview). Aggregate shown as bar chart with Holding %/Neutral %/Hauling % breakdown. Feeds into `generate-intelligence` prompt for AI-aware farmer sentiment.
 - **Engagement:** `crop_plans.contracted_kt` + `uncontracted_kt` columns for contracted grain tracking. Stacked progress bar (delivered/contracted/uncontracted) on My Farm. `generate-intelligence` prompt now includes farmer sentiment data. `generate-farm-summary` prompt includes contracted position.
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
+- **Commodity knowledge:** `supabase/functions/_shared/commodity-knowledge.ts` — distilled trading frameworks from 3 PDF books (~4K tokens). Injected into Step 3.5 Flash system prompt for domain expertise.
 - **Auth for chain triggers:** Vercel cron is the only public ingress. Internal Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
 ## Pipeline Monitoring
@@ -102,6 +117,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Data freshness: `SELECT * FROM v_latest_import;`
 - Validation: `SELECT * FROM validation_reports ORDER BY created_at DESC LIMIT 5;`
 - X signals: `SELECT grain, grain_week, COUNT(*) FROM x_market_signals GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 20;`
+- Market analysis (Step 3.5 Flash): `SELECT grain, grain_week, data_confidence, model_used, generated_at FROM market_analysis ORDER BY generated_at DESC LIMIT 5;`
 - Intelligence: `SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generated_at DESC LIMIT 5;`
 - Farm summaries: `SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;`
 - pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
@@ -110,6 +126,8 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Signal feedback: `SELECT grain, grain_week, COUNT(*) FROM signal_feedback GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
 - Blended scores: `SELECT signal_id, grain, blended_relevance, total_votes, farmer_relevance_pct FROM v_signal_relevance_scores ORDER BY blended_relevance DESC LIMIT 10;`
 - Pipeline velocity (per-grain): `SELECT * FROM get_pipeline_velocity('Wheat', '2025-2026') WHERE grain_week IN (10, 20, 30);`
+- Historical data coverage: `SELECT crop_year, COUNT(*) FROM cgc_observations GROUP BY crop_year ORDER BY crop_year;`
+- Historical average test: `SELECT * FROM get_historical_average('Wheat', 'Deliveries', 'Primary', 30, 5);`
 - Row count audit (check for PostgREST truncation): `SELECT worksheet, metric, COUNT(*) FROM cgc_observations WHERE grain='Wheat' AND crop_year='2025-2026' AND period='Crop Year' GROUP BY worksheet, metric HAVING COUNT(*) > 900;`
 - Sentiment overview: `SELECT * FROM get_sentiment_overview('2025-2026', 32);`
 - Delivery analytics: `SELECT * FROM get_delivery_analytics('2025-2026');`

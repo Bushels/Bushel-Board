@@ -53,6 +53,16 @@ export interface GrainContext {
     total_votes?: number;
     farmer_relevance_pct?: number | null;
   }>;
+  // Step 3.5 Flash market analysis (Round 1 of dual-LLM debate)
+  marketAnalysis?: {
+    initial_thesis: string;
+    bull_case: string;
+    bear_case: string;
+    historical_context: Record<string, unknown>;
+    data_confidence: string;
+    key_signals: Array<Record<string, unknown>>;
+    model_used: string;
+  } | null;
 }
 
 export function buildIntelligencePrompt(ctx: GrainContext): string {
@@ -111,6 +121,37 @@ ${ctx.socialSignals?.length ? ctx.socialSignals.map(s => {
 Reference these signals when generating "social" insights. Cite the author handle when available.
 
 Posts marked "farmer-validated" (farmer_relevance_pct >= 70%, votes >= 3) should be weighted heavily in your analysis — real farmers on the prairies confirmed these signals matter. Posts marked "farmer-dismissed" (farmer_relevance_pct < 40%, votes >= 3) should be deprioritized unless the underlying data contradicts farmer sentiment. Posts marked "unrated" have no farmer feedback yet — use AI scores as normal.
+
+## Prior Analyst's Assessment (Step 3.5 Flash — data-driven analysis)
+
+${ctx.marketAnalysis ? `A quantitative analyst (${ctx.marketAnalysis.model_used}) has already analyzed this grain's CGC data, AAFC supply balance, and 5-year historical patterns. Their assessment:
+
+**Thesis:** ${ctx.marketAnalysis.initial_thesis}
+
+**Bull Case:**
+${ctx.marketAnalysis.bull_case}
+
+**Bear Case:**
+${ctx.marketAnalysis.bear_case}
+
+**Historical Context:**
+${ctx.marketAnalysis.historical_context?.seasonal_observation ?? "No seasonal observation."}
+${Array.isArray(ctx.marketAnalysis.historical_context?.notable_patterns)
+  ? (ctx.marketAnalysis.historical_context.notable_patterns as string[]).map((p: string) => `- ${p}`).join("\n")
+  : ""}
+
+**Data Confidence:** ${ctx.marketAnalysis.data_confidence}
+
+**Key Signals:**
+${ctx.marketAnalysis.key_signals.map((s: Record<string, unknown>) =>
+  `- [${s.signal}] ${s.title}: ${s.body} (confidence: ${s.confidence}, source: ${s.source})`
+).join("\n")}
+
+Your role is to CHALLENGE this analysis. You have access to real-time X/Twitter signals that the prior analyst did not. Consider:
+1. Does the social sentiment on X support or contradict this thesis?
+2. Are there breaking developments the data-driven analysis missed?
+3. Does farmer sentiment align with the analytical assessment?
+4. Update the thesis if your real-time signals warrant it.` : "No prior market analysis available. Generate your assessment from scratch."}
 
 ## Your Task
 

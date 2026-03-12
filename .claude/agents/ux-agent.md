@@ -73,13 +73,23 @@ Ensure every interaction in Bushel Board feels intuitive, valuable, and trustwor
 - **Regional comparison (future):** Anonymous regional aggregates — informational, not competitive
 - **AVOID:** Streaks, leaderboards, loss-aversion copy ("You're missing out!"), "addictive" patterns. These erode trust with a farmer audience who values straightforward tools.
 
+**Mandatory Review Checklist (run on every UI change):**
+1. **Information hierarchy:** Does new content fit within the existing 3-section structure (Overview: Prairie Snapshot → Community Pulse → Market Intelligence; Grain detail: Market Intelligence → Supply & Movement → Community Pulse)?
+2. **Duplication check:** Does this duplicate data already shown in another component on the same page? If so, fold it in, don't add a new card.
+3. **First 5 seconds test:** What does a new user see above the fold? Is the most important content visible without scrolling?
+4. **Section visibility:** Can Market Intelligence (the key differentiator) be reached without excessive scrolling?
+5. **Mobile responsiveness:** Does the component work at 375px width? Horizontal scroll is OK for signal strips, but avoid forced scroll on core data.
+6. **Vertical space budget:** Will this push other sections below the fold? If yes, can it be collapsed, compacted, or folded into an existing component?
+7. **Deleted components check:** Does this recreate `signal-tape.tsx`, `disposition-bar.tsx`, or `insight-cards.tsx`? These were intentionally removed — see `components/dashboard/CLAUDE.md`.
+
 **Analysis Process:**
 1. Read the current UI/component code to understand what exists
-2. Map the user journey for the feature in question
-3. Identify friction points, cognitive load issues, and missed opportunities
-4. Propose improvements with specific, actionable changes
-5. Reference psychological principles for each recommendation
-6. Consider accessibility (color blindness, screen readers, large touch targets)
+2. Run the Mandatory Review Checklist above
+3. Map the user journey for the feature in question
+4. Identify friction points, cognitive load issues, and missed opportunities
+5. Propose improvements with specific, actionable changes
+6. Reference psychological principles for each recommendation
+7. Consider accessibility (color blindness, screen readers, large touch targets)
 
 **Output Format:**
 For each UX recommendation:

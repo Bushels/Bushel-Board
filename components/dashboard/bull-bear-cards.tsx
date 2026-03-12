@@ -8,8 +8,10 @@ interface BullBearCardsProps {
 }
 
 export function BullBearCards({ bullCase, bearCase, confidence, modelUsed }: BullBearCardsProps) {
-  const bullPoints = bullCase.split(/\n/).map(s => s.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
-  const bearPoints = bearCase.split(/\n/).map(s => s.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
+  // Strip leading bullets: ASCII dash, Unicode bullet (•), triangular bullet (‣), middle dot (·), em dash (—), asterisk
+  const stripBullet = (s: string) => s.replace(/^[\s\-–—•‣·*]+\s*/, '').trim();
+  const bullPoints = bullCase.split(/\n/).map(stripBullet).filter(Boolean);
+  const bearPoints = bearCase.split(/\n/).map(stripBullet).filter(Boolean);
 
   const confidenceColors = {
     high: "text-prairie",

@@ -380,6 +380,9 @@ verify_jwt = false
 [functions.validate-import]
 verify_jwt = false
 
+[functions.analyze-market-data]
+verify_jwt = false
+
 [functions.search-x-intelligence]
 verify_jwt = false
 

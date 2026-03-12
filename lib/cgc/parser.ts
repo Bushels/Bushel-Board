@@ -28,12 +28,37 @@ export interface CgcRow {
  * Handles the DD/MM/YYYY date format used by grainscanada.gc.ca.
  * Skips malformed lines (< 10 columns) and empty lines.
  * Handles both quoted (2024-2025) and unquoted (2025-2026) CSV formats.
+ *
+ * Supports two CSV column orderings:
+ *   - Old format (2020-2023): grain_week, crop_year, week_ending_date, ...
+ *   - New format (2024+):     Crop Year, Grain Week, Week Ending Date, ...
+ * Column positions are detected from the header row.
  */
 export function parseCgcCsv(csvText: string): CgcRow[] {
   const strip = (s: string) => s.trim().replace(/^"|"$/g, "");
 
   const lines = csvText.trim().split("\n");
-  // Skip header row (line 0)
+  if (lines.length < 2) return [];
+
+  // Build column index map from header row (case-insensitive, underscore-normalized)
+  const headerParts = lines[0].split(",").map((h) => strip(h).toLowerCase().replace(/\s+/g, "_"));
+  const colIndex = (name: string): number => {
+    const idx = headerParts.indexOf(name);
+    if (idx === -1) throw new Error(`Missing required CSV column: ${name}`);
+    return idx;
+  };
+
+  const iCropYear = colIndex("crop_year");
+  const iGrainWeek = colIndex("grain_week");
+  const iDate = colIndex("week_ending_date");
+  const iWorksheet = colIndex("worksheet");
+  const iMetric = colIndex("metric");
+  const iPeriod = colIndex("period");
+  const iGrain = colIndex("grain");
+  const iGrade = colIndex("grade");
+  const iRegion = colIndex("region");
+  const iKtonnes = colIndex("ktonnes");
+
   const rows: CgcRow[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -46,16 +71,16 @@ export function parseCgcCsv(csvText: string): CgcRow[] {
     const parts = line.split(",");
     if (parts.length < 10) continue;
 
-    const cropYear = strip(parts[0]);
-    const grainWeek = strip(parts[1]);
-    const dateStr = strip(parts[2]);
-    const worksheet = strip(parts[3]);
-    const metric = strip(parts[4]);
-    const period = strip(parts[5]);
-    const grain = strip(parts[6]);
-    const grade = strip(parts[7] || "");
-    const region = strip(parts[8]);
-    const ktonnes = strip(parts[9]);
+    const cropYear = strip(parts[iCropYear]);
+    const grainWeek = strip(parts[iGrainWeek]);
+    const dateStr = strip(parts[iDate]);
+    const worksheet = strip(parts[iWorksheet]);
+    const metric = strip(parts[iMetric]);
+    const period = strip(parts[iPeriod]);
+    const grain = strip(parts[iGrain]);
+    const grade = strip(parts[iGrade] || "");
+    const region = strip(parts[iRegion]);
+    const ktonnes = strip(parts[iKtonnes]);
 
     // Convert DD/MM/YYYY to YYYY-MM-DD
     const dateParts = dateStr.split("/");

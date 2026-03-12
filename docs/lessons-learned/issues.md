@@ -1,5 +1,15 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-12 - CGC CSV Parser Used Positional Indexing Instead of Header Names
+
+**Symptom:** Historical CGC CSV backfill (2020-2023) inserted 758K rows with `crop_year` values like `"1"`, `"2"`, `"3"` instead of `"2020-2021"`, `"2021-2022"`, etc. Historical RPC functions returned only 2 years of data instead of 5.
+
+**Root Cause:** The CSV parser (`lib/cgc/parser.ts`) used hardcoded positional indexing (`parts[0]` = crop_year, `parts[1]` = grain_week). However, old CGC CSVs (2020-2023) have columns ordered `grain_week, crop_year, ...` while current CSVs (2024+) use `Crop Year, Grain Week, ...`. The swap put grain_week values (integers) into the crop_year field.
+
+**Solution:** Changed the parser to build a column index map from the header row using case-insensitive, underscore-normalized header matching. Now detects column positions dynamically regardless of order: `const headerParts = lines[0].split(",").map(h => strip(h).toLowerCase().replace(/\s+/g, "_"))`. Deleted all bad rows (`WHERE crop_year NOT LIKE '____-____'`) and re-backfilled.
+
+**Lesson:** CSV parsers should ALWAYS use header-name-based column mapping, never positional indexing. External data sources can change column order between years.
+
 ## 2026-03-11 - Hybrid Farm Units Need One Canonical Storage Unit
 
 **Symptom:** Farmers plan and talk in a mix of `bu/ac`, pounds, and tonnes, but CGC and community comparisons are metric-tonne based. Without a canonical storage rule, the same crop could be entered in different units and become hard to compare honestly across dashboards, AI summaries, and analytics RPCs.
@@ -329,3 +339,38 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 - `components/dashboard/log-delivery-modal.tsx`
 
 **Tags:** #data-model #delivery-ledger #contracts #marketing
+
+## 2026-03-11 - CGC Region Names Are Not Unique Keys
+
+**Symptom:** React duplicate key warnings in the SupplyPipeline domestic breakdown after folding in domestic disappearance data. The console showed "two children with the same key: Pacific."
+
+**Root Cause:** `getShipmentDistribution()` returns multiple rows with the same `region` value (e.g., "Pacific" appears for both terminal receipts and exports). The component used `key={d.region}` assuming region names were unique.
+
+**Solution:** Changed to `key={`${d.region}-${i}`}` with array index suffix to guarantee uniqueness.
+
+**Prevention:**
+- CGC region names are descriptive labels, not unique identifiers — never use them as React keys
+- When rendering lists from aggregated CGC data, always include an index or composite key
+- Test collapsible sections with grains that have duplicate region rows (Canola is a good candidate)
+
+**Files modified:**
+- `components/dashboard/supply-pipeline.tsx`
+
+**Tags:** #react #cgc-data #keys #supply-pipeline
+
+## 2026-03-11 - HMR Does Not Clear Stale React Trees After Client Directive Changes
+
+**Symptom:** After fixing the duplicate key bug, console errors persisted even though the source code was correct. The errors only cleared after a full dev server restart.
+
+**Root Cause:** When a component gains or changes its `"use client"` directive, Hot Module Replacement may not fully unmount and remount the React tree. Stale component instances continue to render with old key logic.
+
+**Solution:** Stopped and restarted the dev server to force a clean React tree rebuild.
+
+**Prevention:**
+- After adding/modifying `"use client"` directives or changing component key strategies, restart the dev server
+- Don't debug console errors from stale HMR state — restart first, then investigate
+- Preview verification should include a server restart step when `"use client"` changes are involved
+
+**Files modified:** (none — operational fix)
+
+**Tags:** #hmr #next.js #debugging #dev-server

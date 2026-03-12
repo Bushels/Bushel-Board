@@ -1,11 +1,12 @@
 /**
  * Supabase Edge Function: generate-intelligence
  *
- * After weekly CGC data import, generates AI market intelligence for each grain.
- * Reads pre-scored social signals from x_market_signals table and calls xAI Grok
- * Responses API per grain with structured outputs. Stores results in grain_intelligence table.
+ * Round 2 of dual-LLM intelligence pipeline. After Step 3.5 Flash (analyze-market-data)
+ * produces a data-driven thesis, Grok reviews/challenges it with real-time X/Twitter signals
+ * and farmer sentiment. Stores final intelligence in grain_intelligence table.
  *
- * Triggered by search-x-intelligence on success, or manually via POST.
+ * Pipeline: search-x-intelligence → analyze-market-data → generate-intelligence → generate-farm-summary
+ * Triggered by analyze-market-data on success, or manually via POST.
  *
  * Request body (optional):
  *   { "crop_year": "2025-26", "grain_week": 29, "grains": ["Canola"] }
@@ -81,6 +82,13 @@ Deno.serve(async (req) => {
       p_grain_week: grainWeek,
     });
 
+    // Get Step 3.5 Flash market analysis (Round 1) for debate context
+    const { data: marketAnalysisData } = await supabase
+      .from("market_analysis")
+      .select("grain, initial_thesis, bull_case, bear_case, historical_context, data_confidence, key_signals, model_used")
+      .eq("crop_year", cropYear)
+      .eq("grain_week", grainWeek);
+
     const yoyByGrain = new Map((yoyData ?? []).map((r: Record<string, unknown>) => [r.grain, r]));
     const supplyByGrain = new Map((supplyData ?? []).map((r: Record<string, unknown>) => [r.grain_name, r]));
     const sentimentByGrain = new Map(
@@ -93,6 +101,9 @@ Deno.serve(async (req) => {
           pct_neutral: Number(r.pct_neutral),
         },
       ])
+    );
+    const marketAnalysisByGrain = new Map(
+      (marketAnalysisData ?? []).map((r: Record<string, unknown>) => [r.grain as string, r])
     );
 
     const results: { grain: string; status: string; error?: string }[] = [];
@@ -114,6 +125,9 @@ Deno.serve(async (req) => {
           p_crop_year: cropYear,
           p_grain_week: grainWeek,
         });
+
+        // Get Step 3.5 Flash analysis for this grain (may be null if not available)
+        const priorAnalysis = marketAnalysisByGrain.get(grainName) as Record<string, unknown> | undefined;
 
         const ctx: GrainContext = {
           grain: grainName,
@@ -139,6 +153,15 @@ Deno.serve(async (req) => {
           projected_crush_kt: supply?.projected_crush_kt ?? null,
           projected_carry_out_kt: supply?.projected_carry_out_kt ?? null,
           farmerSentiment: sentimentByGrain.get(grainName) ?? null,
+          marketAnalysis: priorAnalysis ? {
+            initial_thesis: priorAnalysis.initial_thesis as string,
+            bull_case: priorAnalysis.bull_case as string,
+            bear_case: priorAnalysis.bear_case as string,
+            historical_context: priorAnalysis.historical_context as Record<string, unknown>,
+            data_confidence: priorAnalysis.data_confidence as string,
+            key_signals: priorAnalysis.key_signals as Array<Record<string, unknown>>,
+            model_used: priorAnalysis.model_used as string,
+          } : null,
           socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
             sentiment: s.sentiment as string,
             category: s.category as string,
@@ -332,14 +355,13 @@ Deno.serve(async (req) => {
 
 // --- Helpers (same as import-cgc-weekly) ---
 
-/** Returns crop year in short format: "2025-26" (matches app convention). */
+/** Returns crop year in long format: "2025-2026" (matches DB convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const startYear = month >= 7 ? year : year - 1;
-  const endYear = (startYear + 1) % 100;
-  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
+  return `${startYear}-${startYear + 1}`;
 }
 
 function getCurrentGrainWeek(): number {

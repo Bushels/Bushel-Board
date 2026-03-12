@@ -51,3 +51,7 @@ lint-results*.json
 # local browser/debug artifacts
 .playwright-cli/
 output/
+
+# Historical CGC data files (too large for git)
+data/*.csv
+data/*.pdf

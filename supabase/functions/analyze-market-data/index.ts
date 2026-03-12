@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
               { role: "user", content: dataPrompt },
             ],
             response_format: { type: "json_object" },
-            max_tokens: 2048,
+            max_tokens: 16384,
           }),
         });
 
@@ -205,6 +205,23 @@ Deno.serve(async (req) => {
             error: `JSON parse failed: ${content.slice(0, 100)}`,
           });
           continue;
+        }
+
+        // Validate required fields before storing
+        const validationErrors = validateAnalysisShape(analysis);
+        if (validationErrors.length > 0) {
+          console.warn(`Shape validation warnings for ${grainName}: ${validationErrors.join("; ")}`);
+          // Apply safe defaults for missing fields rather than failing entirely
+          analysis.initial_thesis = analysis.initial_thesis ?? "";
+          analysis.bull_case = analysis.bull_case ?? "";
+          analysis.bear_case = analysis.bear_case ?? "";
+          analysis.historical_context = analysis.historical_context ?? {};
+          analysis.data_confidence = ["high", "medium", "low"].includes(analysis.data_confidence)
+            ? analysis.data_confidence
+            : "medium";
+          analysis.key_signals = Array.isArray(analysis.key_signals)
+            ? analysis.key_signals
+            : [];
         }
 
         // Upsert into market_analysis
@@ -331,12 +348,12 @@ Return a JSON object with these fields:
   - "deliveries_vs_5yr_avg_pct": number | null — current CY deliveries vs 5-year average at this week (percentage difference)
   - "exports_vs_5yr_avg_pct": number | null — current CY exports vs 5-year average at this week (percentage difference)
   - "seasonal_observation": string — what the seasonal pattern suggests for next 4-8 weeks
-  - "notable_patterns": string — any standout historical comparisons
+  - "notable_patterns": string[] — array of standout historical comparison observations
 - "data_confidence": "high" | "medium" | "low" — based on data completeness and consistency
 - "key_signals": array of objects, each with:
-  - "direction": "bullish" | "bearish" | "watch"
+  - "signal": "bullish" | "bearish" | "watch"
   - "title": string — short signal name
-  - "detail": string — 1-2 sentences with specific numbers
+  - "body": string — 1-2 sentences with specific numbers
   - "confidence": "high" | "medium" | "low"
   - "source": "CGC" | "AAFC" | "Historical" | "Community"
 
@@ -423,8 +440,9 @@ ${
 ${
   delivery
     ? `- Farmers reporting: ${delivery.farmer_count ?? "N/A"}
-- Median delivery: ${fmtNum(delivery.median_kt)} Kt
-- P25-P75 range: ${fmtNum(delivery.p25_kt)}-${fmtNum(delivery.p75_kt)} Kt`
+- Median delivery: ${fmtNum(delivery.median_delivered_kt)} Kt
+- Mean delivery pace: ${fmtNum(delivery.mean_pace_pct)}%
+- Pace range (P25-P75): ${fmtNum(delivery.p25_pace_pct)}%-${fmtNum(delivery.p75_pace_pct)}%`
     : "No community delivery data available."
 }
 
@@ -459,14 +477,13 @@ function fmtChange(val: unknown): string {
 
 // --- Crop Year / Grain Week Helpers (same as generate-intelligence) ---
 
-/** Returns crop year in short format: "2025-26" (matches app convention). */
+/** Returns crop year in long format: "2025-2026" (matches DB convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const startYear = month >= 7 ? year : year - 1;
-  const endYear = (startYear + 1) % 100;
-  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
+  return `${startYear}-${startYear + 1}`;
 }
 
 function getCurrentGrainWeek(): number {
@@ -475,4 +492,28 @@ function getCurrentGrainWeek(): number {
   const month = now.getMonth();
   const start = month >= 7 ? new Date(year, 7, 1) : new Date(year - 1, 7, 1);
   return Math.max(1, Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
+}
+
+/** Validates Step 3.5 Flash response shape. Returns array of issues (empty = valid). */
+function validateAnalysisShape(obj: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  if (typeof obj.initial_thesis !== "string") errors.push("missing/invalid initial_thesis");
+  if (typeof obj.bull_case !== "string") errors.push("missing/invalid bull_case");
+  if (typeof obj.bear_case !== "string") errors.push("missing/invalid bear_case");
+  if (typeof obj.historical_context !== "object" || obj.historical_context === null) {
+    errors.push("missing/invalid historical_context");
+  }
+  if (!["high", "medium", "low"].includes(obj.data_confidence as string)) {
+    errors.push(`invalid data_confidence: ${obj.data_confidence}`);
+  }
+  if (!Array.isArray(obj.key_signals)) {
+    errors.push("missing/invalid key_signals array");
+  } else {
+    for (const [i, sig] of (obj.key_signals as Record<string, unknown>[]).entries()) {
+      if (!sig.signal || !sig.title || !sig.body) {
+        errors.push(`key_signals[${i}] missing required fields`);
+      }
+    }
+  }
+  return errors;
 }
