@@ -74,6 +74,11 @@ function buildLabelGeoJSON(
   const kt = (name: string) =>
     provinces.find((p) => p.region === name)?.ktonnes ?? 0;
 
+  const totalKt = provinces.reduce((sum, p) => sum + p.ktonnes, 0);
+
+  const pct = (name: string) =>
+    totalKt > 0 ? ((kt(name) / totalKt) * 100).toFixed(1) : "0.0";
+
   return {
     type: "FeatureCollection",
     features: [
@@ -82,7 +87,7 @@ function buildLabelGeoJSON(
         properties: {
           name: "Alberta",
           abbr: "AB",
-          label: `AB\n${fmtKt(kt("Alberta"), 0)}`,
+          label: `AB\n${fmtKt(kt("Alberta"), 1)} (${pct("Alberta")}%)`,
         },
         geometry: { type: "Point", coordinates: [-114.5, 54.5] },
       },
@@ -91,7 +96,7 @@ function buildLabelGeoJSON(
         properties: {
           name: "Saskatchewan",
           abbr: "SK",
-          label: `SK\n${fmtKt(kt("Saskatchewan"), 0)}`,
+          label: `SK\n${fmtKt(kt("Saskatchewan"), 1)} (${pct("Saskatchewan")}%)`,
         },
         geometry: { type: "Point", coordinates: [-106.0, 54.0] },
       },
@@ -100,7 +105,7 @@ function buildLabelGeoJSON(
         properties: {
           name: "Manitoba",
           abbr: "MB",
-          label: `MB\n${fmtKt(kt("Manitoba"), 0)}`,
+          label: `MB\n${fmtKt(kt("Manitoba"), 1)} (${pct("Manitoba")}%)`,
         },
         geometry: { type: "Point", coordinates: [-98.0, 54.0] },
       },

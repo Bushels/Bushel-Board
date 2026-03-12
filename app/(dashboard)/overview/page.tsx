@@ -121,7 +121,28 @@ export default async function OverviewPage() {
         />
       )}
 
-      {/* Section 2: Community Pulse */}
+      {/* Section 2: Market Intelligence */}
+      {marketPulseResult.unavailable ? (
+        <SectionStateCard
+          title="Market Intelligence unavailable"
+          message="Intelligence cards are temporarily unavailable. The rest of the dashboard is still live."
+        />
+      ) : (
+        <SectionBoundary
+          title="Market Intelligence unavailable"
+          message="Intelligence cards are temporarily unavailable. The rest of the dashboard is still live."
+        >
+          <section className="space-y-4">
+            <SectionHeader
+              title="Market Intelligence"
+              subtitle="AI-powered weekly analysis"
+            />
+            <MarketPulseSection cards={marketPulseResult.cards} />
+          </section>
+        </SectionBoundary>
+      )}
+
+      {/* Section 3: Community Pulse */}
       <SectionBoundary
         title="Community Pulse unavailable"
         message="Community data is temporarily unavailable. Core CGC and supply data are still available."
@@ -163,27 +184,6 @@ export default async function OverviewPage() {
           )}
         </section>
       </SectionBoundary>
-
-      {/* Section 3: Market Intelligence */}
-      {marketPulseResult.unavailable ? (
-        <SectionStateCard
-          title="Market Intelligence unavailable"
-          message="Intelligence cards are temporarily unavailable. The rest of the dashboard is still live."
-        />
-      ) : (
-        <SectionBoundary
-          title="Market Intelligence unavailable"
-          message="Intelligence cards are temporarily unavailable. The rest of the dashboard is still live."
-        >
-          <section className="space-y-4">
-            <SectionHeader
-              title="Market Intelligence"
-              subtitle="AI-powered weekly analysis"
-            />
-            <MarketPulseSection cards={marketPulseResult.cards} />
-          </section>
-        </SectionBoundary>
-      )}
 
       {summaryResult.data && !summaryResult.data.hasOverviewData && (
         <SectionStateCard
