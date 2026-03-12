@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock, Wheat } from "lucide-react";
-import { DispositionBar } from "@/components/dashboard/disposition-bar";
-import { InsightCards } from "@/components/dashboard/insight-cards";
 import { IntelligenceKpis } from "@/components/dashboard/intelligence-kpis";
 import { ProvinceMap } from "@/components/dashboard/province-map";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
+import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
 import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
@@ -143,7 +142,7 @@ export default async function GrainDetailPage({ params }: Props) {
 
   return (
     <GrainPageTransition>
-      <div className="space-y-8">
+      <div className="space-y-10">
         <div className="flex flex-col justify-between gap-4 border-b border-border/40 pb-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <Link href="/overview">
@@ -163,241 +162,230 @@ export default async function GrainDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {marketCoreResult.error ? (
-          <SectionStateCard
-            title="Market intelligence unavailable"
-            message="The thesis, KPI block, and market signal cards are temporarily unavailable. Delivery, pipeline, and farm context are still live."
+        {/* Section 1: Market Intelligence */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Market Intelligence"
+            subtitle="AI-powered thesis for this week"
           />
-        ) : (
-          <SectionBoundary
-            title="Market intelligence unavailable"
-            message="The thesis, KPI block, and market signal cards are temporarily unavailable. Delivery, pipeline, and farm context are still live."
-          >
-            <div className="space-y-4">
-              {!intelligence && (
-                <SectionStateCard
-                  title="Intelligence is generating"
-                  message="Check back after the next Thursday data update."
-                />
-              )}
+          <StaggerGroup className="space-y-6">
+            {marketCoreResult.error ? (
+              <SectionStateCard
+                title="Market intelligence unavailable"
+                message="The thesis, KPI block, and market signal cards are temporarily unavailable. Delivery, pipeline, and farm context are still live."
+              />
+            ) : (
+              <AnimatedCard index={0}>
+                <SectionBoundary
+                  title="Market intelligence unavailable"
+                  message="The thesis, KPI block, and market signal cards are temporarily unavailable. Delivery, pipeline, and farm context are still live."
+                >
+                  <div className="space-y-4">
+                    {!intelligence && (
+                      <SectionStateCard
+                        title="Intelligence is generating"
+                        message="Check back after the next Thursday data update."
+                      />
+                    )}
 
-              {intelligence?.thesis_title && (
-                <ThesisBanner
-                  title={intelligence.thesis_title}
-                  body={intelligence.thesis_body ?? ""}
-                />
-              )}
-            </div>
-          </SectionBoundary>
-        )}
+                    {intelligence?.thesis_title && (
+                      <ThesisBanner
+                        title={intelligence.thesis_title}
+                        body={intelligence.thesis_body ?? ""}
+                      />
+                    )}
+                  </div>
+                </SectionBoundary>
+              </AnimatedCard>
+            )}
 
-        <StaggerGroup className="space-y-6">
-          {marketCoreResult.error ? null : correctedKpiData ? (
-            <AnimatedCard index={0}>
-              <SectionBoundary
-                title="Intelligence KPIs unavailable"
-                message="The KPI block is temporarily unavailable. The rest of the grain page is still live."
-              >
-                <IntelligenceKpis data={correctedKpiData} />
-              </SectionBoundary>
-            </AnimatedCard>
-          ) : null}
+            {marketCoreResult.error ? null : correctedKpiData ? (
+              <AnimatedCard index={1}>
+                <SectionBoundary
+                  title="Intelligence KPIs unavailable"
+                  message="The KPI block is temporarily unavailable. The rest of the grain page is still live."
+                >
+                  <IntelligenceKpis data={correctedKpiData} />
+                </SectionBoundary>
+              </AnimatedCard>
+            ) : null}
 
-          {wowResult.error ? (
-            <SectionStateCard
-              title="Week-over-week comparison unavailable"
-              message="Week-over-week comparisons are temporarily unavailable."
-            />
-          ) : wowResult.data ? (
-            <AnimatedCard index={1}>
-              <SectionBoundary
+            {wowResult.error ? (
+              <SectionStateCard
                 title="Week-over-week comparison unavailable"
                 message="Week-over-week comparisons are temporarily unavailable."
-              >
-                <WoWComparisonCard data={wowResult.data} />
-              </SectionBoundary>
-            </AnimatedCard>
-          ) : null}
+              />
+            ) : wowResult.data ? (
+              <AnimatedCard index={2}>
+                <SectionBoundary
+                  title="Week-over-week comparison unavailable"
+                  message="Week-over-week comparisons are temporarily unavailable."
+                >
+                  <WoWComparisonCard data={wowResult.data} />
+                </SectionBoundary>
+              </AnimatedCard>
+            ) : null}
+          </StaggerGroup>
+        </section>
 
-          {supplyPipelineResult.error ? (
-            <SectionStateCard
-              title="Supply pipeline unavailable"
-              message="AAFC supply pipeline data is temporarily unavailable."
-            />
-          ) : supplyPipelineResult.data ? (
-            <AnimatedCard index={3}>
-              <SectionBoundary
-                title="Supply pipeline unavailable"
-                message="AAFC supply pipeline data is temporarily unavailable."
-              >
-                <SupplyPipeline
-                  carry_in_kt={supplyPipelineResult.data.carry_in_kt}
-                  production_kt={supplyPipelineResult.data.production_kt}
-                  total_supply_kt={supplyPipelineResult.data.total_supply_kt}
-                  exports_kt={supplyPipelineResult.data.exports_kt ?? undefined}
-                  food_industrial_kt={supplyPipelineResult.data.food_industrial_kt ?? undefined}
-                  feed_waste_kt={supplyPipelineResult.data.feed_waste_kt ?? undefined}
-                  carry_out_kt={supplyPipelineResult.data.carry_out_kt ?? undefined}
-                  grain={grain.name}
-                />
-              </SectionBoundary>
-            </AnimatedCard>
-          ) : null}
-
-          {marketCoreResult.error ? null : intelligence?.insights && intelligence.insights.length > 0 ? (
-            <AnimatedCard index={4}>
-              <SectionBoundary
-                title="Market signals unavailable"
-                message="The narrative signal cards are temporarily unavailable."
-              >
-                <div className="space-y-3">
-                  <h2 className="text-lg font-display font-semibold">Market Signals</h2>
-                  <InsightCards
-                    insights={intelligence.insights}
-                    xSignals={xSignals}
-                    grainName={grain.name}
-                  />
-                </div>
-              </SectionBoundary>
-            </AnimatedCard>
-          ) : null}
-
-          {signalFeedResult.error ? (
-            <SectionStateCard
-              title="Signal feedback feed unavailable"
-              message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
-            />
-          ) : (
-            <AnimatedCard index={5}>
-              <SectionBoundary
-                title="Signal feedback feed unavailable"
-                message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
-              >
-                <XSignalFeed
-                  signals={signalFeedResult.data ?? []}
-                  grain={grain.name}
-                  grainWeek={latestGrainWeek}
-                  cropYear={CURRENT_CROP_YEAR}
-                  role={role}
-                />
-              </SectionBoundary>
-            </AnimatedCard>
-          )}
-        </StaggerGroup>
-
-        {sentimentResult.error ? (
-          <SectionStateCard
-            title="Farmer sentiment unavailable"
-            message="Sentiment voting is temporarily unavailable. Grain intelligence and delivery data are still live."
+        {/* Section 2: Supply & Movement */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Supply & Movement"
+            subtitle="Where grain is flowing this crop year"
           />
-        ) : (
-          <SectionBoundary
-            title="Farmer sentiment unavailable"
-            message="Sentiment voting is temporarily unavailable. Grain intelligence and delivery data are still live."
-          >
-            <SentimentPoll
-              grain={grain.name}
-              grainWeek={latestGrainWeek}
-              initialVote={sentimentResult.data?.userVote ?? null}
-              initialAggregate={sentimentResult.data?.aggregate ?? null}
-              role={role}
-            />
-          </SectionBoundary>
-        )}
-
-        <StaggerGroup className="space-y-6">
-          {provincialResult.error ? (
-            <SectionStateCard
-              title="Provincial deliveries unavailable"
-              message="The provincial delivery map is temporarily unavailable."
-            />
-          ) : (
-            <AnimatedCard index={0}>
-              <SectionBoundary
-                title="Provincial deliveries unavailable"
-                message="The provincial delivery map is temporarily unavailable."
-              >
-                <div className="space-y-3">
-                  <h2 className="text-lg font-display font-semibold">
-                    Provincial Deliveries (CY Total)
-                  </h2>
-                  <ProvinceMap
-                    provinces={(provincialResult.data ?? []).map((province) => ({
-                      region: province.region,
-                      ktonnes: province.ktonnes,
-                    }))}
-                  />
-                </div>
-              </SectionBoundary>
-            </AnimatedCard>
-          )}
-
-          {pipelineVelocityResult.error ? (
-            <SectionStateCard
-              title="Pipeline velocity unavailable"
-              message="The pipeline velocity chart is temporarily unavailable."
-            />
-          ) : (
-            <AnimatedCard index={1}>
-              <SectionBoundary
+          <StaggerGroup className="space-y-6">
+            {pipelineVelocityResult.error ? (
+              <SectionStateCard
                 title="Pipeline velocity unavailable"
                 message="The pipeline velocity chart is temporarily unavailable."
-              >
-                <div className="pt-4">
-                  <h2 className="mb-4 text-xl font-display font-semibold">Pipeline Velocity</h2>
-                  <GamifiedGrainChart
-                    weeklyData={pipelineVelocityResult.data ?? []}
-                    userDeliveries={userDeliveries}
-                  />
-                </div>
-              </SectionBoundary>
-            </AnimatedCard>
-          )}
+              />
+            ) : (
+              <AnimatedCard index={0}>
+                <SectionBoundary
+                  title="Pipeline velocity unavailable"
+                  message="The pipeline velocity chart is temporarily unavailable."
+                >
+                  <div className="pt-4">
+                    <h2 className="mb-4 text-xl font-display font-semibold">Pipeline Velocity</h2>
+                    <GamifiedGrainChart
+                      weeklyData={pipelineVelocityResult.data ?? []}
+                      userDeliveries={userDeliveries}
+                    />
+                  </div>
+                </SectionBoundary>
+              </AnimatedCard>
+            )}
 
-          {supplyDispositionResult.error || storageResult.error ? (
-            <SectionStateCard
-              title="Supply disposition unavailable"
-              message="The supply waterfall and storage breakdown are temporarily unavailable."
-            />
-          ) : supplyDispositionResult.data ? (
-            <AnimatedCard index={2}>
-              <SectionBoundary
+            {supplyPipelineResult.error ? (
+              <SectionStateCard
+                title="Supply pipeline unavailable"
+                message="AAFC supply pipeline data is temporarily unavailable."
+              />
+            ) : supplyPipelineResult.data ? (
+              <AnimatedCard index={1}>
+                <SectionBoundary
+                  title="Supply pipeline unavailable"
+                  message="AAFC supply pipeline data is temporarily unavailable."
+                >
+                  <SupplyPipeline
+                    carry_in_kt={supplyPipelineResult.data.carry_in_kt}
+                    production_kt={supplyPipelineResult.data.production_kt}
+                    total_supply_kt={supplyPipelineResult.data.total_supply_kt}
+                    exports_kt={supplyPipelineResult.data.exports_kt ?? undefined}
+                    food_industrial_kt={supplyPipelineResult.data.food_industrial_kt ?? undefined}
+                    feed_waste_kt={supplyPipelineResult.data.feed_waste_kt ?? undefined}
+                    carry_out_kt={supplyPipelineResult.data.carry_out_kt ?? undefined}
+                    grain={grain.name}
+                    domesticData={distributionResult.error ? undefined : (distributionResult.data ?? undefined)}
+                  />
+                </SectionBoundary>
+              </AnimatedCard>
+            ) : null}
+
+            {provincialResult.error ? (
+              <SectionStateCard
+                title="Provincial deliveries unavailable"
+                message="The provincial delivery map is temporarily unavailable."
+              />
+            ) : (
+              <AnimatedCard index={2}>
+                <SectionBoundary
+                  title="Provincial deliveries unavailable"
+                  message="The provincial delivery map is temporarily unavailable."
+                >
+                  <div className="space-y-3">
+                    <h2 className="text-lg font-display font-semibold">
+                      Provincial Deliveries (CY Total)
+                    </h2>
+                    <ProvinceMap
+                      provinces={(provincialResult.data ?? []).map((province) => ({
+                        region: province.region,
+                        ktonnes: province.ktonnes,
+                      }))}
+                    />
+                  </div>
+                </SectionBoundary>
+              </AnimatedCard>
+            )}
+
+            {supplyDispositionResult.error || storageResult.error ? (
+              <SectionStateCard
                 title="Supply disposition unavailable"
                 message="The supply waterfall and storage breakdown are temporarily unavailable."
-              >
-                <div className="grid gap-6 lg:grid-cols-3">
-                  <div className="lg:col-span-2">
-                    <WaterfallChart data={supplyDispositionResult.data} grainName={grain.name} />
+              />
+            ) : supplyDispositionResult.data ? (
+              <AnimatedCard index={3}>
+                <SectionBoundary
+                  title="Supply disposition unavailable"
+                  message="The supply waterfall and storage breakdown are temporarily unavailable."
+                >
+                  <div className="grid gap-6 lg:grid-cols-3">
+                    <div className="lg:col-span-2">
+                      <WaterfallChart data={supplyDispositionResult.data} grainName={grain.name} />
+                    </div>
+                    <div>
+                      <StorageBreakdown data={storageResult.data ?? []} grainName={grain.name} />
+                    </div>
                   </div>
-                  <div>
-                    <StorageBreakdown data={storageResult.data ?? []} grainName={grain.name} />
-                  </div>
-                </div>
-              </SectionBoundary>
-            </AnimatedCard>
-          ) : null}
+                </SectionBoundary>
+              </AnimatedCard>
+            ) : null}
+          </StaggerGroup>
+        </section>
 
-          {distributionResult.error ? (
-            <SectionStateCard
-              title="Domestic disappearance unavailable"
-              message="The domestic disappearance breakdown is temporarily unavailable."
-            />
-          ) : (
-            <AnimatedCard index={3}>
-              <SectionBoundary
-                title="Domestic disappearance unavailable"
-                message="The domestic disappearance breakdown is temporarily unavailable."
-              >
-                <div className="space-y-4">
-                  <h2 className="text-lg font-display font-semibold">
-                    Domestic Disappearance Breakdown
-                  </h2>
-                  <DispositionBar data={distributionResult.data ?? []} />
-                </div>
-              </SectionBoundary>
-            </AnimatedCard>
-          )}
-        </StaggerGroup>
+        {/* Section 3: Community Pulse */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Community Pulse"
+            subtitle="What farmers are thinking and seeing"
+          />
+          <StaggerGroup className="space-y-6">
+            {signalFeedResult.error ? (
+              <SectionStateCard
+                title="Signal feedback feed unavailable"
+                message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
+              />
+            ) : (
+              <AnimatedCard index={0}>
+                <SectionBoundary
+                  title="Signal feedback feed unavailable"
+                  message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
+                >
+                  <XSignalFeed
+                    signals={signalFeedResult.data ?? []}
+                    grain={grain.name}
+                    grainWeek={latestGrainWeek}
+                    cropYear={CURRENT_CROP_YEAR}
+                    role={role}
+                  />
+                </SectionBoundary>
+              </AnimatedCard>
+            )}
+
+            {sentimentResult.error ? (
+              <SectionStateCard
+                title="Farmer sentiment unavailable"
+                message="Sentiment voting is temporarily unavailable. Grain intelligence and delivery data are still live."
+              />
+            ) : (
+              <AnimatedCard index={1}>
+                <SectionBoundary
+                  title="Farmer sentiment unavailable"
+                  message="Sentiment voting is temporarily unavailable. Grain intelligence and delivery data are still live."
+                >
+                  <SentimentPoll
+                    grain={grain.name}
+                    grainWeek={latestGrainWeek}
+                    initialVote={sentimentResult.data?.userVote ?? null}
+                    initialAggregate={sentimentResult.data?.aggregate ?? null}
+                    role={role}
+                  />
+                </SectionBoundary>
+              </AnimatedCard>
+            )}
+          </StaggerGroup>
+        </section>
       </div>
     </GrainPageTransition>
   );
