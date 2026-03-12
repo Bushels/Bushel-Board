@@ -91,3 +91,44 @@ export async function getFarmSummary(
   if (error || !data) return null;
   return data as FarmSummary;
 }
+
+export interface MarketAnalysis {
+  grain: string;
+  crop_year: string;
+  grain_week: number;
+  initial_thesis: string;
+  bull_case: string;
+  bear_case: string;
+  historical_context: {
+    deliveries_vs_5yr_avg_pct?: number | null;
+    exports_vs_5yr_avg_pct?: number | null;
+    seasonal_observation?: string;
+    notable_patterns?: string[];
+  };
+  data_confidence: "high" | "medium" | "low";
+  key_signals: Array<{
+    signal: "bullish" | "bearish" | "watch";
+    title: string;
+    body: string;
+    confidence: "high" | "medium" | "low";
+  }>;
+  model_used: string;
+  generated_at: string;
+}
+
+export async function getMarketAnalysis(
+  grainName: string
+): Promise<MarketAnalysis | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("market_analysis")
+    .select("*")
+    .eq("grain", grainName)
+    .eq("crop_year", CURRENT_CROP_YEAR)
+    .order("grain_week", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data as MarketAnalysis;
+}
