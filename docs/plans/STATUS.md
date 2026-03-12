@@ -44,6 +44,13 @@ Last updated: 2026-03-12
 
 **Files modified:** `components/dashboard/compact-signal-strip.tsx`, `app/globals.css`
 
+### 2026-03-12 — Chart Upgrades: Dual-Axis Deliveries (#1) & Storage WoW (#8)
+
+- **#1 — Dual-axis delivery chart:** Added separate Y-axes for pipeline metrics (kt, left) and farmer deliveries (tonnes, right) so farmer-scale data is no longer invisible against pipeline volumes. Applied to `gamified-grain-chart.tsx` and `pace-chart.tsx`.
+- **#8 — Storage chart total + WoW:** Added a total summary line with WoW badge and per-bar delta badges using prairie green/amber color coding.
+
+**Files modified:** `components/dashboard/gamified-grain-chart.tsx`, `components/dashboard/pace-chart.tsx`, storage chart component
+
 ### 2026-03-12 — X Thread Backlog Items #4 & #7
 
 - **#4 — Overview section reorder:** Moved Market Intelligence above the Community Pulse X feed on the Overview page. Section order is now Snapshot → Intelligence → Community Pulse.

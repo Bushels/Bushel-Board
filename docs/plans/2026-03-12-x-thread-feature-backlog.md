@@ -4,9 +4,9 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 
 ## Priority: High (User-Facing UX Gaps)
 
-### 1. Separate Y-axis for farmer deliveries on delivery chart
+### 1. ~~Separate Y-axis for farmer deliveries on delivery chart~~ ✅ Done (2026-03-12)
 - **Problem:** Farmer delivers 5-6 loads/week. Pipeline moves thousands of kt. Farmer's line is invisible.
-- **Fix:** Dual-axis chart — left axis for pipeline (kt), right axis for farmer deliveries (kt or loads).
+- **Fix:** Dual-axis chart — left axis for pipeline (kt), right axis for farmer deliveries (tonnes). Applied to `gamified-grain-chart.tsx` and `pace-chart.tsx`.
 - **Agents:** `frontend-dev` (Recharts dual-axis), `ux-agent` (axis labeling, legend clarity)
 - **Page:** `/grain/[slug]` — delivery chart component
 
@@ -48,9 +48,9 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 - **Agents:** `frontend-dev` (map label formatting)
 - **Page:** `/grain/[slug]` — province map component
 
-### 8. Storage chart: add total line + WoW comparison
+### 8. ~~Storage chart: add total line + WoW comparison~~ ✅ Done (2026-03-12)
 - **Problem:** Chart shows per-location stocks but no aggregate total or change indicator.
-- **Fix:** Add a total summary line/label above the chart + WoW delta badges per bar.
+- **Fix:** Total summary with WoW badge + per-bar delta badges using prairie green/amber.
 - **Agents:** `frontend-dev` (Recharts reference line or annotation), `db-architect` (if aggregation needed)
 - **Page:** `/grain/[slug]` — storage chart
 
