@@ -62,25 +62,25 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 
 ## Priority: Low (Analytics & Future Intelligence)
 
-### 10. Save Community Pulse history
+### 10. ~~Save Community Pulse history~~ ✅ Done (2026-03-12)
 - **Problem:** Weekly sentiment is shown live but not archived. Can't compare sentiment vs actual data after CGC release.
 - **Fix:** Snapshot weekly sentiment aggregates into a history table. Enable comparison view.
 - **Agents:** `db-architect` (new table + snapshot trigger or Edge Function step), `frontend-dev` (history view), `innovation-agent` (analysis framework)
 - **Tables:** New `sentiment_history` or extend `grain_sentiment_votes` aggregation
 
-### 11. Sentiment poll must track CURRENT shipping week (not CGC release week)
+### 11. ~~Sentiment poll must track CURRENT shipping week (not CGC release week)~~ ✅ Done (2026-03-12)
 - **Problem:** Farmer sentiment should reflect what they're doing THIS week, not the data release week (which lags by 1 week).
 - **Fix:** Audit `sentiment-poll.tsx` and confirm `grain_week` parameter uses current shipping week. Add week label clarity in UI.
 - **Agents:** `data-audit` (verify week numbering), `frontend-dev` (UI label), `db-architect` (if schema change needed)
 - **Critical:** This affects future analytics — must be correct from the start.
 
-### 12. Record sentiment snapshots — daily average per grain
+### 12. ~~Record sentiment snapshots — daily average per grain~~ ✅ Done (2026-03-12)
 - **Problem:** A single vote per farmer per week loses the intra-week sentiment trajectory.
 - **Fix:** Record timestamped snapshots (or daily rollups) of per-grain sentiment averages.
 - **Agents:** `db-architect` (snapshot table + aggregation), `innovation-agent` (analysis use cases)
 - **Depends on:** #11 (correct week tracking)
 
-### 13. AI week awareness — ensure prompts understand data lag
+### 13. ~~AI week awareness — ensure prompts understand data lag~~ ✅ Done (2026-03-12)
 - **Problem:** Farmer inputs are always in shipping week N+1 while CGC data is for week N. AI must never confuse these.
 - **Fix:** Audit all Edge Function prompts (`generate-intelligence`, `generate-farm-summary`) for explicit week context. Add a "data context" preamble to every prompt.
 - **Agents:** `db-architect` (Edge Function prompt audit), `data-audit` (verify week references), `documentation-agent` (document the convention)
