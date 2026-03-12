@@ -27,6 +27,7 @@ These were removed in the UX Layout & Hierarchy Redesign (Track #16, 2026-03-11)
 - `signal-tape.tsx` — Replaced by `compact-signal-strip.tsx` on Overview. Grain detail uses `x-signal-feed.tsx` directly.
 - `disposition-bar.tsx` — Domestic disappearance folded into `supply-pipeline.tsx` as a collapsible section.
 - `insight-cards.tsx` — Content overlapped with ThesisBanner + IntelligenceKPIs. Removed.
+- `waterfall-chart.tsx` — "Where Does X Go?" supply waterfall. Redundant with `supply-pipeline.tsx`. Removed (2026-03-12).
 
 ## Patterns
 

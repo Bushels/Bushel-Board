@@ -354,7 +354,7 @@ function SignalCard({
               ) : (
                 <X className="h-3 w-3" />
               )}
-              {signal.user_relevant ? "Relevant" : "Skipped"}
+              {signal.user_relevant ? "Relevant" : "Dismissed"}
             </span>
             <button
               type="button"
@@ -395,7 +395,7 @@ function SignalCard({
               )}
             >
               <X className="h-3 w-3" />
-              Skip
+              Dismiss
             </motion.button>
           </div>
         )}

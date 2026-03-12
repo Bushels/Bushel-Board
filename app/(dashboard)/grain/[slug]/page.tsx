@@ -10,7 +10,7 @@ import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
 import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
-import { WaterfallChart } from "@/components/dashboard/waterfall-chart";
+
 import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
 import { XSignalFeed } from "@/components/dashboard/x-signal-feed";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
@@ -31,7 +31,7 @@ import {
   getWeekOverWeekComparison,
 } from "@/lib/queries/observations";
 import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment";
-import { getSupplyDisposition } from "@/lib/queries/supply-disposition";
+
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek } from "@/lib/utils/crop-year";
 import { safeQuery } from "@/lib/utils/safe-query";
@@ -80,7 +80,6 @@ export default async function GrainDetailPage({ params }: Props) {
     distributionResult,
     wowResult,
     supplyPipelineResult,
-    supplyDispositionResult,
     storageResult,
     roleResult,
   ] = await Promise.all([
@@ -100,7 +99,6 @@ export default async function GrainDetailPage({ params }: Props) {
     safeQuery("Domestic disappearance", () => getShipmentDistribution(grain.name)),
     safeQuery("Week-over-week comparison", () => getWeekOverWeekComparison(grain.name)),
     safeQuery("Supply pipeline", () => getSupplyPipeline(grain.slug)),
-    safeQuery("Supply disposition", () => getSupplyDisposition(grain.slug)),
     safeQuery("Storage breakdown", () => getStorageBreakdown(grain.name)),
     safeQuery("User role", () => getUserRole()),
   ]);
@@ -322,25 +320,18 @@ export default async function GrainDetailPage({ params }: Props) {
               </AnimatedCard>
             )}
 
-            {supplyDispositionResult.error || storageResult.error ? (
+            {storageResult.error ? (
               <SectionStateCard
-                title="Supply disposition unavailable"
-                message="The supply waterfall and storage breakdown are temporarily unavailable."
+                title="Storage breakdown unavailable"
+                message="The storage breakdown is temporarily unavailable."
               />
-            ) : supplyDispositionResult.data ? (
+            ) : storageResult.data ? (
               <AnimatedCard index={3}>
                 <SectionBoundary
-                  title="Supply disposition unavailable"
-                  message="The supply waterfall and storage breakdown are temporarily unavailable."
+                  title="Storage breakdown unavailable"
+                  message="The storage breakdown is temporarily unavailable."
                 >
-                  <div className="grid gap-6 lg:grid-cols-3">
-                    <div className="lg:col-span-2">
-                      <WaterfallChart data={supplyDispositionResult.data} grainName={grain.name} />
-                    </div>
-                    <div>
-                      <StorageBreakdown data={storageResult.data ?? []} grainName={grain.name} />
-                    </div>
-                  </div>
+                  <StorageBreakdown data={storageResult.data} grainName={grain.name} />
                 </SectionBoundary>
               </AnimatedCard>
             ) : null}

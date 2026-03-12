@@ -10,13 +10,13 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 - **Agents:** `frontend-dev` (Recharts dual-axis), `ux-agent` (axis labeling, legend clarity)
 - **Page:** `/grain/[slug]` — delivery chart component
 
-### 2. Rename "Skip" → "Dismiss" on X signal cards
+### 2. ~~Rename "Skip" → "Dismiss" on X signal cards~~ ✅ Done (2026-03-12)
 - **Problem:** "Skip" implies the signal comes back. "Dismiss" is clearer intent.
 - **Fix:** String change in signal feed component + server action.
 - **Agents:** `frontend-dev` (trivial string change)
 - **Page:** Signal feed on Overview + grain detail
 
-### 3. Remove "Where Does Canola Go?" chart
+### 3. ~~Remove "Where Does Canola Go?" chart~~ ✅ Done (2026-03-12)
 - **Problem:** Redundant with Supply Pipeline section.
 - **Fix:** Delete the component and its imports. Grep for references.
 - **Agents:** `frontend-dev`, then `data-audit` (verify no orphaned queries)
