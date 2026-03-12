@@ -17,13 +17,16 @@
  * Idempotent: skips unchanged sources when source_hash + prompt_version match.
  */
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "fs";
+import { spawnSync } from "child_process";
 import { basename, extname, resolve } from "path";
 import {
   buildChunks,
   ChunkRecord,
   collectKnowledgeFiles,
   DEFAULT_DISTILLATION_DIR,
+  DEFAULT_KNOWLEDGE_HOME,
+  DEFAULT_KNOWLEDGE_TMP_DIR,
   DEFAULT_RAW_KNOWLEDGE_DIR,
   getExtractionWarnings,
   loadDocument,
@@ -34,14 +37,36 @@ import {
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "stepfun/step-3.5-flash:free";
+const DEFAULT_VISION_MODEL = "google/gemma-3-27b-it:free";
+const VISION_FALLBACK_MODELS = [
+  "google/gemma-3-12b-it:free",
+  "mistralai/mistral-small-3.1-24b-instruct:free",
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "google/gemma-3-4b-it:free",
+  "openrouter/healer-alpha",
+];
 const PROMPT_VERSION = "step-distillation-v1";
 const MAX_PACKET_CHARS = 24000;
 const MAX_PACKET_OUTPUT_TOKENS = 6000;
 const MAX_FINAL_OUTPUT_TOKENS = 8000;
+const VISION_PAGES_PER_PACKET = 6;
+const DEFAULT_VISION_RENDER_DIR = resolve(DEFAULT_KNOWLEDGE_TMP_DIR, "vision-rescue");
+const RENDER_PDF_PAGES_PATH = resolve(__dirname, "render_pdf_pages.py");
 
 interface Packet {
   packetIndex: number;
   text: string;
+}
+
+interface VisionPagePacket {
+  packetIndex: number;
+  startPage: number;
+  endPage: number;
+}
+
+interface RenderedPage {
+  page: number;
+  imagePath: string;
 }
 
 interface PacketDistillation {
@@ -132,17 +157,24 @@ Usage:
   npm run distill-knowledge -- --include-framework         Include docs/reference framework as a source
   npm run distill-knowledge -- --allow-low-yield           Process sources with weak text extraction warnings
   npm run distill-knowledge -- --enable-local-ocr          Run local OCR before classifying weak PDFs (slow)
+  npm run distill-knowledge -- --allow-paid-pdf-parser-fallback  Use OpenRouter's paid PDF parser if vision rescue fails
   npm run distill-knowledge -- --skip-low-yield-rescue     Skip PDF rescue and leave weak PDFs excluded
   npm run distill-knowledge -- --force                     Regenerate even if source hash has not changed
   npm run distill-knowledge -- --help                      Show this help
 
 Environment variables (from .env.local):
   OPENROUTER_API_KEY            OpenRouter key for Step 3.5 Flash
+  BUSHEL_KNOWLEDGE_HOME         Local knowledge home (default: ${DEFAULT_KNOWLEDGE_HOME.replaceAll("\\", "/")})
+  BUSHEL_KNOWLEDGE_LIBRARY_DIR  Override local raw book folder (default: ${DEFAULT_RAW_KNOWLEDGE_DIR.replaceAll("\\", "/")})
+  BUSHEL_KNOWLEDGE_DISTILLATION_DIR  Override local distillation folder (default: ${DEFAULT_DISTILLATION_DIR.replaceAll("\\", "/")})
   BUSHEL_KNOWLEDGE_ENABLE_OCR   Enable local OCR for weak scanned PDFs
+  OPENROUTER_VISION_MODEL       Optional override for the vision rescue model
+  BUSHEL_KNOWLEDGE_VISION_RENDER_SCALE  Optional page render scale for vision rescue
+  BUSHEL_KNOWLEDGE_TMP_DIR      Override local temp render folder
 
 Artifacts:
-  data/knowledge/distillations/*.distilled.md
-  data/knowledge/distillations/*.distilled.json
+  ${DEFAULT_DISTILLATION_DIR.replaceAll("\\", "/")}/*.distilled.md
+  ${DEFAULT_DISTILLATION_DIR.replaceAll("\\", "/")}/*.distilled.json
 `);
   process.exit(0);
 }
@@ -153,6 +185,7 @@ const INCLUDE_FRAMEWORK = args.includes("--include-framework");
 const ALLOW_LOW_YIELD = args.includes("--allow-low-yield");
 const RESCUE_LOW_YIELD = !args.includes("--skip-low-yield-rescue");
 const ENABLE_LOCAL_OCR = args.includes("--enable-local-ocr");
+const ALLOW_PAID_PDF_PARSER_FALLBACK = args.includes("--allow-paid-pdf-parser-fallback");
 const dirArgIndex = args.indexOf("--dir");
 const limitArgIndex = args.indexOf("--limit");
 const matchArgIndex = args.indexOf("--match");
@@ -169,6 +202,7 @@ loadEnvFile(resolve(__dirname, "../.env.local"));
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const KNOWLEDGE_DIR = directoryOverride ? resolve(directoryOverride) : DEFAULT_RAW_KNOWLEDGE_DIR;
+const VISION_MODEL = process.env.OPENROUTER_VISION_MODEL ?? DEFAULT_VISION_MODEL;
 
 if (ENABLE_LOCAL_OCR) {
   process.env.BUSHEL_KNOWLEDGE_ENABLE_OCR = "1";
@@ -239,6 +273,21 @@ function buildPackets(chunks: ChunkRecord[]): Packet[] {
   return packets;
 }
 
+function buildVisionPagePackets(pageCount: number): VisionPagePacket[] {
+  const packets: VisionPagePacket[] = [];
+
+  for (let startPage = 1; startPage <= pageCount; startPage += VISION_PAGES_PER_PACKET) {
+    const endPage = Math.min(pageCount, startPage + VISION_PAGES_PER_PACKET - 1);
+    packets.push({
+      packetIndex: packets.length + 1,
+      startPage,
+      endPage,
+    });
+  }
+
+  return packets;
+}
+
 function extractJsonObject(text: string): string {
   const trimmed = text.trim();
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -252,6 +301,39 @@ function extractJsonObject(text: string): string {
   }
 
   return trimmed.slice(firstBrace, lastBrace + 1);
+}
+
+function renderPdfPages(filePath: string, outputDir: string, startPage: number, endPage: number): RenderedPage[] {
+  const result = spawnSync(
+    "python",
+    [RENDER_PDF_PAGES_PATH, filePath, outputDir, String(startPage), String(endPage)],
+    {
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(result.stdout || result.stderr || `PDF rendering failed for ${filePath}`);
+  }
+
+  const payload = JSON.parse(result.stdout) as {
+    error?: string;
+    pages?: Array<{ page: number; image_path: string }>;
+  };
+
+  if (payload.error) {
+    throw new Error(payload.error);
+  }
+
+  return (payload.pages ?? []).map((page) => ({
+    page: page.page,
+    imagePath: page.image_path,
+  }));
 }
 
 async function callStep(prompt: string, maxTokens: number) {
@@ -295,6 +377,42 @@ async function callStep(prompt: string, maxTokens: number) {
       total_tokens: usage.total_tokens ?? null,
     },
   };
+}
+
+async function callStepFinalMerge(
+  title: string,
+  sourcePath: string,
+  packetDistillations: PacketDistillation[],
+) {
+  const mergePrompt = `Merge these packet distillations into one final grain-marketing reference note for western Canadian prairie farmers.
+
+Source title: ${title}
+Source path: ${sourcePath}
+
+Return a JSON object with this exact shape:
+{
+  "title": "string",
+  "executive_summary": "string",
+  "farmer_takeaways": ["string"],
+  "market_heuristics": [{"title": "string", "body": "string"}],
+  "risk_watchouts": ["string"],
+  "grain_focus": ["string"],
+  "topic_tags": ["string"],
+  "region_tags": ["string"],
+  "evidence_highlights": [{"source_locator": "string", "takeaway": "string"}]
+}
+
+Rules:
+- Merge duplicates and remove filler.
+- Prefer practical farmer decision support over textbook framing.
+- Keep the executive summary under 180 words.
+- Do not invent citations.
+- Output JSON only.
+
+Packet distillations:
+${JSON.stringify(packetDistillations, null, 2)}`;
+
+  return callStep(mergePrompt, MAX_FINAL_OUTPUT_TOKENS);
 }
 
 async function callStepWithPdfRescue(
@@ -374,6 +492,114 @@ async function callStepWithPdfRescue(
   throw lastError ?? new Error("OpenRouter PDF rescue failed for all configured engines");
 }
 
+async function callVisionPacketDistillation(options: {
+  model: string;
+  prompt: string;
+  renderedPages: RenderedPage[];
+  maxTokens: number;
+}) {
+  const content: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string } }
+  > = [{ type: "text", text: options.prompt }];
+
+  for (const page of options.renderedPages) {
+    const imageBytes = readFileSync(page.imagePath);
+    content.push({
+      type: "text",
+      text: `Page ${page.page}`,
+    });
+    content.push({
+      type: "image_url",
+      image_url: {
+        url: `data:image/png;base64,${imageBytes.toString("base64")}`,
+      },
+    });
+  }
+
+  const response = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "HTTP-Referer": "https://bushelboard.ca",
+      "X-Title": "Bushel Board Knowledge Vision Distiller",
+    },
+    body: JSON.stringify({
+      model: options.model,
+      messages: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+      max_tokens: options.maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenRouter vision ${response.status}: ${errText.slice(0, 300)}`);
+  }
+
+  const payload = await response.json();
+  const contentText = payload.choices?.[0]?.message?.content ?? "";
+  const usage = payload.usage ?? {};
+
+  return {
+    jsonText: extractJsonObject(contentText),
+    usage: {
+      prompt_tokens: usage.prompt_tokens ?? null,
+      completion_tokens: usage.completion_tokens ?? null,
+      total_tokens: usage.total_tokens ?? null,
+    },
+    model: payload.model ?? options.model,
+  };
+}
+
+function sleep(ms: number) {
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, ms);
+  });
+}
+
+async function callVisionPacketDistillationWithRetry(options: {
+  prompt: string;
+  renderedPages: RenderedPage[];
+  maxTokens: number;
+}) {
+  let lastError: Error | null = null;
+  const visionModelCandidates = dedupe([VISION_MODEL, ...VISION_FALLBACK_MODELS]);
+
+  for (const model of visionModelCandidates) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await callVisionPacketDistillation({
+          ...options,
+          model,
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const message = lastError.message.toLowerCase();
+        const isRetryable =
+          message.includes(" 429") ||
+          message.includes("rate-limit") ||
+          message.includes("temporarily rate-limited") ||
+          message.includes("provider returned error") ||
+          message.includes("json object");
+        if (!isRetryable) {
+          throw lastError;
+        }
+        if (attempt < 3) {
+          await sleep(5000 * attempt);
+        }
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Vision packet distillation failed");
+}
+
 function buildPacketPrompt(source: {
   title: string;
   sourcePath: string;
@@ -408,6 +634,42 @@ Rules:
 
 Source packet:
 ${source.packetText}`;
+}
+
+function buildVisionPacketPrompt(source: {
+  title: string;
+  sourcePath: string;
+  packetIndex: number;
+  packetCount: number;
+  startPage: number;
+  endPage: number;
+}) {
+  return `You are reading rendered page images from a scanned commodity-marketing PDF.
+
+Source title: ${source.title}
+Source path: ${source.sourcePath}
+Packet: ${source.packetIndex} of ${source.packetCount}
+Pages: ${source.startPage}-${source.endPage}
+
+Return a JSON object with this exact shape:
+{
+  "packet_summary": "string",
+  "farmer_takeaways": ["string"],
+  "market_heuristics": [{"title": "string", "body": "string"}],
+  "risk_watchouts": ["string"],
+  "grain_tags": ["string"],
+  "topic_tags": ["string"],
+  "region_tags": ["string"],
+  "evidence_highlights": [{"source_locator": "string", "takeaway": "string"}]
+}
+
+Rules:
+- Read only the attached page images for this packet.
+- Focus on grain marketing, price discovery, hedging, basis, storage, logistics, demand, and farmer decision-making.
+- Translate textbook material into practical knowledge for a western Canadian grain farmer.
+- Use only page references from this packet in evidence_highlights, for example "page 12" or "pages 12-13".
+- Keep arrays concise and high-signal.
+- Output JSON only.`;
 }
 
 function buildPdfRescuePrompt(source: {
@@ -447,6 +709,7 @@ function renderMarkdown(options: {
   sourcePath: string;
   sourceHash: string;
   packetCount: number;
+  modelUsed: string;
   warnings: string[];
 }) {
   const { final } = options;
@@ -456,7 +719,7 @@ function renderMarkdown(options: {
     `Source Title: ${options.sourceTitle}`,
     `Source Path: ${options.sourcePath}`,
     `Source Hash: ${options.sourceHash}`,
-    `Model Used: ${MODEL}`,
+    `Model Used: ${options.modelUsed}`,
     `Prompt Version: ${PROMPT_VERSION}`,
     `Generated At: ${new Date().toISOString()}`,
     `Packet Count: ${options.packetCount}`,
@@ -538,6 +801,7 @@ async function distillKnowledge() {
       warnings.includes("low_text_yield_for_source_size") &&
       extname(filePath).toLowerCase() === ".pdf";
     const shouldRescueLowYield = RESCUE_LOW_YIELD && isLowYieldPdf;
+    const pageCount = Number(document.metadata.page_count ?? 0);
 
     if (!ALLOW_LOW_YIELD && warnings.includes("low_text_yield_for_source_size") && !shouldRescueLowYield) {
       docsSkipped += 1;
@@ -582,7 +846,8 @@ async function distillKnowledge() {
       }
     }
 
-    const packets = buildPackets(chunks);
+    const packets = shouldRescueLowYield ? [] : buildPackets(chunks);
+    const visionPackets = shouldRescueLowYield && pageCount > 0 ? buildVisionPagePackets(pageCount) : [];
 
     if (DRY_RUN) {
       docsGenerated += 1;
@@ -590,8 +855,8 @@ async function distillKnowledge() {
         source_path: document.sourcePath,
         status: shouldRescueLowYield ? "dry_run_pdf_rescue" : "dry_run",
         chunk_count: chunks.length,
-        packet_count: shouldRescueLowYield ? 0 : packets.length,
-        distillation_mode: shouldRescueLowYield ? "pdf_file_parser" : "chunk_packets",
+        packet_count: shouldRescueLowYield ? visionPackets.length : packets.length,
+        distillation_mode: shouldRescueLowYield ? "vision_page_packets" : "chunk_packets",
         warnings,
         extraction_method: document.metadata.extraction_method ?? null,
         ocr_used: document.metadata.ocr_used ?? false,
@@ -602,25 +867,124 @@ async function distillKnowledge() {
 
     let promptTokens = 0;
     let completionTokens = 0;
-    const distillationMode = shouldRescueLowYield ? "pdf_file_parser" : "chunk_packets";
+    let distillationMode = shouldRescueLowYield ? "vision_page_packets" : "chunk_packets";
     let pdfRescueEngine: string | null = null;
+    let visionModelUsed: string | null = null;
+    let cachedVisionPackets = 0;
     let finalDistillation: FinalDistillation;
 
     if (shouldRescueLowYield) {
-      console.error("  Using PDF rescue mode via OpenRouter file parser + Step");
-      const rescueResponse = await callStepWithPdfRescue(
-        filePath,
-        buildPdfRescuePrompt({
-          title: document.title,
-          sourcePath: document.sourcePath,
-        }),
-        MAX_FINAL_OUTPUT_TOKENS,
-      );
+      if (visionPackets.length === 0) {
+        throw new Error(`Vision rescue requires a page_count for ${document.sourcePath}`);
+      }
 
-      promptTokens += rescueResponse.usage.prompt_tokens ?? 0;
-      completionTokens += rescueResponse.usage.completion_tokens ?? 0;
-      pdfRescueEngine = rescueResponse.engine;
-      finalDistillation = JSON.parse(rescueResponse.jsonText) as FinalDistillation;
+      console.error(`  Using vision rescue mode on ${visionPackets.length} page packets`);
+      const packetDistillations: PacketDistillation[] = [];
+      const packetCacheDir = resolve(DEFAULT_DISTILLATION_DIR, ".packets", slug);
+      mkdirSync(packetCacheDir, { recursive: true });
+
+      try {
+        for (const packet of visionPackets) {
+          const packetCachePath = resolve(packetCacheDir, `packet-${String(packet.packetIndex).padStart(3, "0")}.json`);
+          if (!FORCE && existsSync(packetCachePath)) {
+            try {
+              const cachedPacket = JSON.parse(readFileSync(packetCachePath, "utf-8")) as {
+                source_hash?: string;
+                packet_distillation?: PacketDistillation;
+                usage?: { prompt_tokens?: number | null; completion_tokens?: number | null };
+                vision_model_used?: string | null;
+              };
+
+              if (cachedPacket.source_hash === sourceHash && cachedPacket.packet_distillation) {
+                console.error(`  Vision packet ${packet.packetIndex}/${visionPackets.length} restored from cache`);
+                packetDistillations.push(cachedPacket.packet_distillation);
+                promptTokens += cachedPacket.usage?.prompt_tokens ?? 0;
+                completionTokens += cachedPacket.usage?.completion_tokens ?? 0;
+                visionModelUsed = cachedPacket.vision_model_used ?? visionModelUsed;
+                cachedVisionPackets += 1;
+                continue;
+              }
+            } catch {
+              // Regenerate invalid packet caches.
+            }
+          }
+
+          console.error(`  Vision packet ${packet.packetIndex}/${visionPackets.length} (pages ${packet.startPage}-${packet.endPage})`);
+          const packetDir = resolve(DEFAULT_VISION_RENDER_DIR, slug, `packet-${packet.packetIndex}`);
+          const renderedPages = renderPdfPages(filePath, packetDir, packet.startPage, packet.endPage);
+
+          try {
+            const visionResponse = await callVisionPacketDistillationWithRetry({
+              prompt: buildVisionPacketPrompt({
+                title: document.title,
+                sourcePath: document.sourcePath,
+                packetIndex: packet.packetIndex,
+                packetCount: visionPackets.length,
+                startPage: packet.startPage,
+                endPage: packet.endPage,
+              }),
+              renderedPages,
+              maxTokens: MAX_PACKET_OUTPUT_TOKENS,
+            });
+
+            const packetDistillation = JSON.parse(visionResponse.jsonText) as PacketDistillation;
+            packetDistillations.push(packetDistillation);
+            promptTokens += visionResponse.usage.prompt_tokens ?? 0;
+            completionTokens += visionResponse.usage.completion_tokens ?? 0;
+            visionModelUsed = visionResponse.model;
+            writeFileSync(
+              packetCachePath,
+              JSON.stringify({
+                source_path: document.sourcePath,
+                source_hash: sourceHash,
+                prompt_version: PROMPT_VERSION,
+                packet_index: packet.packetIndex,
+                start_page: packet.startPage,
+                end_page: packet.endPage,
+                vision_model_used: visionResponse.model,
+                generated_at: new Date().toISOString(),
+                usage: visionResponse.usage,
+                packet_distillation: packetDistillation,
+              }, null, 2),
+              "utf-8",
+            );
+          } finally {
+            rmSync(packetDir, { recursive: true, force: true });
+          }
+        }
+
+        try {
+          const mergeResponse = await callStepFinalMerge(document.title, document.sourcePath, packetDistillations);
+          promptTokens += mergeResponse.usage.prompt_tokens ?? 0;
+          completionTokens += mergeResponse.usage.completion_tokens ?? 0;
+          finalDistillation = JSON.parse(mergeResponse.jsonText) as FinalDistillation;
+        } catch (mergeError) {
+          console.error(`  Step merge fallback triggered: ${String(mergeError)}`);
+          finalDistillation = consolidatePacketDistillations(document.title, packetDistillations);
+        }
+      } catch (visionError) {
+        if (!ALLOW_PAID_PDF_PARSER_FALLBACK) {
+          throw new Error(
+            `Vision rescue failed after ${packetDistillations.length} completed packets. Rerun the command to resume from cached packets, or add --allow-paid-pdf-parser-fallback to try OpenRouter's paid PDF parser. Root cause: ${String(visionError)}`,
+          );
+        }
+
+        console.error(`  Vision rescue failed, attempting PDF parser fallback: ${String(visionError)}`);
+        const rescueResponse = await callStepWithPdfRescue(
+          filePath,
+          buildPdfRescuePrompt({
+            title: document.title,
+            sourcePath: document.sourcePath,
+          }),
+          MAX_FINAL_OUTPUT_TOKENS,
+        );
+
+        promptTokens += rescueResponse.usage.prompt_tokens ?? 0;
+        completionTokens += rescueResponse.usage.completion_tokens ?? 0;
+        pdfRescueEngine = rescueResponse.engine;
+        distillationMode = "pdf_file_parser";
+        finalDistillation = JSON.parse(rescueResponse.jsonText) as FinalDistillation;
+      }
     } else {
       const packetDistillations: PacketDistillation[] = [];
 
@@ -662,7 +1026,8 @@ async function distillKnowledge() {
         sourceTitle: document.title,
         sourcePath: document.sourcePath,
         sourceHash,
-        packetCount: packets.length,
+        packetCount: shouldRescueLowYield ? visionPackets.length : packets.length,
+        modelUsed: distillationMode === "vision_page_packets" && visionModelUsed ? `${visionModelUsed} + ${MODEL}` : MODEL,
         warnings,
       }),
       "utf-8",
@@ -675,11 +1040,13 @@ async function distillKnowledge() {
         source_title: document.title,
         source_hash: sourceHash,
         prompt_version: PROMPT_VERSION,
-        model_used: MODEL,
+        model_used: distillationMode === "vision_page_packets" && visionModelUsed ? `${visionModelUsed} + ${MODEL}` : MODEL,
         source_metadata: document.metadata,
-        packet_count: packets.length,
+        packet_count: shouldRescueLowYield ? visionPackets.length : packets.length,
         distillation_mode: distillationMode,
         pdf_rescue_engine: pdfRescueEngine,
+        vision_model_used: visionModelUsed,
+        cached_vision_packets: cachedVisionPackets,
         warnings,
         generated_at: new Date().toISOString(),
         output_markdown_path: markdownPath.replaceAll("\\", "/"),
@@ -697,9 +1064,11 @@ async function distillKnowledge() {
       source_path: document.sourcePath,
       status: "generated",
       chunk_count: chunks.length,
-      packet_count: packets.length,
+      packet_count: shouldRescueLowYield ? visionPackets.length : packets.length,
       distillation_mode: distillationMode,
       pdf_rescue_engine: pdfRescueEngine,
+      vision_model_used: visionModelUsed,
+      cached_vision_packets: cachedVisionPackets,
       extraction_method: document.metadata.extraction_method ?? null,
       ocr_used: document.metadata.ocr_used ?? false,
       ocr_page_count: document.metadata.ocr_page_count ?? 0,
@@ -716,6 +1085,7 @@ async function distillKnowledge() {
   console.log(JSON.stringify({
     dry_run: DRY_RUN,
     local_ocr_enabled: ENABLE_LOCAL_OCR,
+    vision_model: VISION_MODEL,
     docs_scanned: docsScanned,
     docs_generated: docsGenerated,
     docs_skipped: docsSkipped,

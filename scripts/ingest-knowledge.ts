@@ -16,11 +16,13 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { existsSync } from "fs";
-import { basename, resolve } from "path";
+import { existsSync, readdirSync, readFileSync } from "fs";
+import { basename, extname, resolve } from "path";
 import {
   buildChunks,
   collectKnowledgeFiles,
+  DEFAULT_DISTILLATION_DIR,
+  DEFAULT_KNOWLEDGE_HOME,
   DEFAULT_RAW_KNOWLEDGE_DIR,
   getExtractionWarnings,
   loadDocument,
@@ -47,13 +49,16 @@ Usage:
 Environment variables (from .env.local):
   NEXT_PUBLIC_SUPABASE_URL      Supabase project URL
   SUPABASE_SERVICE_ROLE_KEY     Service role key
+  BUSHEL_KNOWLEDGE_HOME         Local knowledge home (default: ${DEFAULT_KNOWLEDGE_HOME.replaceAll("\\", "/")})
+  BUSHEL_KNOWLEDGE_LIBRARY_DIR  Override local raw book folder (default: ${DEFAULT_RAW_KNOWLEDGE_DIR.replaceAll("\\", "/")})
+  BUSHEL_KNOWLEDGE_DISTILLATION_DIR  Override local distillation folder (default: ${DEFAULT_DISTILLATION_DIR.replaceAll("\\", "/")})
 
 Dependencies:
   python -m pip install -r scripts/requirements-knowledge.txt
 
 Notes:
   - docs/reference/grain-market-intelligence-framework-v2.md is included automatically.
-  - data/knowledge/distillations/*.md is included by default when present.
+  - local distillations are included by default when present.
   - supabase/functions/_shared/commodity-knowledge.ts remains a prompt fallback and is
     intentionally not ingested to avoid double-weighting the same distilled content.
 `);
@@ -78,6 +83,32 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const KNOWLEDGE_DIR = directoryOverride ? resolve(directoryOverride) : DEFAULT_RAW_KNOWLEDGE_DIR;
 
+function loadDistilledCoverage(): Set<string> {
+  if (EXCLUDE_DISTILLATIONS || !existsSync(DEFAULT_DISTILLATION_DIR)) {
+    return new Set<string>();
+  }
+
+  const coveredSources = new Set<string>();
+  const metadataFiles = readdirSync(DEFAULT_DISTILLATION_DIR)
+    .filter((fileName) => fileName.endsWith(".distilled.json"))
+    .map((fileName) => resolve(DEFAULT_DISTILLATION_DIR, fileName));
+
+  for (const metadataPath of metadataFiles) {
+    try {
+      const payload = JSON.parse(readFileSync(metadataPath, "utf-8")) as {
+        source_path?: string;
+      };
+      if (payload.source_path) {
+        coveredSources.add(payload.source_path);
+      }
+    } catch {
+      // Ignore invalid distillation metadata files during coverage discovery.
+    }
+  }
+
+  return coveredSources;
+}
+
 async function ingestKnowledge() {
   if (!existsSync(KNOWLEDGE_DIR)) {
     console.error(`ERROR: Knowledge directory not found: ${KNOWLEDGE_DIR}`);
@@ -91,6 +122,7 @@ async function ingestKnowledge() {
     includeDistillations: !EXCLUDE_DISTILLATIONS,
   });
   const selectedFiles = documentLimit ? files.slice(0, documentLimit) : files;
+  const distilledCoverage = loadDistilledCoverage();
 
   if (!DRY_RUN && (!SUPABASE_URL || !SUPABASE_SERVICE_KEY)) {
     console.error("ERROR: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.");
@@ -127,6 +159,20 @@ async function ingestKnowledge() {
     const sourceHash = sha256(normalizedText);
     const chunks = buildChunks({ ...document, rawText: normalizedText });
     const extractionWarnings = getExtractionWarnings(document, normalizedText, chunks);
+    const rawSourceCoveredByDistillation =
+      extname(document.sourcePath).toLowerCase() === ".pdf" &&
+      distilledCoverage.has(document.sourcePath) &&
+      extractionWarnings.includes("low_text_yield_for_source_size");
+
+    if (rawSourceCoveredByDistillation) {
+      docsSkipped += 1;
+      sourceSummaries.push({
+        source_path: document.sourcePath,
+        status: "skipped_low_yield_raw_covered_by_distillation",
+        warnings: extractionWarnings,
+      });
+      continue;
+    }
 
     if (DRY_RUN) {
       docsIngested += 1;

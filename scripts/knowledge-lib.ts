@@ -28,8 +28,41 @@ export interface ChunkRecord {
 }
 
 export const WORKSPACE_ROOT = resolve(__dirname, "..");
-export const DEFAULT_RAW_KNOWLEDGE_DIR = resolve(WORKSPACE_ROOT, "data/Knowledge");
-export const DEFAULT_DISTILLATION_DIR = resolve(WORKSPACE_ROOT, "data/knowledge/distillations");
+
+function loadEnvFileIntoProcess(filePath: string) {
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIndex = trimmed.indexOf("=");
+      if (eqIndex === -1) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      const value = trimmed.slice(eqIndex + 1).trim();
+      if (!process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  } catch {
+    // Ignore missing env file when variables are already present.
+  }
+}
+
+loadEnvFileIntoProcess(resolve(WORKSPACE_ROOT, ".env.local"));
+
+const USER_HOME = process.env.USERPROFILE || process.env.HOME || WORKSPACE_ROOT;
+export const DEFAULT_KNOWLEDGE_HOME = resolve(
+  process.env.BUSHEL_KNOWLEDGE_HOME || resolve(USER_HOME, "BushelBoardKnowledge"),
+);
+export const DEFAULT_RAW_KNOWLEDGE_DIR = resolve(
+  process.env.BUSHEL_KNOWLEDGE_LIBRARY_DIR || resolve(DEFAULT_KNOWLEDGE_HOME, "raw"),
+);
+export const DEFAULT_DISTILLATION_DIR = resolve(
+  process.env.BUSHEL_KNOWLEDGE_DISTILLATION_DIR || resolve(DEFAULT_KNOWLEDGE_HOME, "distillations"),
+);
+export const DEFAULT_KNOWLEDGE_TMP_DIR = resolve(
+  process.env.BUSHEL_KNOWLEDGE_TMP_DIR || resolve(DEFAULT_KNOWLEDGE_HOME, "tmp"),
+);
 export const SEED_SOURCE_PATHS = [
   resolve(WORKSPACE_ROOT, "docs/reference/grain-market-intelligence-framework-v2.md"),
 ];
@@ -91,22 +124,7 @@ const REGION_PATTERNS: Array<{ tag: string; pattern: RegExp }> = [
 ];
 
 export function loadEnvFile(filePath: string) {
-  try {
-    const content = readFileSync(filePath, "utf-8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIndex = trimmed.indexOf("=");
-      if (eqIndex === -1) continue;
-      const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
-      if (!process.env[key]) {
-        process.env[key] = value;
-      }
-    }
-  } catch {
-    // Ignore missing env file when variables are already present.
-  }
+  loadEnvFileIntoProcess(filePath);
 }
 
 export function toPosixPath(filePath: string): string {
@@ -115,6 +133,32 @@ export function toPosixPath(filePath: string): string {
 
 export function toRepoPath(filePath: string): string {
   return toPosixPath(relative(WORKSPACE_ROOT, filePath));
+}
+
+function normalizeResolvedPath(filePath: string): string {
+  return toPosixPath(resolve(filePath)).replace(/\/+$/g, "");
+}
+
+function isWithinDirectory(filePath: string, directory: string): boolean {
+  const normalizedFile = normalizeResolvedPath(filePath).toLowerCase();
+  const normalizedDirectory = normalizeResolvedPath(directory).toLowerCase();
+  return normalizedFile === normalizedDirectory || normalizedFile.startsWith(`${normalizedDirectory}/`);
+}
+
+export function toKnowledgeSourcePath(filePath: string): string {
+  if (isWithinDirectory(filePath, DEFAULT_RAW_KNOWLEDGE_DIR)) {
+    return `knowledge/raw/${toPosixPath(relative(DEFAULT_RAW_KNOWLEDGE_DIR, resolve(filePath)))}`;
+  }
+
+  if (isWithinDirectory(filePath, DEFAULT_DISTILLATION_DIR)) {
+    return `knowledge/distillations/${toPosixPath(relative(DEFAULT_DISTILLATION_DIR, resolve(filePath)))}`;
+  }
+
+  if (isWithinDirectory(filePath, WORKSPACE_ROOT)) {
+    return toRepoPath(filePath);
+  }
+
+  return `knowledge/local/${basename(filePath)}`;
 }
 
 export function normalizeText(text: string): string {
@@ -147,7 +191,7 @@ export function inferSourceType(filePath: string): SourceType {
 
 export function inferSourcePriority(filePath: string): number {
   const lower = filePath.toLowerCase();
-  if (lower.includes("data/knowledge/distillations")) return 98;
+  if (lower.includes("knowledge/distillations")) return 98;
   if (lower.includes("grain-market-intelligence-framework")) return 100;
   if (lower.includes("introduction_to_grain_marketing")) return 95;
   if (lower.includes("hedging")) return 95;
@@ -383,7 +427,7 @@ function extractEpubText(filePath: string): { text: string; chapterCount: number
 export async function loadDocument(filePath: string): Promise<SourceDocument | null> {
   const fileStats = await stat(filePath);
   const ext = extname(filePath).toLowerCase();
-  const sourcePath = toRepoPath(filePath);
+  const sourcePath = toKnowledgeSourcePath(filePath);
   const title = humanTitle(filePath);
   const sourceType = inferSourceType(sourcePath);
   const sourcePriority = inferSourcePriority(sourcePath);

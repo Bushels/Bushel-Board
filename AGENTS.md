@@ -8,6 +8,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - Define important jargon briefly when first used.
 - When describing a system change, connect it to the practical outcome for the farmer or for the product.
 - Avoid assuming deep knowledge of infrastructure, AI orchestration, or database internals.
+- Raw knowledge books and derived distillation artifacts are local-only and must live outside the Git repo. Use `BUSHEL_KNOWLEDGE_HOME` or the default local path under the user profile.
 
 ## Current Status
 **Phase:** MVP + Intelligence — data pipeline, AI narratives, dashboard all operational
