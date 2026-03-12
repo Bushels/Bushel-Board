@@ -16,7 +16,7 @@
  * Request body:
  *   {
  *     "mode": "pulse" | "deep",         // default: "deep"
- *     "crop_year": "2025-26",
+ *     "crop_year": "2025-2026",
  *     "grain_week": 29,
  *     "grains": ["Canola"],             // optional subset
  *     "morning_pulse": true              // include minor grains (morning only)
@@ -384,13 +384,13 @@ Include web sources alongside X posts in your analysis. Mark web results with so
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Returns crop year in long format: "2025-2026" (matches CGC CSV and cgc_observations convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const startYear = month >= 7 ? year : year - 1;
-  const endYear = (startYear + 1) % 100;
-  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
+  return `${startYear}-${startYear + 1}`;
 }
 
 function getCurrentGrainWeek(): number {

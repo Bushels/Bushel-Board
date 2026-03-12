@@ -154,7 +154,7 @@ describe("server action authorization", () => {
       "11111111-1111-4111-8111-111111111111",
       true,
       "Wheat",
-      "2025-26",
+      "2025-2026",
       30
     );
 
@@ -200,7 +200,7 @@ describe("addCropPlan", () => {
 
     const [payload, options] = cropPlansQuery.upsert.mock.calls[0];
     expect(payload.user_id).toBe("user-1");
-    expect(payload.crop_year).toBe("2025-26");
+    expect(payload.crop_year).toBe("2025-2026");
     expect(payload.grain).toBe("Canola");
     expect(payload.acres_seeded).toBe(1500);
     expect(payload.inventory_unit_preference).toBe("bushels");
@@ -265,7 +265,7 @@ describe("logDelivery", () => {
     expect(deliveryInsert.insert).toHaveBeenCalledWith({
       crop_plan_id: "plan-1",
       user_id: "user-1",
-      crop_year: "2025-26",
+      crop_year: "2025-2026",
       grain: "Canola",
       submission_id: "22222222-2222-4222-8222-222222222222",
       delivery_date: "2026-02-01",
@@ -386,7 +386,7 @@ describe("rate limited voting", () => {
       "11111111-1111-4111-8111-111111111111",
       true,
       "Wheat",
-      "2025-26",
+      "2025-2026",
       30
     );
 

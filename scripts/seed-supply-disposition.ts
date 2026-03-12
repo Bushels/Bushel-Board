@@ -229,7 +229,7 @@ function parseStatsCanCsv(csvPath: string): SupplyRow[] {
 
     rows.push({
       grain_slug: slug,
-      crop_year: "2025-26",
+      crop_year: "2025-2026",
       source: STATSCAN_SOURCE,
       production_kt: prodValue,
     });
@@ -247,8 +247,8 @@ async function main() {
 
   // Build all rows
   const aafcRows = [
-    ...aafcToRows(AAFC_2025_26, "2025-26"),
-    ...aafcToRows(AAFC_2024_25, "2024-25"),
+    ...aafcToRows(AAFC_2025_26, "2025-2026"),
+    ...aafcToRows(AAFC_2024_25, "2024-2025"),
   ];
   console.error(`Built ${aafcRows.length} AAFC rows (2 crop years x 16 grains)`);
 

@@ -9,7 +9,7 @@
  * Triggered by analyze-market-data on success, or manually via POST.
  *
  * Request body (optional):
- *   { "crop_year": "2025-26", "grain_week": 29, "grains": ["Canola"] }
+ *   { "crop_year": "2025-2026", "grain_week": 29, "grains": ["Canola"] }
  *
  * If grains is omitted, generates for all 16 Canadian grains.
  */

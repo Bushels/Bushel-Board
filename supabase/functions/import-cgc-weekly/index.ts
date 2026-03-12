@@ -7,7 +7,7 @@
  * Triggered by the Vercel cron ingress or manually via POST with the internal secret.
  *
  * Request body (optional):
- *   { "week": 29, "crop_year": "2025-26", "csv_data": "..." }
+ *   { "week": 29, "crop_year": "2025-2026", "csv_data": "..." }
  *
  * If csv_data is provided, uses it directly instead of fetching from CGC.
  * If no body is provided, auto-detects the current grain week and crop year.
@@ -95,14 +95,13 @@ function parseCgcCsv(csvText: string): CgcRow[] {
 // Crop year / week helpers
 // ---------------------------------------------------------------------------
 
-/** Returns crop year in short format: "2025-26" (matches CGC CSV convention). */
+/** Returns crop year in long format: "2025-2026" (matches CGC CSV and cgc_observations convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed: 7 = August
   const startYear = month >= 7 ? year : year - 1;
-  const endYear = (startYear + 1) % 100;
-  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
+  return `${startYear}-${startYear + 1}`;
 }
 
 function getCurrentGrainWeek(): number {

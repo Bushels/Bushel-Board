@@ -9,7 +9,7 @@
  * Triggered manually via POST, or chained after generate-intelligence.
  *
  * Request body (optional):
- *   { "crop_year": "2025-26", "grain_week": 29, "batch_size": 50, "user_ids": ["uuid1", "uuid2"] }
+ *   { "crop_year": "2025-2026", "grain_week": 29, "batch_size": 50, "user_ids": ["uuid1", "uuid2"] }
  *
  * If user_ids is provided, only those users are processed (used by self-trigger for batching).
  */
@@ -344,13 +344,13 @@ Deno.serve(async (req) => {
   }
 });
 
+/** Returns crop year in long format: "2025-2026" (matches CGC CSV and cgc_observations convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const startYear = month >= 7 ? year : year - 1;
-  const endYear = (startYear + 1) % 100;
-  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
+  return `${startYear}-${startYear + 1}`;
 }
 
 function getCurrentGrainWeek(): number {
