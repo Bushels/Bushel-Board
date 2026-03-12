@@ -346,6 +346,8 @@ export async function getWeekOverWeekComparison(
 export interface StorageBreakdown {
   storage_type: string;
   ktonnes: number;
+  /** Previous week ktonnes for WoW comparison (undefined if no prior week) */
+  prevKtonnes?: number;
 }
 
 export async function getStorageBreakdown(
@@ -355,13 +357,14 @@ export async function getStorageBreakdown(
   const supabase = await createClient();
   const year = cropYear ?? (await getLatestCropYear(supabase));
   const week = await getLatestWeek(supabase, year);
+  const prevWeek = week > 1 ? week - 1 : undefined;
 
-  // Summary worksheet has stocks by elevator type
+  // Summary worksheet has stocks by elevator type — current + previous week
   const { data } = await supabase
     .from("cgc_observations")
-    .select("region, ktonnes")
+    .select("region, ktonnes, grain_week")
     .eq("crop_year", year)
-    .eq("grain_week", week)
+    .in("grain_week", prevWeek ? [week, prevWeek] : [week])
     .eq("worksheet", "Summary")
     .eq("metric", "Stocks")
     .eq("period", "Current Week")
@@ -372,27 +375,49 @@ export async function getStorageBreakdown(
       "Process Elevators"
     ]);
 
-  // Also get terminal stocks total
+  // Also get terminal stocks total — current + previous week
   const { data: terminalData } = await supabase
     .from("cgc_observations")
-    .select("region, ktonnes")
+    .select("region, ktonnes, grain_week")
     .eq("crop_year", year)
-    .eq("grain_week", week)
+    .in("grain_week", prevWeek ? [week, prevWeek] : [week])
     .eq("worksheet", "Terminal Stocks")
     .eq("metric", "Stocks")
     .eq("period", "Current Week")
     .eq("grain", grainName);
-  const terminalTotal = (terminalData ?? []).reduce(
-    (sum, r) => sum + (r.ktonnes ?? 0), 0
-  );
 
-  const result: StorageBreakdown[] = (data ?? []).map(r => ({
-    storage_type: r.region,
-    ktonnes: r.ktonnes ?? 0,
-  }));
+  // Split terminal data by week
+  const terminalCurrent = (terminalData ?? [])
+    .filter(r => r.grain_week === week)
+    .reduce((sum, r) => sum + (r.ktonnes ?? 0), 0);
+  const terminalPrev = prevWeek
+    ? (terminalData ?? [])
+        .filter(r => r.grain_week === prevWeek)
+        .reduce((sum, r) => sum + (r.ktonnes ?? 0), 0)
+    : undefined;
 
-  if (terminalTotal > 0) {
-    result.push({ storage_type: "Terminal Elevators", ktonnes: terminalTotal });
+  // Build lookup for previous week values
+  const prevLookup: Record<string, number> = {};
+  if (prevWeek) {
+    for (const r of (data ?? []).filter(r => r.grain_week === prevWeek)) {
+      prevLookup[r.region] = r.ktonnes ?? 0;
+    }
+  }
+
+  const result: StorageBreakdown[] = (data ?? [])
+    .filter(r => r.grain_week === week)
+    .map(r => ({
+      storage_type: r.region,
+      ktonnes: r.ktonnes ?? 0,
+      prevKtonnes: prevLookup[r.region],
+    }));
+
+  if (terminalCurrent > 0) {
+    result.push({
+      storage_type: "Terminal Elevators",
+      ktonnes: terminalCurrent,
+      prevKtonnes: terminalPrev,
+    });
   }
 
   return result;

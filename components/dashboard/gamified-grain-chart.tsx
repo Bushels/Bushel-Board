@@ -16,6 +16,15 @@ import type { CumulativeWeekRow } from "@/lib/queries/observations";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { fmtKt } from "@/lib/utils/format";
 
+/** Format small farmer-scale deliveries: show tonnes if <1 kt, otherwise kt */
+function fmtFarmDelivery(value: number): string {
+  if (value < 1) {
+    const tonnes = value * 1000;
+    return `${tonnes.toLocaleString("en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} t`;
+  }
+  return fmtKt(value);
+}
+
 interface GamifiedGrainChartProps {
   weeklyData: CumulativeWeekRow[];
   userDeliveries: DeliveryEntry[];
@@ -75,7 +84,7 @@ export function GamifiedGrainChart({
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          margin={{ top: 20, right: hasUserData ? 50 : 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -92,7 +101,7 @@ export function GamifiedGrainChart({
             tickMargin={10}
           />
 
-          {/* Left axis: macro data */}
+          {/* Left axis: pipeline-scale (kt) */}
           <YAxis
             yAxisId="left"
             stroke="hsl(var(--muted-foreground))"
@@ -100,18 +109,32 @@ export function GamifiedGrainChart({
             tickFormatter={(val) => fmtKt(val)}
             axisLine={false}
             tickLine={false}
+            label={{
+              value: "Pipeline (kt)",
+              angle: -90,
+              position: "insideLeft",
+              offset: -5,
+              style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" },
+            }}
           />
 
-          {/* Right axis: user deliveries */}
+          {/* Right axis: farmer-scale deliveries */}
           {hasUserData && (
             <YAxis
               yAxisId="right"
               orientation="right"
-              stroke="hsl(var(--canola))"
+              stroke="var(--color-canola)"
               fontSize={12}
-              tickFormatter={(val) => fmtKt(val)}
+              tickFormatter={fmtFarmDelivery}
               axisLine={false}
               tickLine={false}
+              label={{
+                value: "Your Farm",
+                angle: 90,
+                position: "insideRight",
+                offset: -5,
+                style: { fontSize: 11, fill: "var(--color-canola)" },
+              }}
             />
           )}
 
@@ -123,10 +146,24 @@ export function GamifiedGrainChart({
             }}
             itemStyle={{ color: "hsl(var(--foreground))" }}
             labelFormatter={(val) => `Week ${val}`}
-            formatter={(value, name) => [fmtKt(Number(value ?? 0)), String(name ?? "")]}
+            formatter={(value, name) => {
+              const v = Number(value ?? 0);
+              const label = String(name ?? "");
+              if (label === "Your Deliveries") {
+                return [fmtFarmDelivery(v), label];
+              }
+              return [fmtKt(v), label];
+            }}
           />
 
-          <Legend wrapperStyle={{ paddingTop: "20px" }} />
+          <Legend
+            wrapperStyle={{ paddingTop: "20px" }}
+            formatter={(value) => (
+              <span className="text-xs">
+                {value}{value === "Your Deliveries" ? " (right axis)" : ""}
+              </span>
+            )}
+          />
 
           {/* Producer deliveries area */}
           <Area
