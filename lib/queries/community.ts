@@ -9,10 +9,8 @@ export interface CommunityStats {
 
 export async function getCommunityStats(): Promise<CommunityStats | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_community_stats").single();
+  const { data, error } = await supabase.rpc("get_community_stats").maybeSingle();
   if (error || !data) return null;
   const stats = data as unknown as CommunityStats;
-  // Privacy threshold: don't display if fewer than 10 farmers
-  if (stats.farmer_count < 10) return null;
   return stats;
 }
