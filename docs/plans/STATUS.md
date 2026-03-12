@@ -51,6 +51,12 @@ Last updated: 2026-03-12
 
 **Files modified:** `components/dashboard/gamified-grain-chart.tsx`, `components/dashboard/pace-chart.tsx`, storage chart component
 
+### 2026-03-12 — Data Enrichment: Backlog Items #5, #6, #9
+
+- **#5 — % left in bin vs market:** Dual progress bars on My Farm crop cards comparing farmer remaining vs AAFC carry-out, using existing supply disposition query.
+- **#6 — Net deliveries vs disappearance KPI:** New NetBalanceKpi component on grain detail showing producer deliveries vs domestic disappearance with bullish/bearish signal, reusing existing WoW data.
+- **#9 — Customize X feed grain selection:** Grain filter pill toggles on CompactSignalStrip on Overview, pre-selects unlocked grains, client-side filtering.
+
 ### 2026-03-12 — X Thread Backlog Items #4 & #7
 
 - **#4 — Overview section reorder:** Moved Market Intelligence above the Community Pulse X feed on the Overview page. Section order is now Snapshot → Intelligence → Community Pulse.

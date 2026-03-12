@@ -30,15 +30,15 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 
 ## Priority: Medium (Data Enrichment)
 
-### 5. "% left in bin vs market" stat on farm card
+### 5. ~~"% left in bin vs market" stat on farm card~~ ✅ Done (2026-03-12)
 - **Problem:** Farmer has no at-a-glance comparison of their remaining vs provincial remaining.
-- **Fix:** Add a stat to the farm card showing `(farmer_remaining / farmer_starting)` vs `(market_remaining / market_starting)`.
+- **Fix:** Dual progress bars on My Farm crop cards comparing farmer remaining vs AAFC carry-out. Uses existing supply disposition query.
 - **Agents:** `frontend-dev` (card UI), `db-architect` (query or RPC if needed)
 - **Page:** My Farm + grain detail farm card
 
-### 6. Net producer deliveries vs domestic disappearance — top-of-page stat
+### 6. ~~Net producer deliveries vs domestic disappearance — top-of-page stat~~ ✅ Done (2026-03-12)
 - **Problem:** Farmers need to know if the market is absorbing more than farmers are delivering (bullish) or vice versa.
-- **Fix:** New KPI card at top of grain detail: `Producer Deliveries WoW - Domestic Disappearance WoW`. WoW graph.
+- **Fix:** New NetBalanceKpi component on grain detail showing deliveries vs disappearance with bullish/bearish signal. Reuses existing WoW data.
 - **Agents:** `db-architect` (new RPC or query), `frontend-dev` (KPI card + WoW chart), `ux-agent` (placement)
 - **Page:** `/grain/[slug]` — top section
 
@@ -54,9 +54,9 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 - **Agents:** `frontend-dev` (Recharts reference line or annotation), `db-architect` (if aggregation needed)
 - **Page:** `/grain/[slug]` — storage chart
 
-### 9. Customize X feed grain selection on Overview
+### 9. ~~Customize X feed grain selection on Overview~~ ✅ Done (2026-03-12)
 - **Problem:** Overview X feed shows signals across all grains. Farmer may only care about 2-3.
-- **Fix:** Add a grain filter toggle to the Overview signal strip (default: user's unlocked grains).
+- **Fix:** Grain filter pill toggles on CompactSignalStrip, pre-selects unlocked grains, client-side filtering.
 - **Agents:** `ux-agent` (filter UX pattern), `frontend-dev` (filter state + query param), `db-architect` (filter RPC if needed)
 - **Page:** Overview (`/`)
 
