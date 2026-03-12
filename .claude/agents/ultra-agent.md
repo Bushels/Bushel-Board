@@ -63,9 +63,29 @@ When making decisions, prioritize in this order:
 3. **Quality:** Does this meet production standards?
 4. **Speed:** Can we ship this faster without sacrificing 1-3?
 
+**Mandatory Workflow Gates (DAG — never skip a phase):**
+```
+Plan → Implement → Verify → Document → Ship
+```
+1. **Plan Gate:** Before coding, identify which agents are needed. Assign explicit ownership.
+2. **Implement Gate:** Implementation agents (db-architect, frontend-dev, etc.) do the work.
+3. **Verify Gate (MANDATORY):** After implementation, run these agents:
+   - **data-audit** — if ANY database, RPC, or Edge Function changes were made
+   - **security-auditor** — if auth boundaries, RLS, Edge Function chaining, or grants changed
+   - Run `npm run build` + `npm run test` — zero tolerance for failures
+4. **Document Gate (MANDATORY):** After verification passes:
+   - **documentation-agent** — update issues.md, STATUS.md, CLAUDE.md, and agent docs if conventions changed
+5. **Ship Gate:** Deploy changes (Edge Functions, migrations). Verify in production.
+
+**CRITICAL LESSON (March 2026):** Track #17 shipped with 9 bugs because gates 3-5 were skipped. GPT-5.4 external audit caught what our own agents should have found: crop year format mismatch (6 competing implementations), Primary-only delivery comparison, broken scalar RPC, missing verify_jwt config. All preventable by running data-audit and security-auditor.
+
+**Cross-Cutting Verification:**
+When multiple files implement the same concept (e.g., `getCurrentCropYear()`), grep the entire codebase to verify consistency. Never assume fixing one location fixes all.
+
 **Quality Review Checklist:**
 When reviewing agent output:
-- [ ] Code compiles and builds without errors
+- [ ] Code compiles and builds without errors (`npm run build`)
+- [ ] All tests pass (`npm run test`)
 - [ ] Follows the project's established patterns (Tailwind, shadcn/ui, Server Components)
 - [ ] Mobile responsive (tested at 375px, 768px, 1440px)
 - [ ] Dark mode works correctly
@@ -74,6 +94,10 @@ When reviewing agent output:
 - [ ] Performance: no unnecessary re-renders, proper loading states
 - [ ] Matches the design system (wheat palette, DM Sans, proper spacing)
 - [ ] Data integrity: values trace back to CGC source Excel (run `npm run audit-data` after imports)
+- [ ] Convention consistency: grep for all instances of changed patterns (e.g., crop year format, function signatures)
+- [ ] Agent docs updated: if a convention changed, all agent `.md` files reflect the new convention
+- [ ] Edge Functions deployed if changed
+- [ ] Migrations applied if created
 
 **Project Context:**
 - **Product:** Bushel Board — Prairie Grain Market Intelligence Dashboard

@@ -64,7 +64,7 @@ You are the Database Architect for Bushel Board. You own Supabase schema, migrat
 
 **Hard-Won Data Rules:**
 1. Always filter by `crop_year`
-2. Crop year format matters: app short format is `"2025-26"`
+2. Crop year format: ALWAYS use long format `"2025-2026"` everywhere (matches CGC CSV). Short format `"2025-26"` is display-only via `toShortFormat()`.
 3. Terminal Receipts and Terminal Exports require grade summation in SQL
 4. Shipment Distribution needs explicit worksheet and metric matching
 5. PostgREST `max_rows=1000` silently truncates large result sets
@@ -86,12 +86,20 @@ You are the Database Architect for Bushel Board. You own Supabase schema, migrat
 | `calculate_delivery_percentiles(p_crop_year)` | Delivery pace percentiles | `generate-farm-summary` |
 | `get_delivery_analytics(p_crop_year, p_grain)` | Privacy-threshold farmer pace analytics | `lib/queries/delivery-analytics.ts` |
 
+**Pre-Commit Validation (MANDATORY — run before considering work done):**
+1. **Convention grep:** If you changed a pattern (function signature, format string, column name), grep the ENTIRE codebase for all instances. Example: `getCurrentCropYear` existed in 6 files — changing one is not a fix.
+2. **Cross-table join test:** If you created/modified an RPC or view, verify that join columns use the same format across tables. Run a `SELECT DISTINCT column FROM table` on both sides.
+3. **Edge Function parity:** If you fixed a utility function in one Edge Function, check ALL Edge Functions for the same pattern. They share no code — each has its own copy.
+4. **Local migration files:** Supabase MCP `apply_migration` does NOT create local `.sql` files. Always write the migration to `supabase/migrations/` manually.
+5. **RPC return shape:** If an RPC `RETURNS jsonb`, verify it actually returns a scalar jsonb, not multiple rows. `GROUP BY` in a `RETURNS jsonb` function = runtime error.
+
 **Operational Checklist:**
 - [ ] `npm run test`
 - [ ] `npm run build`
 - [ ] `npx supabase db push --linked`
-- [ ] Deploy changed Edge Functions
+- [ ] Deploy changed Edge Functions: `npx supabase functions deploy <name>`
 - [ ] Confirm Vercel and Supabase share the same internal function secret
 - [ ] Confirm legacy `pg_cron` job does not exist
+- [ ] Verify data joins: `SELECT COUNT(*) FROM table_a a JOIN table_b b ON a.crop_year = b.crop_year` returns expected rows
 
 **Bug Reference:** See `docs/lessons-learned/issues.md`.

@@ -25,7 +25,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - `docs/plans/` — Design docs, implementation plans, and `STATUS.md` feature tracker
 - `docs/reference/` — CGC Excel map, data sources, intelligence framework
 - `docs/lessons-learned/` — Bug writeups and data issues log
-- `.claude/agents/` — Agent definitions (9 agents)
+- `.claude/agents/` — Agent definitions (10 agents)
 - `data/` — Reference CGC CSV + Excel data (gsw-shg-en.csv, gsw-shg-{week}-en.xlsx)
 - `components/dashboard/wow-comparison.tsx` — Week-over-Week comparison card with composite metric system
 
@@ -42,6 +42,29 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 | auth-engineer | Supabase Auth, middleware, security | Orange | Inherit |
 | data-audit | Data integrity, Excel/CSV/Supabase verification | Amber | Inherit |
 | security-auditor | Security review, workflow hardening, release guardrails | Slate | Inherit |
+
+## Mandatory Agent Workflow (DAG)
+Every implementation must follow this gate sequence. **Never skip gates 3-5.**
+```
+1. Plan → 2. Implement → 3. Verify → 4. Document → 5. Ship
+```
+1. **Plan:** Identify which agents are needed. Assign ownership.
+2. **Implement:** Domain agents (db-architect, frontend-dev, etc.) do the work.
+3. **Verify (MANDATORY):**
+   - **data-audit** agent — after ANY database/RPC/Edge Function/pipeline changes
+   - **security-auditor** agent — after ANY auth boundary/RLS/grant/config changes
+   - `npm run build` + `npm run test` must pass
+4. **Document (MANDATORY):**
+   - **documentation-agent** — update issues.md, STATUS.md, CLAUDE.md, agent docs
+5. **Ship:** Deploy Edge Functions, apply migrations, verify in production.
+
+**Lesson learned:** Track #17 shipped with 9 bugs because gates 3-5 were skipped. External audit caught what our agents should have found.
+
+## Crop Year Convention
+- **Standard format:** Long format `"2025-2026"` everywhere — database, code, Edge Functions, RPCs
+- **Display-only:** Short format `"2025-26"` via `toShortFormat()` in `lib/utils/crop-year.ts`
+- **Single source of truth:** `getCurrentCropYear()` in `lib/utils/crop-year.ts` — Edge Functions have their own copies (Deno can't import from Next.js) but MUST use the same logic
+- **If you find short format in any database table, it's a bug.**
 
 ## Data Source
 CGC weekly grain statistics CSV from grainscanada.gc.ca

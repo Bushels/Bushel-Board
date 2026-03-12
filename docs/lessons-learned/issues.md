@@ -1,5 +1,67 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-12 — Systemic Crop Year Format Mismatch (6 Competing Implementations)
+
+**Symptom:** Historical RPCs (`get_historical_average`, `get_seasonal_pattern`, `get_week_percentile`) returned zero data. Intelligence tables (`grain_intelligence`, `x_market_signals`) couldn't join against `cgc_observations`. All cross-table queries silently returned empty results.
+
+**Root Cause:** `cgc_observations` stores crop year in long format `"2025-2026"` (from CGC CSV), but `lib/utils/crop-year.ts` returned short format `"2025-26"`. There were 6 independent `getCurrentCropYear()` implementations: 1 in `lib/utils/crop-year.ts`, 5 in Edge Functions. Three Edge Functions used short format, creating a format split across all intelligence tables. 188 rows across 8 tables were written in short format that couldn't join to the 1.1M rows in `cgc_observations`.
+
+**Solution:**
+1. Standardized `lib/utils/crop-year.ts` to return long format `"2025-2026"`
+2. Added `toShortFormat()` for display-only contexts
+3. Fixed all 5 Edge Function `getCurrentCropYear()` implementations
+4. Created migration `20260312130000` to convert 188 short-format rows to long format across 8 tables
+5. Updated all tests to expect long format
+
+**Prevention:**
+- Crop year convention is now documented in CLAUDE.md and all agent docs
+- `data-audit` agent is now a mandatory verification gate that checks format consistency
+- Any shared utility that exists in multiple files must be grepped across the entire codebase when changed
+
+**Tags:** #data-integrity #crop-year #cross-table-join #convention-mismatch
+
+## 2026-03-12 — Primary-Only Historical Comparison Understates Deliveries by ~31%
+
+**Symptom:** `get_historical_average()` for Canola Deliveries showed values ~31% lower than the YoY comparison view (`v_grain_yoy_comparison`), which combined Primary + Process worksheets.
+
+**Root Cause:** `get_historical_average()` queried only `worksheet='Primary'` for deliveries. But crush-heavy grains like Canola send ~31% of deliveries directly to processors (tracked in the Process worksheet as "Producer Deliveries"). The YoY view correctly uses `FULL OUTER JOIN` of Primary + Process, but the historical RPC didn't.
+
+**Solution:** Added a `CASE` expression: when `p_metric='Deliveries' AND p_worksheet='Primary'`, expand to `worksheet IN ('Primary', 'Process') AND metric IN ('Deliveries', 'Producer Deliveries')`. Applied same fix to `get_week_percentile()`.
+
+**Prevention:** Any new RPC that aggregates deliveries must check whether Primary+Process combination is needed. See `v_grain_yoy_comparison` as the reference pattern.
+
+**Tags:** #data-integrity #deliveries #primary-process #rpc
+
+## 2026-03-12 — get_seasonal_pattern() GROUP BY Produces Multiple Rows in Scalar Function
+
+**Symptom:** Would have caused runtime error on any call — function declared `RETURNS jsonb` (scalar) but `GROUP BY grain_week` produced multiple rows.
+
+**Root Cause:** The function body had `GROUP BY grain_week` without wrapping the per-week results in an outer `jsonb_agg()`. PostgreSQL would error with "more than one row returned by a subquery used as an expression."
+
+**Solution:** Wrapped per-week aggregation in a CTE (`weekly_agg`), then applied `jsonb_agg(... ORDER BY grain_week)` over the CTE to produce a single JSON array.
+
+**Prevention:** Any `RETURNS jsonb` function must be verified to return exactly one row. A `GROUP BY` inside such a function is a red flag — it needs wrapping in `jsonb_agg()` or `jsonb_object_agg()`.
+
+**Tags:** #postgresql #rpc #scalar-function #group-by
+
+## 2026-03-12 — Agent Orchestration Failure: Zero Verification Gates Run
+
+**Symptom:** 9 bugs shipped to production that should have been caught by existing agents.
+
+**Root Cause:** Track #17 (12-task dual-LLM pipeline) was implemented in a single monolithic session without invoking any verification agents. The data-audit agent (designed to catch data integrity issues), security-auditor (designed to catch auth gaps), and documentation-agent (designed to maintain docs) were never run. The ultra-agent coordinator was never used to enforce workflow gates.
+
+**Solution:**
+1. Added mandatory DAG workflow to CLAUDE.md: Plan → Implement → Verify → Document → Ship
+2. Upgraded data-audit agent to a mandatory verification gate
+3. Upgraded security-auditor to a mandatory verification gate
+4. Upgraded documentation-agent to a mandatory post-implementation gate
+5. Added ultra-agent workflow enforcement with a critical lesson callout
+6. Fixed stale conventions in agent docs (db-architect and data-audit had wrong crop year format)
+
+**Prevention:** The mandatory workflow gates are now documented in CLAUDE.md and enforced through agent descriptions that explicitly state they MUST be invoked. The ultra-agent now includes a "CRITICAL LESSON" callout about Track #17.
+
+**Tags:** #process #agent-orchestration #quality-gates #verification
+
 ## 2026-03-12 - CGC CSV Parser Used Positional Indexing Instead of Header Names
 
 **Symptom:** Historical CGC CSV backfill (2020-2023) inserted 758K rows with `crop_year` values like `"1"`, `"2"`, `"3"` instead of `"2020-2021"`, `"2021-2022"`, etc. Historical RPC functions returned only 2 years of data instead of 5.
