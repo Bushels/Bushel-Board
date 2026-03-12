@@ -21,7 +21,12 @@ import {
   buildInternalHeaders,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
-import { COMMODITY_KNOWLEDGE } from "../_shared/commodity-knowledge.ts";
+import {
+  buildAnalyzeMarketDataSystemPrompt,
+  KNOWLEDGE_SOURCE_PATHS,
+  MARKET_INTELLIGENCE_VERSIONS,
+} from "../_shared/market-intelligence-config.ts";
+import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "stepfun/step-3.5-flash:free";
@@ -151,12 +156,26 @@ Deno.serve(async (req) => {
           }).then(r => r.data),
         ]);
 
+        const knowledgeContext = await fetchKnowledgeContext(supabase, {
+          grain: grainName,
+          task: "analyze",
+          extraTerms: [
+            "delivery pace",
+            "commercial stocks",
+            "exports",
+            "farmer sentiment",
+            "western canada",
+          ],
+          limit: 5,
+        });
+
         // Build prompts
         const systemPrompt = buildSystemPrompt();
         const dataPrompt = buildDataPrompt(
           grainName, cropYear, grainWeek,
           yoy, supply, sentiment, delivery,
-          deliveriesHist, exportsHist, stocksHist
+          deliveriesHist, exportsHist, stocksHist,
+          knowledgeContext.contextText,
         );
 
         // Call OpenRouter API
@@ -244,6 +263,13 @@ Deno.serve(async (req) => {
                 completion_tokens: usage.completion_tokens ?? null,
                 total_tokens: usage.total_tokens ?? null,
                 openrouter_id: aiResponse.id ?? null,
+                prompt_version: MARKET_INTELLIGENCE_VERSIONS.analyzeMarketData,
+                knowledge_version: MARKET_INTELLIGENCE_VERSIONS.knowledgeBase,
+                knowledge_sources: [...new Set([...KNOWLEDGE_SOURCE_PATHS, ...knowledgeContext.sourcePaths])],
+                knowledge_query: knowledgeContext.query,
+                knowledge_topic_tags: knowledgeContext.topicTags,
+                retrieved_chunk_ids: knowledgeContext.chunkIds,
+                retrieved_document_ids: knowledgeContext.documentIds,
               },
               generated_at: new Date().toISOString(),
             },
@@ -332,11 +358,9 @@ Deno.serve(async (req) => {
 // --- Prompt Builders ---
 
 function buildSystemPrompt(): string {
-  return `You are a senior Canadian grain market analyst with 20 years of experience analyzing prairie commodity markets (Alberta, Saskatchewan, Manitoba). You combine deep domain expertise with rigorous quantitative analysis.
+  return `${buildAnalyzeMarketDataSystemPrompt()}
 
 Your role: Produce a structured JSON market analysis for a specific grain using CGC weekly data, AAFC supply balance, 5-year historical averages, farmer sentiment, and community delivery statistics. Your analysis will be reviewed and challenged by a second AI (Grok) that has access to real-time X/Twitter market chatter — so be data-driven and defensible.
-
-${COMMODITY_KNOWLEDGE}
 
 ## Output Format
 
@@ -377,6 +401,7 @@ function buildDataPrompt(
   deliveriesHist: Record<string, unknown> | null,
   exportsHist: Record<string, unknown> | null,
   stocksHist: Record<string, unknown> | null,
+  knowledgeContext: string | null,
 ): string {
   const deliveredPct =
     supply && Number(supply.total_supply_kt) > 0
@@ -445,6 +470,11 @@ ${
 - Pace range (P25-P75): ${fmtNum(delivery.p25_pace_pct)}%-${fmtNum(delivery.p75_pace_pct)}%`
     : "No community delivery data available."
 }
+
+### Retrieved Grain Marketing Knowledge
+${knowledgeContext ?? "No retrieved corpus passages were available for this grain. Use the shared farmer-first framework and only rely on the data above."}
+
+Use the retrieved knowledge as context for market structure, hedging, basis, logistics, and seasonal interpretation. If the retrieved knowledge conflicts with the current week data, prefer the current week data and note the tension.
 
 ## Task
 

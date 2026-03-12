@@ -189,6 +189,15 @@
     --stagger-delay: 40ms;
     animation-delay: calc(var(--child-index, 0) * var(--stagger-delay));
   }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Signal tape marquee */

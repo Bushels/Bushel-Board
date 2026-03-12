@@ -15,11 +15,19 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildIntelligencePrompt, type GrainContext } from "./prompt-template.ts";
+import {
+  buildIntelligencePrompt,
+  INTELLIGENCE_KNOWLEDGE_VERSION,
+  buildIntelligenceSystemPrompt,
+  INTELLIGENCE_KNOWLEDGE_SOURCES,
+  INTELLIGENCE_PROMPT_VERSION,
+  type GrainContext,
+} from "./prompt-template.ts";
 import {
   buildInternalHeaders,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
@@ -128,6 +136,23 @@ Deno.serve(async (req) => {
 
         // Get Step 3.5 Flash analysis for this grain (may be null if not available)
         const priorAnalysis = marketAnalysisByGrain.get(grainName) as Record<string, unknown> | undefined;
+        const knowledgeContext = await fetchKnowledgeContext(supabase, {
+          grain: grainName,
+          task: "intelligence",
+          extraTerms: [
+            "policy",
+            "basis",
+            "logistics",
+            ...((socialSignals ?? [])
+              .flatMap((signal: Record<string, unknown>) => [
+                typeof signal.category === "string" ? signal.category : null,
+                typeof signal.search_query === "string" ? signal.search_query : null,
+              ])
+              .filter((value): value is string => Boolean(value))
+              .slice(0, 4)),
+          ],
+          limit: 5,
+        });
 
         const ctx: GrainContext = {
           grain: grainName,
@@ -162,19 +187,31 @@ Deno.serve(async (req) => {
             key_signals: priorAnalysis.key_signals as Array<Record<string, unknown>>,
             model_used: priorAnalysis.model_used as string,
           } : null,
+          knowledgeContext: knowledgeContext.contextText ? {
+            contextText: knowledgeContext.contextText,
+            sourcePaths: knowledgeContext.sourcePaths,
+            query: knowledgeContext.query,
+            topicTags: knowledgeContext.topicTags,
+          } : null,
           socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
             sentiment: s.sentiment as string,
             category: s.category as string,
             relevance_score: s.relevance_score as number,
             confidence_score: s.confidence_score as number,
             post_summary: s.post_summary as string,
+            post_url: (s.post_url as string | null) ?? null,
             post_author: s.post_author as string | undefined,
+            post_date: s.post_date ? String(s.post_date) : null,
+            search_query: s.search_query as string | undefined,
+            source: s.source as string | undefined,
+            search_mode: s.search_mode as string | undefined,
             total_votes: (s.total_votes as number) ?? 0,
             farmer_relevance_pct: (s.farmer_relevance_pct as number) ?? null,
           })),
         };
 
         const prompt = buildIntelligencePrompt(ctx);
+        const systemPrompt = buildIntelligenceSystemPrompt();
 
         // Call xAI Grok Responses API with structured outputs (social signals pre-fetched from x_market_signals)
         const response = await fetch(XAI_API_URL, {
@@ -186,7 +223,10 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: MODEL,
             max_output_tokens: 1024,
-            input: [{ role: "user", content: prompt }],
+            input: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
             text: {
               format: {
                 type: "json_schema",
@@ -285,7 +325,19 @@ Deno.serve(async (req) => {
             kpi_data: intelligence.kpi_data,
             generated_at: new Date().toISOString(),
             model_used: MODEL,
-            llm_metadata: { request_id: requestId, input_tokens: usage.input_tokens ?? null, output_tokens: usage.output_tokens ?? null },
+            llm_metadata: {
+              request_id: requestId,
+              input_tokens: usage.input_tokens ?? null,
+              output_tokens: usage.output_tokens ?? null,
+              prompt_version: INTELLIGENCE_PROMPT_VERSION,
+              knowledge_version: INTELLIGENCE_KNOWLEDGE_VERSION,
+              knowledge_sources: [...new Set([...INTELLIGENCE_KNOWLEDGE_SOURCES, ...knowledgeContext.sourcePaths])],
+              knowledge_query: knowledgeContext.query,
+              knowledge_topic_tags: knowledgeContext.topicTags,
+              retrieved_chunk_ids: knowledgeContext.chunkIds,
+              retrieved_document_ids: knowledgeContext.documentIds,
+              source_signal_count: ctx.socialSignals?.length ?? 0,
+            },
           }, {
             onConflict: "grain,crop_year,grain_week",
           });

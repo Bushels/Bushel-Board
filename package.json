@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "backfill": "npx tsx scripts/backfill.ts",
+    "ingest-knowledge": "npx tsx scripts/ingest-knowledge.ts",
+    "distill-knowledge": "npx tsx scripts/distill-knowledge.ts",
     "seed-supply": "npx tsx scripts/seed-supply-disposition.ts",
     "audit-data": "npx tsx scripts/audit-data.ts",
     "test": "vitest run",

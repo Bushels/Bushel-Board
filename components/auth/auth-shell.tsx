@@ -13,6 +13,22 @@ interface AuthShellProps {
 export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
   const isEvening = scene === "evening";
   const content = getAuthSceneContent(scene);
+  const shellTextClass = isEvening ? "text-white" : "text-wheat-950";
+  const shellMutedTextClass = isEvening ? "text-white/82" : "text-wheat-700";
+  const badgeClass = isEvening
+    ? "border-white/25 bg-white/12 text-white/85"
+    : "border-white/50 bg-white/36 text-wheat-700 shadow-[0_12px_24px_-18px_rgba(42,38,30,0.38)]";
+  const modeLabelClass = isEvening ? "text-white/70" : "text-wheat-800/90";
+  const logoLinkClass = isEvening
+    ? "border-white/30 bg-white/15 hover:bg-white/22"
+    : "border-white/50 bg-white/34 hover:bg-white/46";
+  const logoTextClass = isEvening ? "text-white" : "text-wheat-900";
+  const topCopyWrapperClass = isEvening
+    ? ""
+    : "rounded-[2.15rem] border border-white/32 bg-white/14 px-5 py-5 shadow-[0_26px_60px_-42px_rgba(42,38,30,0.42)] backdrop-blur-md sm:px-6";
+  const proofCardClass = isEvening
+    ? "border-white/20 bg-white/12 text-white/84"
+    : "border-white/35 bg-white/18 text-wheat-800 shadow-[0_20px_35px_-30px_rgba(42,38,30,0.48)]";
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -21,19 +37,22 @@ export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
           "absolute inset-0",
           isEvening
             ? "bg-[linear-gradient(180deg,#10233a_0%,#32516b_36%,#d58a57_78%,#8c5e32_100%)]"
-            : "bg-[linear-gradient(180deg,#f8f2e1_0%,#f2d79a_34%,#e3a85b_72%,#9f7a32_100%)]"
+            : "bg-[linear-gradient(180deg,#efe3c0_0%,#e7cf94_32%,#d89e59_70%,#8f6a2d_100%)]"
         )}
       />
+      {!isEvening && (
+        <div className="absolute inset-x-0 top-0 h-[48vh] bg-[radial-gradient(circle_at_12%_10%,rgba(255,255,255,0.38),rgba(255,255,255,0.14)_30%,rgba(255,255,255,0)_62%)]" />
+      )}
       <div
         className={cn(
           "absolute -left-16 top-16 h-64 w-64 rounded-full blur-3xl",
-          isEvening ? "bg-[#f7c28d]/20" : "bg-white/65"
+          isEvening ? "bg-[#f7c28d]/20" : "bg-[#fff4cf]/82"
         )}
       />
       <div
         className={cn(
           "absolute -right-20 top-10 h-72 w-72 rounded-full blur-3xl",
-          isEvening ? "bg-[#1e3652]/35" : "bg-[#fff7dc]/70"
+          isEvening ? "bg-[#1e3652]/35" : "bg-[#f6e6b1]/68"
         )}
       />
       <div
@@ -93,31 +112,37 @@ export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
       <div className="absolute left-4 top-4 z-10 sm:left-6 sm:top-5">
         <Link
           href="/"
-          className="inline-flex items-center gap-2.5 rounded-[1.4rem] border border-white/30 bg-white/15 px-3 py-2 shadow-[0_14px_32px_-24px_rgba(22,25,18,0.55)] backdrop-blur-xl transition-colors hover:bg-white/22"
+          className={cn(
+            "inline-flex items-center gap-2.5 rounded-[1.4rem] border px-3 py-2 shadow-[0_14px_32px_-24px_rgba(22,25,18,0.55)] backdrop-blur-xl transition-colors",
+            logoLinkClass
+          )}
         >
           <span className="flex size-8 items-center justify-center rounded-full bg-white/90 shadow-sm">
             <Logo variant="mark" size={18} />
           </span>
-          <span className="text-sm font-semibold tracking-wide text-white">
+          <span className={cn("text-sm font-semibold tracking-wide", logoTextClass)}>
             Bushel Board
           </span>
         </Link>
       </div>
 
       <div className="relative mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,480px)] lg:px-8 lg:py-10">
-        <section className="flex flex-col justify-between gap-8 text-white">
+        <section className={cn("flex flex-col justify-between gap-8", shellTextClass)}>
           <div className="space-y-6">
-            <div className="max-w-2xl space-y-4 pt-12 lg:pt-0">
-              <div className="inline-flex rounded-full border border-white/25 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/85 backdrop-blur-xl">
+            <div className={cn("max-w-2xl space-y-4 pt-20 sm:pt-16 lg:pt-0", topCopyWrapperClass)}>
+              <div className={cn(
+                "inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] backdrop-blur-xl",
+                badgeClass
+              )}>
                 {content.badge}
               </div>
-              <p className="text-sm font-medium uppercase tracking-[0.3em] text-white/70">
+              <p className={cn("text-sm font-medium uppercase tracking-[0.3em]", modeLabelClass)}>
                 {modeLabel}
               </p>
-              <h1 className="max-w-xl font-display text-4xl leading-tight text-white sm:text-5xl">
+              <h1 className="max-w-xl font-display text-4xl leading-tight sm:text-5xl">
                 {content.title}
               </h1>
-              <p className="max-w-xl text-base leading-relaxed text-white/82 sm:text-lg">
+              <p className={cn("max-w-xl text-base leading-relaxed sm:text-lg", shellMutedTextClass)}>
                 {content.description}
               </p>
             </div>
@@ -127,7 +152,10 @@ export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
             {content.proofPoints.map((point) => (
               <div
                 key={point}
-                className="rounded-[1.7rem] border border-white/20 bg-white/12 px-4 py-4 text-sm text-white/84 shadow-[0_20px_35px_-30px_rgba(22,25,18,0.7)] backdrop-blur-xl"
+                className={cn(
+                  "rounded-[1.7rem] border px-4 py-4 text-sm backdrop-blur-xl",
+                  proofCardClass
+                )}
               >
                 {point}
               </div>
