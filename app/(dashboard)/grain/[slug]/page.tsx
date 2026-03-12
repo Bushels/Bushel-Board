@@ -116,19 +116,24 @@ export default async function GrainDetailPage({ params }: Props) {
   // Authenticated users (who passed the crop plan check above) default to "farmer"
   const role = roleResult.error ? "farmer" : (roleResult.data ?? "farmer");
 
+  // Sentiment uses the CURRENT shipping week, not the CGC data release week.
+  // CGC data lags by ~1 week (released Thursday for the previous week).
+  // Farmer sentiment should reflect what they're doing THIS week.
+  const shippingWeek = getCurrentGrainWeek();
+
   const [sentimentResult, signalFeedResult] = await Promise.all([
     safeQuery("Farmer sentiment", async () => ({
       userVote: await getUserSentimentVote(
         supabase,
         grain.name,
         CURRENT_CROP_YEAR,
-        latestGrainWeek
+        shippingWeek
       ),
       aggregate: await getGrainSentiment(
         supabase,
         grain.name,
         CURRENT_CROP_YEAR,
-        latestGrainWeek
+        shippingWeek
       ),
     })),
     safeQuery("Signal feedback feed", async () => {
@@ -387,7 +392,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 >
                   <SentimentPoll
                     grain={grain.name}
-                    grainWeek={latestGrainWeek}
+                    grainWeek={shippingWeek}
                     initialVote={sentimentResult.data?.userVote ?? null}
                     initialAggregate={sentimentResult.data?.aggregate ?? null}
                     role={role}

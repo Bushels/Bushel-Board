@@ -1,5 +1,6 @@
 import {
   buildIntelligenceSystemPrompt as buildSharedIntelligenceSystemPrompt,
+  buildDataContextPreamble,
   KNOWLEDGE_SOURCE_PATHS,
   MARKET_INTELLIGENCE_VERSIONS,
 } from "../_shared/market-intelligence-config.ts";
@@ -91,9 +92,11 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 
   return `You are writing a grain market intelligence brief for Canadian prairie farmers.
 
-## Data for ${ctx.grain} - Week ${ctx.grain_week}, Crop Year ${ctx.crop_year}
+${buildDataContextPreamble(ctx.grain_week, ctx.crop_year)}
 
-### Current Week
+## Data for ${ctx.grain} — CGC Week ${ctx.grain_week}, Crop Year ${ctx.crop_year}
+
+### Current Week (CGC Week ${ctx.grain_week})
 - Producer Deliveries: ${ctx.cw_deliveries_kt} Kt (WoW: ${ctx.wow_deliveries_pct !== null ? ctx.wow_deliveries_pct + "%" : "N/A"})
 - Commercial Stocks: ${ctx.commercial_stocks_kt} Kt (WoW change: ${ctx.wow_stocks_change_kt > 0 ? "+" : ""}${ctx.wow_stocks_change_kt} Kt)
 
@@ -111,10 +114,10 @@ export function buildIntelligencePrompt(ctx: GrainContext): string {
 - Projected Carry-out: ${ctx.projected_carry_out_kt ?? "N/A"} Kt
 - Delivered to Date: ${deliveredPct}% of total supply
 
-### Farmer Sentiment (from Bushel Board poll this week)
+### Farmer Sentiment (Bushel Board poll — shipping week ${ctx.grain_week + 1}, collected AFTER CGC data cutoff)
 ${ctx.farmerSentiment && ctx.farmerSentiment.vote_count >= 5
   ? `- ${ctx.farmerSentiment.vote_count} farmers voted: ${ctx.farmerSentiment.pct_holding}% holding, ${ctx.farmerSentiment.pct_hauling}% hauling, ${ctx.farmerSentiment.pct_neutral}% neutral
-- Consider divergence between farmer sentiment and social or market signals when generating insights.`
+- NOTE: These votes reflect farmer outlook during Week ${ctx.grain_week + 1}, not the CGC data week (${ctx.grain_week}). Consider whether the 1-week lag explains any divergence before treating it as a true disagreement.`
   : "Insufficient farmer votes this week (need >= 5 for privacy). Skip sentiment analysis."}
 
 ## Retrieved Grain Knowledge
@@ -122,11 +125,11 @@ ${ctx.knowledgeContext?.contextText ?? "No retrieved corpus passages were availa
 
 Treat this section as domain context, not as a replacement for this week's data. When live signals contradict the retrieved knowledge, explain the conflict instead of forcing agreement.
 
-## Recent X/Web Market Signals (scored by AI and verified by farmers)
+## Recent X/Web Market Signals (scored by AI and verified by farmers, spanning Weeks ${ctx.grain_week}-${ctx.grain_week + 1})
 
 ${ctx.socialSignals?.length ? ctx.socialSignals.map((signal) => formatSignalLine(signal)).join("\n") : "No social signals available for this grain this week."}
 
-Reference these signals when generating "social" insights. Use the saved URL when present. If no URL is available, cite the author handle or note that the signal came from saved web research.
+Reference these signals when generating "social" insights. Use the saved URL when present. If no URL is available, cite the author handle or note that the signal came from saved web research. Each signal has a post_date — use it to determine whether the signal predates or postdates the CGC data cutoff.
 
 Posts marked "farmer-validated" (farmer_relevance_pct >= 70%, votes >= 3) should be weighted heavily. Posts marked "farmer-dismissed" (farmer_relevance_pct < 40%, votes >= 3) should be deprioritized unless the underlying data contradicts farmer sentiment. Posts marked "unrated" have no farmer feedback yet.
 

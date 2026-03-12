@@ -77,7 +77,9 @@ export function SentimentPoll({
       <Card className="border-canola/20 bg-gradient-to-br from-background to-canola/5">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-display flex items-center justify-between">
-            <span>Week {grainWeek} Farmer Sentiment</span>
+            <span>
+              Week {grainWeek} Farmer Sentiment
+            </span>
             {hasVoted && aggregate && (
               <span className="text-xs font-sans font-normal text-muted-foreground">
                 {aggregate.vote_count} farmer{aggregate.vote_count !== 1 ? "s" : ""} voted
@@ -88,6 +90,9 @@ export function SentimentPoll({
             {isObserver
               ? "Sign up as a farmer to share your market outlook and see how others feel."
               : `Are you holding or hauling ${grain.toLowerCase()} this week?`}
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            Week {grainWeek} — Your current shipping outlook
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

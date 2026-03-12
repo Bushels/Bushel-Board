@@ -19,7 +19,10 @@ import {
   buildInternalHeaders,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
-import { buildFarmSummarySystemPrompt } from "../_shared/market-intelligence-config.ts";
+import {
+  buildFarmSummarySystemPrompt,
+  buildDataContextPreamble,
+} from "../_shared/market-intelligence-config.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
@@ -196,7 +199,9 @@ Deno.serve(async (req) => {
         const prompt = buildFarmSummaryPrompt(
           userPlans,
           userPercentiles,
-          analyticsLookup
+          analyticsLookup,
+          cropYear,
+          grainWeek
         );
         const { from_date, to_date } = getXSearchDateRange();
 
@@ -389,11 +394,19 @@ function getCurrentGrainWeek(): number {
 function buildFarmSummaryPrompt(
   plans: CropPlan[],
   percentiles?: Map<string, PercentileRow>,
-  analyticsByGrain?: Map<string, CommunityAnalyticsRow>
+  analyticsByGrain?: Map<string, CommunityAnalyticsRow>,
+  cropYear?: string,
+  grainWeek?: number,
 ): string {
-  const lines: string[] = [
-    "Here is this farmer's current crop plan and delivery data:\n",
-  ];
+  const lines: string[] = [];
+
+  // Add temporal context preamble if week info is available
+  if (cropYear && grainWeek) {
+    lines.push(buildDataContextPreamble(grainWeek, cropYear));
+    lines.push("");
+  }
+
+  lines.push("Here is this farmer's current crop plan and delivery data (reported through the current shipping week):\n");
 
   for (const plan of plans) {
     const deliveryCount = plan.deliveries?.length ?? 0;

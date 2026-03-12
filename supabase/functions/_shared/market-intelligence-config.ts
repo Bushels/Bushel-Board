@@ -1,10 +1,10 @@
 import { COMMODITY_KNOWLEDGE } from "./commodity-knowledge.ts";
 
 export const MARKET_INTELLIGENCE_VERSIONS = {
-  searchSignals: "search-signals-v2",
-  analyzeMarketData: "analyze-market-data-v2",
-  generateIntelligence: "generate-intelligence-v2",
-  generateFarmSummary: "generate-farm-summary-v2",
+  searchSignals: "search-signals-v3",
+  analyzeMarketData: "analyze-market-data-v3",
+  generateIntelligence: "generate-intelligence-v3",
+  generateFarmSummary: "generate-farm-summary-v3",
   knowledgeBase: "grain-knowledge-v2",
 } as const;
 
@@ -31,6 +31,13 @@ const DISTILLED_GRAIN_FRAMEWORK = `Farmer-first market framework:
 - When X and web/official sources diverge, surface the disagreement explicitly as a watch item rather than forcing a directional call.
 - Include the next catalyst and the main risk to the thesis every time.`;
 
+const TEMPORAL_AWARENESS = `CRITICAL — Data timing and week awareness:
+- CGC weekly data is always released on Thursday for the PRIOR shipping week. If the data says "Week N", farmers reading the analysis are already in shipping week N+1.
+- Farmer sentiment votes and X/social signals are collected in real time, so they may reflect conditions in week N+1 (the current shipping week), NOT the CGC data week.
+- Never say "farmers are bearish THIS week" when the CGC data is from LAST week. Instead, clearly attribute: "CGC data through Week N shows…" and "farmer sentiment (collected during Week N+1) indicates…"
+- When farmer sentiment diverges from CGC data, consider whether the time lag explains the gap before calling it a true disagreement.
+- Always be explicit about which week each data source covers. The reader must never be confused about whether a number is from the CGC release or from live farmer input.`;
+
 const CGC_DATA_GUARDRAILS = `Critical CGC and balance-sheet rules:
 - Total producer deliveries require Primary.Deliveries plus Process.Producer Deliveries plus Producer Cars.Shipments. Primary alone is incomplete.
 - Total exports require Terminal Exports plus Primary Shipment Distribution rows for Export Destinations. Terminal exports must be summed across grades.
@@ -51,6 +58,8 @@ export function buildAnalyzeMarketDataSystemPrompt(): string {
 
 You are producing the first-pass analytical brief for a dual-LLM grain intelligence workflow. Your job is to build the best defensible, data-led case before any social or live-news synthesis happens.
 
+${TEMPORAL_AWARENESS}
+
 ${DISTILLED_GRAIN_FRAMEWORK}
 
 ${CGC_DATA_GUARDRAILS}
@@ -62,6 +71,8 @@ export function buildIntelligenceSystemPrompt(): string {
   return `${FARMER_FIRST_PERSONA}
 
 You are the senior editor in a dual-LLM workflow. A prior analyst already reviewed the structured CGC, AAFC, and historical data. Your role is to challenge, update, and sharpen that view using saved X and web signals with provenance.
+
+${TEMPORAL_AWARENESS}
 
 ${DISTILLED_GRAIN_FRAMEWORK}
 
@@ -81,13 +92,38 @@ export function buildSignalResearchSystemPrompt(mode: "pulse" | "deep"): string 
 
 ${FARMER_FIRST_PERSONA}
 
+${TEMPORAL_AWARENESS}
+
 ${SIGNAL_RESEARCH_RULES}
 
 Your output feeds downstream market intelligence, so preserve provenance and do not collapse distinct sources into vague summaries.`;
 }
 
+/**
+ * Builds a concrete "Data Context" preamble for intelligence prompts.
+ * This tells the LLM exactly which week each data source covers,
+ * preventing temporal confusion between CGC data (week N) and live
+ * farmer inputs (week N+1).
+ */
+export function buildDataContextPreamble(grainWeek: number, cropYear: string): string {
+  // CGC data covers through the stated grain_week (released the following Thursday)
+  // Farmer sentiment and X signals are collected in real time — potentially week N+1
+  const currentShippingWeek = grainWeek + 1;
+  return `## Data Context — Read This First
+
+- **CGC official data:** Covers through Grain Week ${grainWeek} of crop year ${cropYear}. Released the Thursday after week ${grainWeek} ended.
+- **Farmer sentiment (Bushel Board polls):** Collected during Week ${currentShippingWeek} (current shipping week). Farmers vote based on conditions AFTER the CGC data cutoff.
+- **X/social signals:** Collected over the past 2-7 days, straddling Weeks ${grainWeek}-${currentShippingWeek}. Each signal has its own post_date for precise attribution.
+- **AAFC supply balance:** Published monthly, not weekly. Treat as a slow-moving reference, not a real-time signal.
+- **Community delivery stats:** Based on farmer-reported data through the current shipping week (Week ${currentShippingWeek}).
+
+When writing your analysis, always specify which data source and week you are referencing. Never conflate CGC Week ${grainWeek} data with Week ${currentShippingWeek} farmer inputs.`;
+}
+
 export function buildFarmSummarySystemPrompt(): string {
   return `${FARMER_FIRST_PERSONA}
 
-Write concise personalized farm summaries that connect the farmer's delivery pace, contracted position, and peer percentile to current grain market conditions. Use a warm but professional tone. Be specific with numbers. Do not put citation links inline in the narrative body. If sources are provided, list them at the end under "Sources:".`;
+Write concise personalized farm summaries that connect the farmer's delivery pace, contracted position, and peer percentile to current grain market conditions. Use a warm but professional tone. Be specific with numbers. Do not put citation links inline in the narrative body. If sources are provided, list them at the end under "Sources:".
+
+${TEMPORAL_AWARENESS}`;
 }

@@ -23,6 +23,7 @@ import {
 } from "../_shared/internal-auth.ts";
 import {
   buildAnalyzeMarketDataSystemPrompt,
+  buildDataContextPreamble,
   KNOWLEDGE_SOURCE_PATHS,
   MARKET_INTELLIGENCE_VERSIONS,
 } from "../_shared/market-intelligence-config.ts";
@@ -427,9 +428,11 @@ function buildDataPrompt(
         ).toFixed(1)
       : "N/A";
 
-  return `## Market Data for ${grain} — Week ${grainWeek}, Crop Year ${cropYear}
+  return `${buildDataContextPreamble(grainWeek, cropYear)}
 
-### Current Week
+## Market Data for ${grain} — CGC Week ${grainWeek}, Crop Year ${cropYear}
+
+### Current Week (CGC Week ${grainWeek})
 - Producer Deliveries: ${fmtNum(yoy.cw_deliveries_kt)} Kt (WoW: ${fmtPct(yoy.wow_deliveries_pct)})
 - Commercial Stocks: ${fmtNum(yoy.commercial_stocks_kt)} Kt (WoW change: ${fmtChange(yoy.wow_stocks_change_kt)} Kt)
 
@@ -454,14 +457,15 @@ function buildDataPrompt(
   Current vs 5yr avg: ${exportsVs5yr}%
 - Stocks: avg ${fmtNum(stocksHist?.avg_value)} Kt, range ${fmtNum(stocksHist?.min_value)}-${fmtNum(stocksHist?.max_value)} Kt
 
-### Farmer Sentiment (Bushel Board poll — this week)
+### Farmer Sentiment (Bushel Board poll — shipping week ${grainWeek + 1}, collected AFTER CGC data cutoff)
 ${
   sentiment && sentiment.vote_count >= 5
-    ? `- ${sentiment.vote_count} farmers voted: ${sentiment.pct_holding}% holding, ${sentiment.pct_hauling}% hauling, ${sentiment.pct_neutral}% neutral`
+    ? `- ${sentiment.vote_count} farmers voted: ${sentiment.pct_holding}% holding, ${sentiment.pct_hauling}% hauling, ${sentiment.pct_neutral}% neutral
+- NOTE: These votes reflect farmer outlook during Week ${grainWeek + 1}, not the CGC data week (${grainWeek}).`
     : "Insufficient farmer votes this week (need >= 5 for privacy). Skip sentiment analysis."
 }
 
-### Community Delivery Stats (anonymized)
+### Community Delivery Stats (anonymized, reported through shipping week ${grainWeek + 1})
 ${
   delivery
     ? `- Farmers reporting: ${delivery.farmer_count ?? "N/A"}
