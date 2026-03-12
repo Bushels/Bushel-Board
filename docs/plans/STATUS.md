@@ -44,6 +44,13 @@ Last updated: 2026-03-12
 
 **Files modified:** `components/dashboard/compact-signal-strip.tsx`, `app/globals.css`
 
+### 2026-03-12 — X Thread Backlog Items #4 & #7
+
+- **#4 — Overview section reorder:** Moved Market Intelligence above the Community Pulse X feed on the Overview page. Section order is now Snapshot → Intelligence → Community Pulse.
+- **#7 — Province map labels:** Province map labels now show both metric tons and percentage of total (e.g., "AB\n4,200.0 kt (38.2%)").
+
+**Files modified:** `app/(dashboard)/overview/page.tsx`, `components/dashboard/province-map.tsx`
+
 ### 2026-03-12 — Daylight Auth Contrast & Spacing Fix
 
 - Fixed the top-third readability issue on the daylight auth shell by switching the hero copy from low-contrast white text to dark wheat text on the daytime variant.

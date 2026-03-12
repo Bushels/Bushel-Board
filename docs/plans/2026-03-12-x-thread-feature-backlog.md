@@ -22,9 +22,9 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 - **Agents:** `frontend-dev`, then `data-audit` (verify no orphaned queries)
 - **Page:** `/grain/canola`
 
-### 4. Move Market Intelligence section above X feed on Overview
+### 4. ~~Move Market Intelligence section above X feed on Overview~~ ✅ Done (2026-03-12)
 - **Problem:** Currently below X signals on Overview. AI thesis is higher value content.
-- **Fix:** Reorder sections in the Overview page layout.
+- **Fix:** Reorder sections in the Overview page layout. Section order is now Snapshot → Intelligence → Community Pulse.
 - **Agents:** `ux-agent` (confirm hierarchy), `frontend-dev` (layout change)
 - **Page:** Overview (`/`)
 
@@ -42,9 +42,9 @@ Source: Kyle's X thread walkthrough notes. These are improvements and new featur
 - **Agents:** `db-architect` (new RPC or query), `frontend-dev` (KPI card + WoW chart), `ux-agent` (placement)
 - **Page:** `/grain/[slug]` — top section
 
-### 7. Province map: show MT + percentage
+### 7. ~~Province map: show MT + percentage~~ ✅ Done (2026-03-12)
 - **Problem:** Map currently shows one unit only. Farmers think in both.
-- **Fix:** Display both values on province labels (e.g., "AB: 4,200 kt (38%)").
+- **Fix:** Labels now show "AB\n4,200.0 kt (38.2%)" format with percentage of total.
 - **Agents:** `frontend-dev` (map label formatting)
 - **Page:** `/grain/[slug]` — province map component
 
