@@ -4,7 +4,8 @@ import { CropSummaryCard } from "@/components/dashboard/crop-summary-card";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
-import { SignalTape } from "@/components/dashboard/signal-tape";
+import { CompactSignalStrip } from "@/components/dashboard/compact-signal-strip";
+import { SectionHeader } from "@/components/dashboard/section-header";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { StaggerGroup } from "@/components/motion/stagger-group";
 import { ALL_GRAINS } from "@/lib/constants/grains";
@@ -76,26 +77,26 @@ export default async function OverviewPage() {
     ]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-4 py-6">
+    <div className="mx-auto max-w-7xl space-y-10 px-4 py-6">
+      {/* Section 1: Prairie Snapshot */}
       {summaryResult.data ? (
         <SectionBoundary
           title="Overview cards unavailable"
           message="Crop summary cards are temporarily unavailable. The rest of the dashboard is still live."
         >
           <section className="space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div className="space-y-1">
-                <h2 className="text-lg font-display font-semibold">
-                  {summaryResult.data.isPersonalized
-                    ? `${CURRENT_CROP_YEAR} Crop Year - Your Grains`
-                    : `${CURRENT_CROP_YEAR} Prairie Grain Snapshot`}
-                </h2>
-                <p className="max-w-3xl text-sm text-muted-foreground">
-                  {summaryResult.data.isPersonalized
-                    ? "Your unlocked grains stay front and center here."
-                    : "These are live prairie market snapshots. Add crops on My Farm to unlock grain-specific AI, pacing, and farm-level context."}
-                </p>
-              </div>
+            <SectionHeader
+              title={
+                summaryResult.data.isPersonalized
+                  ? `${CURRENT_CROP_YEAR} Crop Year - Your Grains`
+                  : `${CURRENT_CROP_YEAR} Prairie Grain Snapshot`
+              }
+              subtitle={
+                summaryResult.data.isPersonalized
+                  ? "Your unlocked grains stay front and center here."
+                  : "These are live prairie market snapshots. Add crops on My Farm to unlock grain-specific AI, pacing, and farm-level context."
+              }
+            >
               {!summaryResult.data.isPersonalized && (
                 <Link
                   href="/my-farm"
@@ -105,7 +106,7 @@ export default async function OverviewPage() {
                   Set up My Farm
                 </Link>
               )}
-            </div>
+            </SectionHeader>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {summaryResult.data.summaryCards.map((card) => (
                 <CropSummaryCard key={card.slug} {...card} />
@@ -120,31 +121,30 @@ export default async function OverviewPage() {
         />
       )}
 
-      {sentimentResult.data ? (
-        <SectionBoundary
-          title="Farmer sentiment unavailable"
-          message="Farmer sentiment is temporarily unavailable. Grain summaries and intelligence are still available."
-        >
-          <SentimentBanner
-            sentimentData={sentimentResult.data}
-            grainWeek={grainWeek}
-            unlockedSlugs={grainContext.unlockedSlugs}
+      {/* Section 2: Community Pulse */}
+      <SectionBoundary
+        title="Community Pulse unavailable"
+        message="Community data is temporarily unavailable. Core CGC and supply data are still available."
+      >
+        <section className="space-y-4">
+          <SectionHeader
+            title="Community Pulse"
+            subtitle="What prairie farmers are thinking and seeing"
           />
-        </SectionBoundary>
-      ) : (
-        <SectionStateCard
-          title="Farmer sentiment unavailable"
-          message="Farmer sentiment is temporarily unavailable. Grain summaries and intelligence are still available."
-        />
-      )}
-
-      {signalsResult.data ? (
-        signalsResult.data.length > 0 ? (
-          <SectionBoundary
-            title="Market signal tape unavailable"
-            message="Live market signals are temporarily unavailable. Core CGC and supply data are still available."
-          >
-            <SignalTape
+          {sentimentResult.data ? (
+            <SentimentBanner
+              sentimentData={sentimentResult.data}
+              grainWeek={grainWeek}
+              unlockedSlugs={grainContext.unlockedSlugs}
+            />
+          ) : (
+            <SectionStateCard
+              title="Farmer sentiment unavailable"
+              message="Farmer sentiment is temporarily unavailable. Grain summaries and intelligence are still available."
+            />
+          )}
+          {signalsResult.data ? (
+            <CompactSignalStrip
               signals={signalsResult.data.map((signal) => ({
                 sentiment: signal.sentiment,
                 category: signal.category,
@@ -155,26 +155,33 @@ export default async function OverviewPage() {
                 searched_at: signal.searched_at ?? null,
               }))}
             />
-          </SectionBoundary>
-        ) : null
-      ) : (
-        <SectionStateCard
-          title="Market signal tape unavailable"
-          message="Live market signals are temporarily unavailable. Core CGC and supply data are still available."
-        />
-      )}
+          ) : (
+            <SectionStateCard
+              title="Market signals unavailable"
+              message="Live market signals are temporarily unavailable. Core CGC and supply data are still available."
+            />
+          )}
+        </section>
+      </SectionBoundary>
 
+      {/* Section 3: Market Intelligence */}
       {marketPulseResult.unavailable ? (
         <SectionStateCard
-          title="Market Pulse unavailable"
+          title="Market Intelligence unavailable"
           message="Intelligence cards are temporarily unavailable. The rest of the dashboard is still live."
         />
       ) : (
         <SectionBoundary
-          title="Market Pulse unavailable"
+          title="Market Intelligence unavailable"
           message="Intelligence cards are temporarily unavailable. The rest of the dashboard is still live."
         >
-          <MarketPulseSection cards={marketPulseResult.cards} />
+          <section className="space-y-4">
+            <SectionHeader
+              title="Market Intelligence"
+              subtitle="AI-powered weekly analysis"
+            />
+            <MarketPulseSection cards={marketPulseResult.cards} />
+          </section>
         </SectionBoundary>
       )}
 
@@ -338,21 +345,16 @@ const SENTIMENT_STYLES: Record<string, { bg: string; text: string; label: string
 function MarketPulseSection({ cards }: { cards: MarketPulseCard[] }) {
   if (cards.length === 0) {
     return (
-      <section>
-        <h2 className="mb-4 text-lg font-display font-semibold">Market Pulse</h2>
-        <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Intelligence is generating. Check back after the next Thursday data update.
-          </p>
-        </div>
-      </section>
+      <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/30 p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Intelligence is generating. Check back after the next Thursday data update.
+        </p>
+      </div>
     );
   }
 
   return (
-    <section>
-      <h2 className="mb-4 text-lg font-display font-semibold">Market Pulse</h2>
-      <StaggerGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <StaggerGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card, index) => {
           const style = SENTIMENT_STYLES[card.sentimentKey] ?? SENTIMENT_STYLES.neutral;
           const preview =
@@ -405,6 +407,5 @@ function MarketPulseSection({ cards }: { cards: MarketPulseCard[] }) {
           );
         })}
       </StaggerGroup>
-    </section>
   );
 }
