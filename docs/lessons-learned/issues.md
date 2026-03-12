@@ -1,5 +1,27 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-12 — v_grain_overview Statement Timeout From Full-Table Scan on 1M+ Rows
+
+**Symptom:** The Overview page displayed "No grain data available yet" even though `v_grain_overview` contained 16 valid rows. No error was surfaced to the user.
+
+**Root Cause:** The view's `latest_week` CTE used `GROUP BY crop_year` + `MAX(grain_week)` to find the current week, which forced Postgres to scan all 1M+ rows in `cgc_observations`. The query took 5.2 seconds, exceeding PostgREST's statement timeout for the `authenticated` role. The timeout caused the query to return no rows silently, triggering the empty-state fallback.
+
+**Solution (migration `20260312180000_optimize_v_grain_overview.sql`):**
+1. Added composite index `idx_cgc_obs_crop_year_grain_week (crop_year DESC, grain_week DESC)` on `cgc_observations`
+2. Rewrote the `latest_week` CTE from `GROUP BY crop_year ORDER BY crop_year DESC LIMIT 1` to `ORDER BY crop_year DESC, grain_week DESC LIMIT 1` — this reads exactly 1 index entry via Index Only Scan (0 heap fetches) instead of scanning the full table
+
+**Result:** Query time dropped from 5,200ms to 5.5ms (945x speedup).
+
+**Prevention:**
+- Any CTE or subquery against `cgc_observations` that uses `GROUP BY` + aggregate to find a single "latest" value should use `ORDER BY ... LIMIT 1` with a supporting index instead
+- PostgREST statement timeouts fail silently from the client's perspective — always check whether an empty result could be a timeout rather than genuinely empty data
+- Views that underpin primary dashboard pages should be tested with `EXPLAIN ANALYZE` after the table exceeds ~100K rows
+
+**Files modified:**
+- `supabase/migrations/20260312180000_optimize_v_grain_overview.sql`
+
+**Tags:** #performance #postgresql #index #postgrest #timeout #overview
+
 ## 2026-03-12 — Hidden Scrollbar Styling Must Be Backed By A Real Local Utility
 
 **Symptom:** The overview Community Pulse rail still showed a dated native horizontal scrollbar even though the component used a `scrollbar-hide` class.

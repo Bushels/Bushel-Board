@@ -24,6 +24,16 @@ Last updated: 2026-03-12
 | 16 | UX Layout & Hierarchy Redesign (P1) | Complete | 2026-03-11 | `components/dashboard/section-header.tsx`, `components/dashboard/compact-signal-strip.tsx`, `components/dashboard/supply-pipeline.tsx`, `app/(dashboard)/overview/page.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
 | 17 | Dual-LLM Intelligence Pipeline (Step 3.5 Flash + Grok debate) | Complete | 2026-03-12 | `supabase/functions/analyze-market-data/`, `supabase/functions/_shared/commodity-knowledge.ts`, `components/dashboard/bull-bear-cards.tsx`, `lib/queries/intelligence.ts` |
 
+## Performance Fixes
+
+### 2026-03-12 — v_grain_overview 945x Query Speedup
+
+- The Overview page silently timed out because `v_grain_overview`'s `latest_week` CTE did a `GROUP BY` + `MAX()` full-table scan on 1M+ rows in `cgc_observations` (5.2s, exceeding PostgREST statement timeout).
+- Added composite index `idx_cgc_obs_crop_year_grain_week (crop_year DESC, grain_week DESC)` and rewrote the CTE to `ORDER BY ... LIMIT 1`, enabling an Index Only Scan with 0 heap fetches.
+- Query time: 5,200ms -> 5.5ms.
+
+**Migration:** `supabase/migrations/20260312180000_optimize_v_grain_overview.sql`
+
 ## Recent UI Polish
 
 ### 2026-03-12 — Overview Community Pulse Rail Refresh
