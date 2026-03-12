@@ -11,6 +11,7 @@ import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
 
+import { NetBalanceKpi } from "@/components/dashboard/net-balance-kpi";
 import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
 import { XSignalFeed } from "@/components/dashboard/x-signal-feed";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
@@ -169,6 +170,12 @@ export default async function GrainDetailPage({ params }: Props) {
             title="Market Intelligence"
             subtitle="AI-powered thesis for this week"
           />
+
+          {/* Net Deliveries vs Disappearance — top-of-section stat */}
+          {!wowResult.error && wowResult.data && (
+            <NetBalanceKpi data={wowResult.data} />
+          )}
+
           <StaggerGroup className="space-y-6">
             {marketCoreResult.error ? (
               <SectionStateCard

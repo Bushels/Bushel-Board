@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AnimatedCard } from "@/components/motion/animated-card";
+import { ALL_GRAINS } from "@/lib/constants/grains";
 import { buildXPostHref } from "@/lib/utils/x-post";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,8 @@ interface CompactSignal {
 
 interface CompactSignalStripProps {
   signals: CompactSignal[];
+  /** Slugs of user's unlocked grains — pre-selected in the filter. Empty = default to "All". */
+  unlockedSlugs?: string[];
 }
 
 interface ScrollState {
@@ -108,7 +111,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function CompactSignalStrip({ signals }: CompactSignalStripProps) {
+/** Map slug → display name for quick lookup */
+const SLUG_TO_NAME = Object.fromEntries(
+  ALL_GRAINS.map((g) => [g.slug, g.name])
+);
+
+export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSignalStripProps) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -121,13 +129,72 @@ export function CompactSignalStrip({ signals }: CompactSignalStripProps) {
   });
   const [isDragging, setIsDragging] = useState(false);
 
-  const visible = signals?.slice(0, 8) ?? [];
+  // --- Grain filter state ---
+  // Derive the set of grain names actually present in signals
+  const availableGrains = useMemo(() => {
+    const names = new Set(signals.map((s) => s.grain).filter(Boolean));
+    // Maintain ALL_GRAINS order, then append any unknown names
+    const ordered: string[] = [];
+    for (const g of ALL_GRAINS) {
+      if (names.has(g.name)) ordered.push(g.name);
+    }
+    for (const name of names) {
+      if (!ordered.includes(name)) ordered.push(name);
+    }
+    return ordered;
+  }, [signals]);
+
+  // Default selection: user's unlocked grains (intersected with available), or "all"
+  const defaultSelected = useMemo(() => {
+    if (unlockedSlugs.length === 0) return new Set<string>(); // empty = show all
+    const names = new Set(
+      unlockedSlugs.map((s) => SLUG_TO_NAME[s]).filter(Boolean)
+    );
+    // Only keep grains that actually have signals
+    const available = new Set(availableGrains);
+    const filtered = new Set([...names].filter((n) => available.has(n)));
+    return filtered.size > 0 ? filtered : new Set<string>(); // fall back to all if none match
+  }, [unlockedSlugs, availableGrains]);
+
+  const [selectedGrains, setSelectedGrains] = useState<Set<string>>(defaultSelected);
+  const showAll = selectedGrains.size === 0;
+
+  function toggleGrain(name: string) {
+    setSelectedGrains((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedGrains(new Set<string>());
+  }
+
+  // --- Filter signals, then take top 8 ---
+  const filtered = useMemo(() => {
+    const base = signals ?? [];
+    if (showAll) return base.slice(0, 8);
+    return base.filter((s) => selectedGrains.has(s.grain)).slice(0, 8);
+  }, [signals, selectedGrains, showAll]);
+
+  const visible = filtered;
   const grainCount = new Set(visible.map((signal) => signal.grain)).size;
   const latestSearchedAt = visible.reduce<string | null>((latest, signal) => {
     if (!signal.searched_at) return latest;
     if (!latest) return signal.searched_at;
     return signal.searched_at > latest ? signal.searched_at : latest;
   }, null);
+
+  // Reset scroll position when filtered signals change
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (scroller) scroller.scrollTo({ left: 0, behavior: "auto" });
+  }, [showAll, selectedGrains]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -200,7 +267,10 @@ export function CompactSignalStrip({ signals }: CompactSignalStripProps) {
     ? (100 - thumbWidth) * scrollState.progress
     : 0;
 
-  if (visible.length === 0) return null;
+  // No signals at all — hide the entire component
+  if ((signals ?? []).length === 0) return null;
+
+  const hasFilteredResults = visible.length > 0;
 
   return (
     <AnimatedCard index={1}>
@@ -254,6 +324,41 @@ export function CompactSignalStrip({ signals }: CompactSignalStripProps) {
             </div>
           </div>
 
+          {/* Grain filter pills */}
+          {availableGrains.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter signals by grain">
+              <button
+                type="button"
+                onClick={selectAll}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors duration-150",
+                  showAll
+                    ? "border-canola/30 bg-canola/12 text-canola shadow-[0_2px_8px_-4px_rgba(193,127,36,0.3)]"
+                    : "border-border/60 bg-background/60 text-muted-foreground hover:border-canola/20 hover:text-foreground dark:bg-white/5"
+                )}
+              >
+                All
+              </button>
+              {availableGrains.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleGrain(name)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors duration-150",
+                    !showAll && selectedGrains.has(name)
+                      ? "border-canola/30 bg-canola/12 text-canola shadow-[0_2px_8px_-4px_rgba(193,127,36,0.3)]"
+                      : "border-border/60 bg-background/60 text-muted-foreground hover:border-canola/20 hover:text-foreground dark:bg-white/5"
+                  )}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {hasFilteredResults ? (
+          <>
           <div className="relative">
             <div
               className={cn(
@@ -439,6 +544,14 @@ export function CompactSignalStrip({ signals }: CompactSignalStripProps) {
               </div>
             </div>
           </div>
+          </>
+          ) : (
+            <div className="rounded-xl border border-dashed border-muted-foreground/20 bg-muted/20 px-4 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                No signals for the selected grains. Try adding more or tap <button type="button" onClick={selectAll} className="font-medium text-canola hover:underline">All</button> to see everything.
+              </p>
+            </div>
+          )}
         </div>
       </section>
     </AnimatedCard>

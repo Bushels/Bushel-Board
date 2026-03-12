@@ -71,16 +71,23 @@ const FIRST_RUN_BENEFITS = [
   },
 ];
 
+export interface MarketSupplyData {
+  total_supply_kt: number;
+  carry_out_kt: number;
+}
+
 interface MyFarmClientProps {
   currentPlans: CropPlan[];
   percentiles: Record<string, number>;
   role?: UserRole;
+  marketSupply?: Record<string, MarketSupplyData>;
 }
 
 export function MyFarmClient({
   currentPlans,
   percentiles,
   role = "farmer",
+  marketSupply = {},
 }: MyFarmClientProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -402,6 +409,56 @@ export function MyFarmClient({
                             </p>
                           </div>
                         </div>
+
+                        {(() => {
+                          const ms = marketSupply[plan.grain];
+                          if (!ms || marketing.startingGrainKt <= 0) return null;
+                          const farmerPctLeft = marketing.grainLeftPct;
+                          const marketPctLeft = Math.max(0, Math.min(100, (ms.carry_out_kt / ms.total_supply_kt) * 100));
+                          const diff = farmerPctLeft - marketPctLeft;
+                          const diffLabel = diff > 1
+                            ? `${Math.abs(diff).toFixed(0)}pp more than market`
+                            : diff < -1
+                              ? `${Math.abs(diff).toFixed(0)}pp less than market`
+                              : "on par with market";
+                          return (
+                            <div className="rounded-2xl border border-canola/20 bg-canola/5 p-3 space-y-2">
+                              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                                % Left in Bin vs Market
+                              </p>
+                              <div className="flex items-end gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-baseline justify-between">
+                                    <span className="text-xs font-medium text-canola">You</span>
+                                    <span className="font-display text-lg font-semibold text-canola">{farmerPctLeft.toFixed(0)}%</span>
+                                  </div>
+                                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full bg-canola transition-all duration-500"
+                                      style={{ width: `${farmerPctLeft}%` }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-baseline justify-between">
+                                    <span className="text-xs font-medium text-muted-foreground">Market</span>
+                                    <span className="font-display text-lg font-semibold text-muted-foreground">{marketPctLeft.toFixed(0)}%</span>
+                                  </div>
+                                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full bg-muted-foreground/40 transition-all duration-500"
+                                      style={{ width: `${marketPctLeft}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                You have <span className="font-semibold text-foreground">{diffLabel}</span> remaining.
+                                Market figure is AAFC projected carry-out as a share of total supply.
+                              </p>
+                            </div>
+                          );
+                        })()}
 
                         <div className="space-y-2 pt-1">
                           <div className="flex justify-between text-sm">

@@ -175,6 +175,7 @@ export default async function OverviewPage() {
                 grain: signal.grain ?? "",
                 searched_at: signal.searched_at ?? null,
               }))}
+              unlockedSlugs={grainContext.unlockedSlugs}
             />
           ) : (
             <SectionStateCard
