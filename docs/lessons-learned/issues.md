@@ -436,3 +436,17 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 **Files modified:** (none — operational fix)
 
 **Tags:** #hmr #next.js #debugging #dev-server
+
+## 2026-03-12 — CGC Freshness Badge Shows Historical Backfill Instead of Current Data
+
+**Symptom:** App header displayed "CGC Wk 52 · 2023-2024" instead of "CGC Wk 30 · 2025-2026".
+
+**Root cause:** `cgc-freshness.tsx` queried `cgc_imports` with `ORDER BY imported_at DESC`. Historical backfill imports (2020-2024) ran on March 12 and received newer `imported_at` timestamps than the actual current 2025-2026 Week 30 import from March 9. The query returned the most recently *imported* row, not the most *current* data.
+
+**The lesson:** `imported_at` (wall-clock time of the job) ≠ logical data time (`crop_year`, `grain_week`). Any query that wants "the latest data" must order by the data's own temporal columns, not the import timestamp. Backfills, re-imports, and reconciliation jobs will always break timestamp-based ordering.
+
+**Fix:** Changed ordering from `.order("imported_at", { ascending: false })` to `.order("crop_year", { ascending: false }).order("grain_week", { ascending: false })`. The `imported_at` field is still used for the freshness dot (green pulse vs amber) since that correctly reflects data staleness.
+
+**Files modified:** `components/layout/cgc-freshness.tsx`
+
+**Tags:** #freshness #ordering #backfill #cgc-imports

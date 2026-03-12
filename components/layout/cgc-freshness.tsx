@@ -10,7 +10,8 @@ export async function CgcFreshness() {
       .from("cgc_imports")
       .select("grain_week, crop_year, imported_at")
       .eq("status", "success")
-      .order("imported_at", { ascending: false })
+      .order("crop_year", { ascending: false })
+      .order("grain_week", { ascending: false })
       .limit(1)
       .single();
 

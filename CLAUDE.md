@@ -25,7 +25,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - `docs/plans/` — Design docs, implementation plans, and `STATUS.md` feature tracker
 - `docs/reference/` — CGC Excel map, data sources, intelligence framework
 - `docs/lessons-learned/` — Bug writeups and data issues log
-- `.claude/agents/` — Agent definitions (10 agents)
+- `.claude/agents/` — Agent definitions (11 agents)
 - `data/` — Reference CGC CSV + Excel data (gsw-shg-en.csv, gsw-shg-{week}-en.xlsx)
 - `components/dashboard/wow-comparison.tsx` — Week-over-Week comparison card with composite metric system
 
@@ -42,11 +42,12 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 | auth-engineer | Supabase Auth, middleware, security | Orange | Inherit |
 | data-audit | Data integrity, Excel/CSV/Supabase verification | Amber | Inherit |
 | security-auditor | Security review, workflow hardening, release guardrails | Slate | Inherit |
+| qc-crawler | Post-deploy/import site verification, data freshness checks | Lime | Inherit |
 
 ## Mandatory Agent Workflow (DAG)
-Every implementation must follow this gate sequence. **Never skip gates 3-5.**
+Every implementation must follow this gate sequence. **Never skip gates 3-6.**
 ```
-1. Plan → 2. Implement → 3. Verify → 4. Document → 5. Ship
+1. Plan → 2. Implement → 3. Verify → 4. Document → 5. Ship → 6. QC
 ```
 1. **Plan:** Identify which agents are needed. Assign ownership.
 2. **Implement:** Domain agents (db-architect, frontend-dev, etc.) do the work.
@@ -57,6 +58,9 @@ Every implementation must follow this gate sequence. **Never skip gates 3-5.**
 4. **Document (MANDATORY):**
    - **documentation-agent** — update issues.md, STATUS.md, CLAUDE.md, agent docs
 5. **Ship:** Deploy Edge Functions, apply migrations, verify in production.
+6. **QC (MANDATORY post-deploy):**
+   - **qc-crawler** agent — after deployments, imports, migrations, or backfills
+   - Verifies data freshness, crop year conventions, RPC health, page rendering
 
 **Lesson learned:** Track #17 shipped with 9 bugs because gates 3-5 were skipped. External audit caught what our agents should have found.
 
@@ -114,7 +118,7 @@ Every piece of work must satisfy before being marked complete:
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
 ## Intelligence Pipeline
-- **Edge Functions chain (6 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary`
+- **Edge Functions chain (7 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary` → `validate-site-health`
 - **Dual-LLM debate:** Step 3.5 Flash (free via OpenRouter) produces data-driven thesis + bull/bear cases + historical context (Round 1). Grok reviews/challenges with X signals and farmer sentiment (Round 2). Privacy: only aggregate data touches Step 3.5 Flash; PII stays on Grok.
 - **Free model:** `stepfun/step-3.5-flash:free` via OpenRouter (`OPENROUTER_API_KEY` secret). 196B MoE, 256K context, mandatory reasoning. Cost: $0/month.
 - **Batch processing:** `search-x-intelligence` and `generate-intelligence` process grains in batches then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
@@ -159,6 +163,8 @@ Every piece of work must satisfy before being marked complete:
 - Signal scan log: `SELECT scan_mode, grains_scanned, signals_found, duration_ms, completed_at FROM signal_scan_log ORDER BY completed_at DESC LIMIT 10;`
 - Pulse vs deep signals: `SELECT search_mode, source, COUNT(*) FROM x_market_signals WHERE crop_year='2025-2026' GROUP BY search_mode, source;`
 - Sentiment votes: `SELECT grain, grain_week, COUNT(*), ROUND(AVG(sentiment_value)::numeric, 1) FROM grain_sentiment_votes WHERE crop_year='2025-2026' GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
+- Health checks: `SELECT status, checks, source, created_at FROM health_checks ORDER BY created_at DESC LIMIT 5;`
+- Health check failures: `SELECT created_at, status, checks FROM health_checks WHERE status = 'fail' ORDER BY created_at DESC LIMIT 3;`
 
 ## Critical Framework Patterns
 

@@ -19,6 +19,7 @@ import {
   buildInternalHeaders,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { buildFarmSummarySystemPrompt } from "../_shared/market-intelligence-config.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
@@ -44,8 +45,7 @@ const DEFAULT_BUSHEL_WEIGHTS: Record<string, number> = {
   Beans: 60,
 };
 
-const SYSTEM_PROMPT =
-  "You are a concise agricultural market analyst writing personalized farm summaries for Canadian prairie farmers. Write 2-4 sentences. Be specific with numbers. Use a warm but professional tone. When relevant X/Twitter posts about their grains are found, briefly mention market sentiment. If the prompt includes contracted-vs-open-market context or anonymized community contract ratios, use it. IMPORTANT: Do NOT place citation links inline within the text. Instead, collect all references and list them at the very end of your response under a 'Sources:' heading, formatted as numbered markdown links (e.g. [1] https://x.com/...). Keep the narrative body clean and readable.";
+const SYSTEM_PROMPT = buildFarmSummarySystemPrompt();
 
 interface CropPlan {
   user_id: string;
@@ -320,6 +320,27 @@ Deno.serve(async (req) => {
         console.log("Triggered next batch of farm summaries");
       } catch (err) {
         console.error("Next batch self-trigger failed:", err);
+      }
+    } else {
+      // Final batch complete — chain to validate-site-health (step 6)
+      try {
+        console.log("All farm summaries complete — triggering site health check...");
+        const healthRes = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/validate-site-health`,
+          {
+            method: "POST",
+            headers: buildInternalHeaders(),
+            body: JSON.stringify({
+              crop_year: cropYear,
+              grain_week: grainWeek,
+              source: "pipeline",
+            }),
+          }
+        );
+        console.log(`validate-site-health trigger: HTTP ${healthRes.status}`);
+      } catch (healthErr) {
+        console.error("validate-site-health chain-trigger failed:", healthErr);
+        // Don't fail farm summaries — health check is best-effort
       }
     }
 

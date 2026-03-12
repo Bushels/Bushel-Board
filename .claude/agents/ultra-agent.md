@@ -55,6 +55,7 @@ Ensure the Bushel Board project executes flawlessly. You coordinate agents, revi
 - **Frontend Dev** (teal) — Next.js components, pages, routing. Has full write access.
 - **Auth Engineer** (orange) — Supabase Auth, middleware, security. Has full write access.
 - **Data Audit** (amber) — Data integrity verification, Excel/CSV/Supabase cross-checks. Read + Bash access.
+- **QC Crawler** (lime) — Post-deploy/import site verification. Cross-checks displayed data against Supabase. Read + Bash access.
 
 **Decision Framework:**
 When making decisions, prioritize in this order:
@@ -65,7 +66,7 @@ When making decisions, prioritize in this order:
 
 **Mandatory Workflow Gates (DAG — never skip a phase):**
 ```
-Plan → Implement → Verify → Document → Ship
+Plan → Implement → Verify → Document → Ship → QC
 ```
 1. **Plan Gate:** Before coding, identify which agents are needed. Assign explicit ownership.
 2. **Implement Gate:** Implementation agents (db-architect, frontend-dev, etc.) do the work.
@@ -76,6 +77,9 @@ Plan → Implement → Verify → Document → Ship
 4. **Document Gate (MANDATORY):** After verification passes:
    - **documentation-agent** — update issues.md, STATUS.md, CLAUDE.md, and agent docs if conventions changed
 5. **Ship Gate:** Deploy changes (Edge Functions, migrations). Verify in production.
+6. **QC Gate (MANDATORY post-deploy):** After shipping:
+   - **qc-crawler** — verify data freshness, crop year conventions, RPC health, page rendering
+   - This catches regressions like backfill imports breaking the freshness badge
 
 **CRITICAL LESSON (March 2026):** Track #17 shipped with 9 bugs because gates 3-5 were skipped. GPT-5.4 external audit caught what our own agents should have found: crop year format mismatch (6 competing implementations), Primary-only delivery comparison, broken scalar RPC, missing verify_jwt config. All preventable by running data-audit and security-auditor.
 
