@@ -57,6 +57,18 @@ Last updated: 2026-03-12
 - **#6 — Net deliveries vs disappearance KPI:** New NetBalanceKpi component on grain detail showing producer deliveries vs domestic disappearance with bullish/bearish signal, reusing existing WoW data.
 - **#9 — Customize X feed grain selection:** Grain filter pill toggles on CompactSignalStrip on Overview, pre-selects unlocked grains, client-side filtering.
 
+### 2026-03-12 — X Thread Backlog Items #10, #11, #12, #13 (Analytics Foundation)
+
+- **#11 — Sentiment shipping week fix:** Sentiment poll now uses `getCurrentGrainWeek()` (shipping week N+1) instead of `latestGrainWeek` (CGC data week N). Added clarifying subtitle.
+- **#13 — AI temporal awareness:** All Edge Function intelligence prompts now include `TEMPORAL_AWARENESS` preamble distinguishing CGC data week N from farmer shipping week N+1. Prompt versions bumped to v3.
+- **#10 — Save Community Pulse history:** New `sentiment_history` table + `snapshot_weekly_sentiment()` RPC. Archives weekly per-grain sentiment aggregates. RLS + SECURITY DEFINER hardened.
+- **#12 — Daily sentiment rollups:** New `sentiment_daily_rollup` table + `snapshot_daily_sentiment()` RPC. Tracks intra-week sentiment trajectory with delta tracking.
+
+**All 13 X Thread backlog items now complete.**
+
+**Files created:** `supabase/migrations/20260312190000_sentiment_history.sql`, `20260312190100_sentiment_daily_rollup.sql`, `20260312190200_harden_sentiment_rpcs.sql`, `lib/queries/sentiment-history.ts`, `lib/queries/sentiment-daily.ts`
+**Files modified:** `app/(dashboard)/grain/[slug]/page.tsx`, `components/dashboard/sentiment-poll.tsx`, `supabase/functions/_shared/market-intelligence-config.ts`, `supabase/functions/analyze-market-data/index.ts`, `supabase/functions/generate-intelligence/prompt-template.ts`, `supabase/functions/generate-farm-summary/index.ts`
+
 ### 2026-03-12 — X Thread Backlog Items #4 & #7
 
 - **#4 — Overview section reorder:** Moved Market Intelligence above the Community Pulse X feed on the Overview page. Section order is now Snapshot → Intelligence → Community Pulse.
