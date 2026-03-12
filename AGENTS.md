@@ -3,6 +3,12 @@
 ## Project Overview
 A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC) weekly data and displays grain statistics for prairie farmers (AB, SK, MB). MVP phase: real data pipeline, grain dashboard, email/password auth.
 
+## Collaboration Preferences
+- The project owner is a non-coder. Explain technical work in plain language aimed at roughly a first-year computer science student.
+- Define important jargon briefly when first used.
+- When describing a system change, connect it to the practical outcome for the farmer or for the product.
+- Avoid assuming deep knowledge of infrastructure, AI orchestration, or database internals.
+
 ## Current Status
 **Phase:** MVP + Intelligence — data pipeline, AI narratives, dashboard all operational
 **Design Doc:** `docs/plans/2026-03-04-bushel-board-mvp-design.md`

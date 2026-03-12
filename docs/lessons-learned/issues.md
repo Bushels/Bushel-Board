@@ -1,5 +1,42 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-12 — Hidden Scrollbar Styling Must Be Backed By A Real Local Utility
+
+**Symptom:** The overview Community Pulse rail still showed a dated native horizontal scrollbar even though the component used a `scrollbar-hide` class.
+
+**Root Cause:** The component assumed a `scrollbar-hide` utility existed, but this repo did not define one in `app/globals.css`. The browser therefore rendered its default scrollbar chrome, especially visibly on Windows.
+
+**Solution:** Added an explicit `.scrollbar-none` utility in `app/globals.css` and rewired the overview signal rail to use that utility plus a custom scrubber/arrow treatment in `components/dashboard/compact-signal-strip.tsx`.
+
+**Prevention:**
+- Do not rely on utility-class names copied from prior projects unless they exist locally
+- Any custom scroll treatment should be visually verified on Windows, where native scrollbar chrome is harder to ignore
+- If a scrollbar is intentionally hidden, provide an explicit replacement affordance instead of relying on swipe discovery alone
+
+**Files modified:**
+- `app/globals.css`
+- `components/dashboard/compact-signal-strip.tsx`
+
+**Tags:** #ui #overview #scrollbar #windows #x-feed
+
+## 2026-03-12 — Daylight Auth Variants Need Their Own Contrast Tokens
+
+**Symptom:** The top third of the signup page became difficult to read in the daytime auth scene. The headline, description, and top-left chrome were too washed out against the pale gold background.
+
+**Root Cause:** The auth shell reused a mostly white text/chip treatment that worked for the evening variant but did not hold enough contrast on the daylight gradient. The hero block also sat too close to the absolute-positioned brand chip at narrower widths.
+
+**Solution:** Gave the daylight auth shell its own darker wheat text treatment, stronger badge/logo/proof-card styling, a subtle glass panel behind the hero copy, and extra top spacing in `components/auth/auth-shell.tsx`.
+
+**Prevention:**
+- Visual themes that change by time-of-day need separate contrast checks, not just palette swaps
+- Absolute-positioned nav/brand chrome must be checked against hero spacing on narrower desktop widths
+- Day and evening auth scenes should be visually QA'd in-browser as separate surfaces
+
+**Files modified:**
+- `components/auth/auth-shell.tsx`
+
+**Tags:** #auth #signup #contrast #ui #daylight
+
 ## 2026-03-12 — Systemic Crop Year Format Mismatch (6 Competing Implementations)
 
 **Symptom:** Historical RPCs (`get_historical_average`, `get_seasonal_pattern`, `get_week_percentile`) returned zero data. Intelligence tables (`grain_intelligence`, `x_market_signals`) couldn't join against `cgc_observations`. All cross-table queries silently returned empty results.

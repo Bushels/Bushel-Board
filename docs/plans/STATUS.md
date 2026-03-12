@@ -24,6 +24,24 @@ Last updated: 2026-03-12
 | 16 | UX Layout & Hierarchy Redesign (P1) | Complete | 2026-03-11 | `components/dashboard/section-header.tsx`, `components/dashboard/compact-signal-strip.tsx`, `components/dashboard/supply-pipeline.tsx`, `app/(dashboard)/overview/page.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
 | 17 | Dual-LLM Intelligence Pipeline (Step 3.5 Flash + Grok debate) | Complete | 2026-03-12 | `supabase/functions/analyze-market-data/`, `supabase/functions/_shared/commodity-knowledge.ts`, `components/dashboard/bull-bear-cards.tsx`, `lib/queries/intelligence.ts` |
 
+## Recent UI Polish
+
+### 2026-03-12 — Overview Community Pulse Rail Refresh
+
+- Reworked the overview X/community preview from a plain horizontal strip into a designed signal rail with larger cards, stronger metadata hierarchy, edge fades, left/right controls, and a custom draggable scrubber.
+- Replaced reliance on an undefined `scrollbar-hide` utility with an explicit cross-browser scrollbar-hiding utility in `app/globals.css`, then gave the overview rail its own visible scroll affordance.
+- Verified the redesigned rail visually in-browser after implementation.
+
+**Files modified:** `components/dashboard/compact-signal-strip.tsx`, `app/globals.css`
+
+### 2026-03-12 — Daylight Auth Contrast & Spacing Fix
+
+- Fixed the top-third readability issue on the daylight auth shell by switching the hero copy from low-contrast white text to dark wheat text on the daytime variant.
+- Strengthened the daylight badge, logo chip, and proof cards, added a subtle glass panel behind the hero copy, and increased top spacing so the badge no longer crowds the top-left brand chip on narrower viewports.
+- Verified the updated `/signup` page visually in-browser after implementation.
+
+**Files modified:** `components/auth/auth-shell.tsx`
+
 ## Intelligence Pipeline
 
 ```text
