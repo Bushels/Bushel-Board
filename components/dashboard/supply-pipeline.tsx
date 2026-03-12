@@ -133,9 +133,9 @@ export function SupplyPipeline({
             className={`overflow-hidden transition-[max-height] duration-300 ${domesticOpen ? "max-h-[500px]" : "max-h-0"}`}
           >
             <div className="space-y-2.5 pb-2">
-              {filteredDomestic.map((d) => (
+              {filteredDomestic.map((d, i) => (
                 <WaterfallRow
-                  key={d.region}
+                  key={`${d.region}-${i}`}
                   label={d.region}
                   value={d.ktonnes}
                   max={max}
