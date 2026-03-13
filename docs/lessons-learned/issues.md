@@ -601,3 +601,33 @@ Buckwheat left unmatched (minor grain, not in the tracked 16 Canadian grains).
 - Codified the "2 of 3 weeks confirmation" rule — don't wait for 2-3 more weeks when the data already shows a pattern
 
 **Tags:** #ai-pipeline #thesis-quality #dual-llm #debate-moderation #canola
+
+## 2026-03-13 — Phantom Migration: knowledge_corpus Recorded But DDL Never Executed
+
+**Symptom:** `knowledge_documents` and `knowledge_chunks` tables did not exist in production, but `supabase_migrations.schema_migrations` showed version `20260312170000` as applied. Edge Functions calling `get_knowledge_context()` RPC silently returned empty results (function also didn't exist).
+
+**Root cause:** Unknown — likely `supabase db push` marked the migration as applied after a transient error. The migration's `GENERATED ALWAYS AS` column with `to_tsvector()` would have failed because `to_tsvector(regconfig, text)` is `STABLE`, not `IMMUTABLE`. PostgreSQL requires `IMMUTABLE` expressions in generated columns. The error may have been swallowed.
+
+**Fix:** Ran the DDL directly via Supabase MCP SQL. Replaced the `GENERATED ALWAYS AS` tsvector column with a trigger-based approach (`BEFORE INSERT OR UPDATE` trigger that populates `search_vector`). Updated the local migration file to match.
+
+**Prevention:**
+- Always verify tables exist after `supabase db push` — don't trust the migration history table alone
+- Use `SELECT count(*) FROM <table>` as a smoke test after applying migrations
+- For full-text search columns, prefer trigger-based tsvector over generated columns (Postgres classifies `to_tsvector` and `setweight` as STABLE, not IMMUTABLE)
+
+**Tags:** #migration #supabase #postgresql #full-text-search #phantom-migration
+
+## 2026-03-13 — Wrong xAI Model ID: grok-4-20 Does Not Exist
+
+**Symptom:** `generate-intelligence` Edge Function returned 400 error: `"Model not found: grok-4-20"`. Canola intelligence generation failed.
+
+**Root cause:** The xAI API uses a different naming convention than expected. The correct model ID for Grok 4.20 beta with reasoning is `grok-4.20-beta-0309-reasoning`, not `grok-4-20`. The model name includes dots, the beta tag, a date suffix, and a reasoning/non-reasoning mode suffix.
+
+**Fix:** Updated the MODEL constant in `generate-intelligence/index.ts` to `grok-4.20-beta-0309-reasoning` and redeployed.
+
+**Prevention:**
+- Always verify model IDs against the official docs page (`docs.x.ai/developers/models`) before deploying
+- xAI model naming pattern: `grok-{major}.{minor}-{variant}-{date}-{mode}`
+- Consider storing model IDs in a configuration table or env var rather than hardcoding, so they can be updated without code deploys
+
+**Tags:** #xai #grok #model-id #edge-function #api

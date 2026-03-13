@@ -148,7 +148,7 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 - Schedule: Thursday afternoon after the CGC weekly release window
 - Round 1: `analyze-market-data` — Step 3.5 Flash (free via OpenRouter) produces data-driven thesis, bull/bear cases, historical context
 - Round 2: `generate-intelligence` — Grok reviews/challenges Step 3.5 Flash's thesis with X signals and farmer sentiment
-- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4-20` (xAI)
+- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4.20-beta-0309-reasoning` (xAI)
 - Cost: about `$0.04` per weekly run (Step 3.5 Flash is free, only Grok costs)
 - Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users per invocation for farm summaries
 
