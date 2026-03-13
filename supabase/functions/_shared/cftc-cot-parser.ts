@@ -188,8 +188,8 @@ export const CFTC_GRAIN_MAP: Record<
   "WHEAT-HRW": { cgcGrain: "Wheat", mappingType: "secondary" },
   "WHEAT-HRSpring": { cgcGrain: "Wheat", mappingType: "primary" },
   SOYBEANS: { cgcGrain: "Soybeans", mappingType: "primary" },
-  "SOYBEAN OIL": { cgcGrain: "Soybeans", mappingType: "secondary" },
-  "SOYBEAN MEAL": { cgcGrain: "Soybeans", mappingType: "secondary" },
+  "SOYBEAN OIL": { cgcGrain: "Canola", mappingType: "secondary" },
+  "SOYBEAN MEAL": { cgcGrain: "Canola", mappingType: "secondary" },
   CORN: { cgcGrain: "Corn", mappingType: "primary" },
   CANOLA: { cgcGrain: "Canola", mappingType: "primary" },
 };
