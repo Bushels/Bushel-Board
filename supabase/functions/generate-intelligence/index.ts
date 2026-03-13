@@ -143,11 +143,12 @@ Deno.serve(async (req) => {
         // Get Step 3.5 Flash analysis for this grain (may be null if not available)
         const priorAnalysis = marketAnalysisByGrain.get(grainName) as Record<string, unknown> | undefined;
 
-        // CFTC COT positioning (last 4 weeks)
+        // CFTC COT positioning (last 4 weeks, bounded to target analysis week)
         const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
           p_grain: grainName,
           p_crop_year: cropYear,
           p_weeks_back: 4,
+          p_max_grain_week: grainWeek,
         });
 
         const knowledgeContext = await fetchKnowledgeContext(supabase, {

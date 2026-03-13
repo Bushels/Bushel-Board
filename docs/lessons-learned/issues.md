@@ -631,3 +631,49 @@ Buckwheat left unmatched (minor grain, not in the tracked 16 Canadian grains).
 - Consider storing model IDs in a configuration table or env var rather than hardcoding, so they can be updated without code deploys
 
 **Tags:** #xai #grok #model-id #edge-function #api
+
+## 2026-03-14 — CFTC Cron Was Disconnected From Intelligence Pipeline
+
+**Symptom:** Friday CFTC COT import (`import-cftc-cot`) ran successfully but the intelligence pipeline (`analyze-market-data` → `generate-intelligence`) never re-ran. Farmers saw intelligence cards without COT context until the next weekly Thursday run.
+
+**Root cause:** The CFTC cron route (`app/api/cron/import-cftc-cot/route.ts`) only called `import-cftc-cot` and returned — it didn't chain to downstream functions like the CGC Thursday pipeline does. The Thursday pipeline runs before CFTC data is available (CFTC publishes Friday), so the weekly intelligence never included COT positioning.
+
+**Fix:** Added chain trigger in the cron route: after successful CFTC import, fire `analyze-market-data` which auto-chains to `generate-intelligence`. This re-runs the dual-LLM pipeline with COT data now available.
+
+**Prevention:**
+- Any new data source cron must chain to the intelligence pipeline if the data feeds into LLM analysis
+- Document the canonical pipeline chain in CLAUDE.md when adding new ingress points
+
+**Tags:** #cftc #cron #pipeline #chain-trigger #intelligence
+
+## 2026-03-14 — get_cot_positioning() Leaked Future Data Into Historical Reruns
+
+**Symptom:** Regenerating Week 30 intelligence after Week 32 COT data arrived would include Week 31-32 positioning data in the analysis — making historical intelligence non-reproducible.
+
+**Root cause:** The `get_cot_positioning()` RPC only filtered by `p_grain` and `p_crop_year`, then `ORDER BY report_date DESC LIMIT p_weeks_back`. No upper bound on grain_week meant reruns could "see the future."
+
+**Fix:** Added `p_max_grain_week` parameter (DEFAULT NULL for backwards compatibility). Both `analyze-market-data` and `generate-intelligence` now pass `p_max_grain_week: grainWeek` to scope COT data to the target analysis week.
+
+**Prevention:**
+- All time-series RPCs used by the intelligence pipeline must accept an "as-of" bound parameter
+- Historical reproducibility should be a test case: "regenerating week N later produces the same data inputs"
+
+**Tags:** #cftc #rpc #reproducibility #time-series #intelligence
+
+## 2026-03-14 — CFTC Parser Field Names Mismatched Live SODA API Schema
+
+**Symptom:** `managed_money_spread`, `traders_prod_merc_long/short`, and `traders_other_long` columns were silently null in `cftc_cot_positions` despite the upstream CFTC API having valid data.
+
+**Root cause:** The parser interface (`CftcApiRow`) used field names that don't match the live `kh3c-gbw2` SODA endpoint:
+- `m_money_positions_spread_all` → actual: `m_money_positions_spread` (no `_all` suffix)
+- `traders_prod_merc_long` → actual: `traders_prod_merc_long_all` (missing `_all`)
+- `traders_other_rept_long` → actual: `traders_other_rept_long_all` (missing `_all`)
+- `traders_swap_long_all` / `short_all` / `spread_all` → don't exist in disaggregated dataset at all
+
+**Fix:** Corrected field names in `CftcApiRow` interface and `parseCftcCotRows()` mapping. Swap trader counts hardcoded to null (not available in this dataset).
+
+**Prevention:**
+- Validate parser output against a live API response during integration testing
+- Add a smoke test that fetches one CFTC row and asserts non-null values for key positioning fields
+
+**Tags:** #cftc #parser #soda-api #field-mapping #silent-null

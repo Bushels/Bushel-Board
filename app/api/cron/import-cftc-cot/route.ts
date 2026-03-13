@@ -1,5 +1,12 @@
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+function buildInternalHeaders(secret: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    "x-bushel-internal-secret": secret,
+  };
+}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -18,33 +25,67 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(
+    // 1. Import CFTC COT data
+    const importResponse = await fetch(
       `${supabaseUrl}/functions/v1/import-cftc-cot`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-bushel-internal-secret": internalSecret,
-        },
+        headers: buildInternalHeaders(internalSecret),
         body: JSON.stringify({}),
       }
     );
 
-    const result = await response.json();
+    const importResult = await importResponse.json();
 
     console.log(
-      `[cron/import-cftc-cot] Edge function returned ${response.status}:`,
-      result
+      `[cron/import-cftc-cot] Edge function returned ${importResponse.status}:`,
+      importResult
     );
 
-    return Response.json(
-      {
-        source: "vercel-cron",
-        edge_function_status: response.status,
-        ...result,
-      },
-      { status: response.ok ? 200 : 502 }
-    );
+    if (!importResponse.ok || importResult.status === "error") {
+      return Response.json(
+        {
+          source: "vercel-cron",
+          edge_function_status: importResponse.status,
+          ...importResult,
+        },
+        { status: 502 }
+      );
+    }
+
+    // 2. Chain to analyze-market-data → generate-intelligence
+    //    The Thursday CGC pipeline already ran, but without COT data.
+    //    Re-running analyze-market-data refreshes intelligence with COT context.
+    //    analyze-market-data auto-chains to generate-intelligence after its last batch.
+    let chainResult: unknown = null;
+    try {
+      const chainResponse = await fetch(
+        `${supabaseUrl}/functions/v1/analyze-market-data`,
+        {
+          method: "POST",
+          headers: buildInternalHeaders(internalSecret),
+          body: JSON.stringify({}),
+        }
+      );
+      chainResult = await chainResponse.json().catch(() => null);
+      console.log(
+        `[cron/import-cftc-cot] analyze-market-data chain returned ${chainResponse.status}:`,
+        chainResult
+      );
+    } catch (chainErr) {
+      console.error("[cron/import-cftc-cot] Chain trigger failed:", chainErr);
+      chainResult = {
+        error: chainErr instanceof Error ? chainErr.message : String(chainErr),
+      };
+    }
+
+    return Response.json({
+      source: "vercel-cron",
+      edge_function_status: importResponse.status,
+      ...importResult,
+      chain_triggered: true,
+      chain_result: chainResult,
+    });
   } catch (error) {
     console.error("[cron/import-cftc-cot] Failed:", error);
     return Response.json(

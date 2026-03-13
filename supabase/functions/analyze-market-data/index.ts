@@ -163,11 +163,12 @@ Deno.serve(async (req) => {
           }).then(r => r.data),
         ]);
 
-        // 6. CFTC COT positioning (last 4 weeks for this grain)
+        // 6. CFTC COT positioning (last 4 weeks, bounded to target analysis week)
         const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
           p_grain: grainName,
           p_crop_year: cropYear,
           p_weeks_back: 4,
+          p_max_grain_week: grainWeek,
         });
 
         const knowledgeContext = await fetchKnowledgeContext(supabase, {

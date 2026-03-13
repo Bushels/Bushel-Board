@@ -29,7 +29,7 @@ export interface CftcApiRow {
   // Managed Money
   m_money_positions_long_all: string;
   m_money_positions_short_all: string;
-  m_money_positions_spread_all: string;
+  m_money_positions_spread: string;
 
   // Other Reportable
   other_rept_positions_long: string;
@@ -66,15 +66,13 @@ export interface CftcApiRow {
   pct_of_oi_nonrept_short_all: string;
 
   // Number of traders
-  traders_prod_merc_long: string;
-  traders_prod_merc_short: string;
-  traders_swap_long_all: string;
-  traders_swap_short_all: string;
-  traders_swap_spread_all: string;
+  traders_prod_merc_long_all: string;
+  traders_prod_merc_short_all: string;
+  // Note: swap trader counts are not in the disaggregated dataset (kh3c-gbw2)
   traders_m_money_long_all: string;
   traders_m_money_short_all: string;
   traders_m_money_spread_all: string;
-  traders_other_rept_long: string;
+  traders_other_rept_long_all: string;
   traders_other_rept_short: string;
   traders_other_rept_spread: string;
   traders_tot_all: string;
@@ -338,7 +336,7 @@ export function parseCftcCotRows(apiRows: CftcApiRow[]): CftcCotPosition[] {
       // Managed Money
       managed_money_long: numReq(row.m_money_positions_long_all),
       managed_money_short: numReq(row.m_money_positions_short_all),
-      managed_money_spread: num(row.m_money_positions_spread_all),
+      managed_money_spread: num(row.m_money_positions_spread),
 
       // Other Reportable
       other_long: numReq(row.other_rept_positions_long),
@@ -374,15 +372,15 @@ export function parseCftcCotRows(apiRows: CftcApiRow[]): CftcCotPosition[] {
       pct_nonreportable_short: num(row.pct_of_oi_nonrept_short_all),
 
       // Number of traders
-      traders_prod_merc_long: num(row.traders_prod_merc_long),
-      traders_prod_merc_short: num(row.traders_prod_merc_short),
-      traders_swap_long: num(row.traders_swap_long_all),
-      traders_swap_short: num(row.traders_swap_short_all),
-      traders_swap_spread: num(row.traders_swap_spread_all),
+      traders_prod_merc_long: num(row.traders_prod_merc_long_all),
+      traders_prod_merc_short: num(row.traders_prod_merc_short_all),
+      traders_swap_long: null, // swap trader counts not in disaggregated dataset
+      traders_swap_short: null,
+      traders_swap_spread: null,
       traders_managed_money_long: num(row.traders_m_money_long_all),
       traders_managed_money_short: num(row.traders_m_money_short_all),
       traders_managed_money_spread: num(row.traders_m_money_spread_all),
-      traders_other_long: num(row.traders_other_rept_long),
+      traders_other_long: num(row.traders_other_rept_long_all),
       traders_other_short: num(row.traders_other_rept_short),
       traders_other_spread: num(row.traders_other_rept_spread),
       traders_total: num(row.traders_tot_all),
