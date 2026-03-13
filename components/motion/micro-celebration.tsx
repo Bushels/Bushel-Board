@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 
 const CELEBRATION_KEYS = {
   firstVote: "bb_first_vote",

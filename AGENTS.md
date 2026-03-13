@@ -86,7 +86,8 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
 ## Intelligence Pipeline
-- **Edge Functions chain (5 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `generate-intelligence` → `generate-farm-summary`
+- **Canonical production chain (7 stages):** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary` → `validate-site-health`
+- **Legacy fallback:** `import-cgc-weekly` remains internal-only for recovery/testing, not public ingress
 - **Batch processing:** `search-x-intelligence` and `generate-intelligence` process 4 grains per invocation then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
 - **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal)
@@ -96,7 +97,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
 - **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
-- **Auth for chain triggers:** Vercel cron is the only public ingress. Internal Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
+- **Auth for chain triggers:** Vercel cron is the only public ingress. Internal-only Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
 ## Pipeline Monitoring
 - Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)

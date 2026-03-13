@@ -118,7 +118,8 @@ Every piece of work must satisfy before being marked complete:
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
 ## Intelligence Pipeline
-- **Edge Functions chain (7 steps):** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary` → `validate-site-health`
+- **Canonical production chain (7 stages):** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary` → `validate-site-health`
+- **Legacy fallback:** `import-cgc-weekly` remains internal-only for recovery/testing, not public ingress
 - **Dual-LLM debate:** Step 3.5 Flash (free via OpenRouter) produces data-driven thesis + bull/bear cases + historical context (Round 1). Grok reviews/challenges with X signals and farmer sentiment (Round 2). Privacy: only aggregate data touches Step 3.5 Flash; PII stays on Grok.
 - **Free model:** `stepfun/step-3.5-flash:free` via OpenRouter (`OPENROUTER_API_KEY` secret). 196B MoE, 256K context, mandatory reasoning. Cost: $0/month.
 - **Batch processing:** `search-x-intelligence` and `generate-intelligence` process grains in batches then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
@@ -138,7 +139,7 @@ Every piece of work must satisfy before being marked complete:
 - **Commodity knowledge:** `supabase/functions/_shared/commodity-knowledge.ts` — distilled trading frameworks from 3 PDF books (~5.5K tokens, expanded with Marketing Strategy & Logistics sections). Injected into Step 3.5 Flash system prompt for domain expertise.
 - **Logistics RPC:** `get_logistics_snapshot(p_crop_year, p_grain_week)` — returns Grain Monitor + Producer Car data as structured JSON. Used by both `analyze-market-data` and `generate-intelligence` Edge Functions.
 - **Agent debate rules:** `docs/reference/agent-debate-rules.md` — 8 codified rules for continuous improvement of Step 3.5 Flash and Grok outputs (flow coherence, thesis quality, grain-specific rules, validation checklist)
-- **Auth for chain triggers:** Vercel cron is the only public ingress. Internal Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
+- **Auth for chain triggers:** Vercel cron is the only public ingress. Internal-only Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
 ## Pipeline Monitoring
 - Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)

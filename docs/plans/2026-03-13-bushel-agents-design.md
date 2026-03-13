@@ -99,7 +99,7 @@ Sunday:
 
 ### CGC — Weekly Supply/Demand (Existing)
 
-Already integrated via `import-cgc-weekly` Edge Function. Provides:
+Already integrated via the Vercel cron ingress (`/api/cron/import-cgc`) plus the internal validation/intelligence chain. Provides:
 - Producer deliveries by grain, region, week
 - Terminal receipts and exports
 - Cumulative crop-year volumes

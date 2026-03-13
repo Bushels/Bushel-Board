@@ -88,18 +88,18 @@ Last updated: 2026-03-13
 
 ### 2026-03-13 — Supplementary Data Pipeline: Grain Monitor & Producer Cars (Track 18)
 
-**Status:** Complete — data layer, AI integration, Edge Function deployments, and debate moderation all done. UI display and automated scraping remain as future work.
+**Status:** Complete for the production rollout — data layer, AI integration, Edge Function deployments, and debate moderation all done. UI display, automated scraping, and scripted repo seeding remain future work.
 
 **What was implemented:**
 - **New tables:**
-  - `grain_monitor_snapshots` — Government Grain Monitor PDFs (port throughput, grain-in-storage, carryover trends). Week 30 data inserted (lagged 1 week for Week 31 analysis).
-  - `producer_car_allocations` — CGC Producer Car reports (forward-looking rail allocations). Week 33 data inserted (2-week forward for Week 31 analysis).
+  - `grain_monitor_snapshots` — Government Grain Monitor PDFs (port throughput, grain-in-storage, carryover trends). Week 30 sample data was inserted in production (lagged 1 week for Week 31 analysis).
+  - `producer_car_allocations` — CGC Producer Car reports (forward-looking rail allocations). Week 33 sample data was inserted in production (2-week forward for Week 31 analysis).
 
 - **New RPC:** `get_logistics_snapshot(crop_year, grain_week)` returns both tables as structured JSON.
 
 - **AI integration:** Embedded logistics context into commodity knowledge (2 new sections: "Marketing Strategy & Contract Guidance" + "Logistics & Transport Awareness", ~1.5K tokens). Injected into Step 3.5 Flash + Grok prompts via updated `market-intelligence-config.ts` version bumps (v4 analyze/generate, v3 knowledge).
 
-- **Data insertion:** Week 30 Grain Monitor + Week 33 Producer Car allocations for 2025-2026 manually loaded.
+- **Data insertion:** Week 30 Grain Monitor + Week 33 Producer Car allocations for 2025-2026 were manually loaded in the live project. The repo currently ships schema plus source files, not an automated sample-data seed for those rows.
 
 **Known issues (resolved):**
 - ~~Grain name mismatch between `producer_car_allocations` ("Durum") and `grains` table ("Amber Durum").~~ Fixed via SQL UPDATE: "Durum" → "Amber Durum", "Chickpeas" → "Chick Peas". Buckwheat remains unmatched (minor grain, not in tracked 16).
@@ -140,7 +140,7 @@ Last updated: 2026-03-13
 ## Intelligence Pipeline
 
 ```text
-import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary
+GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary -> validate-site-health
 ```
 
 - Trigger: Vercel cron -> `/api/cron/import-cgc`

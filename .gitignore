@@ -51,6 +51,7 @@ lint-results*.json
 # local browser/debug artifacts
 .playwright-cli/
 output/
+canola-spring-loaded.html
 
 # Historical CGC data files (too large for git)
 data/*.csv

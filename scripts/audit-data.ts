@@ -181,48 +181,10 @@ const SUMMARY_GRAINS: Record<string, number> = {
   "Lentil": 16, "Chick Peas": 17, "Total": 18,
 };
 
-const SUMMARY_ROWS: Record<string, number> = {
-  "Deliveries_CW": 15, "Deliveries_CY": 17,
-  "Terminal Receipts_CW": 21, "Terminal Receipts_CY": 23,
-  "Exports_CW": 27, "Exports_CY": 29,
-};
-
 // ─── CSV Reader ──────────────────────────────────────────────────────
 
 interface CsvLookup {
   get(worksheet: string, metric: string, period: string, grain: string, grade: string, region: string): number | undefined;
-}
-
-function loadCsv(): CsvLookup {
-  const csvPath = resolve(DATA_DIR, "gsw-shg-en.csv");
-  if (!existsSync(csvPath)) {
-    console.error(`ERROR: CSV file not found: ${csvPath}`);
-    process.exit(1);
-  }
-  console.error("Loading CSV...");
-  const content = readFileSync(csvPath, "utf-8");
-  const rows = parseCgcCsv(content);
-  console.error(`  Parsed ${rows.length} CSV rows`);
-
-  // Build lookup map
-  const map = new Map<string, number>();
-  for (const r of rows) {
-    const key = `${r.worksheet}|${r.metric}|${r.period}|${r.grain}|${r.grade}|${r.region}|${r.grain_week}|${r.crop_year}`;
-    map.set(key, r.ktonnes);
-  }
-
-  return {
-    get(worksheet, metric, period, grain, grade, region) {
-      // CSV uses long crop year format like "2025-2026"
-      const cropYear = getCurrentCropYear();
-      // Try with the latest week first
-      for (let w = 52; w >= 1; w--) {
-        const key = `${worksheet}|${metric}|${period}|${grain}|${grade}|${region}|${w}|${cropYear}`;
-        if (map.has(key)) return map.get(key);
-      }
-      return undefined;
-    },
-  };
 }
 
 function loadCsvForWeek(week: number): CsvLookup {

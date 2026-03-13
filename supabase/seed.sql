@@ -1,0 +1,4 @@
+-- Intentionally minimal.
+-- Canonical sample data should be loaded through scripts, migrations, or manual
+-- imports as documented. This file exists so `supabase db reset` has a valid
+-- seed target in local development.

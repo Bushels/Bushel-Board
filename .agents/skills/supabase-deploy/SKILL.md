@@ -16,12 +16,15 @@ Deploy Edge Functions and manage database migrations for the Bushel Board Supaba
 ## Project Context
 
 - **Supabase project:** `ibgsloyjxdopkvwqcqwh`
-- **Edge Functions (5 total):**
-  - `import-cgc-weekly` — fetches CGC CSV, upserts grain_observations
+- **Edge Functions (7 total):**
+  - `import-cgc-weekly` — legacy internal-only fallback import path
   - `validate-import` — runs anomaly checks, writes to validation_reports
   - `search-x-intelligence` — X/Twitter search via xAI for market sentiment
+  - `analyze-market-data` — Step 3.5 Flash round-1 market analysis
   - `generate-intelligence` — per-grain AI narratives via Grok
   - `generate-farm-summary` — per-user weekly farm summaries + percentiles
+  - `validate-site-health` — post-pipeline site checks
+- **Canonical weekly ingest:** Vercel route `GET /api/cron/import-cgc` (not a Supabase Edge Function)
 - **Migrations path:** `supabase/migrations/`
 - **Secrets:** stored in Supabase Vault; local dev in `.env.local` (gitignored)
 
@@ -63,6 +66,8 @@ npx supabase secrets set KEY=value --project-ref ibgsloyjxdopkvwqcqwh
 | Secret | Used by |
 |--------|---------|
 | `XAI_API_KEY` | `search-x-intelligence`, `generate-intelligence`, `generate-farm-summary` |
+| `OPENROUTER_API_KEY` | `analyze-market-data` |
+| `BUSHEL_INTERNAL_FUNCTION_SECRET` | All internal-only functions and `enqueue_internal_function()` |
 | `SUPABASE_SERVICE_ROLE_KEY` | All functions (auto-injected) |
 | `SUPABASE_URL` | All functions (auto-injected) |
 

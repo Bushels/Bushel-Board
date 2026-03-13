@@ -2,14 +2,17 @@
 
 ## Overview
 
-Bushel Board imports Canadian Grain Commission weekly data through a Vercel cron ingress and a chained set of Supabase Edge Functions.
+Bushel Board imports Canadian Grain Commission weekly data through a Vercel cron ingress and a chained set of internal Supabase Edge Functions.
 
-The production pipeline is now:
+The canonical production pipeline is now:
 
-1. Vercel cron calls `/api/cron/import-cgc`
+1. Vercel cron calls `GET /api/cron/import-cgc`
 2. The route fetches the CGC CSV directly from `grainscanada.gc.ca`
-3. The route forwards the payload to `import-cgc-weekly`
-4. Internal Edge Functions chain through validation, X search, intelligence generation, and farm summaries
+3. The route upserts the current week into `cgc_observations` and logs `cgc_imports`
+4. The route calls `validate-import` with `x-bushel-internal-secret`
+5. Internal Edge Functions continue through signal search, market analysis, intelligence generation, farm summaries, and site health
+
+`import-cgc-weekly` still exists as an internal-only fallback for recovery/testing, but it is no longer the public ingress or the canonical weekly scheduler target.
 
 The old Supabase `pg_cron` job has been unscheduled and is no longer the canonical trigger path.
 
@@ -24,19 +27,22 @@ The old Supabase `pg_cron` job has been unscheduled and is no longer the canonic
        |
        | fetch CSV from CGC
        v
-  import-cgc-weekly
-       |
-       v
   validate-import
        |
        v
   search-x-intelligence
        |
        v
+  analyze-market-data
+       |
+       v
   generate-intelligence
        |
        v
   generate-farm-summary
+       |
+       v
+  validate-site-health
 ```
 
 ## Auth Model
@@ -48,13 +54,15 @@ The old Supabase `pg_cron` job has been unscheduled and is no longer the canonic
 
 ### Internal function chain
 
-- `import-cgc-weekly`
 - `validate-import`
 - `search-x-intelligence`
+- `analyze-market-data`
 - `generate-intelligence`
 - `generate-farm-summary`
+- `validate-site-health`
+- `import-cgc-weekly` (legacy internal fallback only)
 
-All five functions now:
+All internal-only functions now:
 
 - set `verify_jwt = false` in `supabase/config.toml`
 - require `x-bushel-internal-secret`
@@ -163,8 +171,8 @@ Expected result: zero rows.
 ### Intelligence chain stops after import
 
 - Check `validate-import` logs first
-- Then check `search-x-intelligence`, `generate-intelligence`, and `generate-farm-summary`
-- Verify all five functions were deployed after the latest auth helper change
+- Then check `search-x-intelligence`, `analyze-market-data`, `generate-intelligence`, `generate-farm-summary`, and `validate-site-health`
+- Verify all internal-only functions were deployed after the latest auth helper change
 
 ### Data looks inconsistent
 

@@ -71,10 +71,12 @@ These are the non-negotiable rules for Bushel Board's auth, workflow, and farmer
 - `npm run test`
 - `npm run build`
 - `npx supabase db push --linked`
-- `npx supabase functions deploy import-cgc-weekly`
 - `npx supabase functions deploy validate-import`
 - `npx supabase functions deploy search-x-intelligence`
+- `npx supabase functions deploy analyze-market-data`
 - `npx supabase functions deploy generate-intelligence`
 - `npx supabase functions deploy generate-farm-summary`
+- `npx supabase functions deploy validate-site-health`
+- `npx supabase functions deploy import-cgc-weekly` if the legacy fallback changed
 - Confirm Vercel production has the same `BUSHEL_INTERNAL_FUNCTION_SECRET` as Supabase
 - Confirm `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` returns zero rows

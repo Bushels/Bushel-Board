@@ -16,8 +16,9 @@ Manage the Canadian Grain Commission weekly data import pipeline end-to-end.
 ## Project Context
 
 - **Supabase project:** `ibgsloyjxdopkvwqcqwh`
-- **Edge Functions chain:** `import-cgc-weekly` → `validate-import` → `search-x-intelligence` → `generate-intelligence` → `generate-farm-summary`
-- **Cron:** pg_cron every Thursday ~8pm UTC (1pm MST)
+- **Canonical production pipeline:** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary` → `validate-site-health`
+- **Legacy fallback:** `import-cgc-weekly` still exists, but it is internal-only and not the public ingress
+- **Cron:** Vercel cron every Thursday at 20:00 UTC (1pm MST)
 - **Source:** `https://www.grainscanada.gc.ca/en/grain-statistics/grain-statistics-weekly/` (week CSV files)
 - **Local backfill script:** `npm run backfill -- --csv "../Bushel Board/data/gsw-shg-en.csv"`
 
@@ -49,15 +50,22 @@ SELECT * FROM net._http_response ORDER BY created DESC LIMIT 10;
 
 ### Via Vercel cron proxy (preferred — handles CGC firewall)
 ```bash
-curl -X POST https://bushel-board-app.vercel.app/api/cron/import-cgc \
+curl https://bushel-board-app.vercel.app/api/cron/import-cgc \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-### Via Supabase Edge Function directly
+### Via local Next.js route
 ```bash
-npx supabase functions invoke import-cgc-weekly \
-  --project-ref ibgsloyjxdopkvwqcqwh \
-  --body '{"week": 30, "crop_year": "2025-26"}'
+curl http://localhost:3000/api/cron/import-cgc \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+### Via legacy internal fallback (only if the route is unavailable)
+```bash
+curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/import-cgc-weekly" \
+  -H "Content-Type: application/json" \
+  -H "x-bushel-internal-secret: $BUSHEL_INTERNAL_FUNCTION_SECRET" \
+  -d '{"week": 30, "crop_year": "2025-26"}'
 ```
 
 ### Local backfill (historical data)
@@ -79,8 +87,8 @@ npm run backfill -- --csv "../Bushel Board/data/gsw-shg-en.csv"
 - Check `validation_reports` for post-import anomalies flagged by `validate-import`
 
 ### 3. Trigger / re-trigger
-- Use the Vercel proxy for real imports (it fetches the CSV and passes it to the Edge Function)
-- Use direct Edge Function invocation for testing with specific week/crop_year
+- Use the Vercel route for real imports in production or local dev
+- Use `import-cgc-weekly` only as an internal fallback when the route is unavailable
 
 ### 4. Verify intelligence chain
 After a successful import, check that the chain fired:
@@ -89,20 +97,20 @@ SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generate
 SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;
 ```
 
-## Manual Chain Invocation (curl with anon key)
+## Manual Chain Invocation (shared-secret auth)
 
-If the chain breaks mid-pipeline, invoke individual functions directly:
+If the chain breaks mid-pipeline, invoke individual functions directly with the internal secret:
 ```bash
 # Invoke any Edge Function manually (replace FUNCTION_NAME)
 curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/FUNCTION_NAME" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImliZ3Nsb3lqeGRvcGt2d3FjcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2ODYzMzksImV4cCI6MjA2ODI2MjMzOX0.Ik1980vz4s_UxVuEfBm61-kcIzEH-Nt-hQtydZUeNTw" \
+  -H "x-bushel-internal-secret: $BUSHEL_INTERNAL_FUNCTION_SECRET" \
   -d '{"crop_year": "2025-26", "grain_week": 30}'
 
-# generate-intelligence with specific grains (batch of 4)
+# generate-intelligence with specific grains
 curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/generate-intelligence" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImliZ3Nsb3lqeGRvcGt2d3FjcXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2ODYzMzksImV4cCI6MjA2ODI2MjMzOX0.Ik1980vz4s_UxVuEfBm61-kcIzEH-Nt-hQtydZUeNTw" \
+  -H "x-bushel-internal-secret: $BUSHEL_INTERNAL_FUNCTION_SECRET" \
   -d '{"crop_year": "2025-26", "grain_week": 30, "grains": ["Wheat","Canola","Barley","Oats"]}'
 ```
 
@@ -112,7 +120,7 @@ curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/generate-int
 |-------|-------|-----|
 | HTTP 403 from CGC | Supabase IP blocked by CGC | Use Vercel cron proxy instead |
 | `rows_inserted: 0` | CSV not yet published | Wait until Thursday afternoon MST |
-| Chain triggers return 401 | Using `SUPABASE_SERVICE_ROLE_KEY` for function-to-function HTTP calls | Switch to `SUPABASE_ANON_KEY` — service role key fails Supabase's `verify_jwt` relay. Fixed 2026-03-09 in all 5 functions. |
+| Internal calls return 401 | Missing or wrong `BUSHEL_INTERNAL_FUNCTION_SECRET` | Use `x-bushel-internal-secret` for direct function calls; never use anon JWTs for internal chaining |
 | Intelligence not generated | Chain trigger failed silently (401 was caught but not re-thrown) | Check `net._http_response` for errors; invoke each step manually via curl |
 | Canola deliveries undercounted | Intelligence only used Primary Elevator data | Fixed: `v_grain_yoy_comparison` now uses FULL OUTER JOIN of Primary + Process. Grain detail page overrides AI KPIs with `v_grain_overview`. |
 | Phantom migration | DDL tracked in `schema_migrations` but table never created | Verify table exists with `\dt tablename`; apply DDL manually if missing |
