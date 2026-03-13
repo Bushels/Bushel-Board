@@ -2,7 +2,7 @@
 
 **Purpose:** Codified rules derived from moderation of Grok vs Step 3.5 Flash debates. These rules should be injected into agent system prompts or used as a validation checklist post-generation.
 
-**Last updated:** 2026-03-13 (Canola Week 31 moderation)
+**Last updated:** 2026-03-13 (COT positioning rules added)
 
 ---
 
@@ -59,6 +59,28 @@ If the thesis says "weak demand" but producer car allocations for that grain are
 
 ---
 
+## COT Positioning Rules
+
+### Rule 9: COT Positioning Informs Timing, Not Direction
+COT tells you WHEN to act, not WHAT to do. Fundamentals (CGC flow, AAFC balance sheet, logistics) determine direction; COT determines whether the market is overcrowded in that direction.
+
+**Anti-pattern:** "Managed money net-long → bullish." Wrong — net-long means the bullish trade is already crowded. The question is: can latecomers still push prices higher, or is it a crowded exit?
+
+**Test:** If thesis says "sell" and managed money is heavily short → wait for the squeeze first, then sell into the rally.
+
+### Rule 10: Flag Spec/Commercial Divergence as Watch Signal
+When Managed Money and Commercial (Producer/Merchant) are on opposite sides, ALWAYS flag as a watch item. This is the highest-confidence timing signal in commodity markets.
+
+**Template:** "Specs {net-long/short} {X contracts} ({Y}% OI) while commercials {opposite} {Z contracts} — positioning divergence suggests {implication for farmer timing}."
+
+### Rule 11: COT Lag Awareness
+COT data reflects Tuesday positions, released Friday. By Friday, the market may have already moved. Rule:
+- COT sets context for NEXT WEEK's thesis, not this week's action
+- Always pair COT with more recent X signals for current-week timing
+- If COT shows extreme positioning + X signals show momentum reversal → high-confidence inflection signal
+
+---
+
 ## Grain-Specific Rules
 
 ### Canola
@@ -93,3 +115,5 @@ Before publishing any grain intelligence, verify:
 - [ ] **Timeline present:** Does every recommendation include a timeframe and trigger event?
 - [ ] **Grain-specific rules applied:** Are oats, peas, canola, barley treated with their specific context (milling vs crush, containers vs bulk, regional vs export)?
 - [ ] **Week attribution correct:** Are CGC data and farmer sentiment attributed to their correct weeks?
+- [ ] **COT context included:** For grains with CFTC data, is managed money positioning referenced?
+- [ ] **COT lag noted:** Is COT data attributed to its Tuesday snapshot date, not treated as real-time?
