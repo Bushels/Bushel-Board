@@ -2,8 +2,8 @@ import { COMMODITY_KNOWLEDGE } from "./commodity-knowledge.ts";
 
 export const MARKET_INTELLIGENCE_VERSIONS = {
   searchSignals: "search-signals-v3",
-  analyzeMarketData: "analyze-market-data-v4",
-  generateIntelligence: "generate-intelligence-v4",
+  analyzeMarketData: "analyze-market-data-v5",
+  generateIntelligence: "generate-intelligence-v5",
   generateFarmSummary: "generate-farm-summary-v3",
   knowledgeBase: "grain-knowledge-v3",
 } as const;
@@ -31,12 +31,15 @@ const DISTILLED_GRAIN_FRAMEWORK = `Farmer-first market framework:
 - When X and web/official sources diverge, surface the disagreement explicitly as a watch item rather than forcing a directional call.
 - Include the next catalyst and the main risk to the thesis every time.`;
 
-const TEMPORAL_AWARENESS = `CRITICAL — Data timing and week awareness:
-- CGC weekly data is always released on Thursday for the PRIOR shipping week. If the data says "Week N", farmers reading the analysis are already in shipping week N+1.
-- Farmer sentiment votes and X/social signals are collected in real time, so they may reflect conditions in week N+1 (the current shipping week), NOT the CGC data week.
-- Never say "farmers are bearish THIS week" when the CGC data is from LAST week. Instead, clearly attribute: "CGC data through Week N shows…" and "farmer sentiment (collected during Week N+1) indicates…"
-- When farmer sentiment diverges from CGC data, consider whether the time lag explains the gap before calling it a true disagreement.
-- Always be explicit about which week each data source covers. The reader must never be confused about whether a number is from the CGC release or from live farmer input.`;
+const TEMPORAL_AWARENESS = `CRITICAL - Data timing and week awareness:
+- CGC weekly data is released on Thursday for the prior shipping week. If the data says "Week N", farmers reading the analysis are already in shipping week N+1.
+- Farmer sentiment votes and X/social signals are collected in real time, so they may reflect conditions in week N+1 (the current shipping week), not the CGC data week.
+- Producer car / rail staging data is forward-looking. Treat it as demand and logistics already staged ahead, not confirmed shipped tonnage.
+- Government Grain Monitor logistics snapshots can lag the current shipping week, but vessel lineup and inbound vessel fields may point 1-2 weeks ahead of the base report week.
+- CFTC Commitment of Traders data reflects Tuesday positions released on Friday, so it carries a 3-day lag and should be used as positioning context, not as a real-time tape.
+- Never say "farmers are bearish this week" when the CGC data is from last week. Instead, clearly attribute: "CGC data through Week N shows..." and "farmer sentiment collected during Week N+1 indicates..."
+- When faster signals diverge from lagged official data, consider whether timing explains the gap before calling it a true disagreement.
+- Always be explicit about which week each data source covers. The reader must never be confused about whether a number is from the CGC release, forward logistics staging, or live positioning inputs.`;
 
 const CGC_DATA_GUARDRAILS = `Critical CGC and balance-sheet rules:
 - Total producer deliveries require Primary.Deliveries plus Process.Producer Deliveries plus Producer Cars.Shipments. Primary alone is incomplete.
@@ -107,13 +110,16 @@ Your output feeds downstream market intelligence, so preserve provenance and do 
  */
 export function buildDataContextPreamble(grainWeek: number, cropYear: string): string {
   // CGC data covers through the stated grain_week (released the following Thursday)
-  // Farmer sentiment and X signals are collected in real time — potentially week N+1
+  // Farmer sentiment and X signals are collected in real time - potentially week N+1
   const currentShippingWeek = grainWeek + 1;
   return `## Data Context — Read This First
 
 - **CGC official data:** Covers through Grain Week ${grainWeek} of crop year ${cropYear}. Released the Thursday after week ${grainWeek} ended.
 - **Farmer sentiment (Bushel Board polls):** Collected during Week ${currentShippingWeek} (current shipping week). Farmers vote based on conditions AFTER the CGC data cutoff.
 - **X/social signals:** Collected over the past 2-7 days, straddling Weeks ${grainWeek}-${currentShippingWeek}. Each signal has its own post_date for precise attribution.
+- **Producer cars / rail staging:** Forward-looking demand and logistics signals. They can point 1-3 weeks ahead of CGC Week ${grainWeek} and should never be described as shipped tonnage.
+- **Government Grain Monitor:** The base logistics report may lag the current shipping week, but vessel lineup and inbound vessel fields may point into Weeks ${currentShippingWeek}-${currentShippingWeek + 1}.
+- **CFTC Commitment of Traders:** Tuesday futures positions released on Friday. Use as positioning context with a 3-day lag, not as a same-day action signal.
 - **AAFC supply balance:** Published monthly, not weekly. Treat as a slow-moving reference, not a real-time signal.
 - **Community delivery stats:** Based on farmer-reported data through the current shipping week (Week ${currentShippingWeek}).
 
@@ -124,6 +130,14 @@ export function buildFarmSummarySystemPrompt(): string {
   return `${FARMER_FIRST_PERSONA}
 
 Write concise personalized farm summaries that connect the farmer's delivery pace, contracted position, and peer percentile to current grain market conditions. Use a warm but professional tone. Be specific with numbers. Do not put citation links inline in the narrative body. If sources are provided, list them at the end under "Sources:".
+
+Formatting rules:
+- Write in Markdown with short section headings and bullet points, not one long paragraph.
+- Do not repeat the card title with another "Weekly Farm Summary" heading.
+- Organize the report in time order when evidence exists: confirmed flow data first, forward logistics next, newest futures positioning after that, then the farmer's own position and clear actions.
+- Every section must label the time context when it references a source, for example "CGC Week 30", "Producer Cars Week 33 forward allocations", "Grain Monitor Week 30 with Week 31 vessel lineup", or "COT Tuesday positions released Friday".
+- Keep each bullet to one concrete point and no more than 2 sentences.
+- If a source is unavailable or unverified, omit that section instead of guessing.
 
 ${TEMPORAL_AWARENESS}`;
 }
