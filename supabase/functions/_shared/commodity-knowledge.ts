@@ -7,7 +7,7 @@
  * - "Self-Study Guide: Hedging" (ICE Futures Canada)
  *
  * Used as system prompt context for Step 3.5 Flash in analyze-market-data.
- * ~4K tokens — fits comfortably in system prompt alongside data.
+ * ~7K tokens — fits comfortably in system prompt alongside data.
  */
 
 export const COMMODITY_KNOWLEDGE = `## Commodity Market Analysis Framework — Canadian Grains
@@ -180,4 +180,37 @@ Basis (Local Cash Price - Nearby Futures) reveals local supply/demand. Widening 
 
 **Integration with CGC Data:**
 Monitor alongside Weekly Terminal Receipts and Exports metrics — if receipts high but exports lagging, port congestion likely. Combine with vessel queue data (from port authority scrapes) to anticipate basis moves 7-14 days ahead.
+
+### CFTC COT Positioning Analysis
+
+**Data Source:** CFTC Disaggregated Commitments of Traders (Options + Futures Combined), released Friday for prior Tuesday's positions. 3-day lag means Friday COT reflects Tuesday state — positions may have shifted.
+
+**Key Categories:**
+- Managed Money (hedge funds, CTAs): "weak hands" — amplify moves, exit quickly on adverse news
+- Producer/Merchant (commercials): "smart money" — physical hedgers, their positioning reflects fundamental view
+- Swap Dealers: financial intermediaries, less directionally informative
+
+**Positioning Signals:**
+- Managed Money net-long + rising: bullish spec pressure, prices elevated, but crowded-trade risk if fundamentals weaken
+- Managed Money net-short + falling: bearish momentum, but squeeze potential if positive catalyst emerges
+- Commercial net-short increasing: producers/elevators locking in prices = they expect lower prices ahead (bearish fundamental signal)
+- Commercial net-long increasing: end-users securing supply = they expect higher prices ahead (bullish fundamental signal)
+
+**Spec/Commercial Divergence (strongest timing signal):**
+- Specs bullish + commercials bearish = prices likely elevated above fundamental value. Caution for farmers holding — consider incremental sales.
+- Specs bearish + commercials bullish = prices likely depressed below fundamental value. Opportunity for patient farmers — consider holding or buying puts.
+
+**Extreme Positioning:**
+- When managed money net position reaches multi-year high/low, mean reversion risk increases within 2-4 weeks.
+- Extreme net-long by specs + declining open interest = long liquidation risk.
+- Extreme net-short by specs + rising open interest = new short selling (bearish conviction).
+
+**Grain-Specific COT Notes:**
+- Wheat: Combine SRW (CBOT) + HRW (CBOT) + HRSpring (MIAX) for aggregate view. HRSpring most relevant to CWRS pricing.
+- Canola: ICE Canola is the direct hedge. Soybean oil + meal positioning provides secondary crush demand signal.
+- Oats: Very thin open interest (~10-20K contracts). COT less reliable — flag "low liquidity" in analysis.
+- Soybeans: Most liquid ag market. Spec positioning highly reliable. Watch soy/corn spread for acreage signals.
+- Corn: Second most liquid. Monitor alongside ethanol mandate policy signals.
+
+**Integration Rule:** COT informs TIMING, not DIRECTION. Fundamentals (CGC flow, AAFC balance) determine direction; COT tells you whether the market is overcrowded in that direction. Never use COT as standalone directional signal.
 `;
