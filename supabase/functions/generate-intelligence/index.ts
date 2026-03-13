@@ -90,6 +90,12 @@ Deno.serve(async (req) => {
       p_grain_week: grainWeek,
     });
 
+    // Get logistics snapshot (Grain Monitor + Producer Car data)
+    const { data: logisticsSnapshot } = await supabase.rpc("get_logistics_snapshot", {
+      p_crop_year: cropYear,
+      p_grain_week: grainWeek,
+    });
+
     // Get Step 3.5 Flash market analysis (Round 1) for debate context
     const { data: marketAnalysisData } = await supabase
       .from("market_analysis")
@@ -192,6 +198,10 @@ Deno.serve(async (req) => {
             sourcePaths: knowledgeContext.sourcePaths,
             query: knowledgeContext.query,
             topicTags: knowledgeContext.topicTags,
+          } : null,
+          logisticsSnapshot: logisticsSnapshot ? {
+            grain_monitor: (logisticsSnapshot as Record<string, unknown>).grain_monitor as Record<string, unknown> | null,
+            producer_cars: (logisticsSnapshot as Record<string, unknown>).producer_cars as Array<Record<string, unknown>> | null,
           } : null,
           socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
             sentiment: s.sentiment as string,

@@ -4,20 +4,16 @@
  * Downloads the latest weekly CGC grain statistics CSV from grainscanada.gc.ca,
  * parses it, and upserts rows into cgc_observations. Logs the result to cgc_imports.
  *
- * Triggered by the Vercel cron ingress or manually via POST with the internal secret.
+ * Triggered by pg_cron every Thursday at 8pm UTC (1pm MST) or manually via POST.
  *
  * Request body (optional):
- *   { "week": 29, "crop_year": "2025-2026", "csv_data": "..." }
+ *   { "week": 29, "crop_year": "2025-26", "csv_data": "..." }
  *
  * If csv_data is provided, uses it directly instead of fetching from CGC.
  * If no body is provided, auto-detects the current grain week and crop year.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  buildInternalHeaders,
-  requireInternalRequest,
-} from "../_shared/internal-auth.ts";
 
 const CGC_BASE_URL =
   "https://www.grainscanada.gc.ca/en/grain-research/statistics/grain-statistics-weekly/";
@@ -95,13 +91,14 @@ function parseCgcCsv(csvText: string): CgcRow[] {
 // Crop year / week helpers
 // ---------------------------------------------------------------------------
 
-/** Returns crop year in long format: "2025-2026" (matches CGC CSV and cgc_observations convention). */
+/** Returns crop year in short format: "2025-26" (matches CGC CSV convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed: 7 = August
   const startYear = month >= 7 ? year : year - 1;
-  return `${startYear}-${startYear + 1}`;
+  const endYear = (startYear + 1) % 100;
+  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
 }
 
 function getCurrentGrainWeek(): number {
@@ -120,11 +117,6 @@ function getCurrentGrainWeek(): number {
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req) => {
-  const authError = requireInternalRequest(req);
-  if (authError) {
-    return authError;
-  }
-
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -219,6 +211,9 @@ Deno.serve(async (req) => {
     });
 
     // Chain-trigger: validate-import → (if pass) search-x-intelligence → generate-intelligence → generate-farm-summary
+    // Use anon key for function-to-function calls (service role key causes 401 with verify_jwt)
+    const triggerKey = Deno.env.get("SUPABASE_ANON_KEY");
+
     if (skipped === 0) {
       try {
         console.log("Triggering post-import validation...");
@@ -226,7 +221,10 @@ Deno.serve(async (req) => {
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/validate-import`,
           {
             method: "POST",
-            headers: buildInternalHeaders(),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${triggerKey}`,
+            },
             body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
           }
         );

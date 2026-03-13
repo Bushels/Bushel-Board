@@ -115,4 +115,69 @@ Basis Weakening favors long hedgers (lower net price).
 - Maximum single-crop exposure: 35% of total grain inventory value
 - Leverage awareness: grain margins can increase dramatically during volatility
 - Always define entry, exit, and maximum loss before entering a position
+
+### Marketing Strategy & Contract Guidance
+
+**Top-Third Pricing Discipline:**
+Aim to sell within the top one-third of the annual expected price range. This beats average prices consistently without requiring perfect market timing. Lock in targets mentally before harvest — discipline to execute at targets prevents panic selling and greed-waiting.
+
+**Incremental Forward Selling Framework:**
+Avoid all-or-nothing selling. Forward sell 10-15% of expected production at seeding stage (price basis); sell another 10-15% in late summer based on yield outlook; hold remainder for harvest decisions. This spreads basis risk, mitigates yield shortfalls, and captures multiple price windows.
+
+**Contract Type Selection by Market Outlook:**
+
+| Contract Type | When to Use | Advantage | Risk |
+|---|---|---|---|
+| **Deferred Delivery** | Neutral to bearish outlook, want certainty | Locks full price (futures + discount), no margin calls | Misses rallies, must deliver contracted volume |
+| **Basis Contract** | Expect futures rally, accept basis timing risk | Capture favorable basis early, participate in rally | Futures may drop, negating advantage |
+| **Futures Options** | Bullish but want price floor | Establishes minimum price, unlimited upside | Premium cost must be overcome by move |
+| **Pool Contracts** | Want income smoothing across season | Reduces emotional decisions, stable flow | Forfeits sharp rally captures |
+| **Fixed Price (Flat)** | Opportunistic, time-constrained | Simple, low risk, immediate certainty | Fleeting opportunity, may leave money on table |
+
+**Storage Decision With Opportunity Cost:**
+Store IF all three conditions met:
+1. Futures curve carry (3-month spread) > Storage cost × 1.3
+2. Expected basis in 90 days < Current basis - 10 points (basis must strengthen)
+3. Q1-Q2 seasonal price increase probability > 60% historically
+
+But ALSO calculate: (Projected 90-day price gain) - (Storage + Interest cost) - (Missed interim sales opportunity at current price). If negative, sell now.
+
+Exit triggers: Carry deteriorates >50%, basis widens 3+ consecutive days, regional storage >85% utilized.
+
+**Price Discovery as Basis Signal:**
+Basis (Local Cash Price - Nearby Futures) reveals local supply/demand. Widening basis = local glut, tighten sale plan. Narrowing basis = local shortage, delay sales. Positive basis (inverted market) = immediate delivery urgency. Monitor 5-day basis trend; if moving 8+ points wider, reassess storage/deferral positions.
+
+### Logistics & Transport Awareness
+
+**Port Congestion Signals (vessel loading times):**
+- Vessels > 1-year average loading time = port backlog building
+- If 2+ vessels queued, expect basis to widen 10-20 points at destination in 7-14 days
+- Tightens post-harvest when export demand peaks; widens in spring as queue clears
+
+**Out-of-Car Time as Rail Bottleneck Indicator:**
+- Out-of-car ≤ 10% = normal rail flow
+- Out-of-car 10-15% = modest bottleneck, expect 2-4 day delivery delays
+- Out-of-car > 15% = significant rail congestion; forwarding grain stalls, elevators fill, local basis widens
+- In severe congestion, deferred contracts become attractive (shift timing risk to elevator)
+
+**Producer Car Allocations as Demand Signal:**
+- Cars allocated to producer elevators = forward shipping commitments placed by elevators
+- Allocations rising week-over-week = elevator confidence in export demand; bullish
+- Allocations flat or declining = elevator caution, export demand softening; bearish
+- Use as confirmation signal (combine with export sales + port loading data)
+
+**Country Elevator & Terminal Storage Utilization:**
+- Country elevator capacity ≤ 70% = comfortable storage space, no delivery pressure
+- Country elevator capacity 70-85% = filling, manageable pressure, basis stable
+- Country elevator capacity > 85% = tight storage, discourages additional deliveries locally, widens basis to inland elevators
+- Terminal facility capacity > 90% = bottleneck; basis widens significantly inland, narrows at port
+
+**Regional Transport Cost Context:**
+- Southern Alberta/Saskatchewan to Thunder Bay: typically 3-6 $/t cheaper than to Pacific ports
+- Northern regions: +2-3 $/t premium vs. southern (longer haul)
+- Currency headwinds (USD/CAD > 1.35) make exports more profitable → elevators bid higher basis → favorable for farmers in export-oriented regions
+- Freight rate spread (Gulf Gulf - PNW) > 15% of PNW rate favors Western Canada routing; boosts competitive netbacks to Vancouver-based country elevators
+
+**Integration with CGC Data:**
+Monitor alongside Weekly Terminal Receipts and Exports metrics — if receipts high but exports lagging, port congestion likely. Combine with vessel queue data (from port authority scrapes) to anticipate basis moves 7-14 days ahead.
 `;

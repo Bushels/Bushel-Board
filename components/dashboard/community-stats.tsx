@@ -16,11 +16,14 @@ export function CommunityStatsDisplay({ stats, variant }: CommunityStatsProps) {
     return (
       <div className="text-center text-wheat-300">
         <p className="text-sm font-medium uppercase tracking-wider text-wheat-400">
-          Prairie farmers are tracking
+          Prairie farmers have already mapped
         </p>
-        <p className="mt-2 text-2xl font-display font-semibold">
-          <span>{formatNumber(stats.total_tonnes)}</span> tonnes across{" "}
+        <p className="mt-2 text-3xl font-display font-semibold sm:text-4xl">
           <span>{formatNumber(stats.total_acres)}</span> acres
+        </p>
+        <p className="mt-2 text-sm text-wheat-400">
+          with {formatNumber(stats.total_tonnes)} tonnes privately tracked this
+          crop year
         </p>
       </div>
     );
@@ -28,8 +31,8 @@ export function CommunityStatsDisplay({ stats, variant }: CommunityStatsProps) {
 
   return (
     <div className="border-t border-wheat-200 dark:border-wheat-800 px-6 py-3 text-center text-xs text-muted-foreground">
-      Monitoring {formatNumber(stats.total_tonnes)} tonnes across{" "}
-      {formatNumber(stats.total_acres)} acres
+      Monitoring {formatNumber(stats.total_acres)} acres on Bushel Board this
+      crop year
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-12
+Last updated: 2026-03-13
 
 ## Feature Tracks
 
@@ -23,6 +23,8 @@ Last updated: 2026-03-12
 | 15 | Farmer-First Onboarding, Unlock UX, and Nav Polish | Complete | 2026-03-11 | `lib/auth/post-auth-destination.ts`, `app/(dashboard)/my-farm/`, `components/layout/`, `components/auth/`, `components/dashboard/x-signal-feed.tsx` |
 | 16 | UX Layout & Hierarchy Redesign (P1) | Complete | 2026-03-11 | `components/dashboard/section-header.tsx`, `components/dashboard/compact-signal-strip.tsx`, `components/dashboard/supply-pipeline.tsx`, `app/(dashboard)/overview/page.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
 | 17 | Dual-LLM Intelligence Pipeline (Step 3.5 Flash + Grok debate) | Complete | 2026-03-12 | `supabase/functions/analyze-market-data/`, `supabase/functions/_shared/commodity-knowledge.ts`, `components/dashboard/bull-bear-cards.tsx`, `lib/queries/intelligence.ts` |
+| 18 | Supplementary Data Pipeline (Grain Monitor & Producer Cars) | Complete | 2026-03-13 | `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql`, `supabase/functions/analyze-market-data/`, `supabase/functions/generate-intelligence/`, `docs/reference/agent-debate-rules.md` |
+| 19 | AI Thesis Debate Moderation & Agent Improvement | Complete | 2026-03-13 | `docs/lessons-learned/canola-week31-debate-moderation.md`, `docs/reference/agent-debate-rules.md` |
 
 ## Performance Fixes
 
@@ -83,6 +85,57 @@ Last updated: 2026-03-12
 - Verified the updated `/signup` page visually in-browser after implementation.
 
 **Files modified:** `components/auth/auth-shell.tsx`
+
+### 2026-03-13 — Supplementary Data Pipeline: Grain Monitor & Producer Cars (Track 18)
+
+**Status:** Complete — data layer, AI integration, Edge Function deployments, and debate moderation all done. UI display and automated scraping remain as future work.
+
+**What was implemented:**
+- **New tables:**
+  - `grain_monitor_snapshots` — Government Grain Monitor PDFs (port throughput, grain-in-storage, carryover trends). Week 30 data inserted (lagged 1 week for Week 31 analysis).
+  - `producer_car_allocations` — CGC Producer Car reports (forward-looking rail allocations). Week 33 data inserted (2-week forward for Week 31 analysis).
+
+- **New RPC:** `get_logistics_snapshot(crop_year, grain_week)` returns both tables as structured JSON.
+
+- **AI integration:** Embedded logistics context into commodity knowledge (2 new sections: "Marketing Strategy & Contract Guidance" + "Logistics & Transport Awareness", ~1.5K tokens). Injected into Step 3.5 Flash + Grok prompts via updated `market-intelligence-config.ts` version bumps (v4 analyze/generate, v3 knowledge).
+
+- **Data insertion:** Week 30 Grain Monitor + Week 33 Producer Car allocations for 2025-2026 manually loaded.
+
+**Known issues (resolved):**
+- ~~Grain name mismatch between `producer_car_allocations` ("Durum") and `grains` table ("Amber Durum").~~ Fixed via SQL UPDATE: "Durum" → "Amber Durum", "Chickpeas" → "Chick Peas". Buckwheat remains unmatched (minor grain, not in tracked 16).
+- Producer car data is cumulative forward-looking, not weekly. RPC returns latest available week ≤ grain_week + 3 to prevent allocations from aging out mid-analysis.
+
+**Edge Function deployments (2026-03-13):**
+- `analyze-market-data` v10 — ACTIVE (logistics snapshot integration)
+- `generate-intelligence` v31 — ACTIVE (logistics in Grok prompt)
+- `generate-farm-summary` v21 — ACTIVE (updated shared config with v4 version bumps)
+
+**What remains (future work):**
+- Automated PDF scraping from Government Grain Monitor and CGC Producer Car reports
+- Historical backfill of pre-2026 grain monitor and producer car data
+- UI display: logistics tiles, supply-chain context cards, port/rail status summaries on Overview and Grain Detail pages
+- Automated scheduler integration (daily/weekly pulls depending on source update cadence)
+
+**Files modified:**
+- `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql` (new)
+- `supabase/functions/_shared/commodity-knowledge.ts`
+- `supabase/functions/_shared/market-intelligence-config.ts`
+- `supabase/functions/analyze-market-data/index.ts`
+- `supabase/functions/generate-intelligence/index.ts`
+- `supabase/functions/generate-intelligence/prompt-template.ts`
+
+### 2026-03-13 — AI Thesis Debate Moderation & Agent Improvement Reference (Track 19)
+
+**What:** Claude moderated the Canola Week 31 disagreement between Step 3.5 Flash (bearish) and Grok (bullish), identifying 3 specific logical errors in Step 3.5's analysis. Created reusable reference docs for continuous agent improvement.
+
+**Key findings:**
+- Step 3.5 conflated YTD exports (-28% YoY) with current-week flow — stocks drew -175.6 Kt while 455.6 Kt of deliveries arrived, meaning 631 Kt absorbed in one week
+- The export lag reflects Vancouver port congestion (107% capacity, 26 vessels vs avg 20), not demand weakness
+- Grok's bullish thesis was directionally correct but needed sharper specifics (timeline, triggers, risk)
+
+**New reference docs:**
+- `docs/lessons-learned/canola-week31-debate-moderation.md` — full evidence-based moderation with corrected thesis
+- `docs/reference/agent-debate-rules.md` — 8 reusable rules (flow coherence, thesis quality) + grain-specific rules + validation checklist
 
 ## Intelligence Pipeline
 

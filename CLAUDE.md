@@ -124,7 +124,7 @@ Every piece of work must satisfy before being marked complete:
 - **Batch processing:** `search-x-intelligence` and `generate-intelligence` process grains in batches then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
 - **Intraday scanning:** `search-x-intelligence` runs in two modes: **pulse** (3x/day, 2 queries/grain, X-only, 2-day lookback, batch size 8) and **deep** (weekly Thursday, 6-8 queries/grain, X + web search, 7-day lookback, batch size 4, chains to generate-intelligence). Pulse scans via `app/api/cron/scan-signals/route.ts` at 6AM/1PM/6PM MST. Grain tiering: major grains (Wheat, Canola, Durum, Barley, Oats, Peas) scanned every pulse; minor grains scanned morning pulse only. Cost: ~$5/month xAI API.
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` + `web_search` (deep mode) for real-time agriculture sentiment
-- **Tables:** `grain_intelligence` (per-grain market analysis), `market_analysis` (Step 3.5 Flash round 1: thesis, bull/bear, historical context, key signals), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week, includes `searched_at`, `search_mode`, `source` columns), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal), `signal_scan_log` (scan observability: mode, grains, signals found, duration), `grain_sentiment_votes` (per-grain Holding/Hauling farmer sentiment)
+- **Tables:** `grain_intelligence` (per-grain market analysis), `market_analysis` (Step 3.5 Flash round 1: thesis, bull/bear, historical context, key signals), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week, includes `searched_at`, `search_mode`, `source` columns), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal), `signal_scan_log` (scan observability: mode, grains, signals found, duration), `grain_sentiment_votes` (per-grain Holding/Hauling farmer sentiment), `grain_monitor_snapshots` (Government Grain Monitor: port throughput, vessel queues, OCT, storage capacity per grain week), `producer_car_allocations` (CGC Producer Cars: forward-looking rail allocations by grain/province/destination)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
 - **Historical RPC functions:** `get_historical_average(p_grain, p_metric, p_worksheet, p_grain_week, p_years_back)`, `get_seasonal_pattern(...)`, `get_week_percentile(...)` — 5-year historical analysis for Step 3.5 Flash
 - **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (enhanced blended relevance: 50% recency-adjusted Grok + 40% farmer consensus + 10% bonuses for velocity/deep mode; recency decay -5pts/day; category diversity max 3 per category)
@@ -135,7 +135,9 @@ Every piece of work must satisfy before being marked complete:
 - **Sentiment voting:** `components/dashboard/sentiment-poll.tsx` — 5-option Holding/Hauling poll per grain per week. Options: Strongly Holding (🔒), Holding (📦), Neutral (⚖️), Hauling (🚜), Strongly Hauling (🚛). Server action: `app/(dashboard)/grain/[slug]/actions.ts` → `voteSentiment()`. Table: `grain_sentiment_votes`. Query: `lib/queries/sentiment.ts` (getGrainSentiment, getUserSentimentVote, getSentimentOverview). Aggregate shown as bar chart with Holding %/Neutral %/Hauling % breakdown. Feeds into `generate-intelligence` prompt for AI-aware farmer sentiment.
 - **Engagement:** `crop_plans.contracted_kt` + `uncontracted_kt` columns for contracted grain tracking. Stacked progress bar (delivered/contracted/uncontracted) on My Farm. `generate-intelligence` prompt now includes farmer sentiment data. `generate-farm-summary` prompt includes contracted position.
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
-- **Commodity knowledge:** `supabase/functions/_shared/commodity-knowledge.ts` — distilled trading frameworks from 3 PDF books (~4K tokens). Injected into Step 3.5 Flash system prompt for domain expertise.
+- **Commodity knowledge:** `supabase/functions/_shared/commodity-knowledge.ts` — distilled trading frameworks from 3 PDF books (~5.5K tokens, expanded with Marketing Strategy & Logistics sections). Injected into Step 3.5 Flash system prompt for domain expertise.
+- **Logistics RPC:** `get_logistics_snapshot(p_crop_year, p_grain_week)` — returns Grain Monitor + Producer Car data as structured JSON. Used by both `analyze-market-data` and `generate-intelligence` Edge Functions.
+- **Agent debate rules:** `docs/reference/agent-debate-rules.md` — 8 codified rules for continuous improvement of Step 3.5 Flash and Grok outputs (flow coherence, thesis quality, grain-specific rules, validation checklist)
 - **Auth for chain triggers:** Vercel cron is the only public ingress. Internal Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
 ## Pipeline Monitoring
@@ -165,6 +167,9 @@ Every piece of work must satisfy before being marked complete:
 - Sentiment votes: `SELECT grain, grain_week, COUNT(*), ROUND(AVG(sentiment_value)::numeric, 1) FROM grain_sentiment_votes WHERE crop_year='2025-2026' GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
 - Health checks: `SELECT status, checks, source, created_at FROM health_checks ORDER BY created_at DESC LIMIT 5;`
 - Health check failures: `SELECT created_at, status, checks FROM health_checks WHERE status = 'fail' ORDER BY created_at DESC LIMIT 3;`
+- Grain monitor: `SELECT crop_year, grain_week, report_date, vessels_vancouver, out_of_car_time_pct FROM grain_monitor_snapshots ORDER BY grain_week DESC LIMIT 5;`
+- Producer cars: `SELECT grain, grain_week, cy_cars_total, week_cars, dest_united_states FROM producer_car_allocations WHERE crop_year='2025-2026' ORDER BY grain_week DESC, grain LIMIT 20;`
+- Logistics RPC test: `SELECT get_logistics_snapshot('2025-2026', 31::smallint);`
 
 ## Critical Framework Patterns
 
@@ -197,4 +202,6 @@ All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnost
 - `docs/plans/2026-03-10-x-feed-relevance-design.md` — X Feed & Relevance Scoring design doc
 - `docs/plans/2026-03-11-farmer-engagement-design.md` — Farmer Engagement & Input System design doc
 - `docs/reference/cgc-excel-map.md` — CGC Excel spreadsheet structure map (14 sheets)
+- `docs/reference/agent-debate-rules.md` — Codified rules for AI thesis debate moderation (8 rules + grain-specific + checklist)
 - `docs/lessons-learned/issues.md` — Data bugs and root cause analyses
+- `docs/lessons-learned/canola-week31-debate-moderation.md` — Full evidence-based moderation of Canola Week 31 Grok vs Step 3.5 disagreement
