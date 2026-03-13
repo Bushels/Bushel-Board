@@ -163,6 +163,13 @@ Deno.serve(async (req) => {
           }).then(r => r.data),
         ]);
 
+        // 6. CFTC COT positioning (last 4 weeks for this grain)
+        const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
+          p_grain: grainName,
+          p_crop_year: cropYear,
+          p_weeks_back: 4,
+        });
+
         const knowledgeContext = await fetchKnowledgeContext(supabase, {
           grain: grainName,
           task: "analyze",
@@ -184,6 +191,7 @@ Deno.serve(async (req) => {
           deliveriesHist, exportsHist, stocksHist,
           knowledgeContext.contextText,
           logisticsSnapshot,
+          cotPositioning,
         );
 
         // Call OpenRouter API
@@ -376,7 +384,7 @@ Return a JSON object with these fields:
   - "title": string — short signal name
   - "body": string — 1-2 sentences with specific numbers
   - "confidence": "high" | "medium" | "low"
-  - "source": "CGC" | "AAFC" | "Historical" | "Community"
+  - "source": "CGC" | "AAFC" | "Historical" | "Community" | "CFTC"
 
 ## Rules
 - Every claim MUST reference specific numbers from the provided data.
@@ -400,6 +408,7 @@ function buildDataPrompt(
   stocksHist: Record<string, unknown> | null,
   knowledgeContext: string | null,
   logisticsSnapshot: Record<string, unknown> | null = null,
+  cotData: Array<Record<string, unknown>> | null = null,
 ): string {
   const deliveredPct =
     supply && Number(supply.total_supply_kt) > 0
@@ -475,6 +484,9 @@ ${
 ### Logistics & Transport Snapshot (Government Grain Monitor + CGC Producer Cars)
 ${formatLogisticsSection(logisticsSnapshot, grain)}
 
+### CFTC COT Positioning (Disaggregated, Options+Futures Combined — Tuesday positions, released Friday)
+${formatCotSection(cotData, grain)}
+
 ### Retrieved Grain Marketing Knowledge
 ${knowledgeContext ?? "No retrieved corpus passages were available for this grain. Use the shared farmer-first framework and only rely on the data above."}
 
@@ -537,6 +549,38 @@ function formatLogisticsSection(snapshot: Record<string, unknown> | null, grain:
   }
 
   return sections.length > 0 ? sections.join("\n") : "No logistics data available for this period.";
+}
+
+// --- COT Formatter ---
+
+function formatCotSection(
+  cotData: Array<Record<string, unknown>> | null,
+  grain: string
+): string {
+  if (!cotData || cotData.length === 0) {
+    return "No CFTC futures positioning data available for this grain.";
+  }
+
+  const latest = cotData[0];
+  const lines: string[] = [
+    `**${latest.commodity} (${latest.exchange}) — Report date: ${latest.report_date}**`,
+    `- Open Interest: ${Number(latest.open_interest).toLocaleString()} contracts`,
+    `- Managed Money Net: ${Number(latest.managed_money_net).toLocaleString()} contracts (${latest.managed_money_net_pct}% of OI)`,
+    `- WoW Managed Money Net Change: ${Number(latest.wow_net_change) > 0 ? "+" : ""}${Number(latest.wow_net_change).toLocaleString()} contracts`,
+    `- Commercial (Prod/Merch) Net: ${Number(latest.commercial_net).toLocaleString()} contracts (${latest.commercial_net_pct}% of OI)`,
+    `- Spec/Commercial Divergence: ${latest.spec_commercial_divergence ? "YES — specs and commercials on opposite sides" : "No"}`,
+  ];
+
+  if (cotData.length > 1) {
+    lines.push(`\n**4-Week Managed Money Net Trend:**`);
+    for (const week of cotData) {
+      lines.push(`- ${week.report_date}: ${Number(week.managed_money_net).toLocaleString()} net (${week.managed_money_net_pct}% OI)`);
+    }
+  }
+
+  lines.push(`\nNOTE: COT data reflects positions as of Tuesday, released Friday. There is a 3-day lag. Use as context for next week's thesis, not real-time signal.`);
+
+  return lines.join("\n");
 }
 
 // --- Formatting Helpers ---
