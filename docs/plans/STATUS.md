@@ -25,6 +25,7 @@ Last updated: 2026-03-13
 | 17 | Dual-LLM Intelligence Pipeline (Step 3.5 Flash + Grok debate) | Complete | 2026-03-12 | `supabase/functions/analyze-market-data/`, `supabase/functions/_shared/commodity-knowledge.ts`, `components/dashboard/bull-bear-cards.tsx`, `lib/queries/intelligence.ts` |
 | 18 | Supplementary Data Pipeline (Grain Monitor & Producer Cars) | Complete | 2026-03-13 | `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql`, `supabase/functions/analyze-market-data/`, `supabase/functions/generate-intelligence/`, `docs/reference/agent-debate-rules.md` |
 | 19 | AI Thesis Debate Moderation & Agent Improvement | Complete | 2026-03-13 | `docs/lessons-learned/canola-week31-debate-moderation.md`, `docs/reference/agent-debate-rules.md` |
+| 20 | CFTC COT Positioning Integration | Complete | 2026-03-13 | `supabase/migrations/20260313140000_create_cftc_cot_positions.sql`, `supabase/functions/import-cftc-cot/`, `app/api/cron/import-cftc-cot/route.ts`, `.claude/skills/cftc-cot/SKILL.md`, `docs/plans/2026-03-13-cftc-cot-integration-design.md` |
 
 ## Performance Fixes
 
@@ -147,7 +148,7 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 - Schedule: Thursday afternoon after the CGC weekly release window
 - Round 1: `analyze-market-data` — Step 3.5 Flash (free via OpenRouter) produces data-driven thesis, bull/bear cases, historical context
 - Round 2: `generate-intelligence` — Grok reviews/challenges Step 3.5 Flash's thesis with X signals and farmer sentiment
-- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4-1-fast-reasoning` (xAI)
+- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4-20` (xAI)
 - Cost: about `$0.04` per weekly run (Step 3.5 Flash is free, only Grok costs)
 - Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users per invocation for farm summaries
 
@@ -175,6 +176,7 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 | `sentiment_history` | ~16/week | Archived weekly per-grain sentiment aggregates |
 | `sentiment_daily_rollup` | ~16/day | Intra-week daily sentiment trajectory with delta tracking |
 | `health_checks` | 1/pipeline | Post-pipeline site health validation results |
+| `cftc_cot_positions` | ~9/week | CFTC Disaggregated COT: trader positioning per commodity per week, mapped to CGC grains |
 
 ## Key Views & RPC Functions
 
@@ -197,3 +199,4 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 | `get_logistics_snapshot()` | RPC | Grain Monitor + Producer Car data as structured JSON for Edge Functions |
 | `snapshot_weekly_sentiment()` | RPC | Archives weekly per-grain sentiment aggregates to `sentiment_history` |
 | `snapshot_daily_sentiment()` | RPC | Snapshots daily sentiment with delta tracking to `sentiment_daily_rollup` |
+| `get_cot_positioning()` | RPC | Managed money and commercial net positions with spec/commercial divergence flag |

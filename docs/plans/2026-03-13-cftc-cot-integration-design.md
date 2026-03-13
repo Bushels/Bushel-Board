@@ -1,7 +1,7 @@
 # CFTC Commitments of Traders (COT) Integration — Feature Design
 
 **Date:** 2026-03-13
-**Status:** Proposed
+**Status:** Implemented
 **Author:** Kyle + Claude
 **Dependencies:** cftc_cot_positions table, analyze-market-data Edge Function, generate-intelligence Edge Function, commodity-knowledge.ts, agent-debate-rules.md
 
