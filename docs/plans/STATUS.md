@@ -169,6 +169,12 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-
 | `signal_feedback` | varies | Farmer relevance votes on X signals |
 | `grain_sentiment_votes` | varies | Weekly haul/hold/neutral votes by grain |
 | `cgc_imports` | 1/import | Audit log of data loads |
+| `grain_monitor_snapshots` | 1/week | Government Grain Monitor: port throughput, vessel queues, OCT, storage capacity |
+| `producer_car_allocations` | ~11/week | CGC Producer Cars: forward-looking rail allocations by grain/province/destination |
+| `signal_scan_log` | ~3/day | Scan observability: mode, grains scanned, signals found, duration |
+| `sentiment_history` | ~16/week | Archived weekly per-grain sentiment aggregates |
+| `sentiment_daily_rollup` | ~16/day | Intra-week daily sentiment trajectory with delta tracking |
+| `health_checks` | 1/pipeline | Post-pipeline site health validation results |
 
 ## Key Views & RPC Functions
 
@@ -188,3 +194,6 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-
 | `get_historical_average()` | RPC | 5-year historical average/min/max/stddev for any grain/metric/worksheet |
 | `get_seasonal_pattern()` | RPC | Weekly seasonal aggregates across multiple crop years |
 | `get_week_percentile()` | RPC | Where current value sits in 5-year historical range |
+| `get_logistics_snapshot()` | RPC | Grain Monitor + Producer Car data as structured JSON for Edge Functions |
+| `snapshot_weekly_sentiment()` | RPC | Archives weekly per-grain sentiment aggregates to `sentiment_history` |
+| `snapshot_daily_sentiment()` | RPC | Snapshots daily sentiment with delta tracking to `sentiment_daily_rollup` |
