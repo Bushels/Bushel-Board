@@ -30,7 +30,7 @@ import {
 import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
-const MODEL = "grok-4-1-fast-reasoning";
+const MODEL = "grok-4-20";
 
 Deno.serve(async (req) => {
   const authError = requireInternalRequest(req);
@@ -142,6 +142,14 @@ Deno.serve(async (req) => {
 
         // Get Step 3.5 Flash analysis for this grain (may be null if not available)
         const priorAnalysis = marketAnalysisByGrain.get(grainName) as Record<string, unknown> | undefined;
+
+        // CFTC COT positioning (last 4 weeks)
+        const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
+          p_grain: grainName,
+          p_crop_year: cropYear,
+          p_weeks_back: 4,
+        });
+
         const knowledgeContext = await fetchKnowledgeContext(supabase, {
           grain: grainName,
           task: "intelligence",
@@ -203,6 +211,20 @@ Deno.serve(async (req) => {
             grain_monitor: (logisticsSnapshot as Record<string, unknown>).grain_monitor as Record<string, unknown> | null,
             producer_cars: (logisticsSnapshot as Record<string, unknown>).producer_cars as Array<Record<string, unknown>> | null,
           } : null,
+          cotPositioning: (cotPositioning ?? []).map((c: Record<string, unknown>) => ({
+            report_date: String(c.report_date),
+            commodity: String(c.commodity),
+            exchange: String(c.exchange),
+            mapping_type: String(c.mapping_type),
+            open_interest: Number(c.open_interest),
+            managed_money_net: Number(c.managed_money_net),
+            managed_money_net_pct: Number(c.managed_money_net_pct),
+            wow_net_change: Number(c.wow_net_change),
+            commercial_net: Number(c.commercial_net),
+            commercial_net_pct: Number(c.commercial_net_pct),
+            spec_commercial_divergence: Boolean(c.spec_commercial_divergence),
+            grain_week: Number(c.grain_week),
+          })),
           socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
             sentiment: s.sentiment as string,
             category: s.category as string,
@@ -255,7 +277,7 @@ Deno.serve(async (req) => {
                           signal: { type: "string", enum: ["bullish", "bearish", "watch", "social"] },
                           title: { type: "string" },
                           body: { type: "string" },
-                          sources: { type: "array", items: { type: "string", enum: ["CGC", "AAFC", "X", "Derived"] } },
+                          sources: { type: "array", items: { type: "string", enum: ["CGC", "AAFC", "X", "Derived", "CFTC"] } },
                           confidence: { type: "string", enum: ["high", "medium", "low"] },
                         },
                         required: ["signal", "title", "body", "sources", "confidence"],

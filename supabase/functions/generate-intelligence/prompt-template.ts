@@ -79,6 +79,20 @@ export interface GrainContext {
     grain_monitor: Record<string, unknown> | null;
     producer_cars: Array<Record<string, unknown>> | null;
   } | null;
+  cotPositioning?: Array<{
+    report_date: string;
+    commodity: string;
+    exchange: string;
+    mapping_type: string;
+    open_interest: number;
+    managed_money_net: number;
+    managed_money_net_pct: number;
+    wow_net_change: number;
+    commercial_net: number;
+    commercial_net_pct: number;
+    spec_commercial_divergence: boolean;
+    grain_week: number;
+  }> | null;
 }
 
 export const INTELLIGENCE_PROMPT_VERSION = MARKET_INTELLIGENCE_VERSIONS.generateIntelligence;
@@ -126,6 +140,9 @@ ${ctx.farmerSentiment && ctx.farmerSentiment.vote_count >= 5
 
 ### Logistics & Transport Snapshot
 ${formatLogisticsForIntelligence(ctx)}
+
+### CFTC COT Positioning (Tuesday data, released Friday — 3-day lag)
+${formatCotForIntelligence(ctx)}
 
 ## Retrieved Grain Knowledge
 ${ctx.knowledgeContext?.contextText ?? "No retrieved corpus passages were available for this grain. Use the shared system framework plus the structured data above."}
@@ -183,7 +200,7 @@ Generate a JSON object with the intelligence analysis. Include 3-6 insight cards
 - For grains with minimal data, generate fewer insights (2-3).
 - If no relevant saved X/web signals are available, skip "social" signals.
 - Return ONLY the JSON object.
-- Each insight MUST include a "sources" array with one or more of: "CGC", "AAFC", "X", "Derived".
+- Each insight MUST include a "sources" array with one or more of: "CGC", "AAFC", "X", "Derived", "CFTC".
 - Each insight MUST include a "confidence" field with one of: "high", "medium", "low".`;
 }
 
@@ -217,6 +234,28 @@ function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[num
       : "";
 
   return `- [${signal.sentiment}/${signal.category}] (relevance: ${signal.relevance_score}, confidence: ${signal.confidence_score}${votesInfo}) ${signal.post_summary}${provenance ? ` | ${provenance}` : ""}${citation}`;
+}
+
+function formatCotForIntelligence(ctx: GrainContext): string {
+  if (!ctx.cotPositioning || ctx.cotPositioning.length === 0) {
+    return "No CFTC futures positioning data available for this grain.";
+  }
+
+  const latest = ctx.cotPositioning[0];
+  const lines: string[] = [
+    `**${latest.commodity} (${latest.exchange}) — as of ${latest.report_date}:**`,
+    `- Managed Money Net: ${latest.managed_money_net.toLocaleString()} (${latest.managed_money_net_pct}% OI), WoW: ${latest.wow_net_change > 0 ? "+" : ""}${latest.wow_net_change.toLocaleString()}`,
+    `- Commercial Net: ${latest.commercial_net.toLocaleString()} (${latest.commercial_net_pct}% OI)`,
+    `- Divergence: ${latest.spec_commercial_divergence ? "YES — specs and commercials on opposite sides" : "No"}`,
+  ];
+
+  if (ctx.cotPositioning.length > 1) {
+    lines.push(`- 4-week MM net trend: ${ctx.cotPositioning.map(w =>
+      `${w.report_date}: ${w.managed_money_net.toLocaleString()}`
+    ).join(" → ")}`);
+  }
+
+  return lines.join("\n");
 }
 
 function formatLogisticsForIntelligence(ctx: GrainContext): string {
