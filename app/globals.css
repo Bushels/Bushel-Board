@@ -190,6 +190,11 @@
     animation-delay: calc(var(--child-index, 0) * var(--stagger-delay));
   }
 
+  .no-ligatures {
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "clig" 0, "dlig" 0;
+  }
+
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
