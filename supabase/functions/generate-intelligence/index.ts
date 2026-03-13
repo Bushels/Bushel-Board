@@ -24,7 +24,7 @@ import {
   type GrainContext,
 } from "./prompt-template.ts";
 import {
-  buildInternalHeaders,
+  enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
 import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const cropYear: string = body.crop_year || getCurrentCropYear();
     const grainWeek: number = body.grain_week || getCurrentGrainWeek();
     const targetGrains: string[] | undefined = body.grains;
-    const BATCH_SIZE = 4; // Process 4 grains per invocation to stay within Edge Function timeout
+    const BATCH_SIZE = 1; // Single-grain batches keep chain handoffs below the project timeout ceiling
 
     console.log(`Generating intelligence for week ${grainWeek}, crop year ${cropYear}`);
 
@@ -363,14 +363,11 @@ Deno.serve(async (req) => {
       // Self-trigger for next batch of grains
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek, grains: remainingGrains }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "generate-intelligence", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+          grains: remainingGrains,
+        });
         console.log("Triggered next batch");
       } catch (err) {
         console.log("Next batch trigger failed:", err);
@@ -378,14 +375,10 @@ Deno.serve(async (req) => {
     } else {
       // Last batch — chain trigger: generate farm summaries
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "generate-farm-summary", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+        });
         console.log("Triggered generate-farm-summary");
       } catch (err) {
         console.log("Farm summary trigger failed (non-blocking):", err);

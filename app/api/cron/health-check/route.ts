@@ -1,5 +1,11 @@
+import { fetchCurrentCgcCsv } from "@/lib/cgc/source";
+
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+function numberFromUnknown(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 
 /**
  * Vercel Cron route: Daily site health check.
@@ -26,6 +32,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    const liveSource = await fetchCurrentCgcCsv();
     const res = await fetch(
       `${supabaseUrl}/functions/v1/validate-site-health`,
       {
@@ -34,22 +41,50 @@ export async function GET(request: Request) {
           "Content-Type": "application/json",
           "x-bushel-internal-secret": internalSecret,
         },
-        body: JSON.stringify({ source: "scheduled" }),
+        body: JSON.stringify({
+          source: "scheduled",
+          expected_crop_year: liveSource.cropYear,
+          expected_grain_week: liveSource.grainWeek,
+        }),
       }
     );
 
-    const result = await res.json();
+    const rawResult = await res.text();
+    let result: Record<string, unknown> | null = null;
+    try {
+      result = rawResult ? (JSON.parse(rawResult) as Record<string, unknown>) : null;
+    } catch {
+      result = null;
+    }
+
+    if (!res.ok || !result) {
+      return Response.json(
+        {
+          error: `validate-site-health returned HTTP ${res.status}`,
+          triggered: false,
+          edge_function_result: result ?? rawResult,
+        },
+        { status: 502 }
+      );
+    }
+
+    const status = typeof result.status === "string" ? result.status : "fail";
+    const passCount = numberFromUnknown(result.pass_count);
+    const failCount = numberFromUnknown(result.fail_count);
+    const durationMs = numberFromUnknown(result.duration_ms);
 
     console.log(
-      `[cron/health-check] Status: ${result.status}, passed: ${result.pass_count}/${(result.pass_count || 0) + (result.fail_count || 0)}`
+      `[cron/health-check] Status: ${status}, passed: ${passCount}/${passCount + failCount}`
     );
 
     return Response.json({
       triggered: true,
-      status: result.status,
-      pass_count: result.pass_count,
-      fail_count: result.fail_count,
-      duration_ms: result.duration_ms,
+      status,
+      pass_count: passCount,
+      fail_count: failCount,
+      duration_ms: durationMs,
+    }, {
+      status: status === "pass" ? 200 : 503,
     });
   } catch (err) {
     console.error("[cron/health-check] Failed:", err);

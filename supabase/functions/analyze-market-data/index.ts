@@ -18,7 +18,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  buildInternalHeaders,
+  enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
 import {
@@ -31,7 +31,7 @@ import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "stepfun/step-3.5-flash:free";
-const BATCH_SIZE = 4;
+const BATCH_SIZE = 1;
 
 Deno.serve(async (req) => {
   const authError = requireInternalRequest(req);
@@ -302,18 +302,11 @@ Deno.serve(async (req) => {
       // Self-trigger for next batch of grains
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-market-data`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({
-              crop_year: cropYear,
-              grain_week: grainWeek,
-              grains: remainingGrains,
-            }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "analyze-market-data", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+          grains: remainingGrains,
+        });
         console.log("Triggered next batch");
       } catch (err) {
         console.log("Next batch trigger failed:", err);
@@ -322,14 +315,10 @@ Deno.serve(async (req) => {
       // Last batch — chain trigger: generate-intelligence (Grok round 2)
       console.log("All grains analyzed — triggering generate-intelligence");
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-intelligence`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "generate-intelligence", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+        });
         console.log("Triggered generate-intelligence");
       } catch (err) {
         console.log("generate-intelligence trigger failed:", err);

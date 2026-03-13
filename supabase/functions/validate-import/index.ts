@@ -10,7 +10,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  buildInternalHeaders,
+  enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
 
@@ -209,18 +209,15 @@ Deno.serve(async (req) => {
     console.log(`Validation ${status}: ${JSON.stringify(checks)}`);
 
     // ── Chain trigger (only on pass) ────────────────────────────────────
+    // Trigger the X search step with the same internal-secret contract used by the chain.
     if (allPassed) {
       try {
         console.log("Validation passed — triggering search-x-intelligence...");
-        const chainRes = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-x-intelligence`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({ mode: "deep", crop_year: cropYear, grain_week: grainWeek }),
-          }
-        );
-        console.log(`search-x-intelligence trigger: HTTP ${chainRes.status}`);
+        await enqueueInternalFunction(supabase, "search-x-intelligence", {
+          mode: "deep",
+          crop_year: cropYear,
+          grain_week: grainWeek,
+        });
       } catch (chainErr) {
         console.error("search-x-intelligence chain-trigger failed:", chainErr);
         // Don't fail validation — intelligence pipeline is best-effort

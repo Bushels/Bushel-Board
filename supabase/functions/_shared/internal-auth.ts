@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const INTERNAL_SECRET_HEADER = "x-bushel-internal-secret";
 
 function jsonResponse(body: Record<string, unknown>, status: number): Response {
@@ -42,3 +44,21 @@ export function buildInternalHeaders(): HeadersInit {
   };
 }
 
+export async function enqueueInternalFunction(
+  supabase: SupabaseClient,
+  functionName: string,
+  body: Record<string, unknown>
+): Promise<void> {
+  const { data, error } = await supabase.rpc("enqueue_internal_function", {
+    p_function_name: functionName,
+    p_body: body,
+  });
+
+  if (error) {
+    throw new Error(
+      `Failed to enqueue ${functionName}: ${error.message}`
+    );
+  }
+
+  console.log(`${functionName} queued via pg_net request ${String(data)}`);
+}

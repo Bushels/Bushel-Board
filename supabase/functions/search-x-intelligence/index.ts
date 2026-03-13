@@ -16,7 +16,7 @@
  * Request body:
  *   {
  *     "mode": "pulse" | "deep",         // default: "deep"
- *     "crop_year": "2025-2026",
+ *     "crop_year": "2025-26",
  *     "grain_week": 29,
  *     "grains": ["Canola"],             // optional subset
  *     "morning_pulse": true              // include minor grains (morning only)
@@ -30,18 +30,14 @@ import {
   MAJOR_GRAINS,
 } from "./search-queries.ts";
 import {
-  buildInternalHeaders,
+  enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
-import {
-  buildSignalResearchSystemPrompt,
-  MARKET_INTELLIGENCE_VERSIONS,
-} from "../_shared/market-intelligence-config.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
-const PULSE_BATCH_SIZE = 8;
-const DEEP_BATCH_SIZE = 4;
+const PULSE_BATCH_SIZE = 2;
+const DEEP_BATCH_SIZE = 1;
 
 const ALL_GRAINS = [
   "Wheat", "Canola", "Amber Durum", "Barley", "Oats", "Peas",
@@ -118,7 +114,6 @@ Deno.serve(async (req) => {
         const queries = mode === "pulse"
           ? buildPulseQueries(grainName, now)
           : buildDeepQueries(grainName, now);
-        const systemPrompt = buildSignalResearchSystemPrompt(mode);
 
         console.log(`${grainName}: searching with ${queries.length} queries [${mode}]`);
 
@@ -140,13 +135,10 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: MODEL,
             max_output_tokens: mode === "deep" ? 2048 : 1024,
-            input: [
-              { role: "system", content: systemPrompt },
-              {
-                role: "user",
-                content: buildScoringPrompt(grainName, queries, mode),
-              },
-            ],
+            input: [{
+              role: "user",
+              content: buildScoringPrompt(grainName, queries, mode),
+            }],
             tools,
             text: {
               format: {
@@ -230,7 +222,6 @@ Deno.serve(async (req) => {
                 crop_year: cropYear,
                 grain_week: grainWeek,
                 post_summary: s.post_summary,
-                post_url: s.post_url,
                 post_author: s.post_author,
                 post_date: s.post_date,
                 relevance_score: s.relevance_score,
@@ -241,15 +232,7 @@ Deno.serve(async (req) => {
                 searched_at: new Date().toISOString(),
                 search_mode: mode,
                 source: s.source,
-                raw_context: {
-                  response_id: aiResponse.id ?? null,
-                  prompt_version: MARKET_INTELLIGENCE_VERSIONS.searchSignals,
-                  model_used: MODEL,
-                  search_mode: mode,
-                  search_queries: queries,
-                  toolset: tools.map((tool) => tool.type),
-                  source: s.source,
-                },
+                raw_context: null,
               })),
               { onConflict: "grain,crop_year,grain_week,post_summary" }
             );
@@ -295,20 +278,13 @@ Deno.serve(async (req) => {
       // Self-trigger for next batch
       console.log(`${remainingGrains.length} grains remaining — triggering next batch`);
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-x-intelligence`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({
-              mode,
-              crop_year: cropYear,
-              grain_week: grainWeek,
-              grains: remainingGrains,
-              morning_pulse: morningPulse,
-            }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "search-x-intelligence", {
+          mode,
+          crop_year: cropYear,
+          grain_week: grainWeek,
+          grains: remainingGrains,
+          morning_pulse: morningPulse,
+        });
         console.log("Triggered next batch of search-x-intelligence");
       } catch (err) {
         console.error("Next batch trigger failed:", err);
@@ -318,14 +294,10 @@ Deno.serve(async (req) => {
       // Pipeline: search-x-intelligence → analyze-market-data → generate-intelligence → generate-farm-summary
       console.log("All grains searched [deep] — triggering analyze-market-data");
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-market-data`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: grainWeek }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "analyze-market-data", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+        });
         console.log("Triggered analyze-market-data");
       } catch (err) {
         console.error("analyze-market-data chain-trigger failed (non-blocking):", err);
@@ -379,9 +351,7 @@ For each relevant post you find, provide:
 
 Only include posts with relevance_score >= 60. If no relevant posts found, return an empty array.
 Focus on: Canadian prairie agriculture, elevator bids, crop conditions, export activity, transport/rail, crush/processing capacity.
-Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content.
-
-Preserve provenance. Prefer exact post/article URLs and avoid vague paraphrases that lose who said what.`;
+Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content.`;
 
   if (mode === "deep") {
     return basePrompt + `
@@ -393,9 +363,7 @@ DEEP ANALYSIS MODE: Also search the broader web for:
 - Railway shipping reports and grain car allocations
 - International buyer activity and trade policy updates
 
-Include web sources alongside X posts in your analysis. Mark web results with source "web" and classify them into the appropriate category. Prioritize Canadian prairie-specific content over generic commodity news.
-
-For web sources, strongly prefer official or directly market-relevant pages from CGC, AAFC, provincial ministries, ports, rail, grain companies, and reputable trade publications.`;
+Include web sources alongside X posts in your analysis. Mark web results with source "web" and classify them into the appropriate category. Prioritize Canadian prairie-specific content over generic commodity news.`;
   }
 
   return basePrompt;
@@ -405,7 +373,6 @@ For web sources, strongly prefer official or directly market-relevant pages from
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Returns crop year in long format: "2025-2026" (matches CGC CSV and cgc_observations convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();

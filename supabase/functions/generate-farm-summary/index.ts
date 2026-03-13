@@ -16,7 +16,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  buildInternalHeaders,
+  enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
 import {
@@ -26,7 +26,7 @@ import {
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
-const DEFAULT_BATCH_SIZE = 50;
+const DEFAULT_BATCH_SIZE = 5;
 const POUNDS_PER_METRIC_TONNE = 2204.6226218488;
 const DEFAULT_BUSHEL_WEIGHTS: Record<string, number> = {
   Wheat: 60,
@@ -309,19 +309,12 @@ Deno.serve(async (req) => {
     if (remainingUserIds.length > 0) {
       console.log(`${remainingUserIds.length} users remaining - triggering next batch`);
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-farm-summary`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({
-              crop_year: cropYear,
-              grain_week: grainWeek,
-              batch_size: batchSize,
-              user_ids: remainingUserIds,
-            }),
-          }
-        );
+        await enqueueInternalFunction(supabase, "generate-farm-summary", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+          batch_size: batchSize,
+          user_ids: remainingUserIds,
+        });
         console.log("Triggered next batch of farm summaries");
       } catch (err) {
         console.error("Next batch self-trigger failed:", err);
@@ -330,19 +323,12 @@ Deno.serve(async (req) => {
       // Final batch complete — chain to validate-site-health (step 6)
       try {
         console.log("All farm summaries complete — triggering site health check...");
-        const healthRes = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/validate-site-health`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({
-              crop_year: cropYear,
-              grain_week: grainWeek,
-              source: "pipeline",
-            }),
-          }
-        );
-        console.log(`validate-site-health trigger: HTTP ${healthRes.status}`);
+        await enqueueInternalFunction(supabase, "validate-site-health", {
+          crop_year: cropYear,
+          grain_week: grainWeek,
+          source: "pipeline",
+        });
+        console.log("Triggered validate-site-health");
       } catch (healthErr) {
         console.error("validate-site-health chain-trigger failed:", healthErr);
         // Don't fail farm summaries — health check is best-effort
