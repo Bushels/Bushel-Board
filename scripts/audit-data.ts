@@ -17,13 +17,16 @@
 
 import * as XLSX from "xlsx";
 import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
+import { relative, resolve } from "path";
 import { parseCgcCsv, getCurrentCropYear } from "../lib/cgc/parser";
 
 // ─── Config ──────────────────────────────────────────────────────────
 
 const TOLERANCE = 0.001; // Kt tolerance for float comparison
-const DATA_DIR = resolve(process.cwd(), "data");
+const DATA_DIR_CANDIDATES = [
+  resolve(process.cwd(), "data", "CGC Weekly"),
+  resolve(process.cwd(), "data"),
+];
 
 interface AuditCheck {
   source: "excel-csv" | "csv-supabase" | "excel-supabase";
@@ -49,6 +52,21 @@ interface AuditReport {
   passed: number;
   failed: number;
   checks: AuditCheck[];
+}
+
+function resolveCgcDataFile(filename: string): string {
+  for (const dir of DATA_DIR_CANDIDATES) {
+    const candidate = resolve(dir, filename);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return resolve(DATA_DIR_CANDIDATES[0], filename);
+}
+
+function toWorkspaceRelativePath(filepath: string): string {
+  return relative(process.cwd(), filepath).replace(/\\/g, "/");
 }
 
 // ─── CLI ─────────────────────────────────────────────────────────────
@@ -115,12 +133,12 @@ interface ExcelData {
 
 function loadExcel(week: number): ExcelData {
   const filename = `gsw-shg-${week}-en.xlsx`;
-  const filepath = resolve(DATA_DIR, filename);
+  const filepath = resolveCgcDataFile(filename);
   if (!existsSync(filepath)) {
     console.error(`ERROR: Excel file not found: ${filepath}`);
     process.exit(1);
   }
-  console.error(`Loading Excel: ${filename}`);
+  console.error(`Loading Excel: ${toWorkspaceRelativePath(filepath)}`);
   const workbook = XLSX.readFile(filepath);
   return { workbook, week };
 }
@@ -188,12 +206,12 @@ interface CsvLookup {
 }
 
 function loadCsvForWeek(week: number): CsvLookup {
-  const csvPath = resolve(DATA_DIR, "gsw-shg-en.csv");
+  const csvPath = resolveCgcDataFile("gsw-shg-en.csv");
   if (!existsSync(csvPath)) {
     console.error(`ERROR: CSV file not found: ${csvPath}`);
     process.exit(1);
   }
-  console.error("Loading CSV...");
+  console.error(`Loading CSV: ${toWorkspaceRelativePath(csvPath)}`);
   const content = readFileSync(csvPath, "utf-8");
   const rows = parseCgcCsv(content);
   console.error(`  Parsed ${rows.length} CSV rows`);
@@ -520,8 +538,8 @@ async function main() {
     week: latestWeek,
     crop_year: cropYear,
     timestamp: new Date().toISOString(),
-    excel_file: `gsw-shg-${latestWeek}-en.xlsx`,
-    csv_file: "gsw-shg-en.csv",
+    excel_file: toWorkspaceRelativePath(resolveCgcDataFile(`gsw-shg-${latestWeek}-en.xlsx`)),
+    csv_file: toWorkspaceRelativePath(resolveCgcDataFile("gsw-shg-en.csv")),
     total_checks: checks.length,
     passed,
     failed,
@@ -545,12 +563,12 @@ async function main() {
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function detectLatestWeek(): number {
-  // Find the highest week Excel file in data/
+  // Find the highest week Excel file in the local CGC Weekly directory.
   for (let w = 52; w >= 1; w--) {
-    const filepath = resolve(DATA_DIR, `gsw-shg-${w}-en.xlsx`);
+    const filepath = resolveCgcDataFile(`gsw-shg-${w}-en.xlsx`);
     if (existsSync(filepath)) return w;
   }
-  console.error("ERROR: No Excel files found in data/");
+  console.error("ERROR: No Excel files found in data/CGC Weekly/ or data/");
   process.exit(1);
 }
 
@@ -562,7 +580,7 @@ function sumCsvTerminalGrades(
 ): number | undefined {
   // Terminal worksheets in the CSV have per-grade rows
   // We need to re-parse the CSV to sum all grades for a given grain
-  const csvPath = resolve(DATA_DIR, "gsw-shg-en.csv");
+  const csvPath = resolveCgcDataFile("gsw-shg-en.csv");
   const content = readFileSync(csvPath, "utf-8");
   const rows = parseCgcCsv(content);
   const cropYear = getCurrentCropYear();

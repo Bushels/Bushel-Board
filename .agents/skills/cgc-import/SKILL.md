@@ -20,7 +20,7 @@ Manage the Canadian Grain Commission weekly data import pipeline end-to-end.
 - **Legacy fallback:** `import-cgc-weekly` still exists, but it is internal-only and not the public ingress
 - **Cron:** Vercel cron every Thursday at 20:00 UTC (1pm MST)
 - **Source:** `https://www.grainscanada.gc.ca/en/grain-statistics/grain-statistics-weekly/` (week CSV files)
-- **Local backfill script:** `npm run backfill -- --csv "../Bushel Board/data/gsw-shg-en.csv"`
+- **Local backfill script:** `npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"`
 
 ## Monitoring Queries
 
@@ -70,7 +70,7 @@ curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/import-cgc-w
 
 ### Local backfill (historical data)
 ```bash
-npm run backfill -- --csv "../Bushel Board/data/gsw-shg-en.csv"
+npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"
 ```
 
 ## Workflow

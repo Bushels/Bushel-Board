@@ -12,7 +12,7 @@
 
 **Existing Prototype:** `../Bushel Board/` — vanilla JS dashboard with static data. Use as visual reference for colors, animations, layout patterns. Do NOT copy code directly.
 
-**CGC CSV Reference:** `../Bushel Board/data/gsw-shg-en.csv` — 118,378 rows, 29 weeks (crop year 2025-26), columns: `Crop Year,Grain Week,Week Ending Date,worksheet,metric,period,grain,grade,Region,Ktonnes`
+**CGC CSV Reference:** `data/CGC Weekly/gsw-shg-en.csv` — 118,378 rows, 29 weeks (crop year 2025-26), columns: `Crop Year,Grain Week,Week Ending Date,worksheet,metric,period,grain,grade,Region,Ktonnes`
 
 ---
 
@@ -935,7 +935,7 @@ async function backfill() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   // Read the large CSV from the prototype directory
-  const csvPath = resolve(__dirname, "../../Bushel Board/data/gsw-shg-en.csv");
+  const csvPath = resolve(process.cwd(), "data/CGC Weekly/gsw-shg-en.csv");
   console.log(`Reading CSV from: ${csvPath}`);
   const csvText = readFileSync(csvPath, "utf-8");
 

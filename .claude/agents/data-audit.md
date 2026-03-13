@@ -93,8 +93,8 @@ npm run audit-data -- --help                 # Show usage
 
 **File Locations:**
 - Audit script: `scripts/audit-data.ts`
-- Excel files: `data/gsw-shg-{week}-en.xlsx`
-- CSV file: `data/gsw-shg-en.csv`
+- Excel files: `data/CGC Weekly/gsw-shg-{week}-en.xlsx`
+- CSV file: `data/CGC Weekly/gsw-shg-en.csv`
 - Excel map: `docs/reference/cgc-excel-map.md`
 - Issues log: `docs/lessons-learned/issues.md`
 

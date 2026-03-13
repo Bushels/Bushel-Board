@@ -15,7 +15,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { parseCgcCsv } from "../lib/cgc/parser";
 
@@ -51,6 +51,11 @@ const DRY_RUN = args.includes("--dry-run");
 
 const csvArgIndex = args.indexOf("--csv");
 const csvOverride = csvArgIndex !== -1 ? args[csvArgIndex + 1] : null;
+const DEFAULT_CSV_CANDIDATES = [
+  resolve(process.cwd(), "data", "CGC Weekly", "gsw-shg-en.csv"),
+  resolve(process.cwd(), "data", "gsw-shg-en.csv"),
+  resolve(__dirname, "../../Bushel Board/data/gsw-shg-en.csv"),
+];
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -90,6 +95,16 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1);
 }
 
+function resolveDefaultCsvPath(): string {
+  for (const candidate of DEFAULT_CSV_CANDIDATES) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return DEFAULT_CSV_CANDIDATES[0];
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -100,7 +115,7 @@ async function backfill() {
   // Locate the CSV — use override or default relative to this script's directory
   const csvPath = csvOverride
     ? resolve(csvOverride)
-    : resolve(__dirname, "../../Bushel Board/data/gsw-shg-en.csv");
+    : resolveDefaultCsvPath();
   console.error(`Reading CSV from: ${csvPath}`);
 
   let csvText: string;

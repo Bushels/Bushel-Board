@@ -26,7 +26,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 - `docs/reference/` — CGC Excel map, data sources, intelligence framework
 - `docs/lessons-learned/` — Bug writeups and data issues log
 - `.claude/agents/` — Agent definitions (11 agents)
-- `data/` — Reference CGC CSV + Excel data (gsw-shg-en.csv, gsw-shg-{week}-en.xlsx)
+- `data/CGC Weekly/` — Reference CGC CSV + Excel data (gsw-shg-en.csv, gsw-shg-{week}-en.xlsx)
 - `components/dashboard/wow-comparison.tsx` — Week-over-Week comparison card with composite metric system
 
 ## Agent Team

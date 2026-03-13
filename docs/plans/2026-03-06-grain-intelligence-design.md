@@ -26,7 +26,7 @@ Dashboard reads grain_intelligence at page load (no AI calls at render time)
 ## Data Layer
 
 ### Prior Year Backfill
-- Load `data/2024gsw-shg-en.csv` (219k rows, full 2024-2025 crop year) into `cgc_observations`
+- Load `data/CGC Weekly/2024gsw-shg-en.csv` (219k rows, full 2024-2025 crop year) into `cgc_observations`
 - Same table, different `crop_year` value — enables YoY queries with simple WHERE clauses
 
 ### New Table: `grain_intelligence`
