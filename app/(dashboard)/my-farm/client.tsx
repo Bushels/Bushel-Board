@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { addCropPlan, removeCropPlan } from "./actions";
 import { Button } from "@/components/ui/button";
@@ -180,6 +180,7 @@ export function MyFarmClient({
             {error && <div className="text-sm font-medium text-error">{error}</div>}
 
             <CropPlanFields
+              key={`add-${unusedGrains.join("|") || "none"}`}
               idPrefix="add"
               grainOptions={unusedGrains}
               grainPlaceholder={isFirstRun ? "Pick your first crop" : "Select grain to track..."}
@@ -628,23 +629,10 @@ function CropPlanFields({
   const [selectedGrain, setSelectedGrain] = useState(initialGrain);
   const [inventoryUnit, setInventoryUnit] = useState<GrainAmountUnit>(initialUnit);
   const [bushelWeightLbs, setBushelWeightLbs] = useState(initialBushelWeight);
-
-  useEffect(() => {
-    setSelectedGrain(initialGrain);
-    setInventoryUnit(initialUnit);
-    setBushelWeightLbs(initialBushelWeight);
-  }, [initialBushelWeight, initialGrain, initialUnit]);
-
-  useEffect(() => {
-    if (!selectedGrain || plan?.bushel_weight_lbs) {
-      return;
-    }
-    setBushelWeightLbs(getDefaultBushelWeightLbs(selectedGrain));
-  }, [plan?.bushel_weight_lbs, selectedGrain]);
-
-  const preferredBushelWeight = Number(
-    plan?.bushel_weight_lbs ?? getDefaultBushelWeightLbs(selectedGrain)
-  );
+  const preferredBushelWeight =
+    bushelWeightLbs > 0
+      ? bushelWeightLbs
+      : Number(plan?.bushel_weight_lbs ?? getDefaultBushelWeightLbs(selectedGrain));
   const displayStarting = plan
     ? convertMetricTonnesToUnit(
       convertKtToTonnes(
@@ -702,7 +690,12 @@ function CropPlanFields({
             name="grain"
             required
             value={selectedGrain}
-            onValueChange={setSelectedGrain}
+            onValueChange={(grain) => {
+              setSelectedGrain(grain);
+              if (!plan?.bushel_weight_lbs) {
+                setBushelWeightLbs(getDefaultBushelWeightLbs(grain));
+              }
+            }}
             disabled={grainOptions.length === 0}
           >
             <SelectTrigger id={`${idPrefix}-grain`} className="w-full">
@@ -779,6 +772,7 @@ function CropPlanFields({
           Estimated Starting Grain Amount ({unitLabel})
         </Label>
         <Input
+          key={`${idPrefix}-starting-${inventoryUnit}-${selectedGrain}-${preferredBushelWeight}`}
           id={`${idPrefix}-starting`}
           name="starting"
           type="number"
@@ -800,6 +794,7 @@ function CropPlanFields({
           Est. Grain Left to Sell ({unitLabel})
         </Label>
         <Input
+          key={`${idPrefix}-volume-${inventoryUnit}-${selectedGrain}-${preferredBushelWeight}`}
           id={`${idPrefix}-volume`}
           name="volume"
           type="number"
@@ -819,6 +814,7 @@ function CropPlanFields({
           Of Which Contracted ({unitLabel})
         </Label>
         <Input
+          key={`${idPrefix}-contracted-${inventoryUnit}-${selectedGrain}-${preferredBushelWeight}`}
           id={`${idPrefix}-contracted`}
           name="contracted"
           type="number"
@@ -863,7 +859,12 @@ function CropPlanEditModal({
         </CardHeader>
         <CardContent>
           <form action={onSubmit} className="space-y-5">
-            <CropPlanFields idPrefix="edit" plan={plan} grainLocked />
+            <CropPlanFields
+              key={`edit-${plan.grain}-${plan.inventory_unit_preference ?? "metric_tonnes"}-${plan.bushel_weight_lbs ?? "default"}`}
+              idPrefix="edit"
+              plan={plan}
+              grainLocked
+            />
 
             {error && <div className="text-sm font-medium text-error">{error}</div>}
 

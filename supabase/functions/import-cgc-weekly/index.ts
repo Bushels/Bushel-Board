@@ -1,21 +1,28 @@
 /**
  * Supabase Edge Function: import-cgc-weekly
  *
- * Downloads the latest weekly CGC grain statistics CSV from grainscanada.gc.ca,
- * parses it, and upserts rows into cgc_observations. Logs the result to cgc_imports.
+ * Legacy internal-only fallback for importing weekly CGC grain statistics.
  *
- * Triggered by the Vercel cron ingress or manually via POST with the internal secret.
+ * The canonical production ingest path is the Vercel cron route at
+ * /api/cron/import-cgc, which fetches the CGC CSV and writes directly to
+ * cgc_observations before triggering validate-import.
+ *
+ * This function remains available for internal recovery/testing only. It parses
+ * the requested CSV, upserts rows into cgc_observations, logs the result to
+ * cgc_imports, then queues validate-import on success.
  *
  * Request body (optional):
- *   { "week": 29, "crop_year": "2025-2026", "csv_data": "..." }
+ *   { "week": 29, "crop_year": "2025-26", "csv_data": "..." }
  *
  * If csv_data is provided, uses it directly instead of fetching from CGC.
  * If no body is provided, auto-detects the current grain week and crop year.
+ *
+ * Auth: requires x-bushel-internal-secret via requireInternalRequest().
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  buildInternalHeaders,
+  enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
 
@@ -95,13 +102,14 @@ function parseCgcCsv(csvText: string): CgcRow[] {
 // Crop year / week helpers
 // ---------------------------------------------------------------------------
 
-/** Returns crop year in long format: "2025-2026" (matches CGC CSV and cgc_observations convention). */
+/** Returns crop year in short format: "2025-26" (matches CGC CSV convention). */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed: 7 = August
   const startYear = month >= 7 ? year : year - 1;
-  return `${startYear}-${startYear + 1}`;
+  const endYear = (startYear + 1) % 100;
+  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
 }
 
 function getCurrentGrainWeek(): number {
@@ -140,7 +148,7 @@ Deno.serve(async (req) => {
       `Importing CGC data for week ${targetWeek}, crop year ${cropYear}`
     );
 
-    // Use pre-fetched CSV if provided (Vercel cron proxy), otherwise fetch from CGC
+    // Recovery callers can provide pre-fetched CSV, otherwise fetch from CGC
     let csvText: string;
 
     if (body.csv_data && typeof body.csv_data === "string") {
@@ -218,26 +226,17 @@ Deno.serve(async (req) => {
       status: skipped > 0 ? "partial" : "success",
     });
 
-    // Chain-trigger: validate-import → (if pass) search-x-intelligence → generate-intelligence → generate-farm-summary
     if (skipped === 0) {
       try {
-        console.log("Triggering post-import validation...");
-        const valRes = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/validate-import`,
-          {
-            method: "POST",
-            headers: buildInternalHeaders(),
-            body: JSON.stringify({ crop_year: cropYear, grain_week: targetWeek }),
-          }
-        );
-        console.log(`validate-import trigger: HTTP ${valRes.status}`);
-        if (!valRes.ok) {
-          const errBody = await valRes.text();
-          console.error(`validate-import trigger failed: ${errBody.slice(0, 300)}`);
-        }
+        console.log("Queueing post-import validation...");
+        await enqueueInternalFunction(supabase, "validate-import", {
+          crop_year: cropYear,
+          grain_week: targetWeek,
+        });
+        console.log("Queued validate-import");
       } catch (chainErr) {
-        console.error("validate-import chain-trigger failed:", chainErr);
-        // Don't fail the import — validation/intelligence pipeline is best-effort
+        console.error("validate-import queue failed:", chainErr);
+        // Don't fail the import; validation/intelligence pipeline is best-effort
       }
     }
 

@@ -1,12 +1,12 @@
 # CGC Excel Spreadsheet Structure Map
 
 > Authoritative reference for mapping CGC weekly grain statistics Excel files to CSV and Supabase.
-> Verified against Week 29 (`gsw-shg-29-en.xlsx`) and Week 30 (`gsw-shg-30-en.xlsx`) — structure is consistent.
+> Verified against Week 29 (`data/CGC Weekly/gsw-shg-29-en.xlsx`) and Week 30 (`data/CGC Weekly/gsw-shg-30-en.xlsx`) — structure is consistent.
 
 ## File Naming
 
-- Excel: `data/gsw-shg-{week}-en.xlsx` (e.g., `gsw-shg-30-en.xlsx`)
-- CSV: `data/gsw-shg-en.csv` (cumulative, all weeks)
+- Excel: `data/CGC Weekly/gsw-shg-{week}-en.xlsx` (e.g., `gsw-shg-30-en.xlsx`)
+- CSV: `data/CGC Weekly/gsw-shg-en.csv` (cumulative, all weeks)
 - Units: All values in thousands of tonnes (Kt)
 
 ## Sheet Index (14 sheets)

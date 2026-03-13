@@ -51,10 +51,18 @@ lint-results*.json
 # local browser/debug artifacts
 .playwright-cli/
 output/
+canola-spring-loaded.html
 
 # Historical CGC data files (too large for git)
 data/*.csv
 data/*.pdf
+data/CGC Weekly/2020gsw-shg-en.csv
+data/CGC Weekly/2021gsw-shg-en.csv
+data/CGC Weekly/2022gsw-shg-en.csv
+data/CGC Weekly/2023gsw-shg-en.csv
+data/CGC Weekly/21gsw-shg-en.csv
+data/CGC Weekly/22gsw-shg-en.csv
+data/CGC Weekly/23gsw-shg-en.csv
 
 # Local-only knowledge library and derived artifacts
 data/Knowledge/

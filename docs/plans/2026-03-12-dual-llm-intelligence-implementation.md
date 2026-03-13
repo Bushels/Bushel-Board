@@ -285,23 +285,23 @@ git commit -m "feat: add historical RPC functions for 5-year grain analysis"
 
 **Step 1: Download historical CSV files**
 
-CGC archives are at `https://www.grainscanada.gc.ca/en/grain-research/statistics/grain-statistics-weekly/`. Navigate the archive links to find CSVs for each crop year. Save to `data/` directory with naming pattern `{year}gsw-shg-en.csv`.
+CGC archives are at `https://www.grainscanada.gc.ca/en/grain-research/statistics/grain-statistics-weekly/`. Navigate the archive links to find CSVs for each crop year. Save to `data/CGC Weekly/` with naming pattern `{year}gsw-shg-en.csv`.
 
 Needed files:
-- `data/2020gsw-shg-en.csv` (crop year 2020-2021)
-- `data/2021gsw-shg-en.csv` (crop year 2021-2022)
-- `data/2022gsw-shg-en.csv` (crop year 2022-2023)
-- `data/2023gsw-shg-en.csv` (crop year 2023-2024)
+- `data/CGC Weekly/2020gsw-shg-en.csv` (crop year 2020-2021)
+- `data/CGC Weekly/2021gsw-shg-en.csv` (crop year 2021-2022)
+- `data/CGC Weekly/2022gsw-shg-en.csv` (crop year 2022-2023)
+- `data/CGC Weekly/2023gsw-shg-en.csv` (crop year 2023-2024)
 
-Note: We already have `data/2024gsw-shg-en.csv` (2024-2025, 219K rows) and `data/gsw-shg-en.csv` (2025-2026 current).
+Note: We already have `data/CGC Weekly/2024gsw-shg-en.csv` (2024-2025, 219K rows) and `data/CGC Weekly/gsw-shg-en.csv` (2025-2026 current).
 
 **Step 2: Run backfill for each file**
 
 ```bash
-npm run backfill -- --csv data/2020gsw-shg-en.csv
-npm run backfill -- --csv data/2021gsw-shg-en.csv
-npm run backfill -- --csv data/2022gsw-shg-en.csv
-npm run backfill -- --csv data/2023gsw-shg-en.csv
+npm run backfill -- --csv "data/CGC Weekly/2020gsw-shg-en.csv"
+npm run backfill -- --csv "data/CGC Weekly/2021gsw-shg-en.csv"
+npm run backfill -- --csv "data/CGC Weekly/2022gsw-shg-en.csv"
+npm run backfill -- --csv "data/CGC Weekly/2023gsw-shg-en.csv"
 ```
 
 **Step 3: Verify row counts**
@@ -327,7 +327,7 @@ Should now show 5 years of data in `values_by_year`.
 
 If CSVs are >50MB each, add to `.gitignore` and document the download process. Otherwise:
 ```bash
-git add data/20*gsw-shg-en.csv
+git add "data/CGC Weekly/20*gsw-shg-en.csv"
 git commit -m "data: add historical CGC CSVs for 5-year backfill (2020-2024)"
 ```
 

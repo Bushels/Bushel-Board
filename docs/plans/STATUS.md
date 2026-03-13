@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-12
+Last updated: 2026-03-13
 
 ## Feature Tracks
 
@@ -23,6 +23,9 @@ Last updated: 2026-03-12
 | 15 | Farmer-First Onboarding, Unlock UX, and Nav Polish | Complete | 2026-03-11 | `lib/auth/post-auth-destination.ts`, `app/(dashboard)/my-farm/`, `components/layout/`, `components/auth/`, `components/dashboard/x-signal-feed.tsx` |
 | 16 | UX Layout & Hierarchy Redesign (P1) | Complete | 2026-03-11 | `components/dashboard/section-header.tsx`, `components/dashboard/compact-signal-strip.tsx`, `components/dashboard/supply-pipeline.tsx`, `app/(dashboard)/overview/page.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
 | 17 | Dual-LLM Intelligence Pipeline (Step 3.5 Flash + Grok debate) | Complete | 2026-03-12 | `supabase/functions/analyze-market-data/`, `supabase/functions/_shared/commodity-knowledge.ts`, `components/dashboard/bull-bear-cards.tsx`, `lib/queries/intelligence.ts` |
+| 18 | Supplementary Data Pipeline (Grain Monitor & Producer Cars) | Complete | 2026-03-13 | `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql`, `supabase/functions/analyze-market-data/`, `supabase/functions/generate-intelligence/`, `docs/reference/agent-debate-rules.md` |
+| 19 | AI Thesis Debate Moderation & Agent Improvement | Complete | 2026-03-13 | `docs/lessons-learned/canola-week31-debate-moderation.md`, `docs/reference/agent-debate-rules.md` |
+| 20 | CFTC COT Positioning Integration | Complete | 2026-03-13 | `supabase/migrations/20260313140000_create_cftc_cot_positions.sql`, `supabase/functions/import-cftc-cot/`, `app/api/cron/import-cftc-cot/route.ts`, `.claude/skills/cftc-cot/SKILL.md`, `docs/plans/2026-03-13-cftc-cot-integration-design.md` |
 
 ## Performance Fixes
 
@@ -84,17 +87,68 @@ Last updated: 2026-03-12
 
 **Files modified:** `components/auth/auth-shell.tsx`
 
+### 2026-03-13 — Supplementary Data Pipeline: Grain Monitor & Producer Cars (Track 18)
+
+**Status:** Complete for the production rollout — data layer, AI integration, Edge Function deployments, and debate moderation all done. UI display, automated scraping, and scripted repo seeding remain future work.
+
+**What was implemented:**
+- **New tables:**
+  - `grain_monitor_snapshots` — Government Grain Monitor PDFs (port throughput, grain-in-storage, carryover trends). Week 30 sample data was inserted in production (lagged 1 week for Week 31 analysis).
+  - `producer_car_allocations` — CGC Producer Car reports (forward-looking rail allocations). Week 33 sample data was inserted in production (2-week forward for Week 31 analysis).
+
+- **New RPC:** `get_logistics_snapshot(crop_year, grain_week)` returns both tables as structured JSON.
+
+- **AI integration:** Embedded logistics context into commodity knowledge (2 new sections: "Marketing Strategy & Contract Guidance" + "Logistics & Transport Awareness", ~1.5K tokens). Injected into Step 3.5 Flash + Grok prompts via updated `market-intelligence-config.ts` version bumps (v4 analyze/generate, v3 knowledge).
+
+- **Data insertion:** Week 30 Grain Monitor + Week 33 Producer Car allocations for 2025-2026 were manually loaded in the live project. The repo currently ships schema plus source files, not an automated sample-data seed for those rows.
+
+**Known issues (resolved):**
+- ~~Grain name mismatch between `producer_car_allocations` ("Durum") and `grains` table ("Amber Durum").~~ Fixed via SQL UPDATE: "Durum" → "Amber Durum", "Chickpeas" → "Chick Peas". Buckwheat remains unmatched (minor grain, not in tracked 16).
+- Producer car data is cumulative forward-looking, not weekly. RPC returns latest available week ≤ grain_week + 3 to prevent allocations from aging out mid-analysis.
+
+**Edge Function deployments (2026-03-13):**
+- `analyze-market-data` v10 — ACTIVE (logistics snapshot integration)
+- `generate-intelligence` v31 — ACTIVE (logistics in Grok prompt)
+- `generate-farm-summary` v21 — ACTIVE (updated shared config with v4 version bumps)
+
+**What remains (future work):**
+- Automated PDF scraping from Government Grain Monitor and CGC Producer Car reports
+- Historical backfill of pre-2026 grain monitor and producer car data
+- UI display: logistics tiles, supply-chain context cards, port/rail status summaries on Overview and Grain Detail pages
+- Automated scheduler integration (daily/weekly pulls depending on source update cadence)
+
+**Files modified:**
+- `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql` (new)
+- `supabase/functions/_shared/commodity-knowledge.ts`
+- `supabase/functions/_shared/market-intelligence-config.ts`
+- `supabase/functions/analyze-market-data/index.ts`
+- `supabase/functions/generate-intelligence/index.ts`
+- `supabase/functions/generate-intelligence/prompt-template.ts`
+
+### 2026-03-13 — AI Thesis Debate Moderation & Agent Improvement Reference (Track 19)
+
+**What:** Claude moderated the Canola Week 31 disagreement between Step 3.5 Flash (bearish) and Grok (bullish), identifying 3 specific logical errors in Step 3.5's analysis. Created reusable reference docs for continuous agent improvement.
+
+**Key findings:**
+- Step 3.5 conflated YTD exports (-28% YoY) with current-week flow — stocks drew -175.6 Kt while 455.6 Kt of deliveries arrived, meaning 631 Kt absorbed in one week
+- The export lag reflects Vancouver port congestion (107% capacity, 26 vessels vs avg 20), not demand weakness
+- Grok's bullish thesis was directionally correct but needed sharper specifics (timeline, triggers, risk)
+
+**New reference docs:**
+- `docs/lessons-learned/canola-week31-debate-moderation.md` — full evidence-based moderation with corrected thesis
+- `docs/reference/agent-debate-rules.md` — 8 reusable rules (flow coherence, thesis quality) + grain-specific rules + validation checklist
+
 ## Intelligence Pipeline
 
 ```text
-import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary
+GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary -> validate-site-health
 ```
 
 - Trigger: Vercel cron -> `/api/cron/import-cgc`
 - Schedule: Thursday afternoon after the CGC weekly release window
 - Round 1: `analyze-market-data` — Step 3.5 Flash (free via OpenRouter) produces data-driven thesis, bull/bear cases, historical context
 - Round 2: `generate-intelligence` — Grok reviews/challenges Step 3.5 Flash's thesis with X signals and farmer sentiment
-- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4-1-fast-reasoning` (xAI)
+- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4.20-beta-0309-reasoning` (xAI)
 - Cost: about `$0.04` per weekly run (Step 3.5 Flash is free, only Grok costs)
 - Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users per invocation for farm summaries
 
@@ -116,6 +170,13 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-
 | `signal_feedback` | varies | Farmer relevance votes on X signals |
 | `grain_sentiment_votes` | varies | Weekly haul/hold/neutral votes by grain |
 | `cgc_imports` | 1/import | Audit log of data loads |
+| `grain_monitor_snapshots` | 1/week | Government Grain Monitor: port throughput, vessel queues, OCT, storage capacity |
+| `producer_car_allocations` | ~11/week | CGC Producer Cars: forward-looking rail allocations by grain/province/destination |
+| `signal_scan_log` | ~3/day | Scan observability: mode, grains scanned, signals found, duration |
+| `sentiment_history` | ~16/week | Archived weekly per-grain sentiment aggregates |
+| `sentiment_daily_rollup` | ~16/day | Intra-week daily sentiment trajectory with delta tracking |
+| `health_checks` | 1/pipeline | Post-pipeline site health validation results |
+| `cftc_cot_positions` | ~9/week | CFTC Disaggregated COT: trader positioning per commodity per week, mapped to CGC grains |
 
 ## Key Views & RPC Functions
 
@@ -135,3 +196,7 @@ import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-
 | `get_historical_average()` | RPC | 5-year historical average/min/max/stddev for any grain/metric/worksheet |
 | `get_seasonal_pattern()` | RPC | Weekly seasonal aggregates across multiple crop years |
 | `get_week_percentile()` | RPC | Where current value sits in 5-year historical range |
+| `get_logistics_snapshot()` | RPC | Grain Monitor + Producer Car data as structured JSON for Edge Functions |
+| `snapshot_weekly_sentiment()` | RPC | Archives weekly per-grain sentiment aggregates to `sentiment_history` |
+| `snapshot_daily_sentiment()` | RPC | Snapshots daily sentiment with delta tracking to `sentiment_daily_rollup` |
+| `get_cot_positioning()` | RPC | Managed money and commercial net positions with spec/commercial divergence flag |

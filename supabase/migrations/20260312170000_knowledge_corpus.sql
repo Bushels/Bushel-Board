@@ -37,13 +37,7 @@ CREATE TABLE IF NOT EXISTS public.knowledge_chunks (
   region_tags text[] NOT NULL DEFAULT '{}'::text[],
   source_priority smallint NOT NULL DEFAULT 50 CHECK (source_priority BETWEEN 0 AND 100),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  search_vector tsvector GENERATED ALWAYS AS (
-    setweight(to_tsvector('english', coalesce(heading, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(content, '')), 'B') ||
-    setweight(to_tsvector('english', array_to_string(topic_tags, ' ')), 'C') ||
-    setweight(to_tsvector('english', array_to_string(grain_tags, ' ')), 'C') ||
-    setweight(to_tsvector('english', array_to_string(region_tags, ' ')), 'D')
-  ) STORED,
+  search_vector tsvector,  -- maintained by trigger (GENERATED ALWAYS not possible: to_tsvector is STABLE)
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT knowledge_chunks_document_chunk_unique UNIQUE (document_id, chunk_index)
 );
@@ -181,3 +175,24 @@ REVOKE ALL ON FUNCTION public.get_knowledge_context(text, text, text[], integer)
 
 GRANT EXECUTE ON FUNCTION public.get_knowledge_context(text, text, text[], integer)
   TO service_role;
+
+-- Trigger to maintain search_vector on insert/update
+CREATE OR REPLACE FUNCTION public.knowledge_chunks_search_vector_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('english', coalesce(NEW.heading, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(NEW.content, '')), 'B') ||
+    setweight(to_tsvector('english', array_to_string(NEW.topic_tags, ' ')), 'C') ||
+    setweight(to_tsvector('english', array_to_string(NEW.grain_tags, ' ')), 'C') ||
+    setweight(to_tsvector('english', array_to_string(NEW.region_tags, ' ')), 'D');
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_knowledge_chunks_search_vector
+  BEFORE INSERT OR UPDATE ON public.knowledge_chunks
+  FOR EACH ROW
+  EXECUTE FUNCTION public.knowledge_chunks_search_vector_trigger();

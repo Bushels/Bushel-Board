@@ -75,6 +75,24 @@ export interface GrainContext {
     query: string;
     topicTags: string[];
   } | null;
+  logisticsSnapshot?: {
+    grain_monitor: Record<string, unknown> | null;
+    producer_cars: Array<Record<string, unknown>> | null;
+  } | null;
+  cotPositioning?: Array<{
+    report_date: string;
+    commodity: string;
+    exchange: string;
+    mapping_type: string;
+    open_interest: number;
+    managed_money_net: number;
+    managed_money_net_pct: number;
+    wow_net_change: number;
+    commercial_net: number;
+    commercial_net_pct: number;
+    spec_commercial_divergence: boolean;
+    grain_week: number;
+  }> | null;
 }
 
 export const INTELLIGENCE_PROMPT_VERSION = MARKET_INTELLIGENCE_VERSIONS.generateIntelligence;
@@ -119,6 +137,12 @@ ${ctx.farmerSentiment && ctx.farmerSentiment.vote_count >= 5
   ? `- ${ctx.farmerSentiment.vote_count} farmers voted: ${ctx.farmerSentiment.pct_holding}% holding, ${ctx.farmerSentiment.pct_hauling}% hauling, ${ctx.farmerSentiment.pct_neutral}% neutral
 - NOTE: These votes reflect farmer outlook during Week ${ctx.grain_week + 1}, not the CGC data week (${ctx.grain_week}). Consider whether the 1-week lag explains any divergence before treating it as a true disagreement.`
   : "Insufficient farmer votes this week (need >= 5 for privacy). Skip sentiment analysis."}
+
+### Logistics & Transport Snapshot
+${formatLogisticsForIntelligence(ctx)}
+
+### CFTC COT Positioning (Tuesday data, released Friday — 3-day lag)
+${formatCotForIntelligence(ctx)}
 
 ## Retrieved Grain Knowledge
 ${ctx.knowledgeContext?.contextText ?? "No retrieved corpus passages were available for this grain. Use the shared system framework plus the structured data above."}
@@ -176,7 +200,7 @@ Generate a JSON object with the intelligence analysis. Include 3-6 insight cards
 - For grains with minimal data, generate fewer insights (2-3).
 - If no relevant saved X/web signals are available, skip "social" signals.
 - Return ONLY the JSON object.
-- Each insight MUST include a "sources" array with one or more of: "CGC", "AAFC", "X", "Derived".
+- Each insight MUST include a "sources" array with one or more of: "CGC", "AAFC", "X", "Derived", "CFTC".
 - Each insight MUST include a "confidence" field with one of: "high", "medium", "low".`;
 }
 
@@ -210,4 +234,68 @@ function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[num
       : "";
 
   return `- [${signal.sentiment}/${signal.category}] (relevance: ${signal.relevance_score}, confidence: ${signal.confidence_score}${votesInfo}) ${signal.post_summary}${provenance ? ` | ${provenance}` : ""}${citation}`;
+}
+
+function formatCotForIntelligence(ctx: GrainContext): string {
+  if (!ctx.cotPositioning || ctx.cotPositioning.length === 0) {
+    return "No CFTC futures positioning data available for this grain.";
+  }
+
+  const latest = ctx.cotPositioning[0];
+  const lines: string[] = [
+    `**${latest.commodity} (${latest.exchange}) — as of ${latest.report_date}:**`,
+    `- Managed Money Net: ${latest.managed_money_net.toLocaleString()} (${latest.managed_money_net_pct}% OI), WoW: ${latest.wow_net_change > 0 ? "+" : ""}${latest.wow_net_change.toLocaleString()}`,
+    `- Commercial Net: ${latest.commercial_net.toLocaleString()} (${latest.commercial_net_pct}% OI)`,
+    `- Divergence: ${latest.spec_commercial_divergence ? "YES — specs and commercials on opposite sides" : "No"}`,
+  ];
+
+  if (ctx.cotPositioning.length > 1) {
+    lines.push(`- 4-week MM net trend: ${ctx.cotPositioning.map(w =>
+      `${w.report_date}: ${w.managed_money_net.toLocaleString()}`
+    ).join(" → ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+function formatLogisticsForIntelligence(ctx: GrainContext): string {
+  if (!ctx.logisticsSnapshot) return "No logistics data available for this period.";
+
+  const gm = ctx.logisticsSnapshot.grain_monitor;
+  const producerCars = ctx.logisticsSnapshot.producer_cars;
+  const sections: string[] = [];
+
+  if (gm) {
+    const vesselSignal = gm.vessels_vancouver && gm.vessel_avg_one_year_vancouver
+      ? Number(gm.vessels_vancouver) > Number(gm.vessel_avg_one_year_vancouver)
+        ? "ABOVE 1yr avg — port congestion"
+        : "at/below avg"
+      : "N/A";
+    const octSignal = Number(gm.out_of_car_time_pct) > 15 ? " (ELEVATED)" : "";
+
+    sections.push(`**System-Wide (Grain Monitor Week ${gm.grain_week}):**
+- Country: ${gm.country_stocks_kt} Kt (${gm.country_capacity_pct}% cap), Deliveries: ${gm.country_deliveries_kt} Kt (+${gm.country_deliveries_yoy_pct}% YoY)
+- Terminal: ${gm.terminal_stocks_kt} Kt (${gm.terminal_capacity_pct}% cap)
+- Port Unloads: ${gm.total_unloads_cars} cars (${gm.var_to_four_week_avg_pct}% vs 4wk avg), OCT: ${gm.out_of_car_time_pct}%${octSignal}
+- Vessels Vancouver: ${vesselSignal} (${gm.vessels_vancouver} vs avg ${gm.vessel_avg_one_year_vancouver})
+- YTD Shipments: ${gm.ytd_shipments_total_kt} Kt (+${gm.ytd_shipments_yoy_pct}% YoY)
+- Weather: ${gm.weather_notes ?? "None"}`);
+  }
+
+  if (producerCars && producerCars.length > 0) {
+    const grainCar = producerCars.find((c) => c.grain === ctx.grain);
+    if (grainCar) {
+      const prov = grainCar.by_province as Record<string, number> | undefined;
+      sections.push(`**Producer Cars for ${ctx.grain} (Week ${grainCar.grain_week}, forward-looking):**
+- ${grainCar.cy_cars_total} cars YTD, ${grainCar.week_cars} this week
+- Province: MB=${prov?.mb ?? 0}, SK=${prov?.sk ?? 0}, AB/BC=${prov?.ab_bc ?? 0}
+- Dest: Canada=${grainCar.dest_canada_licensed}, US=${grainCar.dest_united_states}, Unlicensed=${grainCar.dest_canada_unlicensed}`);
+    } else {
+      sections.push(`**Producer Cars for ${ctx.grain}:** No allocations recorded.`);
+    }
+  }
+
+  return sections.length > 0
+    ? sections.join("\n") + "\n\nUse logistics data to contextualize delivery pace and basis signals. Port congestion, elevated out-of-car time, or low producer car allocations may explain delivery lags independent of farmer sentiment."
+    : "No logistics data available for this period.";
 }

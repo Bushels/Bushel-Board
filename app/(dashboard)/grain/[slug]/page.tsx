@@ -36,7 +36,7 @@ import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek } from "@/lib/utils/crop-year";
 import { safeQuery } from "@/lib/utils/safe-query";
-import { getXSignalsForGrain, getXSignalsWithFeedback } from "@/lib/queries/x-signals";
+import { getXSignalsWithFeedback } from "@/lib/queries/x-signals";
 import { getSupplyPipeline } from "@/lib/queries/intelligence";
 import { GrainPageTransition } from "./client";
 
@@ -85,14 +85,13 @@ export default async function GrainDetailPage({ params }: Props) {
     roleResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
-      const [intelligence, xSignals, grainOverview, marketAnalysis] = await Promise.all([
+      const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
         getGrainIntelligence(grain.name),
-        getXSignalsForGrain(grain.name),
         getGrainOverviewBySlug(grain.slug),
         getMarketAnalysis(grain.name),
       ]);
 
-      return { intelligence, xSignals, grainOverview, marketAnalysis };
+      return { intelligence, grainOverview, marketAnalysis };
     }),
     safeQuery("Delivery activity", () => getDeliveryTimeSeries(grain.name)),
     safeQuery("Pipeline velocity", () => getCumulativeTimeSeries(grain.name)),
@@ -106,7 +105,6 @@ export default async function GrainDetailPage({ params }: Props) {
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
   const intelligence = marketCore?.intelligence ?? null;
-  const xSignals = marketCore?.xSignals ?? [];
   const marketAnalysis = marketCore?.marketAnalysis ?? null;
   const correctedKpiData = buildCorrectedKpiData(intelligence, marketCore?.grainOverview ?? null);
   const latestGrainWeek = getLatestGrainWeek(

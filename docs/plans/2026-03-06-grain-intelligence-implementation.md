@@ -104,7 +104,7 @@ cd "c:/Users/kyle/Agriculture/bushel-board-app"
 npx tsx -e "
   const { parseCgcCsv } = require('./lib/cgc/parser');
   const { readFileSync } = require('fs');
-  const csv = readFileSync('../../Bushel Board/data/2024gsw-shg-en.csv', 'utf-8');
+  const csv = readFileSync('data/CGC Weekly/2024gsw-shg-en.csv', 'utf-8');
   const rows = parseCgcCsv(csv);
   console.log('Rows:', rows.length);
   console.log('Sample:', JSON.stringify(rows[0], null, 2));
@@ -144,7 +144,7 @@ Then in the main function, use:
 ```typescript
 const csvPath = csvOverride
   ? resolve(csvOverride)
-  : resolve(__dirname, "../../Bushel Board/data/gsw-shg-en.csv");
+  : resolve(process.cwd(), "data/CGC Weekly/gsw-shg-en.csv");
 ```
 
 **Step 2: Dry run the 2024-2025 backfill**
@@ -152,7 +152,7 @@ const csvPath = csvOverride
 Run:
 ```bash
 cd "c:/Users/kyle/Agriculture/bushel-board-app"
-npx tsx scripts/backfill.ts --csv "../../Bushel Board/data/2024gsw-shg-en.csv" --dry-run
+npx tsx scripts/backfill.ts --csv "data/CGC Weekly/2024gsw-shg-en.csv" --dry-run
 ```
 
 Expected: `"rows_parsed": 219183` (or similar), no errors, crop_year shows `2024-2025`.
@@ -161,7 +161,7 @@ Expected: `"rows_parsed": 219183` (or similar), no errors, crop_year shows `2024
 
 Run:
 ```bash
-npx tsx scripts/backfill.ts --csv "../../Bushel Board/data/2024gsw-shg-en.csv"
+npx tsx scripts/backfill.ts --csv "data/CGC Weekly/2024gsw-shg-en.csv"
 ```
 
 Expected: All rows inserted, zero skips, ~45-60 seconds.

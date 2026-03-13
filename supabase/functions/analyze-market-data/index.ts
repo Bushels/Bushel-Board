@@ -98,6 +98,12 @@ Deno.serve(async (req) => {
       p_grain: null,
     });
 
+    // 5. Logistics snapshot (Grain Monitor + Producer Car data)
+    const { data: logisticsSnapshot } = await supabase.rpc("get_logistics_snapshot", {
+      p_crop_year: cropYear,
+      p_grain_week: grainWeek,
+    });
+
     // Build lookup maps
     const yoyByGrain = new Map((yoyData ?? []).map((r: Record<string, unknown>) => [r.grain, r]));
     const supplyByGrain = new Map((supplyData ?? []).map((r: Record<string, unknown>) => [r.grain_name, r]));
@@ -157,6 +163,14 @@ Deno.serve(async (req) => {
           }).then(r => r.data),
         ]);
 
+        // 6. CFTC COT positioning (last 4 weeks, bounded to target analysis week)
+        const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
+          p_grain: grainName,
+          p_crop_year: cropYear,
+          p_weeks_back: 4,
+          p_max_grain_week: grainWeek,
+        });
+
         const knowledgeContext = await fetchKnowledgeContext(supabase, {
           grain: grainName,
           task: "analyze",
@@ -177,6 +191,8 @@ Deno.serve(async (req) => {
           yoy, supply, sentiment, delivery,
           deliveriesHist, exportsHist, stocksHist,
           knowledgeContext.contextText,
+          logisticsSnapshot,
+          cotPositioning,
         );
 
         // Call OpenRouter API
@@ -369,7 +385,7 @@ Return a JSON object with these fields:
   - "title": string — short signal name
   - "body": string — 1-2 sentences with specific numbers
   - "confidence": "high" | "medium" | "low"
-  - "source": "CGC" | "AAFC" | "Historical" | "Community"
+  - "source": "CGC" | "AAFC" | "Historical" | "Community" | "CFTC"
 
 ## Rules
 - Every claim MUST reference specific numbers from the provided data.
@@ -392,6 +408,8 @@ function buildDataPrompt(
   exportsHist: Record<string, unknown> | null,
   stocksHist: Record<string, unknown> | null,
   knowledgeContext: string | null,
+  logisticsSnapshot: Record<string, unknown> | null = null,
+  cotData: Array<Record<string, unknown>> | null = null,
 ): string {
   const deliveredPct =
     supply && Number(supply.total_supply_kt) > 0
@@ -464,6 +482,12 @@ ${
     : "No community delivery data available."
 }
 
+### Logistics & Transport Snapshot (Government Grain Monitor + CGC Producer Cars)
+${formatLogisticsSection(logisticsSnapshot, grain)}
+
+### CFTC COT Positioning (Disaggregated, Options+Futures Combined — Tuesday positions, released Friday)
+${formatCotSection(cotData, grain)}
+
 ### Retrieved Grain Marketing Knowledge
 ${knowledgeContext ?? "No retrieved corpus passages were available for this grain. Use the shared farmer-first framework and only rely on the data above."}
 
@@ -476,6 +500,88 @@ Produce a structured JSON market analysis for ${grain} following the output form
 2. Historical context — how does this week compare to 5-year patterns?
 3. Bull and bear cases with specific data citations
 4. Key signals with confidence levels`;
+}
+
+// --- Logistics Formatter ---
+
+function formatLogisticsSection(snapshot: Record<string, unknown> | null, grain: string): string {
+  if (!snapshot) return "No logistics data available for this period.";
+
+  const gm = snapshot.grain_monitor as Record<string, unknown> | null;
+  const producerCars = snapshot.producer_cars as Array<Record<string, unknown>> | null;
+
+  const sections: string[] = [];
+
+  if (gm) {
+    const vesselStatus = gm.vessels_vancouver && gm.vessel_avg_one_year_vancouver
+      ? Number(gm.vessels_vancouver) > Number(gm.vessel_avg_one_year_vancouver)
+        ? `ABOVE 1yr avg (${gm.vessels_vancouver} vs avg ${gm.vessel_avg_one_year_vancouver}) — congestion signal`
+        : `at/below 1yr avg (${gm.vessels_vancouver} vs avg ${gm.vessel_avg_one_year_vancouver})`
+      : "N/A";
+
+    sections.push(`**System-Wide (Grain Monitor Week ${gm.grain_week}):**
+- Country Stocks: ${gm.country_stocks_kt} Kt (${gm.country_capacity_pct}% working capacity)
+- Terminal Stocks: ${gm.terminal_stocks_kt} Kt (${gm.terminal_capacity_pct}% working capacity)
+- Country Deliveries: ${gm.country_deliveries_kt} Kt (YoY: ${Number(gm.country_deliveries_yoy_pct) > 0 ? "+" : ""}${gm.country_deliveries_yoy_pct}%)
+- Port Unloads: ${gm.total_unloads_cars} cars (vs 4-week avg: ${gm.var_to_four_week_avg_pct}%)
+- Out-of-Car Time: ${gm.out_of_car_time_pct}% ${Number(gm.out_of_car_time_pct) > 15 ? "(ELEVATED — rail bottleneck signal)" : ""}
+- YTD Shipments: ${gm.ytd_shipments_total_kt} Kt (YoY: +${gm.ytd_shipments_yoy_pct}%)
+- Vancouver Vessels: ${vesselStatus}
+- Prince Rupert Vessels: ${gm.vessels_prince_rupert} (1yr avg: ${gm.vessel_avg_one_year_prince_rupert ?? "N/A"})
+- Weather: ${gm.weather_notes ?? "No weather notes"}`);
+  }
+
+  if (producerCars && producerCars.length > 0) {
+    const grainCar = producerCars.find((c) => c.grain === grain);
+    const totalCars = producerCars.reduce((sum, c) => sum + (Number(c.cy_cars_total) || 0), 0);
+    const totalWeekCars = producerCars.reduce((sum, c) => sum + (Number(c.week_cars) || 0), 0);
+
+    sections.push(`**Producer Car Allocations (forward-looking, Week ${producerCars[0]?.grain_week ?? "?"}):**
+- System total: ${totalCars} cars YTD, ${totalWeekCars} allocated this week`);
+
+    if (grainCar) {
+      const province = grainCar.by_province as Record<string, unknown> | undefined;
+      sections.push(`- ${grain}: ${grainCar.cy_cars_total} cars YTD, ${grainCar.week_cars} this week
+  - By province: MB=${province?.mb ?? 0}, SK=${province?.sk ?? 0}, AB/BC=${province?.ab_bc ?? 0}
+  - Destinations: Canada Licensed=${grainCar.dest_canada_licensed}, US=${grainCar.dest_united_states}, Unlicensed=${grainCar.dest_canada_unlicensed}`);
+    } else {
+      sections.push(`- ${grain}: No producer car allocations recorded`);
+    }
+  }
+
+  return sections.length > 0 ? sections.join("\n") : "No logistics data available for this period.";
+}
+
+// --- COT Formatter ---
+
+function formatCotSection(
+  cotData: Array<Record<string, unknown>> | null,
+  grain: string
+): string {
+  if (!cotData || cotData.length === 0) {
+    return "No CFTC futures positioning data available for this grain.";
+  }
+
+  const latest = cotData[0];
+  const lines: string[] = [
+    `**${latest.commodity} (${latest.exchange}) — Report date: ${latest.report_date}**`,
+    `- Open Interest: ${Number(latest.open_interest).toLocaleString()} contracts`,
+    `- Managed Money Net: ${Number(latest.managed_money_net).toLocaleString()} contracts (${latest.managed_money_net_pct}% of OI)`,
+    `- WoW Managed Money Net Change: ${Number(latest.wow_net_change) > 0 ? "+" : ""}${Number(latest.wow_net_change).toLocaleString()} contracts`,
+    `- Commercial (Prod/Merch) Net: ${Number(latest.commercial_net).toLocaleString()} contracts (${latest.commercial_net_pct}% of OI)`,
+    `- Spec/Commercial Divergence: ${latest.spec_commercial_divergence ? "YES — specs and commercials on opposite sides" : "No"}`,
+  ];
+
+  if (cotData.length > 1) {
+    lines.push(`\n**4-Week Managed Money Net Trend:**`);
+    for (const week of cotData) {
+      lines.push(`- ${week.report_date}: ${Number(week.managed_money_net).toLocaleString()} net (${week.managed_money_net_pct}% OI)`);
+    }
+  }
+
+  lines.push(`\nNOTE: COT data reflects positions as of Tuesday, released Friday. There is a 3-day lag. Use as context for next week's thesis, not real-time signal.`);
+
+  return lines.join("\n");
 }
 
 // --- Formatting Helpers ---

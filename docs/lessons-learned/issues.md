@@ -509,3 +509,171 @@ PostgREST silently truncated the response - no error, no warning. The client cod
 **Files modified:** `components/layout/cgc-freshness.tsx`
 
 **Tags:** #freshness #ordering #backfill #cgc-imports
+
+## 2026-03-13 — Supplementary Data Pipeline Added (Grain Monitor & Producer Cars)
+
+**Scope:** Added a secondary logistics-focused data pipeline to supplement the core CGC weekly grain data.
+
+**What was added:**
+1. **New Supabase tables:**
+   - `grain_monitor_snapshots` — system-wide logistics per grain week from Government Grain Monitor PDFs (port throughput, grain-in-storage, etc.)
+   - `producer_car_allocations` — per-grain forward-looking rail car data from CGC Producer Car reports (advance allocations for future weeks)
+
+2. **New RPC function:**
+   - `get_logistics_snapshot(crop_year, grain_week)` — returns both tables' data as structured JSON for Edge Function integration
+
+3. **Enhanced commodity knowledge:**
+   - Updated `commodity-knowledge.ts` with two new sections: "Marketing Strategy & Contract Guidance" and "Logistics & Transport Awareness" (~1.5K tokens, total now ~5.5K)
+   - Applied to both `analyze-market-data` and `generate-intelligence` prompts for context-aware logistics discussion
+
+4. **Pipeline integration:**
+   - Updated `market-intelligence-config.ts` version bumps: v4 for analyzeMarketData and generateIntelligence, v3 for knowledgeBase
+   - `analyze-market-data` fetches logistics snapshot and injects into Step 3.5 Flash prompts
+   - `generate-intelligence` receives logistics data in Grok prompts via updated `GrainContext` interface
+
+5. **Data insertion:**
+   - Week 30 Grain Monitor data (2025-2026 crop year, 1-week lagged: used for Week 31 analysis)
+   - Week 33 Producer Car allocations (2025-2026 crop year, 2-week forward: for Week 31 analysis)
+   - Manually inserted for now — automated scraping not yet implemented
+
+6. **Migration file:**
+   - `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql` creates tables, RPC, and indexes
+
+**Known Data Issues:**
+- **Grain name mapping:** `producer_car_allocations` uses CGC commodity naming (e.g., "Durum") while `grains` table uses full names (e.g., "Amber Durum"). Grain disambiguation will be needed when joining these tables in future analysis queries.
+- **Producer car cumulative semantics:** Data is cumulative forward-looking, not weekly-only. The RPC returns the latest available week ≤ `grain_week + 3` to ensure allocations don't "age out" mid-analysis.
+
+**Prevention:**
+- Grain name mismatches between external data sources and the canonical `grains` table should be documented at ingest time
+- Forward-looking data (allocations, forecasts) and historical data (observations) need explicit time-semantic clarity in both schema and query documentation
+
+**What remains:**
+- Automated scraping from Government Grain Monitor PDFs and CGC Producer Car reports
+- Historical backfill of older grain monitor and producer car data
+- UI display components for logistics data (charts, summary tiles, context cards)
+
+**Files modified:**
+- `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql` (new)
+- `supabase/functions/_shared/commodity-knowledge.ts`
+- `supabase/functions/_shared/market-intelligence-config.ts`
+- `supabase/functions/analyze-market-data/index.ts`
+- `supabase/functions/generate-intelligence/index.ts`
+- `supabase/functions/generate-intelligence/prompt-template.ts`
+- `lib/queries/observations.ts` (added `logisticsSnapshot` field to GrainContext)
+
+**Tags:** #data-pipeline #logistics #government-data #supplementary-sources #commerce-context
+
+## 2026-03-13 — Producer Car Grain Names Don't Match Canonical Grains Table
+
+**Symptom:** QC check found that `producer_car_allocations` grain names ("Durum", "Chickpeas") didn't match the canonical `grains` table names ("Amber Durum", "Chick Peas"), causing silent JOIN failures in the `get_logistics_snapshot()` RPC.
+
+**Root Cause:** CGC Producer Car reports use abbreviated commodity names that differ from the CGC weekly grain statistics CSV naming convention used in `grains`. No validation or mapping layer existed at ingest time.
+
+**Solution:** Applied SQL UPDATEs to normalize names:
+```sql
+UPDATE producer_car_allocations SET grain = 'Amber Durum' WHERE grain = 'Durum';
+UPDATE producer_car_allocations SET grain = 'Chick Peas' WHERE grain = 'Chickpeas';
+```
+Buckwheat left unmatched (minor grain, not in the tracked 16 Canadian grains).
+
+**Prevention:**
+- Every new external data source must have a grain-name mapping validation at ingest time
+- Document known name discrepancies between CGC report types (weekly CSV vs producer car reports vs grain monitor)
+- Future automated ingestion scripts should include a `CASE WHEN` or lookup table to normalize grain names before INSERT
+
+**Tags:** #data-integrity #grain-naming #producer-cars #external-data
+
+## 2026-03-13 — AI Thesis Contradiction: Step 3.5 Flash Bearish vs Grok Bullish on Canola
+
+**Symptom:** The dual-LLM pipeline produced contradictory Canola Week 31 theses — Step 3.5 Flash called bearish (YTD exports -28% YoY), Grok called bullish (stock drawdown shows demand). A farmer reading both would receive conflicting advice.
+
+**Root Cause:** Step 3.5 Flash anchored on cumulative YTD export position without checking whether current-week flow contradicted the conclusion. Three specific errors: (1) conflating YTD position with current flow, (2) ignoring stock draw as a bullish signal, (3) missing the logistics constraint explanation for weak exports.
+
+**Resolution:** Claude moderated the debate using evidence: Week 31 stocks drew -175.6 Kt while 455.6 Kt of deliveries came in, implying 631 Kt absorbed in one week. Vancouver port at 107% capacity (26 vessels vs avg 20, 19.2% out-of-car time) explains the export lag. Corrected thesis: bullish with timing risk, not bearish.
+
+**New references created:**
+- `docs/lessons-learned/canola-week31-debate-moderation.md` — full moderation ruling with evidence
+- `docs/reference/agent-debate-rules.md` — 8 codified rules for continuous agent improvement
+
+**Prevention:**
+- Added flow coherence rules to the pipeline: if thesis says bearish but stocks are drawing, flag the contradiction before publishing
+- Added logistics data integration so both models can see port congestion, vessel queues, and out-of-car time
+- Codified the "2 of 3 weeks confirmation" rule — don't wait for 2-3 more weeks when the data already shows a pattern
+
+**Tags:** #ai-pipeline #thesis-quality #dual-llm #debate-moderation #canola
+
+## 2026-03-13 — Phantom Migration: knowledge_corpus Recorded But DDL Never Executed
+
+**Symptom:** `knowledge_documents` and `knowledge_chunks` tables did not exist in production, but `supabase_migrations.schema_migrations` showed version `20260312170000` as applied. Edge Functions calling `get_knowledge_context()` RPC silently returned empty results (function also didn't exist).
+
+**Root cause:** Unknown — likely `supabase db push` marked the migration as applied after a transient error. The migration's `GENERATED ALWAYS AS` column with `to_tsvector()` would have failed because `to_tsvector(regconfig, text)` is `STABLE`, not `IMMUTABLE`. PostgreSQL requires `IMMUTABLE` expressions in generated columns. The error may have been swallowed.
+
+**Fix:** Ran the DDL directly via Supabase MCP SQL. Replaced the `GENERATED ALWAYS AS` tsvector column with a trigger-based approach (`BEFORE INSERT OR UPDATE` trigger that populates `search_vector`). Updated the local migration file to match.
+
+**Prevention:**
+- Always verify tables exist after `supabase db push` — don't trust the migration history table alone
+- Use `SELECT count(*) FROM <table>` as a smoke test after applying migrations
+- For full-text search columns, prefer trigger-based tsvector over generated columns (Postgres classifies `to_tsvector` and `setweight` as STABLE, not IMMUTABLE)
+
+**Tags:** #migration #supabase #postgresql #full-text-search #phantom-migration
+
+## 2026-03-13 — Wrong xAI Model ID: grok-4-20 Does Not Exist
+
+**Symptom:** `generate-intelligence` Edge Function returned 400 error: `"Model not found: grok-4-20"`. Canola intelligence generation failed.
+
+**Root cause:** The xAI API uses a different naming convention than expected. The correct model ID for Grok 4.20 beta with reasoning is `grok-4.20-beta-0309-reasoning`, not `grok-4-20`. The model name includes dots, the beta tag, a date suffix, and a reasoning/non-reasoning mode suffix.
+
+**Fix:** Updated the MODEL constant in `generate-intelligence/index.ts` to `grok-4.20-beta-0309-reasoning` and redeployed.
+
+**Prevention:**
+- Always verify model IDs against the official docs page (`docs.x.ai/developers/models`) before deploying
+- xAI model naming pattern: `grok-{major}.{minor}-{variant}-{date}-{mode}`
+- Consider storing model IDs in a configuration table or env var rather than hardcoding, so they can be updated without code deploys
+
+**Tags:** #xai #grok #model-id #edge-function #api
+
+## 2026-03-14 — CFTC Cron Was Disconnected From Intelligence Pipeline
+
+**Symptom:** Friday CFTC COT import (`import-cftc-cot`) ran successfully but the intelligence pipeline (`analyze-market-data` → `generate-intelligence`) never re-ran. Farmers saw intelligence cards without COT context until the next weekly Thursday run.
+
+**Root cause:** The CFTC cron route (`app/api/cron/import-cftc-cot/route.ts`) only called `import-cftc-cot` and returned — it didn't chain to downstream functions like the CGC Thursday pipeline does. The Thursday pipeline runs before CFTC data is available (CFTC publishes Friday), so the weekly intelligence never included COT positioning.
+
+**Fix:** Added chain trigger in the cron route: after successful CFTC import, fire `analyze-market-data` which auto-chains to `generate-intelligence`. This re-runs the dual-LLM pipeline with COT data now available.
+
+**Prevention:**
+- Any new data source cron must chain to the intelligence pipeline if the data feeds into LLM analysis
+- Document the canonical pipeline chain in CLAUDE.md when adding new ingress points
+
+**Tags:** #cftc #cron #pipeline #chain-trigger #intelligence
+
+## 2026-03-14 — get_cot_positioning() Leaked Future Data Into Historical Reruns
+
+**Symptom:** Regenerating Week 30 intelligence after Week 32 COT data arrived would include Week 31-32 positioning data in the analysis — making historical intelligence non-reproducible.
+
+**Root cause:** The `get_cot_positioning()` RPC only filtered by `p_grain` and `p_crop_year`, then `ORDER BY report_date DESC LIMIT p_weeks_back`. No upper bound on grain_week meant reruns could "see the future."
+
+**Fix:** Added `p_max_grain_week` parameter (DEFAULT NULL for backwards compatibility). Both `analyze-market-data` and `generate-intelligence` now pass `p_max_grain_week: grainWeek` to scope COT data to the target analysis week.
+
+**Prevention:**
+- All time-series RPCs used by the intelligence pipeline must accept an "as-of" bound parameter
+- Historical reproducibility should be a test case: "regenerating week N later produces the same data inputs"
+
+**Tags:** #cftc #rpc #reproducibility #time-series #intelligence
+
+## 2026-03-14 — CFTC Parser Field Names Mismatched Live SODA API Schema
+
+**Symptom:** `managed_money_spread`, `traders_prod_merc_long/short`, and `traders_other_long` columns were silently null in `cftc_cot_positions` despite the upstream CFTC API having valid data.
+
+**Root cause:** The parser interface (`CftcApiRow`) used field names that don't match the live `kh3c-gbw2` SODA endpoint:
+- `m_money_positions_spread_all` → actual: `m_money_positions_spread` (no `_all` suffix)
+- `traders_prod_merc_long` → actual: `traders_prod_merc_long_all` (missing `_all`)
+- `traders_other_rept_long` → actual: `traders_other_rept_long_all` (missing `_all`)
+- `traders_swap_long_all` / `short_all` / `spread_all` → don't exist in disaggregated dataset at all
+
+**Fix:** Corrected field names in `CftcApiRow` interface and `parseCftcCotRows()` mapping. Swap trader counts hardcoded to null (not available in this dataset).
+
+**Prevention:**
+- Validate parser output against a live API response during integration testing
+- Add a smoke test that fetches one CFTC row and asserts non-null values for key positioning fields
+
+**Tags:** #cftc #parser #soda-api #field-mapping #silent-null
