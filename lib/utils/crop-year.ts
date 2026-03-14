@@ -58,3 +58,4 @@ export function getCurrentGrainWeek(now = new Date()): number {
 
 /** The current crop year, evaluated once at module load. */
 export const CURRENT_CROP_YEAR = getCurrentCropYear();
+

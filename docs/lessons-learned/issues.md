@@ -721,3 +721,45 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 **Resolution:** The WS4 grain detail page restructure removed NetBalanceKpi and moved WoWComparisonCard into an expandable accordion. The remaining redundancy (IntelligenceKpis headline number + WoW table detail) is intentional — KPIs serve as a quick-scan summary while the WoW table provides detailed week-over-week context.
 
 **Tags:** #ux #redundancy #resolved #grain-detail
+
+## 2026-03-13 — Import Pipeline Build: Producer Cars + Grain Monitor
+
+### Finding 5: CGC Blocks Supabase Edge Function IPs (HIGH — RESOLVED)
+
+**Symptom:** The `import-producer-cars` Edge Function returned `error sending request for url: Connection reset by peer (os error 104)` when trying to fetch the CGC Producer Car CSV from `grainscanada.gc.ca`.
+
+**Root cause:** The CGC website blocks connections from Supabase Edge Function IPs (AWS us-west-2). This is likely an IP-based WAF rule or rate limiter targeting cloud provider ranges.
+
+**Fix:** Restructured the import to use a **Vercel cron route** (`app/api/cron/import-producer-cars/route.ts`) that fetches the CSV directly from Vercel's infrastructure (which CGC allows). The Edge Function remains deployed as a fallback but is not used in the production pipeline.
+
+**Lesson:** When building import pipelines for government data sources, always test connectivity from the target execution environment before building the full pipeline. Government websites frequently block cloud provider IP ranges.
+
+**Tags:** #import #cgc #edge-function #connectivity #producer-cars
+
+### Finding 6: Grain Monitor Data is Monthly, Not Weekly (MEDIUM — DOCUMENTED)
+
+**Symptom:** Expected weekly granularity from the Quorum Corp Grain Monitor data tables, but the `MonthlyReportDataTables.xlsx` (14.4 MB) contains monthly aggregates for stock levels, vessel data, and terminal volumes.
+
+**Exception:** The Out-of-Car Time sheet (5C-5) has **weekly** granularity — each grain week gets its own column. This is the only weekly metric in the Excel.
+
+**Fix:** The import script (`scripts/import-grain-monitor.mjs`) handles both granularities:
+- Weekly OCT data: imported directly with correct grain week numbers (weeks 1-26 for current crop year)
+- Monthly stock/terminal data: mapped to approximate grain week midpoints (AUG→wk3, SEP→wk7, etc.)
+- Manual weekly entries (from PDF reports) are preserved and never overwritten by auto-import
+
+**Data sources:**
+- Weekly PDF reports: `grainmonitor.ca/Downloads/WeeklyReports/GMPGOCWeek{YYYYWW}.pdf` (rich but requires PDF parsing)
+- Monthly Excel data tables: `grainmonitor.ca/Downloads/MonthlyReports/MonthlyReportDataTables.xlsx` (machine-readable, auto-importable)
+- GMODS web UI: `grainmonitor.ca/GMODS/` (interactive, no REST API)
+
+**Tags:** #import #grain-monitor #quorum #data-granularity
+
+### Finding 7: Excel Crop Year Duplicate Column Trap (MEDIUM — FIXED)
+
+**Symptom:** January stock values showed ~5 kt instead of ~6,929 kt after import.
+
+**Root cause:** The Quorum Excel has a duplicate "JAN" column at the end of each crop year section — one for actual January data (col 274) and one for the YoY variance comparison (col 289). The parser's month-to-week mapping picked up both, with the variance column (value -0.21) overwriting the real data.
+
+**Fix:** Stop scanning month columns when encountering "YTD AVG" or "YTD" labels, which marks the boundary between real data and variance/comparison columns.
+
+**Tags:** #import #grain-monitor #excel #parsing-bug

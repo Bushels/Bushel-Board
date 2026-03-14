@@ -105,18 +105,18 @@ export function LogisticsCard({
   }
 
   const vessels = grainMonitor.vessels_vancouver
-  const railcarFill = grainMonitor.storage_capacity_pct
+  const countryCapacity = grainMonitor.country_capacity_pct
   const oct = grainMonitor.out_of_car_time_pct
-  const throughput = grainMonitor.port_throughput_kt
+  const throughput = grainMonitor.ytd_shipments_total_kt
 
   const vesselStatus = statusColor(vessels, {
     green: (v) => v <= 10,
     amber: (v) => v <= 20,
   })
 
-  const railStatus = statusColor(railcarFill, {
-    green: (v) => v >= 80,
-    amber: (v) => v >= 60,
+  const capacityStatus = statusColor(countryCapacity, {
+    green: (v) => v <= 70,
+    amber: (v) => v <= 85,
   })
 
   const octStatus = statusColor(oct, {
@@ -157,12 +157,12 @@ export function LogisticsCard({
         />
         <KpiTile
           icon={<TrainFront className="h-4 w-4" />}
-          value={railcarFill !== null ? `${fmtOne.format(railcarFill)}%` : "--"}
-          label="Railcar Fill"
-          status={railStatus}
+          value={countryCapacity !== null ? `${fmtOne.format(countryCapacity)}%` : "--"}
+          label="Elevator Fill"
+          status={capacityStatus}
         >
-          {railcarFill !== null && (
-            <RailcarBar pct={railcarFill} status={railStatus} />
+          {countryCapacity !== null && (
+            <RailcarBar pct={countryCapacity} status={capacityStatus} />
           )}
         </KpiTile>
         <KpiTile

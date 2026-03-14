@@ -2,11 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export interface GrainMonitorData {
   vessels_vancouver: number | null;
-  vessels_thunder_bay: number | null;
-  vessels_churchill: number | null;
+  vessels_prince_rupert: number | null;
   out_of_car_time_pct: number | null;
-  port_throughput_kt: number | null;
-  storage_capacity_pct: number | null;
+  country_stocks_kt: number | null;
+  country_capacity_pct: number | null;
+  terminal_stocks_kt: number | null;
+  ytd_shipments_total_kt: number | null;
   report_date: string | null;
 }
 
@@ -15,7 +16,6 @@ export interface ProducerCarData {
   cy_cars_total: number;
   week_cars: number;
   dest_united_states: number | null;
-  dest_mexico: number | null;
 }
 
 export interface LogisticsResult {
@@ -49,11 +49,12 @@ export async function getLogisticsSnapshot(
     const grainMonitor: GrainMonitorData | null = rawMonitor
       ? {
           vessels_vancouver: numOrNull(rawMonitor.vessels_vancouver),
-          vessels_thunder_bay: numOrNull(rawMonitor.vessels_thunder_bay),
-          vessels_churchill: numOrNull(rawMonitor.vessels_churchill),
+          vessels_prince_rupert: numOrNull(rawMonitor.vessels_prince_rupert),
           out_of_car_time_pct: numOrNull(rawMonitor.out_of_car_time_pct),
-          port_throughput_kt: numOrNull(rawMonitor.port_throughput_kt),
-          storage_capacity_pct: numOrNull(rawMonitor.storage_capacity_pct),
+          country_stocks_kt: numOrNull(rawMonitor.country_stocks_kt),
+          country_capacity_pct: numOrNull(rawMonitor.country_capacity_pct),
+          terminal_stocks_kt: numOrNull(rawMonitor.terminal_stocks_kt),
+          ytd_shipments_total_kt: numOrNull(rawMonitor.ytd_shipments_total_kt),
           report_date: rawMonitor.report_date ?? null,
         }
       : null;
@@ -65,7 +66,6 @@ export async function getLogisticsSnapshot(
           cy_cars_total: Number(car.cy_cars_total) || 0,
           week_cars: Number(car.week_cars) || 0,
           dest_united_states: numOrNull(car.dest_united_states),
-          dest_mexico: numOrNull(car.dest_mexico),
         }))
       : [];
 

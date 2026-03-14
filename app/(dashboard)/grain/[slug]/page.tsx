@@ -40,6 +40,7 @@ import { getWeeklyFlowBreakdown } from "@/lib/queries/flow-breakdown";
 
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek } from "@/lib/utils/crop-year";
+import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { safeQuery } from "@/lib/utils/safe-query";
 import { getXSignalsWithFeedback } from "@/lib/queries/x-signals";
 import { getSupplyPipeline } from "@/lib/queries/intelligence";
@@ -127,8 +128,10 @@ export default async function GrainDetailPage({ params }: Props) {
     return <GrainLockedView grain={grain.name} />;
   }
 
-  // Get the grain week early so new queries can use it
-  const shippingWeek = getCurrentGrainWeek();
+  // Use the latest *imported* week, not the calendar week — prevents
+  // querying future weeks that have no data yet (e.g., calendar week 33
+  // but latest CGC import is week 31).
+  const shippingWeek = await getLatestImportedWeek();
 
   const [
     marketCoreResult,

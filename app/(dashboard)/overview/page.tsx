@@ -20,7 +20,8 @@ import {
 } from "@/lib/queries/supply-disposition";
 import { getLatestXSignals } from "@/lib/queries/x-signals";
 import { createClient } from "@/lib/supabase/server";
-import { CURRENT_CROP_YEAR, getCurrentGrainWeek } from "@/lib/utils/crop-year";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
+import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { cn } from "@/lib/utils";
 import { rethrowFrameworkError, safeQuery } from "@/lib/utils/safe-query";
 
@@ -68,7 +69,7 @@ interface MarketPulseData {
 
 export default async function OverviewPage() {
   const grainContext = await getActiveGrainContext();
-  const grainWeek = getCurrentGrainWeek();
+  const grainWeek = await getLatestImportedWeek();
 
   const [summaryResult, sentimentResult, signalsResult, marketPulseResult] =
     await Promise.all([
