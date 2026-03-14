@@ -97,6 +97,30 @@
 
   /* Animation easing */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Elevation shadows */
+  --shadow-elevation-1: 0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.10);
+  --shadow-elevation-2: 0 2px 4px rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevation-3: 0 4px 8px rgba(0,0,0,0.06), 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.04);
+  --shadow-elevation-hover: 0 8px 16px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.10), 0 32px 64px rgba(0,0,0,0.06);
+
+  /* Glow shadows */
+  --shadow-canola-glow: 0 4px 14px rgba(193,127,36,0.20);
+  --shadow-canola-glow-hover: 0 6px 20px rgba(193,127,36,0.35);
+  --shadow-prairie-glow: 0 4px 14px rgba(67,122,34,0.20);
+  --shadow-prairie-glow-hover: 0 6px 20px rgba(67,122,34,0.35);
+
+  /* Underglow shadows */
+  --shadow-underglow-canola: 0 8px 24px -4px rgba(193,127,36,0.30);
+  --shadow-underglow-prairie: 0 8px 24px -4px rgba(67,122,34,0.30);
+
+  /* Glow pulse animation */
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
+
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(193,127,36,0.20); }
+    50% { box-shadow: 0 6px 20px rgba(193,127,36,0.35); }
+  }
 }
 
 :root {
