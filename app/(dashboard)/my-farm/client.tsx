@@ -72,8 +72,9 @@ const FIRST_RUN_BENEFITS = [
 ];
 
 export interface MarketSupplyData {
-  total_supply_kt: number;
-  carry_out_kt: number;
+  total_opening_supply_kt: number;
+  cytd_producer_deliveries_kt: number;
+  is_approximate?: boolean;
 }
 
 interface MyFarmClientProps {
@@ -415,13 +416,14 @@ export function MyFarmClient({
                           const ms = marketSupply[plan.grain];
                           if (!ms || marketing.startingGrainKt <= 0) return null;
                           const farmerPctLeft = marketing.grainLeftPct;
-                          const marketPctLeft = Math.max(0, Math.min(100, (ms.carry_out_kt / ms.total_supply_kt) * 100));
+                          const marketBinStock = ms.total_opening_supply_kt - ms.cytd_producer_deliveries_kt;
+                          const marketPctLeft = Math.max(0, Math.min(100, (marketBinStock / ms.total_opening_supply_kt) * 100));
                           const diff = farmerPctLeft - marketPctLeft;
                           const diffLabel = diff > 1
-                            ? `${Math.abs(diff).toFixed(0)}pp more than market`
+                            ? `${Math.abs(diff).toFixed(0)}% more grain remaining than the market average`
                             : diff < -1
-                              ? `${Math.abs(diff).toFixed(0)}pp less than market`
-                              : "on par with market";
+                              ? `${Math.abs(diff).toFixed(0)}% less grain remaining than the market average`
+                              : "on par with the market average";
                           return (
                             <div className="rounded-2xl border border-canola/20 bg-canola/5 p-3 space-y-2">
                               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -443,7 +445,7 @@ export function MyFarmClient({
                                 <div className="flex-1">
                                   <div className="flex items-baseline justify-between">
                                     <span className="text-xs font-medium text-muted-foreground">Market</span>
-                                    <span className="font-display text-lg font-semibold text-muted-foreground">{marketPctLeft.toFixed(0)}%</span>
+                                    <span className="font-display text-lg font-semibold text-muted-foreground">{ms.is_approximate ? '~' : ''}{marketPctLeft.toFixed(0)}%</span>
                                   </div>
                                   <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
                                     <div
@@ -455,7 +457,7 @@ export function MyFarmClient({
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 You have <span className="font-semibold text-foreground">{diffLabel}</span> remaining.
-                                Market figure is AAFC projected carry-out as a share of total supply.
+                                Market figure is total opening supply minus cumulative producer deliveries to date.{ms.is_approximate ? ' Supply estimate is approximate (~).' : ''}
                               </p>
                             </div>
                           );

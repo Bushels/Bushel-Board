@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getFarmSummary, getGrainIntelligence } from "@/lib/queries/intelligence";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
+import { getGrainOverview } from "@/lib/queries/grains";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
 import { getUserSentimentVote } from "@/lib/queries/sentiment";
 import { getUserRole } from "@/lib/auth/role-guard";
@@ -16,7 +17,7 @@ import { SectionHeader } from "@/components/dashboard/section-header";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
 import { MultiGrainSentiment } from "@/components/dashboard/multi-grain-sentiment";
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
-import { MyFarmClient } from "./client";
+import { MyFarmClient, type MarketSupplyData } from "./client";
 import { Wheat } from "lucide-react";
 
 function deriveStanceFromThesis(
@@ -67,12 +68,13 @@ export default async function MyFarmPage() {
   }));
 
   // Fetch AAFC supply data, sentiment overview, intelligence, and user votes in parallel
-  const [supplyData, sentimentOverview, ...intelligenceAndVotes] =
+  const [supplyData, sentimentOverview, grainOverviewData, ...intelligenceAndVotes] =
     await Promise.all([
       grainSlugs.length > 0
         ? getSupplyDispositionForGrains(grainSlugs)
         : Promise.resolve([]),
       getSentimentOverview(CURRENT_CROP_YEAR, grainWeek),
+      getGrainOverview(),
       ...plans.flatMap((p) => [
         getGrainIntelligence(p.grain),
         user?.id
@@ -106,19 +108,23 @@ export default async function MyFarmPage() {
   }
 
   // Build market supply map
-  const marketSupply: Record<
-    string,
-    { total_supply_kt: number; carry_out_kt: number }
-  > = {};
+  const marketSupply: Record<string, MarketSupplyData> = {};
   for (const sd of supplyData) {
-    if (sd.total_supply_kt && sd.carry_out_kt) {
+    if (sd.total_supply_kt) {
       const matchingPlan = plans.find(
         (p) => grainSlug(p.grain) === sd.grain_slug
       );
       if (matchingPlan) {
+        // Find CYTD deliveries from grain overview data
+        const overviewRow = grainOverviewData.find(
+          (g) => g.grain?.toLowerCase() === matchingPlan.grain.toLowerCase()
+        );
+        const cytdDeliveries = overviewRow ? Number(overviewRow.cy_deliveries_kt ?? 0) : 0;
+
         marketSupply[matchingPlan.grain] = {
-          total_supply_kt: Number(sd.total_supply_kt),
-          carry_out_kt: Number(sd.carry_out_kt),
+          total_opening_supply_kt: Number(sd.total_supply_kt),
+          cytd_producer_deliveries_kt: cytdDeliveries,
+          is_approximate: sd.is_approximate ?? false,
         };
       }
     }
