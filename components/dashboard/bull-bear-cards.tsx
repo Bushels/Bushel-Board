@@ -5,9 +5,11 @@ interface BullBearCardsProps {
   bearCase: string;
   confidence: "high" | "medium" | "low";
   modelUsed?: string;
+  confidenceScore?: number;
+  finalAssessment?: string;
 }
 
-export function BullBearCards({ bullCase, bearCase, confidence, modelUsed }: BullBearCardsProps) {
+export function BullBearCards({ bullCase, bearCase, confidence, modelUsed, confidenceScore, finalAssessment }: BullBearCardsProps) {
   // Strip leading bullets: ASCII dash, Unicode bullet (•), triangular bullet (‣), middle dot (·), em dash (—), asterisk
   const stripBullet = (s: string) => s.replace(/^[\s\-–—•‣·*]+\s*/, '').trim();
   const bullPoints = bullCase.split(/\n/).map(stripBullet).filter(Boolean);
@@ -56,6 +58,41 @@ export function BullBearCards({ bullCase, bearCase, confidence, modelUsed }: Bul
           </ul>
         </div>
       </div>
+
+      {/* Confidence gauge */}
+      {confidenceScore != null && (
+        <div className="space-y-1 px-1">
+          <span className="text-xs text-muted-foreground">
+            Confidence: {confidenceScore}%
+          </span>
+          <div className="h-2 w-full rounded-full bg-muted/40">
+            <div
+              className="h-2 rounded-full transition-all duration-500"
+              style={{
+                width: `${Math.max(0, Math.min(100, confidenceScore))}%`,
+                backgroundColor:
+                  confidenceScore < 40
+                    ? "#d97706"
+                    : confidenceScore <= 70
+                      ? "hsl(var(--muted-foreground))"
+                      : "#437a22",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Final assessment callout */}
+      {finalAssessment && (
+        <div className="rounded-lg border border-canola/20 bg-canola/10 p-4">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Assessment
+          </span>
+          <p className="mt-1 text-sm text-foreground leading-snug">
+            {finalAssessment}
+          </p>
+        </div>
+      )}
 
       {/* Attribution footer */}
       <div className="flex items-center justify-between text-[0.65rem] text-muted-foreground/60 px-1">
