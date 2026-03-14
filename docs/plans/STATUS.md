@@ -26,6 +26,21 @@ Last updated: 2026-03-13
 | 18 | Supplementary Data Pipeline (Grain Monitor & Producer Cars) | Complete | 2026-03-13 | `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql`, `supabase/functions/analyze-market-data/`, `supabase/functions/generate-intelligence/`, `docs/reference/agent-debate-rules.md` |
 | 19 | AI Thesis Debate Moderation & Agent Improvement | Complete | 2026-03-13 | `docs/lessons-learned/canola-week31-debate-moderation.md`, `docs/reference/agent-debate-rules.md` |
 | 20 | CFTC COT Positioning Integration | Complete | 2026-03-13 | `supabase/migrations/20260313140000_create_cftc_cot_positions.sql`, `supabase/functions/import-cftc-cot/`, `app/api/cron/import-cftc-cot/route.ts`, `.claude/skills/cftc-cot/SKILL.md`, `docs/plans/2026-03-13-cftc-cot-integration-design.md` |
+| 21 | Dashboard Overhaul — Farmer Decision Architecture | Complete | 2026-03-13 | `components/ui/glass-card.tsx`, `components/dashboard/cot-positioning-card.tsx`, `components/dashboard/logistics-card.tsx`, `components/dashboard/flow-donut-chart.tsx`, `components/dashboard/recommendation-card.tsx`, `components/dashboard/multi-grain-sentiment.tsx` |
+| 22 | Farmer Advisor Chat & Memory | Proposed | 2026-03-13 | `docs/plans/2026-03-13-farmer-advisor-chat-design.md`, `docs/plans/2026-03-13-farmer-advisor-chat-implementation.md` |
+
+### 2026-03-13 — Dashboard Overhaul: Farmer Decision Architecture (Track 21)
+
+**What was delivered:**
+- Grain detail page restructured with 2-column layout, hero BULLISH/BEARISH badge, bullet-point thesis format
+- New components: COT Positioning card, Logistics Snapshot card, "Where Grain Went" donut chart, Recommendation cards (HAUL/HOLD/PRICE/WATCH)
+- My Farm page restructured with multi-grain sentiment voting and recommendation badges
+- Supply Pipeline redesigned with "Still in Bins" hero metric and corrected labels (Processing, Carry Forward, Shrink & Waste)
+- Glassmorphism design system: GlassCard, GlassTooltip, MarketStanceBadge, ActionBadge components with 3D elevation shadows and button underglow
+- Overview page upgraded with glass treatment and market stance badges
+- AI prompts updated for bullet-point format and `market_stance` field in `generate-intelligence` and `generate-farm-summary`
+
+**New query modules:** `lib/queries/cot.ts`, `lib/queries/logistics.ts`, `lib/queries/flow-breakdown.ts`
 
 ## Performance Fixes
 
