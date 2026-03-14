@@ -10,6 +10,7 @@ interface LogisticsCardProps {
   grainMonitor: GrainMonitorData | null
   producerCars: ProducerCarData[]
   grainName: string
+  grainWeek?: number
   className?: string
 }
 
@@ -48,10 +49,11 @@ interface KpiTileProps {
   value: string
   label: string
   status: StatusColor
+  grainWeek?: number
   children?: React.ReactNode
 }
 
-function KpiTile({ icon, value, label, status, children }: KpiTileProps) {
+function KpiTile({ icon, value, label, status, grainWeek, children }: KpiTileProps) {
   return (
     <div
       className={cn(
@@ -72,6 +74,9 @@ function KpiTile({ icon, value, label, status, children }: KpiTileProps) {
       </div>
       <p className="text-[0.6rem] uppercase tracking-[2px] text-muted-foreground leading-tight">
         {label}
+        {grainWeek != null && (
+          <span className="text-[10px] text-muted-foreground/60 font-mono ml-1">W{grainWeek}</span>
+        )}
       </p>
       {children}
     </div>
@@ -82,6 +87,7 @@ export function LogisticsCard({
   grainMonitor,
   producerCars,
   grainName,
+  grainWeek,
   className,
 }: LogisticsCardProps) {
   // Empty state
@@ -154,12 +160,14 @@ export function LogisticsCard({
           value={vessels !== null ? fmt.format(vessels) : "--"}
           label="Vessels Van."
           status={vesselStatus}
+          grainWeek={grainWeek}
         />
         <KpiTile
           icon={<TrainFront className="h-4 w-4" />}
           value={countryCapacity !== null ? `${fmtOne.format(countryCapacity)}%` : "--"}
           label="Elevator Fill"
           status={capacityStatus}
+          grainWeek={grainWeek}
         >
           {countryCapacity !== null && (
             <RailcarBar pct={countryCapacity} status={capacityStatus} />
@@ -170,12 +178,14 @@ export function LogisticsCard({
           value={oct !== null ? `${fmtOne.format(oct)} days` : "--"}
           label="Out-of-Car Time"
           status={octStatus}
+          grainWeek={grainWeek}
         />
         <KpiTile
           icon={<Package className="h-4 w-4" />}
           value={throughput !== null ? `${fmtOne.format(throughput)} Kt` : "--"}
           label="Throughput"
           status="green"
+          grainWeek={grainWeek}
         />
       </div>
 
