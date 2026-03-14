@@ -193,7 +193,12 @@ Your role is to challenge and refine this assessment. Ask:
 
 Generate a JSON object with the intelligence analysis. Include 3-6 insight cards. Use signal types: "bullish", "bearish", "watch", or "social" (for insights driven by saved X or web signals). Include at least one "watch" signal. If relevant saved X or web signals exist, include at least one "social" signal referencing them. The kpi_data must echo the exact numbers above.
 
+The JSON object MUST also include these top-level fields:
+- "market_stance": one of "bullish", "bearish", or "neutral" — your overall directional assessment based on the weight of evidence.
+- "recommendation_signal": one of "haul", "hold", "price", or "watch" — a single action-oriented signal guiding farmer behaviour based on the analysis. "haul" = deliver now, "hold" = wait for better conditions, "price" = lock in contracts at current levels, "watch" = no clear action, monitor closely.
+
 ## Rules
+- Format the thesis_body as 3-5 concise bullet points, each starting with '• '. Do NOT write paragraphs. Each bullet should be a standalone insight a farmer can scan in 2 seconds.
 - Every insight MUST reference specific numbers from the data or a specific saved X/web signal.
 - If data is insufficient (for example N/A values), note the gap rather than speculating.
 - Do NOT give financial advice. Frame insights as "data suggests" or "the numbers show".

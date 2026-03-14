@@ -371,9 +371,9 @@ Your role: Produce a structured JSON market analysis for a specific grain using 
 ## Output Format
 
 Return a JSON object with these fields:
-- "initial_thesis": string — 1-2 sentence directional thesis (bullish/bearish/neutral) with key data point
-- "bull_case": string — 2-3 bullet points supporting price strength, each citing specific data
-- "bear_case": string — 2-3 bullet points supporting price weakness, each citing specific data
+- "initial_thesis": string — 2-3 concise sentences (not a paragraph) stating the directional thesis (bullish/bearish/neutral) with key data points
+- "bull_case": string — 3-4 bullet points supporting price strength, each starting with '• ' and citing specific data
+- "bear_case": string — 3-4 bullet points supporting price weakness, each starting with '• ' and citing specific data
 - "historical_context": object with:
   - "deliveries_vs_5yr_avg_pct": number | null — current CY deliveries vs 5-year average at this week (percentage difference)
   - "exports_vs_5yr_avg_pct": number | null — current CY exports vs 5-year average at this week (percentage difference)
