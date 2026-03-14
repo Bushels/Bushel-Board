@@ -349,9 +349,10 @@ export function MyFarmClient({
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-sm text-muted-foreground">Estimated Yield</span>
-                          <span className="text-right font-semibold">
-                            {yieldMetrics.bushelsPerAcre.toFixed(1)} bu/ac
-                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          <span className="text-right">
+                            <span className="font-semibold">{yieldMetrics.bushelsPerAcre.toFixed(1)} bu/ac</span>
+                            <br />
+                            <span className="text-xs text-muted-foreground">
                               {yieldMetrics.tonnesPerAcre.toFixed(2)} t/ac
                             </span>
                           </span>
