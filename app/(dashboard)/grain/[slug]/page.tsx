@@ -39,7 +39,7 @@ import { getLogisticsSnapshot } from "@/lib/queries/logistics";
 import { getWeeklyFlowBreakdown } from "@/lib/queries/flow-breakdown";
 
 import { createClient } from "@/lib/supabase/server";
-import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek } from "@/lib/utils/crop-year";
+import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek, grainWeekEndDate } from "@/lib/utils/crop-year";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { safeQuery } from "@/lib/utils/safe-query";
 import { getXSignalsWithFeedback } from "@/lib/queries/x-signals";
@@ -247,6 +247,16 @@ export default async function GrainDetailPage({ params }: Props) {
                   message="Check back after the next Thursday data update."
                 />
               )}
+              <p className="text-xs text-muted-foreground mt-3 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs">
+                  Data: Week {shippingWeek}
+                  <span className="text-muted-foreground/60">
+                    (ended {grainWeekEndDate(shippingWeek).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })})
+                  </span>
+                </span>
+                <span className="text-muted-foreground/40">&middot;</span>
+                <span>Current: Week {getCurrentGrainWeek()}</span>
+              </p>
             </div>
           </div>
         </GlassCard>

@@ -56,6 +56,17 @@ export function getCurrentGrainWeek(now = new Date()): number {
   return Math.max(1, Math.min(52, week));
 }
 
+/**
+ * Calculate the ending date for a given grain week.
+ * Week 1 ends 7 days after Aug 1 of the crop year start.
+ */
+export function grainWeekEndDate(grainWeek: number, cropYear?: string): Date {
+  const start = cropYearStartDate(cropYear);
+  const endDate = new Date(start);
+  endDate.setDate(endDate.getDate() + grainWeek * 7);
+  return endDate;
+}
+
 /** The current crop year, evaluated once at module load. */
 export const CURRENT_CROP_YEAR = getCurrentCropYear();
 
