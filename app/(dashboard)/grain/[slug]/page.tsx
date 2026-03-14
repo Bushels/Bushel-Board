@@ -1,24 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ChevronRight, Lock } from "lucide-react";
-import { IntelligenceKpis } from "@/components/dashboard/intelligence-kpis";
+import { KeyMetricsCards, type KeyMetric } from "@/components/dashboard/key-metrics-cards";
+import { NetBalanceChart, type NetBalanceWeek } from "@/components/dashboard/net-balance-chart";
+import { DeliveryBreakdownChart } from "@/components/dashboard/delivery-breakdown-chart";
+import { GrainQualityDonut } from "@/components/dashboard/grain-quality-donut";
 import { ProvinceMap } from "@/components/dashboard/province-map";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
-import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
 
 import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
-import { XSignalFeed } from "@/components/dashboard/x-signal-feed";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
-import { FlowDonutChart } from "@/components/dashboard/flow-donut-chart";
 import { CotPositioningCard } from "@/components/dashboard/cot-positioning-card";
 import { LogisticsCard } from "@/components/dashboard/logistics-card";
 import { CompactSignalStrip } from "@/components/dashboard/compact-signal-strip";
 import { BullBearCards } from "@/components/dashboard/bull-bear-cards";
-import { AnimatedCard } from "@/components/motion/animated-card";
-import { StaggerGroup } from "@/components/motion/stagger-group";
 import { GlassCard } from "@/components/ui/glass-card";
 import { MarketStanceBadge } from "@/components/ui/market-stance-badge";
 import { Button } from "@/components/ui/button";
@@ -29,21 +27,22 @@ import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intellige
 import {
   getCumulativeTimeSeries,
   getDeliveryTimeSeries,
+  getDeliveryChannelBreakdown,
+  getGradeDistribution,
   getProvincialDeliveries,
-  getShipmentDistribution,
   getStorageBreakdown,
   getWeekOverWeekComparison,
+  type CumulativeWeekRow,
+  type WoWComparison,
 } from "@/lib/queries/observations";
 import { getCotPositioning } from "@/lib/queries/cot";
 import { getLogisticsSnapshot } from "@/lib/queries/logistics";
-import { getWeeklyFlowBreakdown } from "@/lib/queries/flow-breakdown";
 
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek, grainWeekEndDate } from "@/lib/utils/crop-year";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { safeQuery } from "@/lib/utils/safe-query";
 import { getXSignalsWithFeedback } from "@/lib/queries/x-signals";
-import { getSupplyPipeline } from "@/lib/queries/intelligence";
 import { GrainPageTransition } from "./client";
 
 interface Props {
@@ -138,14 +137,13 @@ export default async function GrainDetailPage({ params }: Props) {
     deliverySeriesResult,
     pipelineVelocityResult,
     provincialResult,
-    distributionResult,
     wowResult,
-    supplyPipelineResult,
     storageResult,
     roleResult,
     cotResult,
     logisticsResult,
-    flowResult,
+    gradeDistResult,
+    deliveryChannelResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
       const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
@@ -159,20 +157,18 @@ export default async function GrainDetailPage({ params }: Props) {
     safeQuery("Delivery activity", () => getDeliveryTimeSeries(grain.name)),
     safeQuery("Pipeline velocity", () => getCumulativeTimeSeries(grain.name)),
     safeQuery("Provincial deliveries", () => getProvincialDeliveries(grain.name)),
-    safeQuery("Domestic disappearance", () => getShipmentDistribution(grain.name)),
     safeQuery("Week-over-week comparison", () => getWeekOverWeekComparison(grain.name)),
-    safeQuery("Supply pipeline", () => getSupplyPipeline(grain.slug)),
     safeQuery("Storage breakdown", () => getStorageBreakdown(grain.name)),
     safeQuery("User role", () => getUserRole()),
     safeQuery("COT positioning", () => getCotPositioning(grain.name, CURRENT_CROP_YEAR)),
     safeQuery("Logistics snapshot", () => getLogisticsSnapshot(CURRENT_CROP_YEAR, shippingWeek)),
-    safeQuery("Weekly flow breakdown", () => getWeeklyFlowBreakdown(grain.name, CURRENT_CROP_YEAR, shippingWeek)),
+    safeQuery("Grade distribution", () => getGradeDistribution(grain.name)),
+    safeQuery("Delivery channels", () => getDeliveryChannelBreakdown(grain.name)),
   ]);
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
   const intelligence = marketCore?.intelligence ?? null;
   const marketAnalysis = marketCore?.marketAnalysis ?? null;
-  const correctedKpiData = buildCorrectedKpiData(intelligence, marketCore?.grainOverview ?? null);
   const latestGrainWeek = getLatestGrainWeek(
     deliverySeriesResult.error ? [] : deliverySeriesResult.data ?? [],
     intelligence?.grain_week ?? null
@@ -202,6 +198,17 @@ export default async function GrainDetailPage({ params }: Props) {
     grain: s.grain ?? grain.name,
     searched_at: s.searched_at ?? null,
   }));
+
+  // Build key metrics from WoW data
+  const keyMetrics = buildKeyMetrics(
+    wowResult.error ? null : wowResult.data ?? null,
+    marketCore?.grainOverview ?? null
+  );
+
+  // Build net balance from pipeline velocity data
+  const netBalanceData = buildNetBalanceData(
+    pipelineVelocityResult.error ? [] : pipelineVelocityResult.data ?? []
+  );
 
   return (
     <GrainPageTransition>
@@ -261,103 +268,79 @@ export default async function GrainDetailPage({ params }: Props) {
           </div>
         </GlassCard>
 
-        {/* ========== KEY METRICS (full-width) ========== */}
+        {/* ========== KEY METRICS + NET BALANCE (2-col grid) ========== */}
         <section className="space-y-6">
           <SectionHeader
             title="Key Metrics"
             subtitle="This week at a glance"
           />
-          <StaggerGroup className="space-y-6">
-            {marketCoreResult.error ? (
-              <SectionStateCard
-                title="Intelligence KPIs unavailable"
-                message="The KPI block is temporarily unavailable."
-              />
-            ) : correctedKpiData ? (
-              <AnimatedCard index={0}>
-                <SectionBoundary
-                  title="Intelligence KPIs unavailable"
-                  message="The KPI block is temporarily unavailable. The rest of the grain page is still live."
-                >
-                  <IntelligenceKpis data={correctedKpiData} />
-                </SectionBoundary>
-              </AnimatedCard>
-            ) : null}
-          </StaggerGroup>
-        </section>
-
-        {/* ========== THIS WEEK'S FLOW (2-col grid) ========== */}
-        <section className="space-y-6">
-          <SectionHeader
-            title="This Week's Flow"
-            subtitle="Where grain moved and who's positioned"
-          />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: FlowDonutChart */}
-            {flowResult.error ? (
-              <SectionStateCard
-                title="Flow breakdown unavailable"
-                message="The weekly flow chart is temporarily unavailable."
-              />
-            ) : flowResult.data && flowResult.data.segments.length > 0 ? (
+            {/* Left: 4 metric cards */}
+            {keyMetrics.length > 0 ? (
               <SectionBoundary
-                title="Flow breakdown unavailable"
-                message="The weekly flow chart is temporarily unavailable."
+                title="Key metrics unavailable"
+                message="The metric cards are temporarily unavailable."
               >
-                <FlowDonutChart
-                  segments={flowResult.data.segments}
-                  totalFlow={flowResult.data.totalFlow}
-                  grainWeek={flowResult.data.grainWeek}
-                  grainName={grain.name}
-                />
+                <KeyMetricsCards metrics={keyMetrics} />
               </SectionBoundary>
             ) : (
               <SectionStateCard
-                title="No flow data"
-                message="Flow breakdown data is not yet available for this week."
+                title="Metrics loading"
+                message="Key metrics will appear after the next data update."
               />
             )}
 
-            {/* Right: CotPositioningCard */}
-            {cotResult.error ? (
-              <SectionStateCard
-                title="COT positioning unavailable"
-                message="CFTC COT data is temporarily unavailable."
-              />
-            ) : cotResult.data ? (
+            {/* Right: Net Balance Chart */}
+            {netBalanceData.length > 0 ? (
               <SectionBoundary
-                title="COT positioning unavailable"
-                message="CFTC COT data is temporarily unavailable."
+                title="Net balance unavailable"
+                message="The net balance chart is temporarily unavailable."
               >
-                <CotPositioningCard
-                  positions={cotResult.data.positions}
-                  latest={cotResult.data.latest}
-                  hasDivergence={cotResult.data.hasDivergence}
-                />
+                <NetBalanceChart data={netBalanceData} grainName={grain.name} />
               </SectionBoundary>
-            ) : null}
+            ) : (
+              <SectionStateCard
+                title="Net balance loading"
+                message="Net balance data will appear after the next data update."
+              />
+            )}
           </div>
         </section>
 
-        {/* ========== X SIGNAL STRIP (full-width, inline) ========== */}
-        {compactSignals.length > 0 && (
-          <section>
-            <div className="border-t border-border/30 pt-6">
-              <SectionBoundary
-                title="Signal strip unavailable"
-                message="The signal preview is temporarily unavailable."
-              >
-                <CompactSignalStrip signals={compactSignals.slice(0, 8)} />
-              </SectionBoundary>
-            </div>
-          </section>
-        )}
-
-        {/* ========== MOVEMENT & LOGISTICS (2-col grid) ========== */}
+        {/* ========== DELIVERY BREAKDOWN (full-width) ========== */}
         <section className="space-y-6">
           <SectionHeader
-            title="Movement & Logistics"
-            subtitle="Provincial flow and rail/port capacity"
+            title="Delivery Breakdown"
+            subtitle="How grain reaches the market each week"
+          />
+          {deliveryChannelResult.error ? (
+            <SectionStateCard
+              title="Delivery breakdown unavailable"
+              message="The delivery channel chart is temporarily unavailable."
+            />
+          ) : (deliveryChannelResult.data ?? []).length > 0 ? (
+            <SectionBoundary
+              title="Delivery breakdown unavailable"
+              message="The delivery channel chart is temporarily unavailable."
+            >
+              <DeliveryBreakdownChart
+                data={deliveryChannelResult.data ?? []}
+                grainName={grain.name}
+              />
+            </SectionBoundary>
+          ) : (
+            <SectionStateCard
+              title="No delivery channel data"
+              message="Delivery breakdown data is not yet available."
+            />
+          )}
+        </section>
+
+        {/* ========== PROVINCIAL DELIVERIES + GRAIN STORAGE (2-col grid) ========== */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Storage & Distribution"
+            subtitle="Where grain sits and where it was delivered"
           />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left: ProvinceMap */}
@@ -385,65 +368,16 @@ export default async function GrainDetailPage({ params }: Props) {
               </SectionBoundary>
             )}
 
-            {/* Right: LogisticsCard */}
-            {logisticsResult.error ? (
-              <SectionStateCard
-                title="Logistics unavailable"
-                message="Port and railcar data is temporarily unavailable."
-              />
-            ) : logisticsResult.data ? (
-              <SectionBoundary
-                title="Logistics unavailable"
-                message="Port and railcar data is temporarily unavailable."
-              >
-                <LogisticsCard
-                  grainMonitor={logisticsResult.data.grainMonitor}
-                  producerCars={logisticsResult.data.producerCars}
-                  grainName={grain.name}
-                />
-              </SectionBoundary>
-            ) : null}
-          </div>
-        </section>
-
-        {/* ========== DEEPER ANALYSIS (2-col grid) ========== */}
-        <section className="space-y-6">
-          <SectionHeader
-            title="Deeper Analysis"
-            subtitle="Pipeline velocity and storage position"
-          />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: GamifiedGrainChart (Pipeline Velocity) */}
-            {pipelineVelocityResult.error ? (
-              <SectionStateCard
-                title="Pipeline velocity unavailable"
-                message="The pipeline velocity chart is temporarily unavailable."
-              />
-            ) : (
-              <SectionBoundary
-                title="Pipeline velocity unavailable"
-                message="The pipeline velocity chart is temporarily unavailable."
-              >
-                <div className="pt-4">
-                  <h3 className="mb-4 text-xl font-display font-semibold">Pipeline Velocity</h3>
-                  <GamifiedGrainChart
-                    weeklyData={pipelineVelocityResult.data ?? []}
-                    userDeliveries={userDeliveries}
-                  />
-                </div>
-              </SectionBoundary>
-            )}
-
-            {/* Right: StorageBreakdown */}
+            {/* Right: Grain Storage */}
             {storageResult.error ? (
               <SectionStateCard
-                title="Storage breakdown unavailable"
-                message="The storage breakdown is temporarily unavailable."
+                title="Storage data unavailable"
+                message="The grain storage breakdown is temporarily unavailable."
               />
             ) : storageResult.data ? (
               <SectionBoundary
-                title="Storage breakdown unavailable"
-                message="The storage breakdown is temporarily unavailable."
+                title="Storage data unavailable"
+                message="The grain storage breakdown is temporarily unavailable."
               >
                 <StorageBreakdown data={storageResult.data} grainName={grain.name} />
               </SectionBoundary>
@@ -451,93 +385,147 @@ export default async function GrainDetailPage({ params }: Props) {
           </div>
         </section>
 
-        {/* ========== GRAIN BALANCE (full-width) ========== */}
+        {/* ========== LOGISTICS (full-width) ========== */}
         <section className="space-y-6">
           <SectionHeader
-            title="Grain Balance"
-            subtitle="AAFC supply and disposition outlook"
+            title="Logistics"
+            subtitle="Port capacity and rail movement"
           />
-          {supplyPipelineResult.error ? (
+          {logisticsResult.error ? (
             <SectionStateCard
-              title="Supply pipeline unavailable"
-              message="AAFC supply pipeline data is temporarily unavailable."
+              title="Logistics unavailable"
+              message="Port and railcar data is temporarily unavailable."
             />
-          ) : supplyPipelineResult.data ? (
+          ) : logisticsResult.data ? (
             <SectionBoundary
-              title="Supply pipeline unavailable"
-              message="AAFC supply pipeline data is temporarily unavailable."
+              title="Logistics unavailable"
+              message="Port and railcar data is temporarily unavailable."
             >
-              <SupplyPipeline
-                carry_in_kt={supplyPipelineResult.data.carry_in_kt}
-                production_kt={supplyPipelineResult.data.production_kt}
-                total_supply_kt={supplyPipelineResult.data.total_supply_kt}
-                exports_kt={supplyPipelineResult.data.exports_kt ?? undefined}
-                food_industrial_kt={supplyPipelineResult.data.food_industrial_kt ?? undefined}
-                feed_waste_kt={supplyPipelineResult.data.feed_waste_kt ?? undefined}
-                carry_out_kt={supplyPipelineResult.data.carry_out_kt ?? undefined}
-                grain={grain.name}
-                domesticData={distributionResult.error ? undefined : (distributionResult.data ?? undefined)}
+              <LogisticsCard
+                grainMonitor={logisticsResult.data.grainMonitor}
+                producerCars={logisticsResult.data.producerCars}
+                grainName={grain.name}
+                grainWeek={shippingWeek}
               />
             </SectionBoundary>
           ) : null}
         </section>
 
-        {/* ========== EXPANDABLE DETAIL (full-width) ========== */}
-        <section className="space-y-4">
-          {/* All Market Signals */}
-          <details className="group">
-            <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-              All Market Signals
-            </summary>
-            <div className="mt-4">
-              {signalFeedResult.error ? (
-                <SectionStateCard
-                  title="Signal feedback feed unavailable"
-                  message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
-                />
-              ) : (
-                <SectionBoundary
-                  title="Signal feedback feed unavailable"
-                  message="Signal voting is temporarily unavailable. The social feed will return automatically when the service recovers."
-                >
-                  <XSignalFeed
-                    signals={signalFeedResult.data ?? []}
-                    grain={grain.name}
-                    grainWeek={latestGrainWeek}
-                    cropYear={CURRENT_CROP_YEAR}
-                    role={role}
-                  />
-                </SectionBoundary>
-              )}
-            </div>
-          </details>
-
-          {/* Bull / Bear Cases */}
-          {marketAnalysis && (
-            <details className="group">
-              <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                Bull &amp; Bear Cases
-              </summary>
-              <div className="mt-4">
-                <SectionBoundary
-                  title="Bull/Bear cases unavailable"
-                  message="The bull/bear analysis is temporarily unavailable."
-                >
-                  <BullBearCards
-                    bullCase={marketAnalysis.bull_case}
-                    bearCase={marketAnalysis.bear_case}
-                    confidence={marketAnalysis.data_confidence}
-                    modelUsed={marketAnalysis.model_used}
-                  />
-                </SectionBoundary>
-              </div>
-            </details>
+        {/* ========== PIPELINE VELOCITY (full-width) ========== */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Pipeline Velocity"
+            subtitle="Cumulative grain movement through the season"
+          />
+          {pipelineVelocityResult.error ? (
+            <SectionStateCard
+              title="Pipeline velocity unavailable"
+              message="The pipeline velocity chart is temporarily unavailable."
+            />
+          ) : (
+            <SectionBoundary
+              title="Pipeline velocity unavailable"
+              message="The pipeline velocity chart is temporarily unavailable."
+            >
+              <GamifiedGrainChart
+                weeklyData={pipelineVelocityResult.data ?? []}
+                userDeliveries={userDeliveries}
+              />
+            </SectionBoundary>
           )}
+        </section>
 
-          {/* WoW Detailed Comparison */}
-          {!wowResult.error && wowResult.data && (
+        {/* ========== GRAIN QUALITY + COT POSITIONING (2-col grid) ========== */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Quality & Positioning"
+            subtitle="Grade distribution and speculative positioning"
+          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Grain Quality Donut */}
+            {gradeDistResult.error ? (
+              <SectionStateCard
+                title="Grade data unavailable"
+                message="Terminal Receipts grade distribution is temporarily unavailable."
+              />
+            ) : (gradeDistResult.data ?? []).length > 0 ? (
+              <SectionBoundary
+                title="Grade data unavailable"
+                message="Terminal Receipts grade distribution is temporarily unavailable."
+              >
+                <GrainQualityDonut
+                  grades={gradeDistResult.data ?? []}
+                  grainName={grain.name}
+                />
+              </SectionBoundary>
+            ) : (
+              <SectionStateCard
+                title="No grade data"
+                message="Grade distribution data is not yet available for this grain."
+              />
+            )}
+
+            {/* Right: COT Positioning */}
+            {cotResult.error ? (
+              <SectionStateCard
+                title="COT positioning unavailable"
+                message="CFTC COT data is temporarily unavailable."
+              />
+            ) : cotResult.data ? (
+              <SectionBoundary
+                title="COT positioning unavailable"
+                message="CFTC COT data is temporarily unavailable."
+              >
+                <CotPositioningCard
+                  positions={cotResult.data.positions}
+                  latest={cotResult.data.latest}
+                  hasDivergence={cotResult.data.hasDivergence}
+                />
+              </SectionBoundary>
+            ) : null}
+          </div>
+        </section>
+
+        {/* ========== PRAIRIE CHATTER (X signals) ========== */}
+        {compactSignals.length > 0 && (
+          <section className="space-y-6">
+            <SectionHeader
+              title="Prairie Chatter"
+              subtitle="What the market is talking about on X"
+            />
+            <SectionBoundary
+              title="Signal strip unavailable"
+              message="The signal preview is temporarily unavailable."
+            >
+              <CompactSignalStrip signals={compactSignals.slice(0, 8)} />
+            </SectionBoundary>
+          </section>
+        )}
+
+        {/* ========== BULL & BEAR CASES (visible, full-width) ========== */}
+        {marketAnalysis && (
+          <section className="space-y-6">
+            <SectionHeader
+              title="Bull & Bear Cases"
+              subtitle="AI-generated analysis from market data and X signals"
+            />
+            <SectionBoundary
+              title="Bull/Bear cases unavailable"
+              message="The bull/bear analysis is temporarily unavailable."
+            >
+              <BullBearCards
+                bullCase={marketAnalysis.bull_case}
+                bearCase={marketAnalysis.bear_case}
+                confidence={marketAnalysis.data_confidence}
+                modelUsed={marketAnalysis.model_used}
+              />
+            </SectionBoundary>
+          </section>
+        )}
+
+        {/* ========== WOW DETAIL (collapsed) ========== */}
+        {!wowResult.error && wowResult.data && (
+          <section className="space-y-4">
             <details className="group">
               <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
@@ -552,28 +540,125 @@ export default async function GrainDetailPage({ params }: Props) {
                 </SectionBoundary>
               </div>
             </details>
-          )}
-        </section>
+          </section>
+        )}
       </div>
     </GrainPageTransition>
   );
 }
 
-function buildCorrectedKpiData(
-  intelligence: Awaited<ReturnType<typeof getGrainIntelligence>>,
+function buildKeyMetrics(
+  wow: WoWComparison | null,
   grainOverview: Awaited<ReturnType<typeof getGrainOverviewBySlug>>
-) {
-  const correctedKpiData = intelligence?.kpi_data
-    ? { ...intelligence.kpi_data }
-    : undefined;
+): KeyMetric[] {
+  if (!wow) return [];
+  const findMetric = (name: string) => wow.metrics.find((m) => m.metric === name);
 
-  if (correctedKpiData && grainOverview) {
-    correctedKpiData.cw_deliveries_kt = grainOverview.cw_deliveries_kt;
-    correctedKpiData.cy_deliveries_kt = grainOverview.cy_deliveries_kt;
-    correctedKpiData.wow_deliveries_pct = grainOverview.wow_pct_change;
+  const deliveries = findMetric("Deliveries");
+  const processing = findMetric("Processing");
+  const exports = findMetric("Exports");
+  const stocks = findMetric("Stocks");
+
+  const metrics: KeyMetric[] = [];
+
+  if (deliveries) {
+    metrics.push({
+      label: "Deliveries",
+      currentWeekKt: deliveries.thisWeek,
+      cropYearKt: Number(grainOverview?.cy_deliveries_kt ?? 0),
+      wowChangePct: deliveries.changePct,
+      insight: deliveries.changePct > 5
+        ? "Accelerating pace — farmers are moving grain"
+        : deliveries.changePct < -5
+          ? "Delivery pace slowing this week"
+          : "Steady delivery pace",
+      color: "#2e6b9e",
+    });
   }
 
-  return correctedKpiData;
+  if (processing) {
+    metrics.push({
+      label: "Processing",
+      currentWeekKt: processing.thisWeek,
+      cropYearKt: 0,
+      wowChangePct: processing.changePct,
+      insight: processing.changePct > 5
+        ? "Crush demand picking up"
+        : processing.changePct < -5
+          ? "Processing volume declining"
+          : "Processing at typical levels",
+      color: "#437a22",
+    });
+  }
+
+  if (exports) {
+    metrics.push({
+      label: "Exports",
+      currentWeekKt: exports.thisWeek,
+      cropYearKt: 0,
+      wowChangePct: exports.changePct,
+      insight: exports.changePct > 10
+        ? "Export surge — international demand strengthening"
+        : exports.changePct < -10
+          ? "Export drawback this week"
+          : "Export flow at normal pace",
+      color: "#c17f24",
+    });
+  }
+
+  if (stocks) {
+    metrics.push({
+      label: "Stocks",
+      currentWeekKt: stocks.thisWeek,
+      cropYearKt: 0,
+      wowChangePct: stocks.changePct,
+      insight: stocks.changePct > 0
+        ? "Inventory building — more coming in than going out"
+        : stocks.changePct < -3
+          ? "Stock drawdown — tightening supply pipeline"
+          : "Stocks stable",
+      color: "#8b7355",
+    });
+  }
+
+  return metrics;
+}
+
+function buildNetBalanceData(pipelineData: CumulativeWeekRow[]): NetBalanceWeek[] {
+  if (pipelineData.length === 0) return [];
+
+  // Pipeline velocity is cumulative — compute per-week deltas
+  const result: NetBalanceWeek[] = [];
+  let cumulative = 0;
+
+  for (let i = 0; i < pipelineData.length; i++) {
+    const curr = pipelineData[i];
+    const prev = i > 0 ? pipelineData[i - 1] : null;
+
+    const deliveries = prev
+      ? curr.producer_deliveries_kt - prev.producer_deliveries_kt
+      : curr.producer_deliveries_kt;
+    const exports = prev
+      ? curr.exports_kt - prev.exports_kt
+      : curr.exports_kt;
+    const processing = prev
+      ? curr.processing_kt - prev.processing_kt
+      : curr.processing_kt;
+
+    const net = deliveries - exports - processing;
+    cumulative += net;
+
+    result.push({
+      grain_week: curr.grain_week,
+      deliveries_kt: Math.max(0, deliveries),
+      exports_kt: Math.max(0, exports),
+      processing_kt: Math.max(0, processing),
+      net_balance_kt: net,
+      cumulative_kt: cumulative,
+    });
+  }
+
+  return result;
 }
 
 function getLatestGrainWeek(
