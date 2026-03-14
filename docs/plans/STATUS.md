@@ -28,6 +28,28 @@ Last updated: 2026-03-13
 | 20 | CFTC COT Positioning Integration | Complete | 2026-03-13 | `supabase/migrations/20260313140000_create_cftc_cot_positions.sql`, `supabase/functions/import-cftc-cot/`, `app/api/cron/import-cftc-cot/route.ts`, `.claude/skills/cftc-cot/SKILL.md`, `docs/plans/2026-03-13-cftc-cot-integration-design.md` |
 | 21 | Dashboard Overhaul — Farmer Decision Architecture | Complete | 2026-03-13 | `components/ui/glass-card.tsx`, `components/dashboard/cot-positioning-card.tsx`, `components/dashboard/logistics-card.tsx`, `components/dashboard/flow-donut-chart.tsx`, `components/dashboard/recommendation-card.tsx`, `components/dashboard/multi-grain-sentiment.tsx` |
 | 22 | Farmer Advisor Chat & Memory | Proposed | 2026-03-13 | `docs/plans/2026-03-13-farmer-advisor-chat-design.md`, `docs/plans/2026-03-13-farmer-advisor-chat-implementation.md` |
+| 23 | Dashboard Redesign V2 — Wave 1: Data Foundation | Complete | 2026-03-14 | `scripts/seed-supply-disposition.ts`, `app/(dashboard)/my-farm/client.tsx`, `app/(dashboard)/grain/[slug]/page.tsx`, `lib/utils/crop-year.ts`, `components/auth/auth-shell.tsx`, `components/dashboard/crop-summary-card.tsx` |
+| 24 | Dashboard Redesign V2 — Wave 2: Grain Page Redesign | Complete | 2026-03-14 | `components/dashboard/key-metrics-cards.tsx`, `components/dashboard/net-balance-chart.tsx`, `components/dashboard/delivery-breakdown-chart.tsx`, `components/dashboard/grain-quality-donut.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 2 Grain Page Redesign (Track 24)
+
+**What was delivered:**
+- Grain detail page completely restructured from reporting dashboard to signal-generating decision tool
+- New components: Key Metrics Cards (4 vertical cards with WoW + insights), Net Balance Chart (surplus/deficit bars + cumulative line), Delivery Breakdown Chart (stacked area: elevators/processors/cars), Grain Quality Donut (Terminal Receipts by grade)
+- Enhanced components: StorageBreakdown redesigned with CSS horizontal bars, BullBearCards with confidence gauge + final assessment, LogisticsCard with grain week labels on every KPI
+- Bull & Bear Cases promoted from collapsed `<details>` to visible section
+- Removed redundant sections: Flow Donut, Supply Pipeline, IntelligenceKpis, expandable Market Signals
+- New queries: `getGradeDistribution()` (Terminal Receipts by grade), `getDeliveryChannelBreakdown()` (3 delivery channels)
+
+**Deleted components:** `flow-donut-chart.tsx`, `supply-pipeline.tsx`, `intelligence-kpis.tsx`, `x-signal-feed.tsx`
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 1 Data Foundation (Track 23)
+
+**What was delivered:**
+- AAFC supply baseline updated to Feb 2026 figures (16 grains, `is_approximate` flag for 5 estimated grains)
+- "% Left in Bin vs Market" calculation corrected: Total Opening Supply - CYTD Producer Deliveries (live CGC data)
+- Data freshness badge on grain detail page hero section
+- Fraunces font rendering fix (variable font axes), estimated yield alignment, hover arrows on crop summary cards, flow donut overflow fix
 
 ### 2026-03-13 — Dashboard Overhaul: Farmer Decision Architecture (Track 21)
 
