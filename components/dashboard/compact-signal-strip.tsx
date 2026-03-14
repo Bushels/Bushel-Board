@@ -331,10 +331,10 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSigna
                 type="button"
                 onClick={selectAll}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors duration-150",
+                  "rounded-full border px-3 py-1 text-[11px] font-medium backdrop-blur-sm transition-all duration-150",
                   showAll
                     ? "border-canola/30 bg-canola/12 text-canola shadow-[0_2px_8px_-4px_rgba(193,127,36,0.3)]"
-                    : "border-border/60 bg-background/60 text-muted-foreground hover:border-canola/20 hover:text-foreground dark:bg-white/5"
+                    : "border-white/20 bg-white/40 text-muted-foreground hover:border-canola/20 hover:bg-white/55 hover:text-foreground hover:-translate-y-0.5 dark:bg-wheat-900/30 dark:hover:bg-wheat-900/45"
                 )}
               >
                 All
@@ -345,10 +345,10 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSigna
                   type="button"
                   onClick={() => toggleGrain(name)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors duration-150",
+                    "rounded-full border px-3 py-1 text-[11px] font-medium backdrop-blur-sm transition-all duration-150",
                     !showAll && selectedGrains.has(name)
                       ? "border-canola/30 bg-canola/12 text-canola shadow-[0_2px_8px_-4px_rgba(193,127,36,0.3)]"
-                      : "border-border/60 bg-background/60 text-muted-foreground hover:border-canola/20 hover:text-foreground dark:bg-white/5"
+                      : "border-white/20 bg-white/40 text-muted-foreground hover:border-canola/20 hover:bg-white/55 hover:text-foreground hover:-translate-y-0.5 dark:bg-wheat-900/30 dark:hover:bg-wheat-900/45"
                   )}
                 >
                   {name}

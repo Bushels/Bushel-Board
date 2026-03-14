@@ -8,6 +8,8 @@ import { CompactSignalStrip } from "@/components/dashboard/compact-signal-strip"
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { StaggerGroup } from "@/components/motion/stagger-group";
+import { GlassCard } from "@/components/ui/glass-card";
+import { MarketStanceBadge } from "@/components/ui/market-stance-badge";
 import { ALL_GRAINS } from "@/lib/constants/grains";
 import { getGrainOverview } from "@/lib/queries/grains";
 import { getGrainIntelligence, type GrainIntelligence } from "@/lib/queries/intelligence";
@@ -337,11 +339,24 @@ function deriveSentimentKey(
   return "neutral";
 }
 
-const SENTIMENT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  bullish: { bg: "bg-prairie/10", text: "text-prairie", label: "Bullish" },
-  bearish: { bg: "bg-amber-500/10", text: "text-amber-600", label: "Bearish" },
-  neutral: { bg: "bg-muted", text: "text-muted-foreground", label: "Neutral" },
-};
+function deriveStanceFromThesis(
+  title: string
+): "bullish" | "bearish" | "neutral" {
+  const lower = title.toLowerCase();
+  if (
+    /\b(bullish|strong|surge|rally|soar|boom|uptick|rising)\b/.test(lower)
+  ) {
+    return "bullish";
+  }
+  if (
+    /\b(bearish|weak|decline|pressure|slump|drop|falling|downturn)\b/.test(
+      lower
+    )
+  ) {
+    return "bearish";
+  }
+  return "neutral";
+}
 
 function MarketPulseSection({ cards }: { cards: MarketPulseCard[] }) {
   if (cards.length === 0) {
@@ -357,19 +372,19 @@ function MarketPulseSection({ cards }: { cards: MarketPulseCard[] }) {
   return (
     <StaggerGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card, index) => {
-          const style = SENTIMENT_STYLES[card.sentimentKey] ?? SENTIMENT_STYLES.neutral;
+          const stance = deriveStanceFromThesis(card.thesisTitle);
           const preview =
             card.thesisBody.length > 150
               ? `${card.thesisBody.slice(0, 147)}...`
               : card.thesisBody;
 
           return (
-            <AnimatedCard key={card.slug} index={index}>
+            <GlassCard key={card.slug} index={index} glow={stance === "bullish" ? "prairie" : stance === "bearish" ? "canola" : "none"}>
               <Link
                 href={card.isUnlocked ? `/grain/${card.slug}` : "/my-farm"}
                 className={cn(
-                  "group flex h-full flex-col gap-2.5 rounded-xl border border-border/40 bg-card/40 p-4 backdrop-blur-sm transition-colors duration-300 hover:border-canola/30 hover:shadow-lg",
-                  !card.isUnlocked && "border-canola/20 bg-canola/5"
+                  "group flex h-full flex-col gap-2.5 p-4",
+                  !card.isUnlocked && "opacity-75"
                 )}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -377,11 +392,7 @@ function MarketPulseSection({ cards }: { cards: MarketPulseCard[] }) {
                     {card.name}
                   </h3>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[2px] ${style.bg} ${style.text}`}
-                    >
-                      {style.label}
-                    </span>
+                    <MarketStanceBadge stance={stance} size="sm" />
                     {!card.isUnlocked && (
                       <span className="rounded-full border border-canola/20 bg-canola/10 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[2px] text-canola">
                         Locked
@@ -404,7 +415,7 @@ function MarketPulseSection({ cards }: { cards: MarketPulseCard[] }) {
                   {card.isUnlocked ? "View Details" : "Unlock on My Farm"}
                 </span>
               </Link>
-            </AnimatedCard>
+            </GlassCard>
           );
         })}
       </StaggerGroup>

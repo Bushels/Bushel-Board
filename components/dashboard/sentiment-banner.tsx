@@ -26,7 +26,7 @@ export function SentimentBanner({
   if (sentimentData.length === 0 || totalVoters < 5) {
     return (
       <AnimatedCard index={0}>
-        <div className="rounded-xl border border-dashed border-canola/20 bg-canola/5 p-4 text-center">
+        <div className="rounded-2xl border border-dashed border-white/20 dark:border-wheat-700/20 bg-white/60 dark:bg-wheat-900/50 backdrop-blur-lg p-4 text-center">
           <p className="text-sm text-muted-foreground">
             Share your weekly outlook on any grain page to see community sentiment here.
           </p>
@@ -45,7 +45,7 @@ export function SentimentBanner({
 
   return (
     <AnimatedCard index={0}>
-      <div className="rounded-xl border border-canola/20 bg-gradient-to-r from-canola/5 to-background p-4 space-y-3">
+      <div className="rounded-2xl border border-white/20 dark:border-wheat-700/20 bg-white/60 dark:bg-wheat-900/50 backdrop-blur-lg backdrop-saturate-150 shadow-elevation-2 p-4 space-y-3">
         {/* Headline */}
         <div className="flex items-center justify-between">
           <div>
