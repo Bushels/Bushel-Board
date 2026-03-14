@@ -591,3 +591,116 @@ export async function getGradeDistribution(
     return [];
   }
 }
+
+// --- Delivery Channel Breakdown (Task 2) ---
+
+export interface DeliveryChannelWeek {
+  grain_week: number;
+  primary_elevators_kt: number;
+  processors_kt: number;
+  producer_cars_kt: number;
+}
+
+/**
+ * Get weekly delivery breakdown by channel: Primary Elevators, Processors,
+ * and Producer Cars. Returns a time series for a stacked area chart.
+ *
+ * - Primary Elevators: cgc_observations Primary.Deliveries (3 prairie provinces summed)
+ * - Processors: cgc_observations Process.Producer Deliveries (national total)
+ * - Producer Cars: producer_car_allocations week_cars (car count, NOT Kt)
+ */
+export async function getDeliveryChannelBreakdown(
+  grainName: string,
+  cropYear?: string
+): Promise<DeliveryChannelWeek[]> {
+  try {
+    const supabase = await createClient();
+    const year = cropYear ?? (await getLatestCropYear(supabase));
+
+    // Three parallel queries for the three delivery channels
+    const [primaryRes, processRes, producerCarRes] = await Promise.all([
+      // 1. Primary Elevators: 3 prairie provinces, sum per grain_week
+      supabase
+        .from("cgc_observations")
+        .select("grain_week, ktonnes")
+        .eq("worksheet", "Primary")
+        .eq("metric", "Deliveries")
+        .eq("period", "Current Week")
+        .eq("grain", grainName)
+        .eq("crop_year", year)
+        .eq("grade", "")
+        .in("region", PRAIRIE_PROVINCES)
+        .order("grain_week"),
+
+      // 2. Processors: national total (one row per week)
+      supabase
+        .from("cgc_observations")
+        .select("grain_week, ktonnes")
+        .eq("worksheet", "Process")
+        .eq("metric", "Producer Deliveries")
+        .eq("period", "Current Week")
+        .eq("grain", grainName)
+        .eq("crop_year", year)
+        .eq("grade", "")
+        .order("grain_week"),
+
+      // 3. Producer Cars: week_cars per grain_week
+      supabase
+        .from("producer_car_allocations")
+        .select("grain_week, week_cars")
+        .ilike("grain", grainName)
+        .eq("crop_year", year)
+        .order("grain_week"),
+    ]);
+
+    if (primaryRes.error) {
+      console.error("getDeliveryChannelBreakdown primary error:", primaryRes.error.message);
+    }
+    if (processRes.error) {
+      console.error("getDeliveryChannelBreakdown process error:", processRes.error.message);
+    }
+    if (producerCarRes.error) {
+      console.error("getDeliveryChannelBreakdown producer cars error:", producerCarRes.error.message);
+    }
+
+    // Aggregate Primary Elevators by grain_week (3 provinces → 1 total)
+    const primaryByWeek = new Map<number, number>();
+    for (const row of primaryRes.data ?? []) {
+      const wk = Number(row.grain_week);
+      primaryByWeek.set(wk, (primaryByWeek.get(wk) ?? 0) + Number(row.ktonnes));
+    }
+
+    // Processors: one row per week
+    const processByWeek = new Map<number, number>();
+    for (const row of processRes.data ?? []) {
+      processByWeek.set(Number(row.grain_week), Number(row.ktonnes));
+    }
+
+    // Producer Cars: week_cars per week
+    const carsByWeek = new Map<number, number>();
+    for (const row of producerCarRes.data ?? []) {
+      carsByWeek.set(Number(row.grain_week), Number(row.week_cars));
+    }
+
+    // Merge all grain_weeks into a single sorted array
+    const allWeeks = new Set<number>([
+      ...primaryByWeek.keys(),
+      ...processByWeek.keys(),
+      ...carsByWeek.keys(),
+    ]);
+
+    const result: DeliveryChannelWeek[] = Array.from(allWeeks)
+      .sort((a, b) => a - b)
+      .map((wk) => ({
+        grain_week: wk,
+        primary_elevators_kt: primaryByWeek.get(wk) ?? 0,
+        processors_kt: processByWeek.get(wk) ?? 0,
+        producer_cars_kt: carsByWeek.get(wk) ?? 0,
+      }));
+
+    return result;
+  } catch (err) {
+    console.error("getDeliveryChannelBreakdown failed:", err);
+    return [];
+  }
+}
