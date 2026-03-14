@@ -139,7 +139,10 @@ export function AuthShell({ scene, modeLabel, children }: AuthShellProps) {
               <p className={cn("text-sm font-medium uppercase tracking-[0.3em]", modeLabelClass)}>
                 {modeLabel}
               </p>
-              <h1 className="max-w-xl font-display no-ligatures text-4xl leading-tight sm:text-5xl">
+              <h1
+                className="max-w-xl font-display no-ligatures text-4xl leading-tight sm:text-5xl"
+                style={{ fontOpticalSizing: "auto" }}
+              >
                 {content.title}
               </h1>
               <p className={cn("max-w-xl text-base leading-relaxed sm:text-lg", shellMutedTextClass)}>
