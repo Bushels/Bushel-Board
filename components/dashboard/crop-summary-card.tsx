@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Lock, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowRight, Lock, TrendingUp, TrendingDown } from "lucide-react";
 import { fmtKt, fmtPct } from "@/lib/utils/format";
 import { GlassCard } from "@/components/ui/glass-card";
 
@@ -30,7 +30,7 @@ export function CropSummaryCard({
   const isPositive = wowChange >= 0;
 
   return (
-    <GlassCard index={index}>
+    <GlassCard index={index} className="transition-colors duration-200 hover:border-canola/30">
       <Link
         href={isUnlocked ? `/grain/${slug}` : "/my-farm"}
         className={`group relative flex flex-col gap-3 p-4 ${
@@ -77,6 +77,12 @@ export function CropSummaryCard({
             +{fmtKt(cwDeliveries)} this week
           </span>
         </div>
+
+        {isUnlocked && (
+          <span className="text-xs text-canola opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 mt-1">
+            View details <ArrowRight className="h-3 w-3" />
+          </span>
+        )}
       </Link>
     </GlassCard>
   );
