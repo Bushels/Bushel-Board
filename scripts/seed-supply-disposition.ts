@@ -100,13 +100,14 @@ interface SupplyRow {
   seed_kt?: number | null;
   total_domestic_kt?: number | null;
   carry_out_kt?: number | null;
+  is_approximate?: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// AAFC data (source: AAFC Outlook, November 24 2025)
+// AAFC data (source: AAFC Outlook, February 18 2026)
 // ---------------------------------------------------------------------------
 
-const AAFC_SOURCE = "AAFC_2025-11-24";
+const AAFC_SOURCE = "AAFC_2026-02-18";
 
 interface AafcRecord {
   carry_in: number;
@@ -119,25 +120,26 @@ interface AafcRecord {
   seed: number;
   total_domestic: number;
   carry_out: number;
+  is_approximate?: boolean;
 }
 
 const AAFC_2025_26: Record<string, AafcRecord> = {
-  wheat:          { carry_in: 4112, production: 36624, imports: 105, total_supply: 40841, exports: 27700, food_industrial: 3500, feed_waste: 3481, seed: 1060, total_domestic: 8041, carry_out: 5100 },
-  "amber-durum":  { carry_in: 496, production: 6535, imports: 5, total_supply: 7036, exports: 5200, food_industrial: 200, feed_waste: 302, seed: 234, total_domestic: 736, carry_out: 1100 },
-  barley:         { carry_in: 1249, production: 8228, imports: 50, total_supply: 9527, exports: 2840, food_industrial: 319, feed_waste: 5155, seed: 213, total_domestic: 5687, carry_out: 1000 },
-  corn:           { carry_in: 1584, production: 15500, imports: 1900, total_supply: 18984, exports: 2400, food_industrial: 5850, feed_waste: 8817, seed: 17, total_domestic: 14684, carry_out: 1900 },
-  oats:           { carry_in: 507, production: 3370, imports: 20, total_supply: 3897, exports: 2420, food_industrial: 90, feed_waste: 785, seed: 102, total_domestic: 977, carry_out: 500 },
-  rye:            { carry_in: 143, production: 542, imports: 1, total_supply: 686, exports: 182, food_industrial: 55, feed_waste: 241, seed: 18, total_domestic: 314, carry_out: 190 },
-  canola:         { carry_in: 1597, production: 20028, imports: 101, total_supply: 21726, exports: 7000, food_industrial: 11800, feed_waste: 375, seed: 51, total_domestic: 12226, carry_out: 2500 },
-  flaxseed:       { carry_in: 134, production: 365, imports: 10, total_supply: 509, exports: 225, food_industrial: 19, feed_waste: 71, seed: 0, total_domestic: 90, carry_out: 195 },
-  soybeans:       { carry_in: 505, production: 7134, imports: 450, total_supply: 8089, exports: 5350, food_industrial: 1700, feed_waste: 339, seed: 200, total_domestic: 2239, carry_out: 500 },
-  peas:           { carry_in: 489, production: 3563, imports: 20, total_supply: 4072, exports: 2200, food_industrial: 340, feed_waste: 232, seed: 100, total_domestic: 672, carry_out: 1200 },
-  lentils:        { carry_in: 549, production: 2972, imports: 75, total_supply: 3596, exports: 2100, food_industrial: 230, feed_waste: 71, seed: 50, total_domestic: 351, carry_out: 1145 },
-  beans:          { carry_in: 40, production: 352, imports: 70, total_supply: 462, exports: 380, food_industrial: 50, feed_waste: 2, seed: 10, total_domestic: 62, carry_out: 20 },
-  "chick-peas":   { carry_in: 62, production: 331, imports: 40, total_supply: 433, exports: 200, food_industrial: 70, feed_waste: 8, seed: 10, total_domestic: 88, carry_out: 145 },
-  "mustard-seed": { carry_in: 143, production: 141, imports: 9, total_supply: 293, exports: 95, food_industrial: 40, feed_waste: 3, seed: 10, total_domestic: 53, carry_out: 145 },
-  canaryseed:     { carry_in: 84, production: 185, imports: 0, total_supply: 269, exports: 135, food_industrial: 7, feed_waste: 0, seed: 7, total_domestic: 14, carry_out: 120 },
-  sunflower:      { carry_in: 151, production: 61, imports: 25, total_supply: 237, exports: 35, food_industrial: 55, feed_waste: 2, seed: 10, total_domestic: 67, carry_out: 135 },
+  wheat:          { carry_in: 3684, production: 32820, imports: 105, total_supply: 36609, exports: 27700, food_industrial: 3500, feed_waste: 3481, seed: 1060, total_domestic: 8041, carry_out: 5100 },
+  "amber-durum":  { carry_in: 497, production: 7135, imports: 5, total_supply: 7637, exports: 5200, food_industrial: 200, feed_waste: 302, seed: 234, total_domestic: 736, carry_out: 1100 },
+  barley:         { carry_in: 1249, production: 9725, imports: 50, total_supply: 11024, exports: 2840, food_industrial: 319, feed_waste: 5155, seed: 213, total_domestic: 5687, carry_out: 1000 },
+  corn:           { carry_in: 1584, production: 14867, imports: 1900, total_supply: 18351, exports: 2400, food_industrial: 5850, feed_waste: 8817, seed: 17, total_domestic: 14684, carry_out: 1900 },
+  oats:           { carry_in: 507, production: 3920, imports: 20, total_supply: 4447, exports: 2420, food_industrial: 90, feed_waste: 785, seed: 102, total_domestic: 977, carry_out: 500 },
+  rye:            { carry_in: 143, production: 683, imports: 1, total_supply: 827, exports: 182, food_industrial: 55, feed_waste: 241, seed: 18, total_domestic: 314, carry_out: 190 },
+  canola:         { carry_in: 1597, production: 21804, imports: 101, total_supply: 23502, exports: 7000, food_industrial: 11800, feed_waste: 375, seed: 51, total_domestic: 12226, carry_out: 2500 },
+  flaxseed:       { carry_in: 134, production: 455, imports: 10, total_supply: 599, exports: 225, food_industrial: 19, feed_waste: 71, seed: 0, total_domestic: 90, carry_out: 195 },
+  soybeans:       { carry_in: 511, production: 6793, imports: 450, total_supply: 7754, exports: 5350, food_industrial: 1700, feed_waste: 339, seed: 200, total_domestic: 2239, carry_out: 500 },
+  peas:           { carry_in: 489, production: 3934, imports: 20, total_supply: 4443, exports: 2200, food_industrial: 340, feed_waste: 232, seed: 100, total_domestic: 672, carry_out: 1200 },
+  lentils:        { carry_in: 561, production: 3363, imports: 75, total_supply: 3999, exports: 2100, food_industrial: 230, feed_waste: 71, seed: 50, total_domestic: 351, carry_out: 1145 },
+  beans:          { carry_in: 100, production: 438, imports: 70, total_supply: 608, exports: 380, food_industrial: 50, feed_waste: 2, seed: 10, total_domestic: 62, carry_out: 20, is_approximate: true },
+  "chick-peas":   { carry_in: 180, production: 482, imports: 40, total_supply: 702, exports: 200, food_industrial: 70, feed_waste: 8, seed: 10, total_domestic: 88, carry_out: 145, is_approximate: true },
+  "mustard-seed": { carry_in: 85, production: 140, imports: 9, total_supply: 234, exports: 95, food_industrial: 40, feed_waste: 3, seed: 10, total_domestic: 53, carry_out: 145, is_approximate: true },
+  canaryseed:     { carry_in: 85, production: 235, imports: 0, total_supply: 320, exports: 135, food_industrial: 7, feed_waste: 0, seed: 7, total_domestic: 14, carry_out: 120, is_approximate: true },
+  sunflower:      { carry_in: 48, production: 69, imports: 25, total_supply: 142, exports: 35, food_industrial: 55, feed_waste: 2, seed: 10, total_domestic: 67, carry_out: 135, is_approximate: true },
 };
 
 const AAFC_2024_25: Record<string, AafcRecord> = {
@@ -177,6 +179,7 @@ function aafcToRows(
     seed_kt: r.seed,
     total_domestic_kt: r.total_domestic,
     carry_out_kt: r.carry_out,
+    is_approximate: r.is_approximate ?? false,
   }));
 }
 
