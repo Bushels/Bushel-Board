@@ -503,3 +503,91 @@ export async function getCumulativeTimeSeries(
     };
   });
 }
+
+// --- Grade Distribution (Terminal Receipts by grade) ---
+
+export interface GradeDistribution {
+  grade: string;
+  ktonnes: number;
+  percentage: number;
+}
+
+/**
+ * Get Terminal Receipts broken down by grade for a grain.
+ * Terminal Receipts has no pre-aggregated `grade=''` rows — must sum all
+ * grades across ports. Uses only the latest grain_week to avoid
+ * double-counting cumulative "Crop Year" data across weeks.
+ */
+export async function getGradeDistribution(
+  grainName: string,
+  cropYear?: string
+): Promise<GradeDistribution[]> {
+  try {
+    const supabase = await createClient();
+    const year = cropYear ?? (await getLatestCropYear(supabase));
+
+    // First, find the latest grain_week for Terminal Receipts for this grain
+    const { data: weekRow } = await supabase
+      .from("cgc_observations")
+      .select("grain_week")
+      .eq("grain", grainName)
+      .eq("crop_year", year)
+      .eq("worksheet", "Terminal Receipts")
+      .eq("metric", "Receipts")
+      .eq("period", "Crop Year")
+      .neq("grade", "")
+      .order("grain_week", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!weekRow) return [];
+    const latestWeek = weekRow.grain_week;
+
+    // Fetch all per-grade, per-port rows for the latest week
+    const { data, error } = await supabase
+      .from("cgc_observations")
+      .select("grade, ktonnes")
+      .eq("grain", grainName)
+      .eq("crop_year", year)
+      .eq("worksheet", "Terminal Receipts")
+      .eq("metric", "Receipts")
+      .eq("period", "Crop Year")
+      .eq("grain_week", latestWeek)
+      .neq("grade", "");
+
+    if (error) {
+      console.error("getGradeDistribution error:", error.message);
+      return [];
+    }
+    if (!data || data.length === 0) return [];
+
+    // Aggregate ktonnes by grade (summing across ports)
+    const gradeMap = new Map<string, number>();
+    for (const row of data) {
+      const kt = Number(row.ktonnes) || 0;
+      gradeMap.set(row.grade, (gradeMap.get(row.grade) ?? 0) + kt);
+    }
+
+    // Calculate total for percentages
+    let total = 0;
+    for (const kt of gradeMap.values()) {
+      total += kt;
+    }
+
+    // Build result sorted by ktonnes descending
+    const result: GradeDistribution[] = [];
+    for (const [grade, ktonnes] of gradeMap.entries()) {
+      result.push({
+        grade,
+        ktonnes,
+        percentage: total > 0 ? (ktonnes / total) * 100 : 0,
+      });
+    }
+    result.sort((a, b) => b.ktonnes - a.ktonnes);
+
+    return result;
+  } catch (err) {
+    console.error("getGradeDistribution failed:", err);
+    return [];
+  }
+}
