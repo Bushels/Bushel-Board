@@ -187,8 +187,8 @@ export function FlowDonutChart({
           This week&apos;s disappearance
         </p>
 
-        <ResponsiveContainer width="100%" height={240}>
-          <PieChart onMouseLeave={onPieLeave}>
+        <ResponsiveContainer width="100%" height={240} style={{ overflow: "visible" }}>
+          <PieChart onMouseLeave={onPieLeave} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
             <Pie
               data={segments}
               dataKey="value"
