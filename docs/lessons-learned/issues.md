@@ -677,3 +677,47 @@ Buckwheat left unmatched (minor grain, not in the tracked 16 Canadian grains).
 - Add a smoke test that fetches one CFTC row and asserts non-null values for key positioning fields
 
 **Tags:** #cftc #parser #soda-api #field-mapping #silent-null
+
+## 2026-03-13 — Dashboard Overhaul Data Audit Findings
+
+Four findings from a systematic audit of the dashboard data layer during the Dashboard Overhaul work.
+
+### Finding 1: Logistics Tables Have No Import Pipeline (HIGH)
+
+**Symptom:** `LogisticsCard` shows empty state. AI intelligence narratives lack logistics context (port throughput, vessel queues, producer car allocations).
+
+**Root cause:** `grain_monitor_snapshots` and `producer_car_allocations` tables exist with proper schema, and the `get_logistics_snapshot()` RPC is consumed by `analyze-market-data` and `generate-intelligence` Edge Functions — but there is NO automated import mechanism. No Edge Function, no cron job, and no script exists to populate these tables. They are likely empty in production.
+
+**Impact:** HIGH. The logistics data path is fully wired (schema, RPC, AI prompts, UI card) but has no data source. This is a silent gap — no errors are thrown, the system simply operates without logistics context.
+
+**Fix needed:** Build an import Edge Function that fetches Grain Monitor and Producer Car data, plus a cron trigger to run it on a regular schedule.
+
+**Tags:** #data-pipeline #logistics #grain-monitor #producer-cars #missing-import
+
+### Finding 2: Oats Missing from CFTC COT Mapping (MEDIUM)
+
+**Symptom:** Oats intelligence narratives have no CFTC COT positioning context, even though CME trades Oats futures which are reported in CFTC COT data.
+
+**Root cause:** The CFTC parser in `supabase/functions/_shared/cftc-cot-parser.ts` maps CME commodity names to CGC grain names, but Oats is not included in the mapping. 10 of 16 CGC grains correctly lack COT data (no futures contracts exist), but Oats is a genuine gap.
+
+**Fix:** Add `{ "OATS": { cgcGrain: "Oats", mappingType: "primary" } }` to the commodity-to-grain mapping in the CFTC parser.
+
+**Tags:** #cftc #parser #oats #mapping-gap
+
+### Finding 3: AAFC Supply Data Static from November 2025 (MEDIUM)
+
+**Symptom:** Supply pipeline card shows AAFC balance sheet data sourced from November 2025. By March 2026, carry-out and export estimates may be stale.
+
+**Root cause:** Data was seeded via `scripts/seed-supply-disposition.ts` with source `AAFC_2025-11-24`. AAFC typically publishes 2-3 updated Outlooks per crop year, but there is no automated refresh mechanism — re-seeding is a manual process.
+
+**Fix:** Re-run the seed script with updated AAFC numbers when a new Outlook is published. Consider adding an observability check that flags when supply data is more than 3 months old.
+
+**Tags:** #aafc #supply-disposition #data-freshness #manual-process
+
+### Finding 4: Deliveries WoW Redundancy Resolved (LOW — CLOSED)
+
+**Prior issue:** Deliveries data was shown in 3 components simultaneously (NetBalanceKpi, IntelligenceKpis, WoWComparisonCard), creating visual redundancy on the grain detail page.
+
+**Resolution:** The WS4 grain detail page restructure removed NetBalanceKpi and moved WoWComparisonCard into an expandable accordion. The remaining redundancy (IntelligenceKpis headline number + WoW table detail) is intentional — KPIs serve as a quick-scan summary while the WoW table provides detailed week-over-week context.
+
+**Tags:** #ux #redundancy #resolved #grain-detail
