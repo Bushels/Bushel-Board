@@ -1,5 +1,40 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-15 — Stale Prior-Week Data Caused Wrong WoW Direction (Stocks Showed -10.7% Instead of +3.2%)
+
+**Symptom:** After fixing the Stocks formula (see next entry), the Canola Stocks card correctly showed 1,470.5 Kt for week 31, but the WoW change showed **-10.7% "Stock drawdown"** when it should have been **+3.2% "Stock build"**. CGC Excel confirmed week 30 Canola Summary Stocks = 1,424.4 Kt, but our database had 1,646.1 Kt for week 30.
+
+**Root Cause (two compounding bugs):**
+
+1. **Import route only captured current-week rows:** `app/api/cron/import-cgc/route.ts` filtered the full CGC CSV down to `grain_week === grainWeek` (line 106-108). CGC revises prior-week data when publishing new weeks (preliminary → final values). By discarding all non-current-week rows, we never picked up CGC's revisions to prior weeks. Week 30's preliminary value of 1,646.1 Kt was never corrected to the final 1,424.4 Kt.
+
+2. **`ignoreDuplicates: true` prevented updates even if rows were included:** Both the import route (line 139) and the backfill script (line 160) used `ignoreDuplicates: true`, which maps to PostgreSQL's `ON CONFLICT DO NOTHING`. Even if prior-week rows had been included, they would have been silently skipped because the rows already existed. This meant once a row was inserted, it could never be corrected by the pipeline.
+
+**Impact:** Every prior-week value in the database was potentially stale. Any WoW, YoY, or trend calculation that compared current-week values against prior-week values could show the wrong direction and magnitude. This affected all 16 grains, not just Canola.
+
+**Solution:**
+1. **Import route:** Changed filter from `grain_week === grainWeek` to `crop_year === cropYear` — now imports ALL rows for the current crop year on every weekly run. Changed `ignoreDuplicates: false` (= `ON CONFLICT DO UPDATE`) so revised values overwrite stale ones.
+2. **Backfill script:** Changed `ignoreDuplicates: false`. Added `--live` flag to fetch directly from grainscanada.gc.ca instead of requiring a local CSV file.
+3. **Data repair:** Ran `npm run backfill -- --live` to upsert all 126,776 rows from the live CGC CSV, correcting all stale prior-week values across the entire crop year.
+
+**Verification (Canola Summary Stocks after backfill):**
+- Week 29: 1,451.3 Kt ✓
+- Week 30: 1,424.4 Kt ✓ (was 1,646.1 — now matches CGC Excel)
+- Week 31: 1,470.5 Kt ✓
+- WoW change: +3.2% (stock build) ✓ (was -10.7% drawdown)
+
+**Prevention:**
+- **Never use `ignoreDuplicates: true` for CGC data imports.** CGC revises prior-week data. The pipeline must always use `ON CONFLICT DO UPDATE` to accept revisions.
+- **Never filter the CGC CSV to only the current week.** Import the full crop year to catch all prior-week revisions. The CSV is ~127K rows — well within Supabase upsert capacity.
+- **Treat any WoW change >10% with suspicion.** A 10.7% swing in national commercial stocks in one week is implausible and should trigger a data freshness check.
+- Add a validation rule to `validate-import` that compares prior-week values against the CSV and flags discrepancies.
+
+**Files modified:**
+- `app/api/cron/import-cgc/route.ts` (import full crop year, ignoreDuplicates: false)
+- `scripts/backfill.ts` (ignoreDuplicates: false, --live flag)
+
+**Tags:** #data-integrity #stale-data #import-pipeline #cgc #wow #revision
+
 ## 2026-03-15 — Exports and Commercial Stocks Under-Reported Across Entire Pipeline
 
 **Symptom:** Dashboard showed Canola commercial stocks as 962.5 Kt instead of the CGC-reported 1,470.5 Kt (missing 508 Kt). Exports were under-counted by ~102 Kt across all grains. The user noticed the Stocks key metric card didn't match the CGC Excel, and the Exports pipeline velocity chart was below CGC Summary totals.

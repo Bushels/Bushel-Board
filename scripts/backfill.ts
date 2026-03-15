@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { parseCgcCsv } from "../lib/cgc/parser";
+import { fetchCurrentCgcCsv } from "../lib/cgc/source";
 
 // ---------------------------------------------------------------------------
 // CLI flags
@@ -30,7 +31,8 @@ if (args.includes("--help") || args.includes("-h")) {
 CGC Backfill Script — Load historical grain data into Supabase
 
 Usage:
-  npm run backfill                          Run the full backfill
+  npm run backfill                          Run the full backfill from local CSV
+  npm run backfill -- --live                Fetch latest CSV from grainscanada.gc.ca
   npm run backfill -- --dry-run             Parse CSV only, do not insert into Supabase
   npm run backfill -- --csv <path>          Use a custom CSV file path
   npm run backfill -- --csv <path> --dry-run  Dry-run with a custom CSV
@@ -41,13 +43,14 @@ Environment variables (from .env.local):
   SUPABASE_SERVICE_ROLE_KEY     Service role key (never expose to browser)
 
 Output:
-  stdout  JSON summary { rows_parsed, rows_inserted, rows_skipped, duration_ms }
+  stdout  JSON summary { rows_parsed, rows_upserted, rows_failed, duration_ms }
   stderr  Progress diagnostics
 `);
   process.exit(0);
 }
 
 const DRY_RUN = args.includes("--dry-run");
+const LIVE = args.includes("--live");
 
 const csvArgIndex = args.indexOf("--csv");
 const csvOverride = csvArgIndex !== -1 ? args[csvArgIndex + 1] : null;
@@ -112,19 +115,31 @@ function resolveDefaultCsvPath(): string {
 async function backfill() {
   const startTime = Date.now();
 
-  // Locate the CSV — use override or default relative to this script's directory
-  const csvPath = csvOverride
-    ? resolve(csvOverride)
-    : resolveDefaultCsvPath();
-  console.error(`Reading CSV from: ${csvPath}`);
-
   let csvText: string;
-  try {
-    csvText = readFileSync(csvPath, "utf-8");
-  } catch (err) {
-    console.error(`ERROR: Could not read CSV file at ${csvPath}`);
-    console.error(String(err));
-    process.exit(1);
+  let sourceLabel: string;
+
+  if (LIVE) {
+    // Fetch latest CSV directly from grainscanada.gc.ca
+    console.error("Fetching live CSV from grainscanada.gc.ca...");
+    const source = await fetchCurrentCgcCsv();
+    csvText = source.csvText;
+    sourceLabel = `${source.csvUrl} (backfill --live)`;
+    console.error(`Live CSV: crop_year=${source.cropYear}, grain_week=${source.grainWeek}`);
+  } else {
+    // Locate the CSV — use override or default relative to this script's directory
+    const csvPath = csvOverride
+      ? resolve(csvOverride)
+      : resolveDefaultCsvPath();
+    console.error(`Reading CSV from: ${csvPath}`);
+    sourceLabel = `${csvPath.split(/[\\/]/).pop()} (backfill)`;
+
+    try {
+      csvText = readFileSync(csvPath, "utf-8");
+    } catch (err) {
+      console.error(`ERROR: Could not read CSV file at ${csvPath}`);
+      console.error(String(err));
+      process.exit(1);
+    }
   }
 
   const rows = parseCgcCsv(csvText);
@@ -154,10 +169,12 @@ async function backfill() {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
 
+    // ignoreDuplicates: false = ON CONFLICT DO UPDATE — overwrites stale
+    // rows with revised CGC values instead of silently skipping them.
     const { error } = await supabase.from("cgc_observations").upsert(batch, {
       onConflict:
         "crop_year,grain_week,worksheet,metric,period,grain,grade,region",
-      ignoreDuplicates: true,
+      ignoreDuplicates: false,
     });
 
     if (error) {
@@ -183,9 +200,7 @@ async function backfill() {
   const { error: logError } = await supabase.from("cgc_imports").insert({
     crop_year: cropYear,
     grain_week: maxWeek,
-    source_file: csvOverride
-      ? `${csvOverride.split(/[\\/]/).pop()} (backfill)`
-      : "gsw-shg-en.csv (backfill)",
+    source_file: sourceLabel,
     rows_inserted: inserted,
     rows_skipped: skipped,
     status: skipped > 0 ? "partial" : "success",

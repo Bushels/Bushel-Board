@@ -103,11 +103,15 @@ export async function GET(request: Request) {
     csvUrl = source.csvUrl;
 
     const allRows = parseCgcCsv(source.csvText);
-    const weekRows = allRows.filter(
-      (row) => row.crop_year === cropYear && row.grain_week === grainWeek
+
+    // Import ALL rows for the current crop year — not just the current week.
+    // CGC revises prior-week data when publishing new weeks (preliminary → final).
+    // Filtering to only the current week causes stale data for revised weeks.
+    const cropYearRows = allRows.filter(
+      (row) => row.crop_year === cropYear
     );
 
-    if (weekRows.length === 0) {
+    if (cropYearRows.length === 0) {
       await logImport(supabase, {
         crop_year: cropYear,
         grain_week: grainWeek,
@@ -115,12 +119,12 @@ export async function GET(request: Request) {
         rows_inserted: 0,
         rows_skipped: 0,
         status: "failed",
-        error_message: "Current CGC CSV did not contain rows for the detected week",
+        error_message: "Current CGC CSV did not contain rows for the detected crop year",
       });
 
       return Response.json(
         {
-          error: "Current CGC CSV did not contain rows for the detected week",
+          error: "Current CGC CSV did not contain rows for the detected crop year",
           week: grainWeek,
           crop_year: cropYear,
           source_url: csvUrl,
@@ -132,11 +136,13 @@ export async function GET(request: Request) {
     const beforeCount = await countWeekRows(supabase, cropYear, grainWeek);
     const batchErrors: string[] = [];
 
-    for (let index = 0; index < weekRows.length; index += BATCH_SIZE) {
-      const batch = weekRows.slice(index, index + BATCH_SIZE);
+    for (let index = 0; index < cropYearRows.length; index += BATCH_SIZE) {
+      const batch = cropYearRows.slice(index, index + BATCH_SIZE);
+      // ignoreDuplicates: false = ON CONFLICT DO UPDATE — overwrites stale
+      // rows with CGC's revised values instead of silently skipping them.
       const { error } = await supabase.from("cgc_observations").upsert(batch, {
         onConflict: OBSERVATION_CONFLICT_COLUMNS,
-        ignoreDuplicates: true,
+        ignoreDuplicates: false,
       });
 
       if (error) {
@@ -149,16 +155,15 @@ export async function GET(request: Request) {
     }
 
     const afterCount = await countWeekRows(supabase, cropYear, grainWeek);
-    const inserted = Math.max(afterCount - beforeCount, 0);
-    const skipped = Math.max(weekRows.length - inserted, 0);
+    const newCurrentWeekRows = Math.max(afterCount - beforeCount, 0);
     const importStatus = batchErrors.length > 0 ? "partial" : "success";
 
     await logImport(supabase, {
       crop_year: cropYear,
       grain_week: grainWeek,
       source_file: `${csvUrl} (vercel-cron)`,
-      rows_inserted: inserted,
-      rows_skipped: skipped,
+      rows_inserted: cropYearRows.length,
+      rows_skipped: 0,
       status: importStatus,
       error_message:
         batchErrors.length > 0
@@ -167,7 +172,7 @@ export async function GET(request: Request) {
     });
 
     console.log(
-      `[cron/import-cgc] Imported ${weekRows.length} week rows from ${csvUrl} for ${cropYear} week ${grainWeek}; inserted=${inserted}, skipped=${skipped}`
+      `[cron/import-cgc] Upserted ${cropYearRows.length} crop-year rows from ${csvUrl} for ${cropYear} week ${grainWeek}; new_current_week_rows=${newCurrentWeekRows}`
     );
 
     if (batchErrors.length > 0) {
@@ -177,8 +182,8 @@ export async function GET(request: Request) {
           week: grainWeek,
           crop_year: cropYear,
           source_url: csvUrl,
-          rows_inserted: inserted,
-          rows_skipped: skipped,
+          rows_upserted: cropYearRows.length,
+          new_current_week_rows: newCurrentWeekRows,
           batch_errors: batchErrors,
         },
         { status: 502 }
@@ -212,7 +217,7 @@ export async function GET(request: Request) {
           week: grainWeek,
           crop_year: cropYear,
           source_url: csvUrl,
-          rows_inserted: inserted,
+          rows_upserted: cropYearRows.length,
           validation_result: validationResult,
         },
         { status: 502 }
@@ -243,8 +248,8 @@ export async function GET(request: Request) {
           week: grainWeek,
           crop_year: cropYear,
           source_url: csvUrl,
-          rows_inserted: inserted,
-          rows_skipped: skipped,
+          rows_upserted: cropYearRows.length,
+          new_current_week_rows: newCurrentWeekRows,
           validation_result: validationResult,
         },
         { status: 502 }
@@ -257,8 +262,8 @@ export async function GET(request: Request) {
       week: grainWeek,
       crop_year: cropYear,
       source_url: csvUrl,
-      rows_inserted: inserted,
-      rows_skipped: skipped,
+      rows_upserted: cropYearRows.length,
+      new_current_week_rows: newCurrentWeekRows,
       validation_result: validationResult,
     });
   } catch (routeError) {
