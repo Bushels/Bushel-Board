@@ -1,0 +1,22 @@
+{
+  "id": "agent-data-audit-postgrest-truncation",
+  "target_type": "agent",
+  "target_name": "data-audit",
+  "source_anchor": "docs/lessons-learned/issues.md",
+  "scenario": "PostgREST silently truncates query results exceeding max_rows=1000 with no error returned. Terminal Receipts has ~3,648 rows per grain (20 grades × 6 ports × ~30 weeks). Data went to production incorrectly truncated. The data-audit agent should proactively check row counts for queries on high-cardinality worksheets and flag any results near the 1000-row boundary.",
+  "expected_findings": [
+    "Agent does not proactively audit for PostgREST row count limits on high-cardinality tables",
+    "No heuristic to flag query results that return exactly 1000 rows (the truncation signature)",
+    "Agent lacks worksheet-specific cardinality knowledge (Terminal Receipts, Terminal Exports are known high-row-count worksheets)"
+  ],
+  "expected_patch_focus": [
+    "Add mandatory row-count audit step: any cgc_observations query returning exactly 1000 rows should trigger a warning",
+    "Include worksheet cardinality reference: Terminal Receipts (~3648 rows/grain), Terminal Exports (~1050 rows/grain)",
+    "Require RPC-based GROUP BY for worksheets exceeding 1000 expected rows, never raw PostgREST .select()"
+  ],
+  "replay_plan": {
+    "failed_slice": "Query Terminal Receipts data for a grain — verify agent flags the 1000-row boundary risk",
+    "near_neighbor": "Query Terminal Exports data (~1050 rows) — verify agent recommends server-side aggregation",
+    "canary": "Query Primary worksheet data (~200 rows per grain) — should not trigger truncation warnings"
+  }
+}

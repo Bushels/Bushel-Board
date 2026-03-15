@@ -57,7 +57,7 @@ export function LogDeliveryModal({
 }: LogDeliveryModalProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unit, setUnit] = useState<DeliveryUnit>("tonnes");
+  const [unit, setUnit] = useState<DeliveryUnit>("kg");
   const [deliveryBushelWeightLbs, setDeliveryBushelWeightLbs] = useState(
     bushelWeightLbs
   );
@@ -216,6 +216,9 @@ export function LogDeliveryModal({
               type="text"
               placeholder="e.g. Viterra Rosetown"
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Adding your delivery point helps us bring you local elevator prices and features as they become available.
+            </p>
           </div>
 
           {error && (

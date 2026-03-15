@@ -7,13 +7,28 @@ import { cn } from "@/lib/utils";
 import { voteSentimentFromFarm } from "@/app/(dashboard)/my-farm/sentiment-actions";
 import type { UserRole } from "@/lib/auth/role-guard";
 import type { SentimentOverviewRow } from "@/lib/queries/sentiment";
+import {
+  Lock,
+  Warehouse,
+  Scale,
+  Truck,
+  Rocket,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const SENTIMENT_OPTIONS = [
-  { value: 1, label: "Strongly Holding", short: "Strong Hold", icon: "\u{1F512}" },
-  { value: 2, label: "Holding", short: "Hold", icon: "\u{1F4E6}" },
-  { value: 3, label: "Neutral", short: "Neutral", icon: "\u2696\uFE0F" },
-  { value: 4, label: "Hauling", short: "Haul", icon: "\u{1F69C}" },
-  { value: 5, label: "Strongly Hauling", short: "Strong Haul", icon: "\u{1F69B}" },
+const SENTIMENT_OPTIONS: ReadonlyArray<{
+  value: number;
+  label: string;
+  short: string;
+  Icon: LucideIcon;
+  color: string;
+  activeColor: string;
+}> = [
+  { value: 1, label: "Strongly Holding", short: "Strong Hold", Icon: Lock, color: "text-amber-600/70", activeColor: "text-amber-600" },
+  { value: 2, label: "Holding", short: "Hold", Icon: Warehouse, color: "text-amber-500/70", activeColor: "text-amber-500" },
+  { value: 3, label: "Neutral", short: "Neutral", Icon: Scale, color: "text-muted-foreground/70", activeColor: "text-muted-foreground" },
+  { value: 4, label: "Hauling", short: "Haul", Icon: Truck, color: "text-prairie/70", activeColor: "text-prairie" },
+  { value: 5, label: "Strongly Hauling", short: "Strong Haul", Icon: Rocket, color: "text-prairie/70", activeColor: "text-prairie" },
 ] as const;
 
 const springTransition = { type: "spring" as const, damping: 20, stiffness: 300 };
@@ -142,27 +157,35 @@ function GrainSentimentRow({
 
         {!isObserver && (
           <div className="flex gap-1.5">
-            {SENTIMENT_OPTIONS.map((option) => (
-              <motion.button
-                key={option.value}
-                onClick={() => handleVote(option.value)}
-                disabled={isPending}
-                whileTap={{ scale: 0.92 }}
-                whileHover={{ scale: 1.08 }}
-                transition={springTransition}
-                className={cn(
-                  "flex items-center justify-center rounded-md border px-2 py-1.5 text-base transition-colors",
-                  "hover:border-canola/50 hover:bg-canola/5",
-                  userVote === option.value
-                    ? "border-canola bg-canola/10 ring-1 ring-canola/30"
-                    : "border-border/50 bg-background",
-                  isPending && "opacity-60 cursor-wait"
-                )}
-                title={option.label}
-              >
-                <span>{option.icon}</span>
-              </motion.button>
-            ))}
+            {SENTIMENT_OPTIONS.map((option) => {
+              const isActive = userVote === option.value;
+              return (
+                <motion.button
+                  key={option.value}
+                  onClick={() => handleVote(option.value)}
+                  disabled={isPending}
+                  whileTap={{ scale: 0.92 }}
+                  whileHover={{ scale: 1.08 }}
+                  transition={springTransition}
+                  className={cn(
+                    "flex items-center justify-center rounded-md border px-2 py-1.5 transition-colors",
+                    "hover:border-canola/50 hover:bg-canola/5",
+                    isActive
+                      ? "border-canola bg-canola/10 ring-1 ring-canola/30"
+                      : "border-border/50 bg-background",
+                    isPending && "opacity-60 cursor-wait"
+                  )}
+                  title={option.label}
+                >
+                  <option.Icon
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      isActive ? option.activeColor : option.color
+                    )}
+                  />
+                </motion.button>
+              );
+            })}
           </div>
         )}
       </div>

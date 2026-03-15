@@ -13,6 +13,7 @@ const provinceConfig: Record<
   Alberta: { abbr: "AB", color: "bg-province-ab" },
   Saskatchewan: { abbr: "SK", color: "bg-province-sk" },
   Manitoba: { abbr: "MB", color: "bg-province-mb" },
+  "British Columbia": { abbr: "BC", color: "bg-province-bc" },
 };
 
 export function ProvincialCards({ data }: { data: ProvincialData[] }) {
@@ -28,7 +29,7 @@ export function ProvincialCards({ data }: { data: ProvincialData[] }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {provinces.map((d) => {
         const config = provinceConfig[d.region];
         if (!config) return null;

@@ -187,6 +187,19 @@ export default async function MyFarmPage() {
         </p>
       </div>
 
+      {/* WEEKLY SUMMARY */}
+      <section className="space-y-4">
+        <SectionHeader
+          title="Weekly Summary"
+          subtitle="Your personalized farm brief"
+        />
+        <FarmSummaryCard
+          summary={farmSummary}
+          hasPlans={plans.length > 0}
+          hasLoggedDeliveries={hasLoggedDeliveries}
+        />
+      </section>
+
       {/* MARKET SENTIMENT */}
       {plans.length > 0 && (
         <section className="space-y-4">
@@ -263,18 +276,6 @@ export default async function MyFarmPage() {
         </section>
       )}
 
-      {/* WEEKLY SUMMARY */}
-      <section className="space-y-4">
-        <SectionHeader
-          title="Weekly Summary"
-          subtitle="Your personalized farm brief"
-        />
-        <FarmSummaryCard
-          summary={farmSummary}
-          hasPlans={plans.length > 0}
-          hasLoggedDeliveries={hasLoggedDeliveries}
-        />
-      </section>
     </div>
   );
 }

@@ -8,13 +8,28 @@ import { voteSentiment } from "@/app/(dashboard)/grain/[slug]/actions";
 import { YourImpact } from "./your-impact";
 import { MicroCelebration, useCelebration } from "@/components/motion/micro-celebration";
 import type { UserRole } from "@/lib/auth/role-guard";
+import {
+  Lock,
+  Warehouse,
+  Scale,
+  Truck,
+  Rocket,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const SENTIMENT_OPTIONS = [
-  { value: 1, label: "Strongly Holding", short: "Strong Hold", icon: "🔒" },
-  { value: 2, label: "Holding", short: "Hold", icon: "📦" },
-  { value: 3, label: "Neutral", short: "Neutral", icon: "⚖️" },
-  { value: 4, label: "Hauling", short: "Haul", icon: "🚜" },
-  { value: 5, label: "Strongly Hauling", short: "Strong Haul", icon: "🚛" },
+const SENTIMENT_OPTIONS: ReadonlyArray<{
+  value: number;
+  label: string;
+  short: string;
+  Icon: LucideIcon;
+  color: string;
+  activeColor: string;
+}> = [
+  { value: 1, label: "Strongly Holding", short: "Strong Hold", Icon: Lock, color: "text-amber-600/70", activeColor: "text-amber-600" },
+  { value: 2, label: "Holding", short: "Hold", Icon: Warehouse, color: "text-amber-500/70", activeColor: "text-amber-500" },
+  { value: 3, label: "Neutral", short: "Neutral", Icon: Scale, color: "text-muted-foreground/70", activeColor: "text-muted-foreground" },
+  { value: 4, label: "Hauling", short: "Haul", Icon: Truck, color: "text-prairie/70", activeColor: "text-prairie" },
+  { value: 5, label: "Strongly Hauling", short: "Strong Haul", Icon: Rocket, color: "text-prairie/70", activeColor: "text-prairie" },
 ] as const;
 
 const springTransition = { type: "spring" as const, damping: 20, stiffness: 300 };
@@ -100,40 +115,48 @@ export function SentimentPoll({
           {!isObserver && (
             <div className="space-y-3">
               <div className="flex gap-2">
-              {SENTIMENT_OPTIONS.map((option, i) => (
-                <motion.button
-                  key={option.value}
-                  onClick={() => handleVote(option.value)}
-                  disabled={isPending}
-                  whileTap={{ scale: 0.95 }}
-                  whileHover={{ scale: 1.03 }}
-                  animate={
-                    userVote === option.value
-                      ? { scale: 1.0 }
-                      : { scale: 1 }
-                  }
-                  transition={
-                    userVote === option.value
-                      ? { type: "spring" as const, damping: 8, stiffness: 400 }
-                      : springTransition
-                  }
-                  initial={{ opacity: 0, y: 8 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className={cn(
-                    "flex-1 flex flex-col items-center gap-1 rounded-lg border p-3 text-xs transition-colors",
-                    "hover:border-canola/50 hover:bg-canola/5",
-                    userVote === option.value
-                      ? "border-canola bg-canola/10 ring-1 ring-canola/30 font-semibold"
-                      : "border-border/50 bg-background",
-                    isPending && "opacity-60 cursor-wait"
-                  )}
-                  style={{ transitionDelay: `${i * 40}ms` }}
-                >
-                  <span className="text-lg">{option.icon}</span>
-                  <span className="hidden sm:inline">{option.short}</span>
-                </motion.button>
-              ))}
+              {SENTIMENT_OPTIONS.map((option, i) => {
+                const isActive = userVote === option.value;
+                return (
+                  <motion.button
+                    key={option.value}
+                    onClick={() => handleVote(option.value)}
+                    disabled={isPending}
+                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.03 }}
+                    animate={
+                      isActive
+                        ? { scale: 1.0 }
+                        : { scale: 1 }
+                    }
+                    transition={
+                      isActive
+                        ? { type: "spring" as const, damping: 8, stiffness: 400 }
+                        : springTransition
+                    }
+                    initial={{ opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className={cn(
+                      "flex-1 flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors",
+                      "hover:border-canola/50 hover:bg-canola/5",
+                      isActive
+                        ? "border-canola bg-canola/10 ring-1 ring-canola/30 font-semibold"
+                        : "border-border/50 bg-background",
+                      isPending && "opacity-60 cursor-wait"
+                    )}
+                    style={{ transitionDelay: `${i * 40}ms` }}
+                  >
+                    <option.Icon
+                      className={cn(
+                        "h-6 w-6 transition-colors",
+                        isActive ? option.activeColor : option.color
+                      )}
+                    />
+                    <span className="hidden sm:inline">{option.short}</span>
+                  </motion.button>
+                );
+              })}
               </div>
               {error && (
                 <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">

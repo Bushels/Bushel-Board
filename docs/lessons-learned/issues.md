@@ -1,5 +1,75 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-15 — Exports and Commercial Stocks Under-Reported Across Entire Pipeline
+
+**Symptom:** Dashboard showed Canola commercial stocks as 962.5 Kt instead of the CGC-reported 1,470.5 Kt (missing 508 Kt). Exports were under-counted by ~102 Kt across all grains. The user noticed the Stocks key metric card didn't match the CGC Excel, and the Exports pipeline velocity chart was below CGC Summary totals.
+
+**Root Cause (Bug 1 — Stocks):** The `v_grain_yoy_comparison` view and the `getWeekOverWeekComparison()` TypeScript function both filtered `region IN ('Primary Elevators', 'Process Elevators')` for stocks. This excluded all six terminal port locations (Vancouver, Prince Rupert, Churchill, Thunder Bay, Bay & Lakes, St. Lawrence) which hold ~290-500 Kt of grain. The CGC "Total Commercial Stocks" includes ALL Summary Stocks regions. The `getStorageBreakdown()` function also only fetched Primary + Process, then queried a non-existent "Terminal Stocks" worksheet.
+
+**Root Cause (Bug 2 — Exports):** The `get_pipeline_velocity()` RPC, `get_pipeline_velocity_avg()` RPC, and `v_grain_yoy_comparison` view all defined exports as only `Terminal Exports.Exports`. But the CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct cross-border exports bypassing terminals). This was already documented in CLAUDE.md but never applied to the SQL objects.
+
+**Root Cause (Bug 3 — Delivery delta):** The key metrics card used `period = 'Current Week'` (460.2 Kt) while the Net Balance chart derived weekly deltas from `period = 'Crop Year'` cumulative data (462.0 Kt). The 1.8 Kt (<0.5%) difference is a CGC rounding artifact — they round weekly and cumulative values independently. Not a code bug.
+
+**Solution:**
+1. **Stocks:** Removed region filter from `current_stocks`/`prior_stocks` CTEs in `v_grain_yoy_comparison`, made Stocks a composite metric in WoW comparison (summing all Summary Stocks regions), fixed `getStorageBreakdown()` to pull all Summary regions and group terminal ports into "Terminal Elevators"
+2. **Exports:** Added PSD Export Destinations to exports CTEs in `get_pipeline_velocity()`, `get_pipeline_velocity_avg()`, `v_grain_yoy_comparison` (current + prior year), and made Exports a composite metric in WoW comparison
+3. **Delivery delta:** Documented as acceptable CGC rounding artifact
+
+**Verification (Canola Week 31 vs CGC Excel):**
+- Commercial stocks: 1,470.5 Kt ✓ (was 962.5)
+- Exports CY: 4,585.8 Kt ✓ (was 4,484.3, Excel shows 4,586.7 — 0.9 Kt CGC rounding)
+- Producer deliveries CW: 460.2 Kt ✓ (Excel: 460.1)
+- Wheat, Barley, Oats also verified correct
+
+**Prevention:**
+- CGC "Exports" always means Terminal Exports + PSD Export Destinations. Any new SQL/TypeScript that queries exports must include both.
+- CGC "Commercial Stocks" always means ALL Summary Stocks regions — never filter by region unless you explicitly want a subset.
+- The fact that CLAUDE.md documented the correct formula didn't prevent the bug because the SQL was written before the documentation. New SQL must be audited against CLAUDE.md definitions before deployment.
+- Run `npm run audit-data` after any pipeline SQL changes to catch definition drift.
+
+**Files modified:**
+- `lib/queries/observations.ts` (WoW comparison + StorageBreakdown)
+- `supabase/migrations/20260315300000_fix_exports_and_stocks_definitions.sql`
+
+**Tags:** #data-integrity #exports #stocks #cgc #pipeline #audit
+
+## 2026-03-15 — Producer-Delivery Formula Drift Broke Week 31 Dashboard Totals
+
+**Symptom:** Week 31 producer-delivery totals on the dashboard did not match the CGC workbook. For Canola, the CGC Summary sheet showed **460.1 Kt** current-week producer deliveries, while Bushel Board surfaced **455.6 Kt** in derived dashboard paths.
+
+**Root Cause:** The repo had multiple competing definitions of "producer deliveries." The canonical framework doc was correct, but active SQL views/RPCs, repo AGENTS guidance, and skill docs still used an older `Primary + Process` shortcut. That shortcut omitted:
+- `Primary.Deliveries` from **British Columbia**
+- `Producer Cars.Shipments`
+
+There was a second risk layered on top: some query helpers were not filtering `grade=''` on aggregate Primary rows, which can silently double-count grade detail rows. The local `gsw-shg-en.csv` cache was also stale at Week 30, so the audit path initially failed open instead of proving the mismatch against the live Week 31 source.
+
+**Solution:**
+1. Added `v_country_producer_deliveries` as the single canonical SQL definition
+2. Rebuilt `v_grain_overview`, `v_grain_yoy_comparison`, `get_pipeline_velocity()`, `get_historical_average()`, `get_week_percentile()`, and `get_pipeline_velocity_avg()` on top of that canonical view
+3. Hardened TypeScript helpers to require `grade=''` for aggregate Primary / Process / Producer Cars totals
+4. Upgraded `scripts/audit-data.ts` to fall back to the live CGC CSV and to audit derived dashboard objects against the workbook Summary sheet
+5. Updated AGENTS, agent docs, skills, and planning docs so the wrong formula is no longer documented as valid
+
+**Prevention:**
+- Define country producer deliveries in exactly two places only:
+  - SQL: `v_country_producer_deliveries`
+  - TypeScript: `lib/cgc/delivery-metrics.ts`
+- Treat any query that says "Primary + Process" as incomplete unless it explicitly explains why Producer Cars and BC are excluded
+- For aggregate Primary / Process / Producer Cars totals, decide explicitly between `grade=''` and per-grade rows; never leave grade handling implicit
+- Never trust the local CGC CSV cache for a latest-week audit without checking whether the live source has advanced
+- Do not run `npx supabase db push --linked` blindly when unrelated local migrations are still pending on the remote project
+
+**Files modified:**
+- `lib/cgc/delivery-metrics.ts`
+- `lib/queries/observations.ts`
+- `scripts/audit-data.ts`
+- `supabase/migrations/20260315100000_fix_country_producer_deliveries.sql`
+- `AGENTS.md`
+- `docs/reference/data-sources.md`
+- `docs/architecture/data-pipeline.md`
+
+**Tags:** #data-integrity #deliveries #cgc #audit #documentation #migration-safety
+
 ## 2026-03-12 — v_grain_overview Statement Timeout From Full-Table Scan on 1M+ Rows
 
 **Symptom:** The Overview page displayed "No grain data available yet" even though `v_grain_overview` contained 16 valid rows. No error was surfaced to the user.
@@ -86,6 +156,13 @@
 **Root Cause:** `get_historical_average()` queried only `worksheet='Primary'` for deliveries. But crush-heavy grains like Canola send ~31% of deliveries directly to processors (tracked in the Process worksheet as "Producer Deliveries"). The YoY view correctly uses `FULL OUTER JOIN` of Primary + Process, but the historical RPC didn't.
 
 **Solution:** Added a `CASE` expression: when `p_metric='Deliveries' AND p_worksheet='Primary'`, expand to `worksheet IN ('Primary', 'Process') AND metric IN ('Deliveries', 'Producer Deliveries')`. Applied same fix to `get_week_percentile()`.
+
+**2026-03-15 correction:** `Primary + Process` was still an incomplete intermediate fix. The full country producer-delivery formula also requires:
+- `Primary.Deliveries` from **AB, SK, MB, and BC**
+- `Process.Producer Deliveries` national totals
+- `Producer Cars.Shipments`
+
+Treat any older doc or query that says "Primary + Process" as obsolete for producer-delivery totals.
 
 **Prevention:** Any new RPC that aggregates deliveries must check whether Primary+Process combination is needed. See `v_grain_yoy_comparison` as the reference pattern.
 

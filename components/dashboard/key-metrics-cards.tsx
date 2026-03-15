@@ -2,10 +2,13 @@
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { GlassCard } from "@/components/ui/glass-card"
+import { MetricSentimentVote, type MetricType, type MetricSentimentAggregates } from "@/components/dashboard/metric-sentiment-vote"
 import { fmtKt, fmtPct } from "@/lib/utils/format"
+import type { UserRole } from "@/lib/auth/role-guard"
 
 export interface KeyMetric {
   label: string
+  metricKey: MetricType
   currentWeekKt: number
   cropYearKt: number
   wowChangePct: number
@@ -15,6 +18,11 @@ export interface KeyMetric {
 
 interface KeyMetricsCardsProps {
   metrics: KeyMetric[]
+  grain?: string
+  role?: UserRole
+  userVotes?: Record<string, "bullish" | "bearish" | null>
+  aggregates?: Record<string, MetricSentimentAggregates | null>
+  onVote?: (metric: string, sentiment: "bullish" | "bearish") => Promise<{ error?: string }>
 }
 
 function WowBadge({ pct }: { pct: number }) {
@@ -42,7 +50,7 @@ function WowBadge({ pct }: { pct: number }) {
   )
 }
 
-export function KeyMetricsCards({ metrics }: KeyMetricsCardsProps) {
+export function KeyMetricsCards({ metrics, grain, role, userVotes, aggregates, onVote }: KeyMetricsCardsProps) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {metrics.map((m, i) => (
@@ -72,6 +80,20 @@ export function KeyMetricsCards({ metrics }: KeyMetricsCardsProps) {
           <p className="mt-2 border-t border-border/40 pt-2 text-xs text-muted-foreground/80">
             {m.insight}
           </p>
+
+          {/* Row 5: Metric sentiment vote */}
+          {grain && role && onVote && (
+            <div className="mt-2 border-t border-border/30 pt-2">
+              <MetricSentimentVote
+                metric={m.metricKey}
+                grain={grain}
+                userVote={userVotes?.[m.metricKey] ?? null}
+                aggregates={aggregates?.[m.metricKey] ?? null}
+                role={role}
+                onVote={onVote}
+              />
+            </div>
+          )}
         </GlassCard>
       ))}
     </div>

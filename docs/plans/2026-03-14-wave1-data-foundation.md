@@ -173,7 +173,7 @@ To:
 ```typescript
 export interface MarketSupplyData {
   total_opening_supply_kt: number;  // production + carry_in (+ imports if material)
-  cytd_producer_deliveries_kt: number;  // Primary.Deliveries + Process.Producer Deliveries CYTD
+  cytd_producer_deliveries_kt: number;  // Primary.Deliveries (AB/SK/MB/BC) + Process.Producer Deliveries + Producer Cars.Shipments CYTD
   is_approximate?: boolean;
 }
 ```
@@ -182,7 +182,7 @@ export interface MarketSupplyData {
 
 In `page.tsx`, import `getGrainOverview` from `lib/queries/grains.ts` and call it alongside existing parallel fetches. Then build the marketSupply map using:
 - `total_opening_supply_kt`: from `supply_disposition.total_supply_kt` (which is production + carry_in + imports)
-- `cytd_producer_deliveries_kt`: from grain overview's `cy_deliveries` field (already combines Primary + Process)
+- `cytd_producer_deliveries_kt`: from grain overview's `cy_deliveries` field (already combines Primary + Process + Producer Cars, with BC on the Primary side)
 - `is_approximate`: from `supply_disposition.is_approximate`
 
 Replace lines 108-125 with the new map building logic.

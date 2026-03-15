@@ -65,7 +65,7 @@ Market Bin % = Market Bin Stock / Total Opening Supply × 100
 
 Where:
 - Total Opening Supply = Production + Carry-In (from seeded AAFC data)
-- Total Producer Deliveries = `Primary.Deliveries` (AB+SK+MB, Crop Year) + `Process.Producer Deliveries` (national, Crop Year)
+- Total Producer Deliveries = `Primary.Deliveries` (AB+SK+MB+BC, `grade=''`, Crop Year) + `Process.Producer Deliveries` (national, `grade=''`, Crop Year) + `Producer Cars.Shipments` (AB+SK+MB, `grade=''`, Crop Year)
 
 This is a **live calculation** updated weekly as CGC data arrives.
 
@@ -116,7 +116,7 @@ Uses `getLatestImportedWeek()` for data week, date calculation for current calen
 
 | Card | Data Source | Insight Logic |
 |------|-----------|---------------|
-| Producer Deliveries | Primary.Deliveries + Process.Producer Deliveries | Streak detection ("above X Kt N weeks running") |
+| Producer Deliveries | Primary.Deliveries (AB/SK/MB/BC) + Process.Producer Deliveries + Producer Cars.Shipments | Streak detection ("above X Kt N weeks running") |
 | Processing / Crush | Process.Milled/Mfg Grain | vs annual capacity pace |
 | Exports | Terminal Exports.Exports (all grades summed) | YoY comparison |
 | Commercial Stocks | Primary.Stocks (prairie) | WoW draw/build magnitude |
@@ -134,6 +134,7 @@ Data: `get_pipeline_velocity` RPC + `Feed Grains.Deliveries`
 
 Stacked area chart showing 3 delivery channels over the season:
 - Primary Elevators: `Primary.Deliveries` (prairie) — color #2e6b9e
+- Primary Elevators: `Primary.Deliveries` (AB/SK/MB/BC) — color #2e6b9e
 - Direct to Processors: `Process.Producer Deliveries` (national) — color #437a22
 - Producer Cars: `producer_car_allocations.week_cars` — color #c17f24
 
@@ -141,7 +142,7 @@ Right sidebar: current week percentage split + 8-week processor share sparkline 
 
 ### Provincial Deliveries (Item #12)
 
-Existing ProvinceMap moves to replace COT's old position. AB/SK/MB delivery breakdown with CY totals and WoW changes.
+Existing ProvinceMap moves to replace COT's old position. AB/SK/MB/BC Primary delivery breakdown with CY totals. Direct-to-processor deliveries remain national-only in CGC.
 
 ### Grain Storage Card (Item #15, New)
 

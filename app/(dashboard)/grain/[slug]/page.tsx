@@ -400,8 +400,11 @@ export default async function GrainDetailPage({ params }: Props) {
               >
                 <div className="space-y-3">
                   <h3 className="text-lg font-display font-semibold">
-                    Provincial Deliveries (CY Total)
+                    Primary Deliveries by Province (CY Total)
                   </h3>
+                  <p className="text-sm text-muted-foreground">
+                    This map shows Primary worksheet deliveries by province. CGC reports direct-to-processor deliveries nationally, so it will not sum to total producer deliveries.
+                  </p>
                   <ProvinceMap
                     provinces={(provincialResult.data ?? []).map((province) => ({
                       region: province.region,

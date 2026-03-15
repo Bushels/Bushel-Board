@@ -1,0 +1,16 @@
+{
+  "pack_id": "starter",
+  "description": "Starter benchmark pack for skill-auditor and agent-auditor using real historical failures documented in this repo.",
+  "cases": [
+    "cases/agent-verification-gates-skipped.json",
+    "cases/agent-stale-convention-enforcement.json",
+    "cases/skill-schedule-thin-description.json",
+    "cases/skill-algorithmic-art-oververbose.json",
+    "cases/skill-skill-creator-missing-benchmark-trigger.json",
+    "cases/agent-db-architect-missing-grant.json",
+    "cases/agent-data-audit-postgrest-truncation.json",
+    "cases/agent-frontend-shared-constant-drift.json",
+    "cases/agent-documentation-staleness.json",
+    "cases/agent-parallel-subagent-file-conflicts.json"
+  ]
+}

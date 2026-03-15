@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  COUNTRY_PRIMARY_DELIVERY_REGIONS,
+  PRODUCER_CAR_DELIVERY_REGIONS,
+} from "@/lib/cgc/delivery-metrics";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 
-const PRAIRIE_PROVINCES = ["Alberta", "Saskatchewan", "Manitoba"];
+const PRIMARY_PROVINCES = [...COUNTRY_PRIMARY_DELIVERY_REGIONS];
+const PRODUCER_CAR_PROVINCES = [...PRODUCER_CAR_DELIVERY_REGIONS];
 
 export interface ObservationRow {
   grain_week: number;
@@ -18,7 +23,7 @@ export interface RegionValue {
 
 /**
  * Get weekly delivery time series for a grain (current crop year).
- * Returns data for each province by week.
+ * Returns Primary worksheet regional totals (AB/SK/MB/BC) by week.
  */
 export async function getDeliveryTimeSeries(
   grainName: string,
@@ -36,7 +41,8 @@ export async function getDeliveryTimeSeries(
       .eq("period", "Current Week")
       .eq("grain", grainName)
       .eq("crop_year", year)
-      .in("region", PRAIRIE_PROVINCES)
+      .eq("grade", "")
+      .in("region", PRIMARY_PROVINCES)
       .order("grain_week");
 
     if (error) {
@@ -69,7 +75,8 @@ export async function getShipmentTimeSeries(
       .eq("period", "Current Week")
       .eq("grain", grainName)
       .eq("crop_year", year)
-      .in("region", PRAIRIE_PROVINCES)
+      .eq("grade", "")
+      .in("region", PRIMARY_PROVINCES)
       .order("grain_week");
 
     if (error) {
@@ -84,7 +91,7 @@ export async function getShipmentTimeSeries(
 }
 
 /**
- * Get provincial deliveries (crop year total) for a grain.
+ * Get provincial Primary deliveries (crop year total) for a grain.
  */
 export async function getProvincialDeliveries(
   grainName: string
@@ -104,7 +111,7 @@ export async function getProvincialDeliveries(
       .eq("crop_year", year)
       .eq("grain_week", week)
       .eq("grade", "")
-      .in("region", PRAIRIE_PROVINCES);
+      .in("region", PRIMARY_PROVINCES);
 
     if (error) {
       console.error("getProvincialDeliveries error:", error.message);
@@ -240,15 +247,16 @@ export async function getWeekOverWeekComparison(
     // spaces ("Terminal Exports") and slashes ("Milled/Mfg Grain").
     const { data: obs, error: obsError } = await supabase
       .from("cgc_observations")
-      .select("grain_week, worksheet, metric, period, region, ktonnes")
+      .select("grain_week, worksheet, metric, period, region, grade, ktonnes")
       .eq("grain", grainName)
       .eq("crop_year", year)
       .eq("period", "Current Week")
       .in("grain_week", weeks)
-      .in("worksheet", ["Primary", "Terminal Exports", "Terminal Receipts", "Process"])
+      .in("worksheet", ["Primary", "Terminal Exports", "Terminal Receipts", "Process", "Producer Cars", "Summary", "Primary Shipment Distribution"])
       .in("metric", [
         "Deliveries", "Shipments", "Stocks", "Exports",
         "Milled/Mfg Grain", "Producer Deliveries", "Receipts",
+        "Shipment Distribution",
       ]);
 
     if (obsError) {
@@ -257,14 +265,25 @@ export async function getWeekOverWeekComparison(
     if (!obs || obs.length === 0) return null;
 
     // Define metric aggregation rules.
-    // "composite" metrics sum multiple worksheet/metric combos (e.g. Deliveries =
-    // Primary prairie provinces + Process national producer deliveries).
+    // "composite" metrics sum multiple worksheet/metric combos. Deliveries use
+    // the country-level CGC definition: Primary + Process + Producer Cars.
+    type RegionFilter = "primary" | "producer_cars" | "export_destinations" | "all";
+    type GradeFilter = "aggregate" | "all";
     type MetricDef = {
       label: string;
-      regionFilter: "prairie" | "all";
+      regionFilter: RegionFilter;
+      gradeFilter: GradeFilter;
     } & (
       | { type?: "simple"; worksheet: string; metric: string }
-      | { type: "composite"; sources: { worksheet: string; metric: string; regionFilter: "prairie" | "all" }[] }
+      | {
+          type: "composite";
+          sources: {
+            worksheet: string;
+            metric: string;
+            regionFilter: RegionFilter;
+            gradeFilter: GradeFilter;
+          }[];
+        }
     );
 
     const metricDefs: MetricDef[] = [
@@ -272,16 +291,35 @@ export async function getWeekOverWeekComparison(
         label: "Deliveries",
         type: "composite",
         regionFilter: "all", // overridden per-source
+        gradeFilter: "aggregate",
         sources: [
-          { worksheet: "Primary", metric: "Deliveries", regionFilter: "prairie" },
-          { worksheet: "Process", metric: "Producer Deliveries", regionFilter: "all" },
+          { worksheet: "Primary", metric: "Deliveries", regionFilter: "primary", gradeFilter: "aggregate" },
+          { worksheet: "Process", metric: "Producer Deliveries", regionFilter: "all", gradeFilter: "aggregate" },
+          { worksheet: "Producer Cars", metric: "Shipments", regionFilter: "producer_cars", gradeFilter: "aggregate" },
         ],
       },
-      { label: "Terminal Receipts", worksheet: "Terminal Receipts", metric: "Receipts", regionFilter: "all" },
-      { label: "Shipments", worksheet: "Primary", metric: "Shipments", regionFilter: "prairie" },
-      { label: "Exports", worksheet: "Terminal Exports", metric: "Exports", regionFilter: "all" },
-      { label: "Processing", worksheet: "Process", metric: "Milled/Mfg Grain", regionFilter: "all" },
-      { label: "Stocks", worksheet: "Primary", metric: "Stocks", regionFilter: "prairie" },
+      { label: "Terminal Receipts", worksheet: "Terminal Receipts", metric: "Receipts", regionFilter: "all", gradeFilter: "all" },
+      { label: "Shipments", worksheet: "Primary", metric: "Shipments", regionFilter: "primary", gradeFilter: "aggregate" },
+      {
+        label: "Exports",
+        type: "composite",
+        regionFilter: "all",
+        gradeFilter: "all",
+        sources: [
+          { worksheet: "Terminal Exports", metric: "Exports", regionFilter: "all", gradeFilter: "all" },
+          { worksheet: "Primary Shipment Distribution", metric: "Shipment Distribution", regionFilter: "export_destinations", gradeFilter: "aggregate" },
+        ],
+      },
+      { label: "Processing", worksheet: "Process", metric: "Milled/Mfg Grain", regionFilter: "all", gradeFilter: "aggregate" },
+      {
+        label: "Stocks",
+        type: "composite",
+        regionFilter: "all",
+        gradeFilter: "aggregate",
+        sources: [
+          { worksheet: "Summary", metric: "Stocks", regionFilter: "all", gradeFilter: "aggregate" },
+        ],
+      },
     ];
 
     const results: WoWMetric[] = [];
@@ -291,7 +329,8 @@ export async function getWeekOverWeekComparison(
       weekNum: number,
       worksheet: string,
       metric: string,
-      regionFilter: "prairie" | "all"
+      regionFilter: RegionFilter,
+      gradeFilter: GradeFilter
     ) =>
       obs
         .filter(
@@ -299,9 +338,14 @@ export async function getWeekOverWeekComparison(
             o.grain_week === weekNum &&
             o.worksheet === worksheet &&
             o.metric === metric &&
-            (regionFilter === "prairie"
-              ? PRAIRIE_PROVINCES.includes(o.region)
-              : true)
+            (regionFilter === "primary"
+              ? PRIMARY_PROVINCES.includes(o.region)
+              : regionFilter === "producer_cars"
+                ? PRODUCER_CAR_PROVINCES.includes(o.region)
+                : regionFilter === "export_destinations"
+                  ? o.region === "Export Destinations"
+                  : true) &&
+            (gradeFilter === "aggregate" ? (o.grade ?? "") === "" : true)
         )
         .reduce((sum, o) => sum + (o.ktonnes ?? 0), 0);
 
@@ -312,15 +356,15 @@ export async function getWeekOverWeekComparison(
       if ("type" in def && def.type === "composite") {
         // Sum across multiple sources
         thisWeekVal = def.sources.reduce(
-          (sum, s) => sum + sumObs(thisWeekNum, s.worksheet, s.metric, s.regionFilter), 0
+          (sum, s) => sum + sumObs(thisWeekNum, s.worksheet, s.metric, s.regionFilter, s.gradeFilter), 0
         );
         lastWeekVal = def.sources.reduce(
-          (sum, s) => sum + sumObs(lastWeekNum, s.worksheet, s.metric, s.regionFilter), 0
+          (sum, s) => sum + sumObs(lastWeekNum, s.worksheet, s.metric, s.regionFilter, s.gradeFilter), 0
         );
       } else {
         const simple = def as MetricDef & { worksheet: string; metric: string };
-        thisWeekVal = sumObs(thisWeekNum, simple.worksheet, simple.metric, def.regionFilter);
-        lastWeekVal = sumObs(lastWeekNum, simple.worksheet, simple.metric, def.regionFilter);
+        thisWeekVal = sumObs(thisWeekNum, simple.worksheet, simple.metric, def.regionFilter, def.gradeFilter);
+        lastWeekVal = sumObs(lastWeekNum, simple.worksheet, simple.metric, def.regionFilter, def.gradeFilter);
       }
 
       const changeKt = thisWeekVal - lastWeekVal;
@@ -360,7 +404,9 @@ export async function getStorageBreakdown(
   const week = await getLatestWeek(supabase, year);
   const prevWeek = week > 1 ? week - 1 : undefined;
 
-  // Summary worksheet has stocks by elevator type — current + previous week
+  // Summary worksheet has stocks by storage location — all regions
+  // Regions: Primary Elevators, Process Elevators, Vancouver, Thunder Bay,
+  // Prince Rupert, Bay & Lakes, St. Lawrence, Churchill
   const { data } = await supabase
     .from("cgc_observations")
     .select("region, ktonnes, grain_week")
@@ -370,48 +416,38 @@ export async function getStorageBreakdown(
     .eq("metric", "Stocks")
     .eq("period", "Current Week")
     .eq("grain", grainName)
-    .eq("grade", "")
-    .in("region", [
-      "Primary Elevators",
-      "Process Elevators"
-    ]);
-
-  // Also get terminal stocks total — current + previous week
-  const { data: terminalData } = await supabase
-    .from("cgc_observations")
-    .select("region, ktonnes, grain_week")
-    .eq("crop_year", year)
-    .in("grain_week", prevWeek ? [week, prevWeek] : [week])
-    .eq("worksheet", "Terminal Stocks")
-    .eq("metric", "Stocks")
-    .eq("period", "Current Week")
-    .eq("grain", grainName);
-
-  // Split terminal data by week
-  const terminalCurrent = (terminalData ?? [])
-    .filter(r => r.grain_week === week)
-    .reduce((sum, r) => sum + (r.ktonnes ?? 0), 0);
-  const terminalPrev = prevWeek
-    ? (terminalData ?? [])
-        .filter(r => r.grain_week === prevWeek)
-        .reduce((sum, r) => sum + (r.ktonnes ?? 0), 0)
-    : undefined;
+    .eq("grade", "");
 
   // Build lookup for previous week values
   const prevLookup: Record<string, number> = {};
   if (prevWeek) {
     for (const r of (data ?? []).filter(r => r.grain_week === prevWeek)) {
-      prevLookup[r.region] = r.ktonnes ?? 0;
+      prevLookup[r.region] = Number(r.ktonnes) ?? 0;
     }
   }
 
-  const result: StorageBreakdown[] = (data ?? [])
-    .filter(r => r.grain_week === week)
-    .map(r => ({
+  // Group terminal port regions into a single "Terminal Elevators" entry
+  const TERMINAL_REGIONS = ["Vancouver", "Prince Rupert", "Churchill", "Thunder Bay", "Bay & Lakes", "St. Lawrence"];
+  const currentWeekData = (data ?? []).filter(r => r.grain_week === week);
+
+  const result: StorageBreakdown[] = [];
+
+  // Add Primary and Process Elevators as separate entries
+  for (const r of currentWeekData.filter(r => !TERMINAL_REGIONS.includes(r.region))) {
+    result.push({
       storage_type: r.region,
-      ktonnes: r.ktonnes ?? 0,
+      ktonnes: Number(r.ktonnes) ?? 0,
       prevKtonnes: prevLookup[r.region],
-    }));
+    });
+  }
+
+  // Sum terminal regions into one "Terminal Elevators" entry
+  const terminalCurrent = currentWeekData
+    .filter(r => TERMINAL_REGIONS.includes(r.region))
+    .reduce((sum, r) => sum + (Number(r.ktonnes) ?? 0), 0);
+  const terminalPrev = prevWeek
+    ? TERMINAL_REGIONS.reduce((sum, region) => sum + (prevLookup[region] ?? 0), 0)
+    : undefined;
 
   if (terminalCurrent > 0) {
     result.push({
@@ -425,12 +461,9 @@ export async function getStorageBreakdown(
 }
 
 // --- Cumulative Deliveries & Disappearance (Task 7) ---
-// TODO: v_grain_overview (in 20260304200100_dashboard_views.sql) uses v_grain_deliveries
-// which only queries Primary.Deliveries. It should also include Process.Producer Deliveries
-// (national total, region='') to capture direct-to-processor deliveries. Without this,
-// cy_deliveries_kt, cw_deliveries_kt, and prev_deliveries_kt undercount total producer
-// deliveries (e.g. ~44% undercount for Canola). A migration should UNION the Process
-// worksheet data into the cy_deliveries, cw_deliveries, and prev_deliveries CTEs.
+// Delivery overview and pipeline totals are defined at the country level:
+// Primary.Deliveries (AB/SK/MB/BC) + Process.Producer Deliveries +
+// Producer Cars.Shipments. Keep the SQL objects aligned with that formula.
 
 export interface CumulativeWeekRow {
   grain_week: number;
@@ -606,7 +639,7 @@ export interface DeliveryChannelWeek {
  * Get weekly delivery breakdown by channel: Primary Elevators, Processors,
  * and Producer Cars. Returns a time series for a stacked area chart.
  *
- * - Primary Elevators: cgc_observations Primary.Deliveries (3 prairie provinces summed)
+ * - Primary Elevators: cgc_observations Primary.Deliveries (AB/SK/MB/BC summed)
  * - Processors: cgc_observations Process.Producer Deliveries (national total)
  * - Producer Cars: producer_car_allocations week_cars (car count, NOT Kt)
  */
@@ -620,7 +653,7 @@ export async function getDeliveryChannelBreakdown(
 
     // Three parallel queries for the three delivery channels
     const [primaryRes, processRes, producerCarRes] = await Promise.all([
-      // 1. Primary Elevators: 3 prairie provinces, sum per grain_week
+      // 1. Primary Elevators: AB/SK/MB/BC, sum per grain_week
       supabase
         .from("cgc_observations")
         .select("grain_week, ktonnes")
@@ -630,7 +663,7 @@ export async function getDeliveryChannelBreakdown(
         .eq("grain", grainName)
         .eq("crop_year", year)
         .eq("grade", "")
-        .in("region", PRAIRIE_PROVINCES)
+        .in("region", PRIMARY_PROVINCES)
         .order("grain_week"),
 
       // 2. Processors: national total (one row per week)
@@ -664,7 +697,7 @@ export async function getDeliveryChannelBreakdown(
       console.error("getDeliveryChannelBreakdown producer cars error:", producerCarRes.error.message);
     }
 
-    // Aggregate Primary Elevators by grain_week (3 provinces → 1 total)
+    // Aggregate Primary Elevators by grain_week (4 provinces → 1 total)
     const primaryByWeek = new Map<number, number>();
     for (const row of primaryRes.data ?? []) {
       const wk = Number(row.grain_week);

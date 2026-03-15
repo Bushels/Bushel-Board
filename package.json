@@ -12,6 +12,7 @@
     "distill-knowledge": "npx tsx scripts/distill-knowledge.ts",
     "seed-supply": "npx tsx scripts/seed-supply-disposition.ts",
     "audit-data": "npx tsx scripts/audit-data.ts",
+    "benchmark:coding-models": "npx tsx scripts/benchmark-coding-models.ts",
     "seed-capacity": "npx tsx scripts/seed-processor-capacity.ts",
     "seed-prices": "npx tsx scripts/seed-grain-prices.ts",
     "test": "vitest run",

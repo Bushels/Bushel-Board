@@ -9,20 +9,27 @@ interface BullBearCardsProps {
   finalAssessment?: string;
 }
 
-export function BullBearCards({ bullCase, bearCase, confidence, modelUsed, confidenceScore, finalAssessment }: BullBearCardsProps) {
+const CONFIDENCE_SCORES: Record<string, number> = {
+  high: 85,
+  medium: 55,
+  low: 25,
+};
+
+export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, finalAssessment }: BullBearCardsProps) {
   // Strip leading bullets: ASCII dash, Unicode bullet (•), triangular bullet (‣), middle dot (·), em dash (—), asterisk
   const stripBullet = (s: string) => s.replace(/^[\s\-–—•‣·*]+\s*/, '').trim();
   const bullPoints = bullCase.split(/\n/).map(stripBullet).filter(Boolean);
   const bearPoints = bearCase.split(/\n/).map(stripBullet).filter(Boolean);
 
-  const confidenceColors = {
-    high: "text-prairie",
-    medium: "text-canola",
-    low: "text-muted-foreground",
-  };
+  // Use confidenceScore if provided, otherwise derive from confidence label
+  const score = confidenceScore ?? CONFIDENCE_SCORES[confidence] ?? 50;
+  const scoreColor =
+    score >= 70 ? "#437a22" : score >= 40 ? "#c17f24" : "#d97706";
+  const scoreLabel =
+    score >= 70 ? "High" : score >= 40 ? "Medium" : "Low";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Bull Case */}
         <div className="rounded-lg border border-prairie/20 bg-prairie/5 p-4">
@@ -59,28 +66,29 @@ export function BullBearCards({ bullCase, bearCase, confidence, modelUsed, confi
         </div>
       </div>
 
-      {/* Confidence gauge */}
-      {confidenceScore != null && (
-        <div className="space-y-1 px-1">
-          <span className="text-xs text-muted-foreground">
-            Confidence: {confidenceScore}%
+      {/* Confidence bar */}
+      <div className="px-1 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">
+            Analysis Confidence
           </span>
-          <div className="h-2 w-full rounded-full bg-muted/40">
-            <div
-              className="h-2 rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.max(0, Math.min(100, confidenceScore))}%`,
-                backgroundColor:
-                  confidenceScore < 40
-                    ? "#d97706"
-                    : confidenceScore <= 70
-                      ? "hsl(var(--muted-foreground))"
-                      : "#437a22",
-              }}
-            />
-          </div>
+          <span
+            className="text-xs font-semibold"
+            style={{ color: scoreColor }}
+          >
+            {scoreLabel} ({score}%)
+          </span>
         </div>
-      )}
+        <div className="h-2.5 w-full rounded-full bg-muted/40 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-700 ease-out"
+            style={{
+              width: `${Math.max(0, Math.min(100, score))}%`,
+              backgroundColor: scoreColor,
+            }}
+          />
+        </div>
+      </div>
 
       {/* Final assessment callout */}
       {finalAssessment && (
@@ -93,16 +101,6 @@ export function BullBearCards({ bullCase, bearCase, confidence, modelUsed, confi
           </p>
         </div>
       )}
-
-      {/* Attribution footer */}
-      <div className="flex items-center justify-between text-[0.65rem] text-muted-foreground/60 px-1">
-        <span className={confidenceColors[confidence]}>
-          Confidence: {confidence}
-        </span>
-        {modelUsed && (
-          <span>Analysis by {modelUsed} + Grok</span>
-        )}
-      </div>
     </div>
   );
 }

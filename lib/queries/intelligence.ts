@@ -113,6 +113,8 @@ export interface MarketAnalysis {
     confidence: "high" | "medium" | "low";
   }>;
   model_used: string;
+  confidence_score: number | null;
+  final_assessment: string | null;
   generated_at: string;
 }
 

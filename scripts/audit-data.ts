@@ -18,18 +18,67 @@
 import * as XLSX from "xlsx";
 import { readFileSync, existsSync } from "fs";
 import { relative, resolve } from "path";
-import { parseCgcCsv, getCurrentCropYear } from "../lib/cgc/parser";
+import { fetchCurrentCgcCsv } from "../lib/cgc/source";
+import {
+  type CgcRow,
+  getCurrentCropYear,
+  parseCgcCsv,
+} from "../lib/cgc/parser";
 
 // ─── Config ──────────────────────────────────────────────────────────
 
-const TOLERANCE = 0.001; // Kt tolerance for float comparison
+const TOLERANCE = 0.001; // Kt tolerance for exact worksheet-row comparisons
+const DERIVED_TOLERANCE = 0.15; // Derived dashboard totals allow CGC summary-sheet rounding drift (~0.1 Kt)
 const DATA_DIR_CANDIDATES = [
   resolve(process.cwd(), "data", "CGC Weekly"),
   resolve(process.cwd(), "data"),
 ];
+const VALID_WORKSHEETS = new Set([
+  "Primary",
+  "Process",
+  "Summary",
+  "Terminal Receipts",
+]);
+const VALID_METRICS = new Set([
+  "Deliveries",
+  "Producer Deliveries",
+  "Receipts",
+  "Exports",
+]);
+const VALID_PERIODS = new Set(["Current Week", "Crop Year"]);
+const VALID_GRAINS = new Set([
+  "Wheat",
+  "Amber Durum",
+  "Oat",
+  "Barley",
+  "Rye",
+  "Flaxseed",
+  "Canola",
+  "Sunflower",
+  "Soybeans",
+  "Peas",
+  "Corn",
+  "Canaryseed",
+  "Mustard Seed",
+  "Beans",
+  "Lentil",
+  "Chick Peas",
+]);
+const VALID_REGIONS = new Set([
+  "",
+  "Alberta",
+  "Saskatchewan",
+  "Manitoba",
+  "British Columbia",
+  "Total",
+]);
 
 interface AuditCheck {
-  source: "excel-csv" | "csv-supabase" | "excel-supabase";
+  source:
+    | "excel-csv"
+    | "csv-supabase"
+    | "excel-supabase"
+    | "excel-dashboard";
   worksheet: string;
   metric: string;
   grain: string;
@@ -98,6 +147,10 @@ function parseArgs(): { week?: number } {
   const weekIdx = args.indexOf("--week");
   if (weekIdx !== -1 && args[weekIdx + 1]) {
     return { week: parseInt(args[weekIdx + 1], 10) };
+  }
+  const positionalWeek = args.find((arg) => /^\d+$/.test(arg));
+  if (positionalWeek) {
+    return { week: parseInt(positionalWeek, 10) };
   }
   return {};
 }
@@ -202,22 +255,49 @@ const SUMMARY_GRAINS: Record<string, number> = {
 // ─── CSV Reader ──────────────────────────────────────────────────────
 
 interface CsvLookup {
+  sourceFile: string;
+  rows: CgcRow[];
   get(worksheet: string, metric: string, period: string, grain: string, grade: string, region: string): number | undefined;
 }
 
-function loadCsvForWeek(week: number): CsvLookup {
+async function loadCsvForWeek(week: number): Promise<CsvLookup> {
   const csvPath = resolveCgcDataFile("gsw-shg-en.csv");
   if (!existsSync(csvPath)) {
     console.error(`ERROR: CSV file not found: ${csvPath}`);
     process.exit(1);
   }
-  console.error(`Loading CSV: ${toWorkspaceRelativePath(csvPath)}`);
-  const content = readFileSync(csvPath, "utf-8");
-  const rows = parseCgcCsv(content);
-  console.error(`  Parsed ${rows.length} CSV rows`);
 
   const cropYear = getCurrentCropYear();
-  const weekRows = rows.filter((r) => r.grain_week === week && r.crop_year === cropYear);
+  const localSource = toWorkspaceRelativePath(csvPath);
+  console.error(`Loading CSV: ${localSource}`);
+  const localRows = parseCgcCsv(readFileSync(csvPath, "utf-8"));
+  console.error(`  Parsed ${localRows.length} local CSV rows`);
+
+  let sourceFile = localSource;
+  let weekRows = localRows.filter(
+    (r) => r.grain_week === week && r.crop_year === cropYear
+  );
+
+  if (weekRows.length === 0) {
+    console.error(
+      `  Local CSV does not contain week ${week}; fetching live CGC CSV as fallback`
+    );
+    const liveSource = await fetchCurrentCgcCsv();
+    const liveRows = parseCgcCsv(liveSource.csvText);
+    weekRows = liveRows.filter(
+      (r) => r.grain_week === week && r.crop_year === cropYear
+    );
+
+    if (weekRows.length === 0) {
+      console.error(
+        `ERROR: Requested week ${week} is not present in the local cache or the live CGC CSV`
+      );
+      process.exit(1);
+    }
+
+    sourceFile = liveSource.csvUrl;
+  }
+
   console.error(`  ${weekRows.length} rows for week ${week}, crop year ${cropYear}`);
 
   const map = new Map<string, number>();
@@ -227,6 +307,8 @@ function loadCsvForWeek(week: number): CsvLookup {
   }
 
   return {
+    sourceFile,
+    rows: weekRows,
     get(worksheet, metric, period, grain, grade, region) {
       const key = `${worksheet}|${metric}|${period}|${grain}|${grade}|${region}`;
       return map.get(key);
@@ -253,9 +335,27 @@ async function querySupabase(
     return undefined;
   }
 
+  validateAuditQueryInputs({
+    worksheet,
+    metric,
+    period,
+    grain,
+    region,
+    grainWeek,
+    cropYear,
+  });
+
   if (sumGrades) {
     // Use raw SQL via the REST API for aggregation (bypasses PostgREST row limits)
-    const sql = `SELECT COALESCE(SUM(ktonnes), 0) as total FROM cgc_observations WHERE worksheet='${worksheet}' AND metric='${metric}' AND period='${period}' AND grain='${grain}' AND region='${region}' AND grain_week=${grainWeek} AND crop_year='${cropYear}'`;
+    const sql = `SELECT COALESCE(SUM(ktonnes), 0) as total FROM cgc_observations WHERE worksheet='${escapeSqlLiteral(
+      worksheet
+    )}' AND metric='${escapeSqlLiteral(metric)}' AND period='${escapeSqlLiteral(
+      period
+    )}' AND grain='${escapeSqlLiteral(grain)}' AND region='${escapeSqlLiteral(
+      region
+    )}' AND grain_week=${grainWeek} AND crop_year='${escapeSqlLiteral(
+      cropYear
+    )}'`;
 
     const resp = await fetch(`${url}/rest/v1/rpc/execute_raw_sql`, {
       method: "POST",
@@ -269,6 +369,11 @@ async function querySupabase(
 
     // Fallback: query with PostgREST if RPC doesn't exist
     if (!resp.ok) {
+      const rpcError = await resp.text().catch(() => "<unreadable body>");
+      console.error(
+        `WARN: execute_raw_sql failed for ${worksheet}/${metric}/${period}/${grain}/${region} week ${grainWeek}: ${resp.status} ${rpcError}`
+      );
+
       // Direct PostgREST query — may be truncated for large result sets
       const params = new URLSearchParams({
         worksheet: `eq.${worksheet}`,
@@ -285,7 +390,15 @@ async function querySupabase(
         headers: { Authorization: `Bearer ${key}`, apikey: key },
       });
 
-      if (!fallbackResp.ok) return undefined;
+      if (!fallbackResp.ok) {
+        const fallbackError = await fallbackResp
+          .text()
+          .catch(() => "<unreadable body>");
+        console.error(
+          `ERROR: PostgREST fallback failed for ${worksheet}/${metric}/${period}/${grain}/${region} week ${grainWeek}: ${fallbackResp.status} ${fallbackError}`
+        );
+        return undefined;
+      }
       const data = (await fallbackResp.json()) as { ktonnes: string | number }[];
       return data.reduce((sum, r) => sum + Number(r.ktonnes), 0);
     }
@@ -320,8 +433,142 @@ async function querySupabase(
 
 // ─── Comparison Logic ────────────────────────────────────────────────
 
-function closeEnough(a: number, b: number): boolean {
-  return Math.abs(a - b) <= TOLERANCE;
+async function queryDashboardDeliveryOverview(
+  grainSlug: string
+): Promise<{ cw_deliveries_kt: number; cy_deliveries_kt: number } | undefined> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return undefined;
+
+  const params = new URLSearchParams({
+    select: "cw_deliveries_kt,cy_deliveries_kt",
+    slug: `eq.${grainSlug}`,
+    limit: "1",
+  });
+
+  const resp = await fetch(`${url}/rest/v1/v_grain_overview?${params}`, {
+    headers: { Authorization: `Bearer ${key}`, apikey: key },
+  });
+
+  if (!resp.ok) return undefined;
+  const data = (await resp.json()) as {
+    cw_deliveries_kt: number | string;
+    cy_deliveries_kt: number | string;
+  }[];
+
+  if (data.length === 0) return undefined;
+  return {
+    cw_deliveries_kt: Number(data[0].cw_deliveries_kt),
+    cy_deliveries_kt: Number(data[0].cy_deliveries_kt),
+  };
+}
+
+async function queryYoYDeliveryOverview(
+  grain: string
+): Promise<{ cw_deliveries_kt: number; cy_deliveries_kt: number } | undefined> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return undefined;
+
+  const params = new URLSearchParams({
+    select: "cw_deliveries_kt,cy_deliveries_kt",
+    grain: `eq.${grain}`,
+    limit: "1",
+  });
+
+  const resp = await fetch(`${url}/rest/v1/v_grain_yoy_comparison?${params}`, {
+    headers: { Authorization: `Bearer ${key}`, apikey: key },
+  });
+
+  if (!resp.ok) return undefined;
+  const data = (await resp.json()) as {
+    cw_deliveries_kt: number | string;
+    cy_deliveries_kt: number | string;
+  }[];
+
+  if (data.length === 0) return undefined;
+  return {
+    cw_deliveries_kt: Number(data[0].cw_deliveries_kt),
+    cy_deliveries_kt: Number(data[0].cy_deliveries_kt),
+  };
+}
+
+async function queryPipelineVelocityLatest(
+  grain: string,
+  cropYear: string
+): Promise<number | undefined> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return undefined;
+
+  const resp = await fetch(`${url}/rest/v1/rpc/get_pipeline_velocity`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+      apikey: key,
+    },
+    body: JSON.stringify({ p_grain: grain, p_crop_year: cropYear }),
+  });
+
+  if (!resp.ok) return undefined;
+  const data = (await resp.json()) as {
+    grain_week: number;
+    producer_deliveries_kt: number | string;
+  }[];
+
+  if (data.length === 0) return undefined;
+  return Number(data[data.length - 1].producer_deliveries_kt);
+}
+
+function getSummaryProducerDeliveriesCell(
+  wb: XLSX.WorkBook,
+  grain: string,
+  period: "Current Week" | "Crop Year"
+): number {
+  const row = period === "Current Week" ? 15 : 17;
+  const col = SUMMARY_GRAINS[grain];
+  return getExcelCell(wb, "Summary", row, col);
+}
+
+function closeEnough(a: number, b: number, tolerance: number = TOLERANCE): boolean {
+  return Math.abs(a - b) <= tolerance;
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function validateAuditQueryInputs(params: {
+  worksheet: string;
+  metric: string;
+  period: string;
+  grain: string;
+  region: string;
+  grainWeek: number;
+  cropYear: string;
+}) {
+  if (!VALID_WORKSHEETS.has(params.worksheet)) {
+    throw new Error(`Unsupported worksheet in audit query: ${params.worksheet}`);
+  }
+  if (!VALID_METRICS.has(params.metric)) {
+    throw new Error(`Unsupported metric in audit query: ${params.metric}`);
+  }
+  if (!VALID_PERIODS.has(params.period)) {
+    throw new Error(`Unsupported period in audit query: ${params.period}`);
+  }
+  if (!VALID_GRAINS.has(params.grain)) {
+    throw new Error(`Unsupported grain in audit query: ${params.grain}`);
+  }
+  if (!VALID_REGIONS.has(params.region)) {
+    throw new Error(`Unsupported region in audit query: ${params.region}`);
+  }
+  if (!Number.isInteger(params.grainWeek) || params.grainWeek < 1 || params.grainWeek > 53) {
+    throw new Error(`Unsupported grain week in audit query: ${params.grainWeek}`);
+  }
+  if (!/^\d{4}-\d{4}$/.test(params.cropYear)) {
+    throw new Error(`Unsupported crop year in audit query: ${params.cropYear}`);
+  }
 }
 
 // ─── Main ────────────────────────────────────────────────────────────
@@ -339,7 +586,7 @@ async function main() {
 
   // Load sources
   const excel = loadExcel(latestWeek);
-  const csv = loadCsvForWeek(latestWeek);
+  const csv = await loadCsvForWeek(latestWeek);
 
   const checks: AuditCheck[] = [];
 
@@ -425,7 +672,7 @@ async function main() {
 
   // ─── 3. Summary spot checks ───────────────────────────────────────
 
-  console.error("[3/4] Summary spot checks...");
+  console.error("[3/5] Summary spot checks...");
   const summaryChecks = [
     { grain: "Wheat", metric: "Deliveries", row: 15, period: "Current Week" },
     { grain: "Canola", metric: "Deliveries", row: 15, period: "Current Week" },
@@ -525,6 +772,98 @@ async function main() {
         }
       }
     }
+    console.error("[5/5] Derived dashboard delivery metrics...");
+    const deliveryOverviewGrains = [
+      { grain: "Wheat", slug: "wheat" },
+      { grain: "Canola", slug: "canola" },
+      { grain: "Barley", slug: "barley" },
+      { grain: "Peas", slug: "peas" },
+    ];
+
+    for (const { grain, slug } of deliveryOverviewGrains) {
+      const summaryCurrentWeek = getSummaryProducerDeliveriesCell(
+        excel.workbook,
+        grain,
+        "Current Week"
+      );
+      const summaryCropYear = getSummaryProducerDeliveriesCell(
+        excel.workbook,
+        grain,
+        "Crop Year"
+      );
+
+      const overview = await queryDashboardDeliveryOverview(slug);
+      if (overview) {
+        checks.push({
+          source: "excel-dashboard",
+          worksheet: "v_grain_overview",
+          metric: "Producer Deliveries",
+          grain,
+          region: "Total",
+          period: "Current Week",
+          grade: "(derived)",
+          expected: summaryCurrentWeek,
+          actual: overview.cw_deliveries_kt,
+          pass: closeEnough(summaryCurrentWeek, overview.cw_deliveries_kt, DERIVED_TOLERANCE),
+        });
+        checks.push({
+          source: "excel-dashboard",
+          worksheet: "v_grain_overview",
+          metric: "Producer Deliveries",
+          grain,
+          region: "Total",
+          period: "Crop Year",
+          grade: "(derived)",
+          expected: summaryCropYear,
+          actual: overview.cy_deliveries_kt,
+          pass: closeEnough(summaryCropYear, overview.cy_deliveries_kt, DERIVED_TOLERANCE),
+        });
+      }
+
+      const yoyOverview = await queryYoYDeliveryOverview(grain);
+      if (yoyOverview) {
+        checks.push({
+          source: "excel-dashboard",
+          worksheet: "v_grain_yoy_comparison",
+          metric: "Producer Deliveries",
+          grain,
+          region: "Total",
+          period: "Current Week",
+          grade: "(derived)",
+          expected: summaryCurrentWeek,
+          actual: yoyOverview.cw_deliveries_kt,
+          pass: closeEnough(summaryCurrentWeek, yoyOverview.cw_deliveries_kt, DERIVED_TOLERANCE),
+        });
+        checks.push({
+          source: "excel-dashboard",
+          worksheet: "v_grain_yoy_comparison",
+          metric: "Producer Deliveries",
+          grain,
+          region: "Total",
+          period: "Crop Year",
+          grade: "(derived)",
+          expected: summaryCropYear,
+          actual: yoyOverview.cy_deliveries_kt,
+          pass: closeEnough(summaryCropYear, yoyOverview.cy_deliveries_kt, DERIVED_TOLERANCE),
+        });
+      }
+
+      const pipelineVal = await queryPipelineVelocityLatest(grain, cropYear);
+      if (pipelineVal !== undefined) {
+        checks.push({
+          source: "excel-dashboard",
+          worksheet: "get_pipeline_velocity",
+          metric: "Producer Deliveries",
+          grain,
+          region: "Total",
+          period: "Crop Year",
+          grade: "(derived)",
+          expected: summaryCropYear,
+          actual: pipelineVal,
+          pass: closeEnough(summaryCropYear, pipelineVal, DERIVED_TOLERANCE),
+        });
+      }
+    }
   } else {
     console.error("  ⚠ Skipping Supabase checks — missing credentials");
   }
@@ -539,7 +878,7 @@ async function main() {
     crop_year: cropYear,
     timestamp: new Date().toISOString(),
     excel_file: toWorkspaceRelativePath(resolveCgcDataFile(`gsw-shg-${latestWeek}-en.xlsx`)),
-    csv_file: toWorkspaceRelativePath(resolveCgcDataFile("gsw-shg-en.csv")),
+    csv_file: csv.sourceFile,
     total_checks: checks.length,
     passed,
     failed,
@@ -548,6 +887,10 @@ async function main() {
 
   console.error("\n─".repeat(50));
   console.error(`Audit complete: ${passed} passed, ${failed} failed out of ${checks.length} checks`);
+
+  if (checks.length === 0) {
+    console.error("ERROR: Audit produced zero checks. This indicates a bad source selection or configuration issue.");
+  }
 
   if (failed > 0) {
     console.error("\nFailed checks:");
@@ -558,6 +901,7 @@ async function main() {
 
   // Output JSON to stdout
   console.log(JSON.stringify(report, null, 2));
+  process.exitCode = failed > 0 || checks.length === 0 ? 1 : 0;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -578,22 +922,13 @@ function sumCsvTerminalGrades(
   metric: string,
   period: string
 ): number | undefined {
-  // Terminal worksheets in the CSV have per-grade rows
-  // We need to re-parse the CSV to sum all grades for a given grain
-  const csvPath = resolveCgcDataFile("gsw-shg-en.csv");
-  const content = readFileSync(csvPath, "utf-8");
-  const rows = parseCgcCsv(content);
-  const cropYear = getCurrentCropYear();
-
-  // Find the latest week in the CSV
-  const weekRows = rows.filter(
+  const weekRows = csv.rows.filter(
     (r) =>
       r.worksheet === "Terminal Receipts" &&
       r.metric === metric &&
       r.period === period &&
       r.grain === grain &&
-      r.region === "Total" &&
-      r.crop_year === cropYear
+      r.region === "Total"
   );
 
   if (weekRows.length === 0) return undefined;

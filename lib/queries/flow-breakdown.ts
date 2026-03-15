@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { sumCountryProducerDeliveries } from "@/lib/cgc/delivery-metrics";
 
 export interface FlowSegment {
   name: string;
@@ -20,14 +21,14 @@ const FLOW_COLORS = {
   Other: "#8b7355",
 };
 
-const PRAIRIE_PROVINCES = ["Alberta", "Saskatchewan", "Manitoba"];
-
 /**
  * Calculates "Where Grain Went" this week — breakdown of weekly disappearance.
  * Uses cgc_observations data for the given grain/cropYear/grainWeek.
  *
- * Flow = Primary Deliveries (prairie provinces) + Process Producer Deliveries (national)
- * Breakdown: Exports, Processing, and residual (Storage change / Other)
+ * Flow = country producer deliveries for the week:
+ * Primary.Deliveries (AB/SK/MB/BC, grade='') + Process.Producer Deliveries
+ * (national, grade='') + Producer Cars.Shipments (AB/SK/MB, grade='').
+ * Breakdown: Exports, Processing, and residual (Storage change / Other).
  */
 export async function getWeeklyFlowBreakdown(
   grain: string,
@@ -45,8 +46,20 @@ export async function getWeeklyFlowBreakdown(
       .eq("crop_year", cropYear)
       .eq("grain_week", grainWeek)
       .eq("period", "Current Week")
-      .in("worksheet", ["Primary", "Process", "Summary"])
-      .in("metric", ["Deliveries", "Exports", "Producer Deliveries"]);
+      .in("worksheet", [
+        "Primary",
+        "Process",
+        "Terminal Exports",
+        "Primary Shipment Distribution",
+        "Producer Cars",
+      ])
+      .in("metric", [
+        "Deliveries",
+        "Producer Deliveries",
+        "Exports",
+        "Shipment Distribution",
+        "Shipments",
+      ]);
 
     if (error || !obs || obs.length === 0) {
       return { segments: [], totalFlow: 0, grainWeek };
@@ -72,20 +85,20 @@ export async function getWeeklyFlowBreakdown(
         )
         .reduce((sum, o) => sum + Number(o.ktonnes || 0), 0);
 
-    // 1. Exports: Summary worksheet, Exports metric
-    const exports = sumObs("Summary", "Exports", { gradeFilter: "" });
+    const totalFlow = sumCountryProducerDeliveries(obs);
+
+    // 1. Exports: terminal exports plus direct exports bypassing terminals
+    const exports =
+      sumObs("Terminal Exports", "Exports") +
+      sumObs("Primary Shipment Distribution", "Shipment Distribution", {
+        regions: ["Export Destinations"],
+        gradeFilter: "",
+      });
 
     // 2. Processing: Process worksheet, Producer Deliveries metric (national total)
-    const processing = sumObs("Process", "Producer Deliveries");
-
-    // 3. Primary Deliveries: Primary worksheet, Deliveries, prairie provinces, grade=''
-    const primaryDeliveries = sumObs("Primary", "Deliveries", {
-      regions: PRAIRIE_PROVINCES,
+    const processing = sumObs("Process", "Producer Deliveries", {
       gradeFilter: "",
     });
-
-    // Total flow = Primary Deliveries + Processing (what entered the system)
-    const totalFlow = primaryDeliveries + processing;
 
     if (totalFlow <= 0) {
       return { segments: [], totalFlow: 0, grainWeek };

@@ -72,15 +72,19 @@ CGC Excel (.xlsx) → CSV (gsw-shg-en.csv) → Supabase (cgc_observations) → D
 - Terminal Receipts/Exports have per-grade sub-rows (no aggregates — must sum)
 
 **Key Verification Points:**
-1. **Primary Deliveries** — 8 grains × 3 provinces (AB, SK, MB) for Current Week + Crop Year
-2. **Process Producer Deliveries** — 4 grains (Canola, Soybean, Flaxseed, Canary Seed) for Current Week
-3. **Terminal Receipts** — Sum all grades per grain (no pre-aggregated rows)
-4. **Summary totals** — Cross-check with Primary + Terminal sums
+1. **Country Producer Deliveries** — verify the approved formula:
+   `Primary.Deliveries` (AB, SK, MB, BC, `grade=''`) +
+   `Process.Producer Deliveries` (national, `grade=''`) +
+   `Producer Cars.Shipments` (AB, SK, MB, `grade=''`)
+2. **Terminal Receipts** — Sum all grades per grain (no pre-aggregated rows)
+3. **Derived dashboard objects** — cross-check `v_grain_overview`, `v_grain_yoy_comparison`, and `get_pipeline_velocity()` against the CGC Summary workbook
+4. **Live-source fallback** — if local `gsw-shg-en.csv` is stale, fetch the live CGC CSV before concluding the audit
 
 **Known Data Gotchas:**
 - PostgREST silently truncates at 1,000 rows — always use RPC for Terminal worksheets
 - `numeric` columns return as strings from PostgREST — wrap in `Number()`
 - Crop year format: ALL tables and code use long format `"2025-2026"` (standardized March 2026). Short format `"2025-26"` is display-only via `toShortFormat()`. If you find short format in any table, it's a bug.
+- Primary, Process producer-delivery, and Producer Cars aggregate rows require `grade=''`. Missing that filter can silently double-count grade rows.
 - Terminal Receipts: ~3,648 rows per grain (20 grades × 6 ports × 30 weeks) — MUST use `SUM() GROUP BY`
 - No `grade=''` aggregates for Terminal Receipts/Exports (unlike Primary which has them)
 

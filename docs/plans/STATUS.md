@@ -254,7 +254,7 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 
 | Name | Type | Purpose |
 |------|------|---------|
-| `v_grain_yoy_comparison` | View | YoY metrics with FULL OUTER JOIN of Primary + Process + Terminal |
+| `v_grain_yoy_comparison` | View | YoY metrics built from `v_country_producer_deliveries` plus terminal receipts/exports/stocks |
 | `v_supply_pipeline` | View | Canonical AAFC balance sheet for the supply pipeline component |
 | `v_supply_disposition_current` | View | Canonical latest supply-disposition row per grain/year |
 | `v_signal_relevance_scores` | View | Blended relevance: 50% recency-adjusted AI + 40% farmer + 10% bonuses |

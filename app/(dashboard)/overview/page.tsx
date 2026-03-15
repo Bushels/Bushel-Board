@@ -4,7 +4,7 @@ import { CropSummaryCard } from "@/components/dashboard/crop-summary-card";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
-import { CompactSignalStrip } from "@/components/dashboard/compact-signal-strip";
+import { SignalStripWithVoting } from "./signal-strip-with-voting";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { StaggerGroup } from "@/components/motion/stagger-group";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/queries/supply-disposition";
 import { getLatestXSignals } from "@/lib/queries/x-signals";
 import { createClient } from "@/lib/supabase/server";
+import { getUserRole } from "@/lib/auth/role-guard";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { cn } from "@/lib/utils";
@@ -71,12 +72,13 @@ export default async function OverviewPage() {
   const grainContext = await getActiveGrainContext();
   const grainWeek = await getLatestImportedWeek();
 
-  const [summaryResult, sentimentResult, signalsResult, marketPulseResult] =
+  const [summaryResult, sentimentResult, signalsResult, marketPulseResult, userRole] =
     await Promise.all([
       safeQuery("Overview cards", () => buildSummarySection(grainContext)),
       safeQuery("Farmer sentiment", () => getSentimentOverview(CURRENT_CROP_YEAR, grainWeek)),
       safeQuery("Market signal tape", () => getLatestXSignals(20)),
       buildMarketPulse(grainContext),
+      getUserRole(),
     ]);
 
   return (
@@ -168,8 +170,9 @@ export default async function OverviewPage() {
             />
           )}
           {signalsResult.data ? (
-            <CompactSignalStrip
+            <SignalStripWithVoting
               signals={signalsResult.data.map((signal) => ({
+                signal_id: signal.id,
                 sentiment: signal.sentiment,
                 category: signal.category,
                 post_summary: signal.post_summary,
@@ -179,6 +182,7 @@ export default async function OverviewPage() {
                 searched_at: signal.searched_at ?? null,
               }))}
               unlockedSlugs={grainContext.unlockedSlugs}
+              role={userRole}
             />
           ) : (
             <SectionStateCard

@@ -8,13 +8,16 @@ import {
   ChevronRight,
   Radio,
   Sparkles,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { ALL_GRAINS } from "@/lib/constants/grains";
 import { buildXPostHref } from "@/lib/utils/x-post";
 import { cn } from "@/lib/utils";
 
-interface CompactSignal {
+export interface CompactSignal {
+  signal_id?: string;
   sentiment: string;
   category: string;
   post_summary: string;
@@ -22,12 +25,17 @@ interface CompactSignal {
   post_author?: string | null;
   grain: string;
   searched_at?: string | null;
+  user_vote?: boolean | null;
 }
 
 interface CompactSignalStripProps {
   signals: CompactSignal[];
   /** Slugs of user's unlocked grains — pre-selected in the filter. Empty = default to "All". */
   unlockedSlugs?: string[];
+  /** Role for vote gating. Observers see signals but not vote buttons. */
+  role?: "farmer" | "observer";
+  /** Callback when user votes on a signal. */
+  onVote?: (signalId: string, relevant: boolean) => Promise<{ error?: string }>;
 }
 
 interface ScrollState {
@@ -116,7 +124,7 @@ const SLUG_TO_NAME = Object.fromEntries(
   ALL_GRAINS.map((g) => [g.slug, g.name])
 );
 
-export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSignalStripProps) {
+export function CompactSignalStrip({ signals, unlockedSlugs = [], role, onVote }: CompactSignalStripProps) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -128,6 +136,23 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSigna
     thumbRatio: 1,
   });
   const [isDragging, setIsDragging] = useState(false);
+
+  // --- Vote state (optimistic) ---
+  const [votes, setVotes] = useState<Record<string, boolean | null>>({});
+
+  async function handleSignalVote(signalId: string, relevant: boolean) {
+    if (!onVote) return;
+    setVotes((prev) => ({ ...prev, [signalId]: relevant }));
+    const result = await onVote(signalId, relevant);
+    if (result.error) {
+      setVotes((prev) => ({ ...prev, [signalId]: null }));
+    }
+  }
+
+  function getVoteState(signal: CompactSignal): boolean | null {
+    if (signal.signal_id && signal.signal_id in votes) return votes[signal.signal_id];
+    return signal.user_vote ?? null;
+  }
 
   // --- Grain filter state ---
   // Derive the set of grain names actually present in signals
@@ -457,6 +482,38 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSigna
                         </span>
                       )}
                     </div>
+
+                    {/* Vote buttons */}
+                    {signal.signal_id && role !== "observer" && onVote && (
+                      <div className="relative flex items-center gap-1.5 border-t border-border/30 pt-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSignalVote(signal.signal_id!, true)}
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] transition-colors",
+                            getVoteState(signal) === true
+                              ? "bg-prairie/15 text-prairie font-semibold"
+                              : "text-muted-foreground/50 hover:text-prairie hover:bg-prairie/10"
+                          )}
+                        >
+                          <ThumbsUp className="h-3 w-3" />
+                          Relevant
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSignalVote(signal.signal_id!, false)}
+                          className={cn(
+                            "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] transition-colors",
+                            getVoteState(signal) === false
+                              ? "bg-red-500/15 text-red-500 font-semibold"
+                              : "text-muted-foreground/50 hover:text-red-500 hover:bg-red-500/10"
+                          )}
+                        >
+                          <ThumbsDown className="h-3 w-3" />
+                          Not for me
+                        </button>
+                      </div>
+                    )}
                   </motion.article>
                 );
               })}
@@ -544,6 +601,11 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [] }: CompactSigna
               </div>
             </div>
           </div>
+          {role !== "observer" && onVote && (
+            <p className="text-[11px] text-muted-foreground/50 text-center">
+              Vote to improve your feed — we learn what matters to your farm
+            </p>
+          )}
           </>
           ) : (
             <div className="rounded-xl border border-dashed border-muted-foreground/20 bg-muted/20 px-4 py-6 text-center">

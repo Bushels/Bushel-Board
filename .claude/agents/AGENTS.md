@@ -8,7 +8,7 @@
 |stack|Next.js 16 (App Router) + TypeScript + Supabase + Tailwind CSS 4 + shadcn/ui + Recharts|
 |supabase_ref|ibgsloyjxdopkvwqcqwh|
 |deploy|Vercel|
-|data|CGC weekly grain statistics (122k+ rows, 16 grains, AB/SK/MB)|
+|data|CGC weekly grain statistics (122k+ rows, 16 grains, western provinces + national totals)|
 |auth|Supabase email/password via @supabase/ssr|
 
 ## Supabase Patterns (SSR with Next.js 16)
@@ -107,6 +107,7 @@ export const config = {
 |error|#b33a3a|#c44|negative values|
 |province-ab|#2e6b9e|—|Alberta|
 |province-sk|#6d9e3a|—|Saskatchewan|
+|province-bc|#2f8f83|—|British Columbia|
 |province-mb|#b37d24|—|Manitoba|
 
 ## CGC Data Schema
@@ -117,7 +118,7 @@ UNIQUE(crop_year, grain_week, worksheet, metric, period, grain, grade, region)
 Key worksheets: Primary, Summary, Terminal Exports, Terminal Stocks, *Shipment Distribution
 Key metrics: Deliveries, Shipments, Stocks, Receipts, Exports
 Periods: "Crop Year" (cumulative), "Current Week"
-Regions: Alberta, Saskatchewan, Manitoba, Vancouver, Thunder Bay, Prince Rupert, Churchill, +more
+Regions: Alberta, British Columbia, Saskatchewan, Manitoba, Vancouver, Thunder Bay, Prince Rupert, Churchill, +more
 
 ## Script Conventions
 All scripts in `scripts/` must:

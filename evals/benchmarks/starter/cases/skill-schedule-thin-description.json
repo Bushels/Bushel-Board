@@ -1,0 +1,28 @@
+{
+  "id": "skill-schedule-thin-description",
+  "target_type": "skill",
+  "target_name": "schedule",
+  "target_paths": [
+    "skill-upgrades/schedule/SKILL.md"
+  ],
+  "source_paths": [
+    "skill-upgrades/UPGRADE-SUMMARY.md"
+  ],
+  "source_anchor": "Tier 1 - schedule had a one-line description and later gained triggers, negative triggers, examples, and common issues",
+  "scenario": "The historical schedule skill was too thin to route reliably because it lacked trigger phrases, negative triggers, examples, and troubleshooting guidance.",
+  "expected_findings": [
+    "The description was too short to trigger reliably on real user phrasing.",
+    "Negative triggers were missing, so over-triggering risk was high.",
+    "The skill lacked examples and common issues, reducing transferability."
+  ],
+  "expected_patch_focus": [
+    "Rewrite the description using a what/when/do-not-use pattern.",
+    "Add concrete user phrasing for scheduling requests.",
+    "Add examples and common issues to improve operational use."
+  ],
+  "replay_plan": {
+    "failed_slice": "Replay an ambiguous scheduling request such as a recurring reminder phrased in plain language.",
+    "near_neighbor": "Replay a clearly recurring automation request that should trigger the skill.",
+    "canary": "Replay a normal one-off task request that should not trigger scheduling behavior."
+  }
+}

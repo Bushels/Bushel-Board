@@ -142,13 +142,28 @@ Keep the project CLAUDE.md updated with:
 - Date everything — documentation without dates is useless
 - Link to source files when referencing code
 
+**Post-Implementation Staleness Detection (MANDATORY after any code change):**
+
+When invoked after implementation work, you MUST run these checks before marking Gate 4 complete:
+
+1. **CLAUDE.md cross-reference:** Grep CLAUDE.md for any literals, constant names, emoji, function names, or component names that were changed in the implementation. If found, update them.
+   - Example: Code changed emojis (🔒📦⚖️) to Lucide icons → grep CLAUDE.md for those emojis → update references.
+   - Example: RPC `get_foo()` renamed to `get_bar()` → grep CLAUDE.md for `get_foo` → update.
+2. **Agent doc cross-reference:** If a convention, format, or pattern was changed, grep ALL files in `.claude/agents/` for the old pattern. The crop year format bug (2025-26 vs 2025-2026) propagated because agent docs referenced the wrong format.
+3. **Deleted export verification:** If files or exports were removed, grep the entire codebase to confirm nothing still imports them.
+4. **Component doc sync:** If dashboard components were added, removed, or renamed, update `components/dashboard/CLAUDE.md` component table.
+5. **Monitoring query sync:** If RPCs or tables were added/removed, update the Pipeline Monitoring section in CLAUDE.md with corresponding diagnostic queries.
+
+**CRITICAL LESSON:** Skipping these checks caused CLAUDE.md to reference old emoji icons (🔒📦⚖️🚜🚛) after they were replaced with Lucide SVG icons. The staleness persisted until manually caught. This is a Gate 4 failure.
+
 **Process:**
 1. When asked to document, first read the relevant source files
 2. Identify what knowledge needs to be captured
 3. Choose the right document type (handover, lesson, reference, architecture)
 4. Write clear, structured documentation
-5. Update any related docs that need to reflect the new information
-6. Update CLAUDE.md if the project context has meaningfully changed
+5. **Run staleness detection** (see above) — grep for changed literals across all documentation
+6. Update any related docs that need to reflect the new information
+7. Update CLAUDE.md if the project context has meaningfully changed
 
 **Collaboration:**
 - Shadow all agents — when any agent completes significant work, document it
