@@ -3,6 +3,8 @@
 export interface FarmerGrainContext {
   grain: string;
   acres: number;
+  starting_grain_kt: number | null;
+  remaining_kt: number | null;
   delivered_kt: number;
   contracted_kt: number;
   uncontracted_kt: number;

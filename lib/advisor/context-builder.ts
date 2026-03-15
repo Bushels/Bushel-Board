@@ -64,9 +64,16 @@ export async function buildChatContext(
         else percentile = 90;
       }
 
+      const startingGrain = plan.starting_grain_kt ?? null;
+      const remainingKt = startingGrain != null
+        ? Math.max(0, startingGrain - totalDelivered)
+        : plan.volume_left_to_sell_kt ?? null;
+
       return {
         grain: plan.grain,
         acres: plan.acres_seeded,
+        starting_grain_kt: startingGrain,
+        remaining_kt: remainingKt,
         delivered_kt: totalDelivered,
         contracted_kt: plan.contracted_kt ?? 0,
         uncontracted_kt: plan.uncontracted_kt ?? 0,

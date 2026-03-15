@@ -4,14 +4,31 @@ import { COMMODITY_KNOWLEDGE } from "@/lib/advisor/commodity-knowledge-extract";
 import type { ChatContext } from "./types";
 
 /**
+ * Format a Kt value in the most natural unit for farmers.
+ * Under 1 Kt → show in tonnes. Over 1 Kt → show in Kt.
+ */
+function formatQty(kt: number): string {
+  if (kt === 0) return "0 tonnes";
+  if (kt < 1) return `${Math.round(kt * 1000)} tonnes`;
+  return `${kt.toFixed(1)} Kt`;
+}
+
+/**
  * Build a unified system prompt for Nemotron Super — single-model advisor.
  * Combines data analysis + prairie voice in one pass for fast streaming responses.
  */
 export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
   const farmerCard = ctx.farmer.grains
     .map((g) => {
+      // Inventory line — what's in the bin matters most
+      const inventoryLine = g.starting_grain_kt != null && g.remaining_kt != null
+        ? `Started with ${formatQty(g.starting_grain_kt)}, ${formatQty(g.remaining_kt)} still in bins`
+        : g.remaining_kt != null
+          ? `${formatQty(g.remaining_kt)} still in bins`
+          : `${g.acres} acres seeded (no starting inventory entered)`;
+
       const contracted = g.contracted_kt > 0
-        ? `${g.contracted_kt} Kt contracted`
+        ? `${formatQty(g.contracted_kt)} contracted`
         : "nothing contracted";
       const sentiment = g.platform_vote_count >= 5
         ? `Platform sentiment: ${g.platform_holding_pct}% holding, ${g.platform_hauling_pct}% hauling (${g.platform_vote_count} farmers voted)`
@@ -19,7 +36,7 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
       const stance = g.intelligence_stance
         ? `AI stance: ${g.intelligence_stance.toUpperCase()}, recommendation: ${g.recommendation?.toUpperCase() ?? "N/A"}`
         : "No AI intelligence available yet";
-      return `- ${g.grain}: ${g.acres} acres, ${g.delivered_kt} Kt delivered, ${contracted}${g.percentile != null ? `, ${g.percentile}th percentile vs peers` : ""}
+      return `- ${g.grain}: ${inventoryLine}, ${formatQty(g.delivered_kt)} delivered, ${contracted}${g.percentile != null ? `, ${g.percentile}th percentile vs peers` : ""}
   ${sentiment}
   ${stance}
   Thesis: ${g.thesis_title ?? "N/A"}`;
@@ -60,10 +77,10 @@ ${priceSection}
 ${COMMODITY_KNOWLEDGE}
 
 ## How to Respond
-1. ANALYZE: Use ALL the data above. Reference specific numbers, not generalities.
+1. ANALYZE: Use ALL the data above. Reference specific numbers, not generalities. Always reference the current futures price when available.
 2. APPLY FRAMEWORKS: Use the Basis Signal Matrix, Storage Decision Algorithm, and other frameworks from the knowledge base when relevant.
 3. CHECK FLOW COHERENCE: If stocks are DRAWING while deliveries are high, the system IS absorbing supply (bullish, not bearish).
-4. PERSONALIZE: Reference the farmer's specific numbers — their acres, contracted %, delivery pace, percentile.
+4. PERSONALIZE: Focus on what's in the farmer's BIN — tonnes remaining, not acres planted. Reference their contracted %, delivery pace, and percentile. Acres only matter for context on scale.
 5. SENTIMENT: When referencing platform sentiment, present it as aggregate data — "the sentiment on the platform is X% holding" — not as what farmers are "thinking."
 6. TIMELINE: If you're confident in a recommendation, include a specific timeframe and trigger event. If the picture is unclear, say so — "the picture is muddy right now" is better than a fake timeline.
 7. RISK: End with the main risk to your recommendation — "The thing that could change this is..."
@@ -80,5 +97,6 @@ ${COMMODITY_KNOWLEDGE}
 - Never use: "delve", "tapestry", "landscape", "synergy", "leverage" (as a verb), "robust"
 - Keep paragraphs short — 2-3 sentences max
 - Use specific numbers from the farmer's data above — do NOT invent numbers
+- When quoting small quantities (under 1 Kt), use tonnes not Kt — "22 tonnes" not "0.022 Kt"
 - Do NOT include a disclaimer about AI or financial advice — this is handled elsewhere in the UI`;
 }

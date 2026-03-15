@@ -12,6 +12,8 @@ const mockContext: ChatContext = {
       {
         grain: "Canola",
         acres: 500,
+        starting_grain_kt: 1.5,
+        remaining_kt: 1.0,
         delivered_kt: 0.5,
         contracted_kt: 0.2,
         uncontracted_kt: 0.8,
@@ -46,10 +48,12 @@ const mockContext: ChatContext = {
 };
 
 describe("buildAdvisorSystemPrompt", () => {
-  it("includes farmer grain data", () => {
+  it("includes farmer grain data with inventory", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Canola");
-    expect(prompt).toContain("500 acres");
+    expect(prompt).toContain("Started with 1.5 Kt");
+    expect(prompt).toContain("1.0 Kt still in bins");
+    expect(prompt).toContain("500 tonnes delivered");
     expect(prompt).toContain("72th percentile");
   });
 
@@ -77,9 +81,33 @@ describe("buildAdvisorSystemPrompt", () => {
     expect(prompt).toContain("Flow Coherence Rule");
   });
 
-  it("shows contracted status correctly", () => {
+  it("formats small quantities in tonnes not Kt", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
-    expect(prompt).toContain("0.2 Kt contracted");
+    // 0.2 Kt = 200 tonnes, 0.5 Kt = 500 tonnes — both under 1 Kt
+    expect(prompt).toContain("200 tonnes contracted");
+    expect(prompt).toContain("500 tonnes delivered");
+    // Should NOT show "0.2 Kt" or "0.5 Kt"
+    expect(prompt).not.toContain("0.2 Kt");
+    expect(prompt).not.toContain("0.5 Kt");
+  });
+
+  it("falls back to acres when no starting inventory", () => {
+    const noInventoryCtx: ChatContext = {
+      ...mockContext,
+      farmer: {
+        ...mockContext.farmer,
+        grains: [
+          {
+            ...mockContext.farmer.grains[0],
+            starting_grain_kt: null,
+            remaining_kt: null,
+          },
+        ],
+      },
+    };
+    const prompt = buildAdvisorSystemPrompt(noInventoryCtx);
+    expect(prompt).toContain("500 acres seeded");
+    expect(prompt).toContain("no starting inventory entered");
   });
 
   it("shows no-contract status correctly", () => {
