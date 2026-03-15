@@ -12,6 +12,7 @@
     "distill-knowledge": "npx tsx scripts/distill-knowledge.ts",
     "seed-supply": "npx tsx scripts/seed-supply-disposition.ts",
     "audit-data": "npx tsx scripts/audit-data.ts",
+    "seed-capacity": "npx tsx scripts/seed-processor-capacity.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
