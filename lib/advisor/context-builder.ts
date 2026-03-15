@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserCropPlans } from "@/lib/queries/crop-plans";
 import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
+import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
+import { getRecentPrices } from "@/lib/queries/grain-prices";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
-import type { FarmerContext, FarmerGrainContext, ChatContext } from "./types";
+import type { FarmerContext, FarmerGrainContext, ChatContext, GrainPriceContext } from "./types";
 
 /**
  * Build the complete farmer context for a chat message.
@@ -21,13 +23,14 @@ export async function buildChatContext(
 ): Promise<ChatContext> {
   const grainWeek = await getLatestImportedWeek();
 
-  // Parallel fetch: crop plans + sentiment overview
-  const [cropPlans, sentimentData] = await Promise.all([
+  // Parallel fetch: crop plans + sentiment overview + delivery analytics
+  const [cropPlans, sentimentData, deliveryAnalytics] = await Promise.all([
     getUserCropPlans(userId, CURRENT_CROP_YEAR),
     getSentimentOverview(CURRENT_CROP_YEAR, grainWeek),
+    getDeliveryAnalytics(CURRENT_CROP_YEAR).catch(() => []),
   ]);
 
-  // Fetch intelligence + market analysis for each grain in parallel
+  // Fetch intelligence + market analysis + prices for each grain in parallel
   const grainContexts: FarmerGrainContext[] = await Promise.all(
     cropPlans.map(async (plan) => {
       const [intelligence, marketAnalysis] = await Promise.all([
@@ -44,13 +47,30 @@ export async function buildChatContext(
         0
       );
 
+      // Compute percentile from delivery analytics quartile boundaries
+      const analytics = deliveryAnalytics.find(
+        (a) => a.grain === plan.grain
+      );
+      let percentile: number | null = null;
+      if (analytics && analytics.farmer_count >= 5 && analytics.total_starting_kt > 0) {
+        const farmerPace = analytics.total_starting_kt > 0
+          ? (totalDelivered / (plan.acres_seeded > 0 ? plan.acres_seeded : 1)) /
+            (analytics.mean_delivered_kt / (analytics.farmer_count > 0 ? analytics.farmer_count : 1))
+          : 0;
+        // Rough percentile from quartile boundaries
+        if (farmerPace <= analytics.p25_pace_pct / 100) percentile = 25;
+        else if (farmerPace <= analytics.p50_pace_pct / 100) percentile = 50;
+        else if (farmerPace <= analytics.p75_pace_pct / 100) percentile = 75;
+        else percentile = 90;
+      }
+
       return {
         grain: plan.grain,
         acres: plan.acres_seeded,
         delivered_kt: totalDelivered,
         contracted_kt: plan.contracted_kt ?? 0,
         uncontracted_kt: plan.uncontracted_kt ?? 0,
-        percentile: null, // Filled from delivery analytics if available
+        percentile,
         platform_holding_pct: Number(sentiment?.pct_holding ?? 0),
         platform_hauling_pct: Number(sentiment?.pct_hauling ?? 0),
         platform_neutral_pct: Number(sentiment?.pct_neutral ?? 0),
@@ -71,6 +91,26 @@ export async function buildChatContext(
 
   // Determine which grains the farmer grows
   const farmerGrains = cropPlans.map((plan) => plan.grain);
+
+  // Fetch recent prices for each grain in parallel
+  const priceContext: GrainPriceContext[] = (
+    await Promise.all(
+      farmerGrains.map(async (grain) => {
+        const prices = await getRecentPrices(grain, 5).catch(() => []);
+        if (prices.length === 0) return null;
+        const latest = prices[0];
+        return {
+          grain,
+          latest_price: latest.settlement_price,
+          price_change_pct: latest.change_pct,
+          contract: latest.contract,
+          exchange: latest.exchange,
+          currency: latest.currency,
+          price_date: latest.price_date,
+        };
+      })
+    )
+  ).filter((p): p is GrainPriceContext => p !== null);
 
   // Knowledge retrieval via RPC — query based on the farmer's message
   const supabase = await createClient();
@@ -135,5 +175,6 @@ export async function buildChatContext(
     knowledgeText,
     logisticsSnapshot,
     cotSummary,
+    priceContext,
   };
 }

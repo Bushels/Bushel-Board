@@ -120,7 +120,8 @@ export async function POST(request: Request) {
       reasonerResponse.choices[0]?.message?.content ?? "";
 
     // Parse JSON from reasoning response (may be wrapped in markdown code block)
-    const jsonMatch = reasonerContent.match(/\{[\s\S]*\}/);
+    // Use non-greedy match to avoid grabbing across multiple JSON objects
+    const jsonMatch = reasonerContent.match(/\{[\s\S]*?\}(?=[^{]*$)/);
     if (jsonMatch) {
       try {
         reasoningJson = JSON.parse(jsonMatch[0]);
@@ -140,7 +141,8 @@ export async function POST(request: Request) {
   }
 
   // 8. Round 2: Nemotron Super (Voice) — stream farmer-friendly response
-  const voicePrompt = buildVoiceSystemPrompt();
+  // Pass chatContext so voice model can validate numbers against source data
+  const voicePrompt = buildVoiceSystemPrompt(chatContext);
   const voiceUserMessage = `The farmer asked: "${message}"
 
 Here is the structured analysis from the data review:
@@ -250,9 +252,9 @@ Rewrite the analysis as a kitchen-table conversation with this farmer. Be specif
     }
   }
 
-  // All voice models failed — return reasoner analysis directly
-  const fallbackContent = reasoningJson
-    ? `Here's what I'm seeing: ${JSON.stringify(reasoningJson)}`
+  // All voice models failed — return a safe summary, not raw internal JSON
+  const fallbackContent = reasoningJson && typeof reasoningJson.recommendation === "string"
+    ? `I looked through the data but I'm having some trouble putting this together right now. The quick take: the numbers suggest "${reasoningJson.recommendation}" for your situation. Give me a minute and try again for the full breakdown.`
     : "I'm having trouble connecting right now. Check back in a few minutes.";
 
   await supabase.from("chat_messages").insert({

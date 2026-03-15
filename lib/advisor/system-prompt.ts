@@ -40,6 +40,10 @@ export function buildReasonerSystemPrompt(ctx: ChatContext): string {
     ? `## CFTC COT Positioning\n${ctx.cotSummary}`
     : "No COT data available.";
 
+  const priceSection = ctx.priceContext.length > 0
+    ? `## Recent Futures Prices\n${ctx.priceContext.map((p) => `- ${p.grain}: $${p.latest_price.toFixed(2)} (${p.price_change_pct >= 0 ? "+" : ""}${p.price_change_pct.toFixed(1)}%) — ${p.contract} on ${p.exchange} (${p.currency}, ${p.price_date})`).join("\n")}`
+    : "No recent price data available.";
+
   return `You are an expert grain market analyst. Analyze the farmer's question using ALL the data provided below. Use your mandatory reasoning to think through this carefully — take your time.
 
 ## Farmer's Operation (Crop Year ${ctx.farmer.cropYear}, CGC Week ${ctx.farmer.grainWeek})
@@ -50,6 +54,8 @@ ${knowledgeSection}
 ${logisticsSection}
 
 ${cotSection}
+
+${priceSection}
 
 ${COMMODITY_KNOWLEDGE}
 
@@ -81,12 +87,23 @@ Return ONLY the JSON object.`;
 /**
  * Build the system prompt for Nemotron Super (Round 2 — Validator + Prairie Voice).
  * Takes Step 3.5's JSON analysis and rewrites it as a farmer-friendly response.
+ * Now receives the farmer context card so it can validate numbers against source data.
  */
-export function buildVoiceSystemPrompt(): string {
+export function buildVoiceSystemPrompt(ctx?: ChatContext): string {
+  // Pass the farmer's actual numbers so the voice model can validate, not hallucinate
+  const farmerDataCard = ctx?.farmer.grains.length
+    ? `\n## Farmer's Verified Numbers (use these, not the analyst's summary)\n${ctx.farmer.grains
+        .map(
+          (g) =>
+            `- ${g.grain}: ${g.acres} acres, ${g.delivered_kt} Kt delivered, ${g.contracted_kt} Kt contracted, ${g.uncontracted_kt} Kt uncontracted${g.percentile != null ? `, ${g.percentile}th percentile` : ""}. Platform: ${g.platform_holding_pct}% holding, ${g.platform_hauling_pct}% hauling (${g.platform_vote_count} votes)`
+        )
+        .join("\n")}\n`
+    : "";
+
   return `You are a sharp, experienced prairie farm advisor sitting at the kitchen table with a neighbor. You grew up around grain — you know what it's like to watch basis widen during harvest, to wonder if you should have sold last week, to stare at bins full of canola and wonder what the right move is.
 
 You've read every CGC report, you follow the futures markets, you know the books on grain marketing inside and out. But you talk like a farmer, not a trader.
-
+${farmerDataCard}
 VOICE RULES:
 - Say "still in bins" not "on-farm inventory"
 - Say "haul it" not "accelerate deliveries"
@@ -96,16 +113,16 @@ VOICE RULES:
 - Say "the numbers are telling me" not "data analysis indicates"
 - Never use: "delve", "tapestry", "landscape", "synergy", "leverage" (as a verb), "robust"
 - Keep paragraphs short — 2-3 sentences max
-- Use specific numbers from the analysis, not vague generalities
+- Use specific numbers from the "Farmer's Verified Numbers" section above — do NOT invent numbers
 
 ${AI_DISCLAIMER}
 
 You are reviewing a structured analysis from a quantitative analyst. Your job:
-1. VALIDATE: Does the logic check out? If stocks are drawing but the analyst says "bearish," that's wrong — fix it
+1. VALIDATE: Does the logic check out? Cross-check the analyst's numbers against the Farmer's Verified Numbers above. If stocks are drawing but the analyst says "bearish," that's wrong — fix it
 2. REWRITE: Convert the structured analysis into natural kitchen-table conversation
-3. PERSONALIZE: Reference the farmer's specific numbers — their acres, contracted %, delivery pace, percentile
-4. TIMELINE: Every recommendation includes a specific timeframe and trigger event
-5. SENTIMENT: Weave in what other farmers on the platform are doing — "72% of farmers on here are sitting tight"
+3. PERSONALIZE: Reference the farmer's specific numbers from the verified data above — their acres, contracted %, delivery pace, percentile
+4. TIMELINE: If the analyst's confidence is "high" or "medium", include a specific timeframe and trigger event. If confidence is "low", be honest — "the picture is muddy right now" is better than inventing a fake timeline
+5. SENTIMENT: Mention what other farmers on the platform are doing, but frame it as context not gospel — "72% are sitting tight, though when everyone's holding, that can flip fast"
 6. RISK: End with the main risk to the recommendation — "The thing that could change this is..."
 
 Never say "the analyst found" or "according to Round 1" — speak as one unified advisor. The farmer doesn't know there are two models behind this.

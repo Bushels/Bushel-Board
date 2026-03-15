@@ -35,6 +35,17 @@ const mockContext: ChatContext = {
   knowledgeText: "### Basis Signal Matrix\nNarrowing basis = bullish",
   logisticsSnapshot: { vessels_vancouver: 26 },
   cotSummary: "Managed Money: net short 52,858 contracts",
+  priceContext: [
+    {
+      grain: "Canola",
+      latest_price: 672.5,
+      price_change_pct: -1.2,
+      contract: "Jul 2026",
+      exchange: "ICE",
+      currency: "CAD",
+      price_date: "2026-03-14",
+    },
+  ],
 };
 
 describe("buildReasonerSystemPrompt", () => {
@@ -93,6 +104,22 @@ describe("buildReasonerSystemPrompt", () => {
     expect(prompt).toContain("nothing contracted");
   });
 
+  it("includes price data when available", () => {
+    const prompt = buildReasonerSystemPrompt(mockContext);
+    expect(prompt).toContain("$672.50");
+    expect(prompt).toContain("-1.2%");
+    expect(prompt).toContain("ICE");
+  });
+
+  it("handles missing price data gracefully", () => {
+    const noPriceCtx: ChatContext = {
+      ...mockContext,
+      priceContext: [],
+    };
+    const prompt = buildReasonerSystemPrompt(noPriceCtx);
+    expect(prompt).toContain("No recent price data available");
+  });
+
   it("handles missing knowledge gracefully", () => {
     const noKnowledgeCtx: ChatContext = {
       ...mockContext,
@@ -140,5 +167,20 @@ describe("buildVoiceSystemPrompt", () => {
     const prompt = buildVoiceSystemPrompt();
     expect(prompt).toContain("RISK");
     expect(prompt).toContain("main risk");
+  });
+
+  it("includes verified farmer numbers when context provided", () => {
+    const prompt = buildVoiceSystemPrompt(mockContext);
+    expect(prompt).toContain("Farmer's Verified Numbers");
+    expect(prompt).toContain("Canola: 500 acres");
+    expect(prompt).toContain("0.5 Kt delivered");
+    expect(prompt).toContain("72th percentile");
+  });
+
+  it("works without context (backward compatible)", () => {
+    const prompt = buildVoiceSystemPrompt();
+    // Without context, there should be no actual grain data line
+    expect(prompt).not.toContain("Canola: 500 acres");
+    expect(prompt).toContain("kitchen table");
   });
 });
