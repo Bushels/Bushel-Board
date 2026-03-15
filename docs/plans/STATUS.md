@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 ## Feature Tracks
 
@@ -30,6 +30,41 @@ Last updated: 2026-03-13
 | 22 | Farmer Advisor Chat & Memory | Proposed | 2026-03-13 | `docs/plans/2026-03-13-farmer-advisor-chat-design.md`, `docs/plans/2026-03-13-farmer-advisor-chat-implementation.md` |
 | 23 | Dashboard Redesign V2 — Wave 1: Data Foundation | Complete | 2026-03-14 | `scripts/seed-supply-disposition.ts`, `app/(dashboard)/my-farm/client.tsx`, `app/(dashboard)/grain/[slug]/page.tsx`, `lib/utils/crop-year.ts`, `components/auth/auth-shell.tsx`, `components/dashboard/crop-summary-card.tsx` |
 | 24 | Dashboard Redesign V2 — Wave 2: Grain Page Redesign | Complete | 2026-03-14 | `components/dashboard/key-metrics-cards.tsx`, `components/dashboard/net-balance-chart.tsx`, `components/dashboard/delivery-breakdown-chart.tsx`, `components/dashboard/grain-quality-donut.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
+
+| 25 | Dashboard Redesign V2 — Wave 3: Engagement & My Farm | Complete | 2026-03-14 | `components/dashboard/metric-sentiment-vote.tsx`, `components/dashboard/percentile-graph.tsx`, `components/ui/grain-icon.tsx`, `app/(dashboard)/overview/signal-strip-with-voting.tsx`, `components/dashboard/farmer-cot-card.tsx` |
+| 26 | Dashboard Redesign V2 — Wave 4: Advanced Intelligence | Complete | 2026-03-14 | `supabase/migrations/20260314500000_*`, `components/dashboard/crush-utilization-gauge.tsx`, `components/dashboard/price-sparkline.tsx`, `lib/queries/processor-capacity.ts`, `lib/queries/grain-prices.ts` |
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 4 Advanced Intelligence (Track 26)
+
+**What was delivered:**
+- Processor self-sufficiency RPC (`get_processor_self_sufficiency`) — computes producer vs non-producer delivery ratio from Process worksheet
+- Self-sufficiency signal injected into `analyze-market-data` Edge Function for AI thesis generation
+- Processor capacity reference table with 12 grains seeded from AAFC/industry data
+- YoY toggle on Pipeline Velocity chart — "Last Year" and "5yr Avg" overlay lines with toggle pills
+- Historical pipeline average RPC (`get_pipeline_velocity_avg`) — N-year average cumulative metrics per grain week
+- Crush utilization gauge — semicircular SVG arc showing annualized processing vs capacity with bullish/moderate/low signals
+- Grain prices table (`grain_prices`) with sample futures data for Canola, Wheat, Barley, Oats
+- Price sparkline in grain detail hero — compact SVG trend line with latest settlement price and daily change
+- New migrations: `20260314500000` (self-sufficiency RPC), `20260314510000` (processor capacity table), `20260314520000` (historical pipeline avg RPC), `20260314530000` (grain prices table)
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 3 Engagement & My Farm (Track 25)
+
+**What was delivered:**
+- Per-card metric sentiment voting (bullish/bearish) on Key Metrics cards with optimistic UI
+- X signal voting on overview page CompactSignalStrip (thumbs up/down with vote state management)
+- Farmer-friendly COT positioning card replacing trader-focused chart (mood gauge, plain-English insights)
+- Bull/Bear confidence bar made prominent, model attribution removed
+- Prairie Chatter removed from grain detail page (overview only)
+- Key Metrics cards moved above Net Balance chart (both full-width)
+- Custom grain SVG icons component
+- Percentile distribution bell curve graph for delivery pace comparison
+- Delivery logging default unit changed to kg, destination helper text added
+- Edge Function prompt updated for shorter bullets, `confidence_score` (0-100), and `final_assessment`
+- New migration: `metric_sentiment_votes` table + `confidence_score`/`final_assessment` columns on `market_analysis`
+
+**New components:** `farmer-cot-card.tsx`, `metric-sentiment-vote.tsx`, `percentile-graph.tsx`, `grain-icon.tsx`, `key-metrics-with-voting.tsx`, `signal-strip-with-voting.tsx`
+**New queries:** `lib/queries/metric-sentiment.ts`
+**New actions:** `app/(dashboard)/overview/actions.ts`, `app/(dashboard)/grain/[slug]/metric-actions.ts`
 
 ### 2026-03-14 — Dashboard Redesign V2: Wave 2 Grain Page Redesign (Track 24)
 
