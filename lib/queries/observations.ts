@@ -267,7 +267,7 @@ export async function getWeekOverWeekComparison(
     // Define metric aggregation rules.
     // "composite" metrics sum multiple worksheet/metric combos. Deliveries use
     // the country-level CGC definition: Primary + Process + Producer Cars.
-    type RegionFilter = "primary" | "producer_cars" | "export_destinations" | "all";
+    type RegionFilter = "primary" | "producer_cars" | "export_destinations" | "producer_cars_export" | "all";
     type GradeFilter = "aggregate" | "all";
     type MetricDef = {
       label: string;
@@ -308,6 +308,7 @@ export async function getWeekOverWeekComparison(
         sources: [
           { worksheet: "Terminal Exports", metric: "Exports", regionFilter: "all", gradeFilter: "all" },
           { worksheet: "Primary Shipment Distribution", metric: "Shipment Distribution", regionFilter: "export_destinations", gradeFilter: "aggregate" },
+          { worksheet: "Producer Cars", metric: "Shipment Distribution", regionFilter: "producer_cars_export", gradeFilter: "aggregate" },
         ],
       },
       { label: "Processing", worksheet: "Process", metric: "Milled/Mfg Grain", regionFilter: "all", gradeFilter: "aggregate" },
@@ -344,7 +345,9 @@ export async function getWeekOverWeekComparison(
                 ? PRODUCER_CAR_PROVINCES.includes(o.region)
                 : regionFilter === "export_destinations"
                   ? o.region === "Export Destinations"
-                  : true) &&
+                  : regionFilter === "producer_cars_export"
+                    ? o.region === "Export"
+                    : true) &&
             (gradeFilter === "aggregate" ? (o.grade ?? "") === "" : true)
         )
         .reduce((sum, o) => sum + (o.ktonnes ?? 0), 0);

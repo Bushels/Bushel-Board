@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
         .upsert(batch, {
           onConflict:
             "crop_year,grain_week,worksheet,metric,period,grain,grade,region",
-          ignoreDuplicates: true,
+          ignoreDuplicates: false,
         });
 
       if (error) {

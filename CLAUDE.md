@@ -82,7 +82,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Stored in Supabase as long-format observations (one row per measurement)
 
 ### CGC Data Nuances
-- **Exports:** CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct exports bypassing terminals)
+- **Exports:** CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct elevator-to-border) + Producer Cars Shipment Distribution "Export" (farmer railcars direct to US). All three components required.
 - **Producer Deliveries:** Use the country-level CGC formula: `Primary.Deliveries` (AB, SK, MB, BC, `grade=''`) + `Process.Producer Deliveries` (national, `grade=''`) + `Producer Cars.Shipments` (AB, SK, MB, `grade=''`). Anything less is incomplete.
 - **Domestic Disappearance:** A residual calculation, not a separate CSV metric
 - **FULL OUTER JOIN required:** When combining Primary + Process data, not all grains appear in both worksheets. Always use FULL OUTER JOIN to avoid dropping data.

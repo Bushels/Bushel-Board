@@ -1,5 +1,44 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-15 — Exports Missing Producer Cars Component (112.6 vs 113.5 Kt)
+
+**Symptom:** Dashboard showed Canola exports as 112.6 Kt for week 31 current week, but CGC Excel Summary!H27 showed 113.5 Kt. The 0.9 Kt gap was consistent and exact.
+
+**Root Cause:** The CGC Summary "Exports" row has **THREE** components, not two:
+1. **Terminal Exports** (vessels leaving ports, all grades summed): 112.5 Kt
+2. **Primary Shipment Distribution "Export Destinations"** (direct cross-border from primary elevators): 0.1 Kt
+3. **Producer Cars Shipment Distribution "Export"** (farmer-loaded railcars shipped direct to US): 0.9 Kt
+
+Our code only included components 1+2. Component 3 — Producer Cars exports — was missed because for most grains it's 0 Kt (e.g., Wheat week 31 = 0.0 Kt), making the error invisible unless you checked Canola or other grains with active US rail shipments.
+
+**Verification (cross-grain):**
+- Canola week 31: 112.5 + 0.1 + 0.9 = 113.5 ✓ (matches CGC Excel Summary!H27)
+- Wheat week 31: 420.7 + 21.4 + 0.0 = 442.1 ✓ (matches CGC Excel Summary!B27)
+
+**Solution:** Added `Producer Cars.Shipment Distribution` with `region = 'Export'` to all exports queries:
+1. `lib/queries/observations.ts` — WoW composite metric (new source + "producer_cars_export" region filter)
+2. `get_pipeline_velocity()` — SQL exports CTE
+3. `get_pipeline_velocity_avg()` — SQL exports CTE
+4. `v_grain_yoy_comparison` — both `current_exports` and `prior_exports` CTEs
+5. `supabase/functions/_shared/market-intelligence-config.ts` — CGC_DATA_GUARDRAILS documentation
+
+**Also fixed:**
+- `supabase/functions/import-cgc-weekly/index.ts` — changed `ignoreDuplicates: true` to `false` (same stale-data bug as the main import route, but in the legacy Edge Function)
+- Identified `fetch-cgc-grain-data` as completely dead Edge Function (deployed on Supabase with no local source code, zero references in codebase)
+
+**Prevention:**
+- CGC "Exports" = Terminal Exports + PSD Export Destinations + Producer Cars Export. This is now the ONLY correct formula. Update CLAUDE.md to reflect all three components.
+- When verifying export totals, always check grains with active Producer Cars US shipments (typically Canola, sometimes Wheat, Peas) — these are the only grains where the third component is non-zero.
+- Cross-check new metric definitions against CGC Excel hardcoded values, not just against our own DB queries. Excel is the source of truth.
+
+**Files modified:**
+- `lib/queries/observations.ts` (3-component exports composite)
+- `supabase/migrations/20260315400000_add_producer_cars_export_to_exports.sql`
+- `supabase/functions/_shared/market-intelligence-config.ts` (guardrail docs)
+- `supabase/functions/import-cgc-weekly/index.ts` (ignoreDuplicates fix)
+
+**Tags:** #data-integrity #exports #producer-cars #cgc #pipeline #audit
+
 ## 2026-03-15 — Stale Prior-Week Data Caused Wrong WoW Direction (Stocks Showed -10.7% Instead of +3.2%)
 
 **Symptom:** After fixing the Stocks formula (see next entry), the Canola Stocks card correctly showed 1,470.5 Kt for week 31, but the WoW change showed **-10.7% "Stock drawdown"** when it should have been **+3.2% "Stock build"**. CGC Excel confirmed week 30 Canola Summary Stocks = 1,424.4 Kt, but our database had 1,646.1 Kt for week 30.
@@ -57,7 +96,7 @@
 - Wheat, Barley, Oats also verified correct
 
 **Prevention:**
-- CGC "Exports" always means Terminal Exports + PSD Export Destinations. Any new SQL/TypeScript that queries exports must include both.
+- CGC "Exports" always means Terminal Exports + PSD Export Destinations + Producer Cars Export (3 components). Any new SQL/TypeScript that queries exports must include all three.
 - CGC "Commercial Stocks" always means ALL Summary Stocks regions — never filter by region unless you explicitly want a subset.
 - The fact that CLAUDE.md documented the correct formula didn't prevent the bug because the SQL was written before the documentation. New SQL must be audited against CLAUDE.md definitions before deployment.
 - Run `npm run audit-data` after any pipeline SQL changes to catch definition drift.

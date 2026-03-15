@@ -43,7 +43,7 @@ const TEMPORAL_AWARENESS = `CRITICAL - Data timing and week awareness:
 
 const CGC_DATA_GUARDRAILS = `Critical CGC and balance-sheet rules:
 - Total producer deliveries require Primary.Deliveries plus Process.Producer Deliveries plus Producer Cars.Shipments. Primary alone is incomplete.
-- Total exports require Terminal Exports plus Primary Shipment Distribution rows for Export Destinations. Terminal exports must be summed across grades.
+- Total exports require THREE components: Terminal Exports (summed across grades) plus Primary Shipment Distribution "Export Destinations" (direct cross-border from elevators) plus Producer Cars Shipment Distribution "Export" (farmer railcars direct to US).
 - Summary worksheet is reliable for visible commercial stocks, not as a single source for deliveries or exports.
 - "Crop Year" values are cumulative; "Current Week" values are weekly snapshots. Stocks are point-in-time snapshots.
 - When making year-over-year comparisons, compare the same grain week, not nearby dates.
