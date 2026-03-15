@@ -87,11 +87,16 @@ export async function getWeeklyFlowBreakdown(
 
     const totalFlow = sumCountryProducerDeliveries(obs);
 
-    // 1. Exports: terminal exports plus direct exports bypassing terminals
+    // 1. Exports: terminal exports + direct elevator exports + producer car exports
+    // CGC "Exports" = 3 components (verified against Excel)
     const exports =
       sumObs("Terminal Exports", "Exports") +
       sumObs("Primary Shipment Distribution", "Shipment Distribution", {
         regions: ["Export Destinations"],
+        gradeFilter: "",
+      }) +
+      sumObs("Producer Cars", "Shipment Distribution", {
+        regions: ["Export"],
         gradeFilter: "",
       });
 
