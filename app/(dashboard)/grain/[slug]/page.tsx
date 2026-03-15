@@ -30,10 +30,12 @@ import {
   getDeliveryChannelBreakdown,
   getGradeDistribution,
   getHistoricalPipelineAvg,
+  getProcessorInventory,
   getProvincialDeliveries,
   getStorageBreakdown,
   getWeekOverWeekComparison,
   type CumulativeWeekRow,
+  type ProcessorInventory,
   type WoWComparison,
 } from "@/lib/queries/observations";
 import { getCotPositioning } from "@/lib/queries/cot";
@@ -155,6 +157,7 @@ export default async function GrainDetailPage({ params }: Props) {
     fiveYrAvgPipelineResult,
     capacityResult,
     pricesResult,
+    processorInventoryResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
       const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
@@ -185,6 +188,7 @@ export default async function GrainDetailPage({ params }: Props) {
     ),
     safeQuery("Processor capacity", () => getProcessorCapacity(grain.name)),
     safeQuery("Recent prices", () => getRecentPrices(grain.name)),
+    safeQuery("Processor inventory", () => getProcessorInventory(grain.name)),
   ]);
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
@@ -215,10 +219,18 @@ export default async function GrainDetailPage({ params }: Props) {
     userMetricVotesMap[vote.metric] = vote.sentiment as "bullish" | "bearish";
   }
 
+  // Get latest processor inventory (weeks of supply)
+  const processorInventory = processorInventoryResult.error
+    ? null
+    : (processorInventoryResult.data ?? []).find(
+        (r) => r.grain_week === shippingWeek
+      ) ?? (processorInventoryResult.data ?? []).at(-1) ?? null;
+
   // Build key metrics from WoW data
   const keyMetrics = buildKeyMetrics(
     wowResult.error ? null : wowResult.data ?? null,
-    marketCore?.grainOverview ?? null
+    marketCore?.grainOverview ?? null,
+    processorInventory
   );
 
   // Build net balance from pipeline velocity data
@@ -586,7 +598,8 @@ export default async function GrainDetailPage({ params }: Props) {
 
 function buildKeyMetrics(
   wow: WoWComparison | null,
-  grainOverview: Awaited<ReturnType<typeof getGrainOverviewBySlug>>
+  grainOverview: Awaited<ReturnType<typeof getGrainOverviewBySlug>>,
+  processorInv: ProcessorInventory | null = null
 ): KeyMetric[] {
   if (!wow) return [];
   const findMetric = (name: string) => wow.metrics.find((m) => m.metric === name);
@@ -615,17 +628,30 @@ function buildKeyMetrics(
   }
 
   if (processing) {
+    // Enrich processing insight with weeks of supply when available
+    let processingInsight = processing.changePct > 5
+      ? "Crush demand picking up"
+      : processing.changePct < -5
+        ? "Processing volume declining"
+        : "Processing at typical levels";
+
+    if (processorInv?.weeks_of_supply != null) {
+      const wos = processorInv.weeks_of_supply;
+      const supplyNote = wos < 2
+        ? `Processors have ${wos} weeks of supply — running tight`
+        : wos > 6
+          ? `Processors sitting on ${wos} weeks of supply — comfortable`
+          : `Processors hold ${wos} weeks of supply`;
+      processingInsight = supplyNote;
+    }
+
     metrics.push({
       label: "Processing",
       metricKey: "processing",
       currentWeekKt: processing.thisWeek,
       cropYearKt: 0,
       wowChangePct: processing.changePct,
-      insight: processing.changePct > 5
-        ? "Crush demand picking up"
-        : processing.changePct < -5
-          ? "Processing volume declining"
-          : "Processing at typical levels",
+      insight: processingInsight,
       color: "#437a22",
     });
   }

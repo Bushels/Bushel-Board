@@ -2,6 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 import type { FarmSummary } from "@/lib/queries/intelligence";
 import { parseFarmSummary } from "@/lib/utils/farm-summary";
+import { ALL_GRAINS } from "@/lib/constants/grains";
+
+const GRAIN_NAMES = new Set(ALL_GRAINS.map((g) => g.name));
 
 interface FarmSummaryCardProps {
   summary: FarmSummary | null;
@@ -66,13 +69,28 @@ export function FarmSummaryCard({
               )}
 
               <div className="space-y-4">
-                {parsedSummary.sections.map((section, sectionIndex) => (
+                {parsedSummary.sections.map((section, sectionIndex) => {
+                  const isGrainSection = section.title ? GRAIN_NAMES.has(section.title) : false;
+
+                  return (
                   <section
                     key={`${section.title ?? "section"}-${sectionIndex}`}
-                    className={sectionIndex > 0 ? "border-t border-border/20 pt-4" : ""}
+                    className={
+                      isGrainSection
+                        ? "border-l-2 border-l-canola/40 pl-3 pt-1"
+                        : sectionIndex > 0
+                          ? "border-t border-border/20 pt-4"
+                          : ""
+                    }
                   >
                     {section.title && (
-                      <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      <h3
+                        className={
+                          isGrainSection
+                            ? "text-sm font-display font-semibold text-foreground"
+                            : "text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+                        }
+                      >
                         {section.title}
                       </h3>
                     )}
@@ -97,7 +115,8 @@ export function FarmSummaryCard({
                       )}
                     </div>
                   </section>
-                ))}
+                  );
+                })}
               </div>
 
               {parsedSummary.sources.length > 0 && (

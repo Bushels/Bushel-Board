@@ -461,27 +461,43 @@ function buildFarmSummaryPrompt(
 
   lines.push("");
   lines.push("Write the response in Markdown using short section headings and bullet points, not a single long paragraph.");
-  lines.push("Use this section order when the evidence exists and omit empty sections:");
-  lines.push("## Confirmed Flow Data");
-  lines.push(
-    `- Start with what is already confirmed in lagged official flow data such as CGC Week ${grainWeek ?? "N"}.`
-  );
-  lines.push("## Forward Logistics");
-  lines.push(
-    "- Separate rail staging, producer cars, and vessel lineup from confirmed shipped tonnage. Treat them as forward-looking logistics signals."
-  );
-  lines.push("## Futures Positioning");
-  lines.push(
-    "- Include Commitment of Traders only when data is available, and remind the farmer it is Tuesday positions released Friday."
-  );
-  lines.push("## Your Farm Position");
-  lines.push(
-    "- Explain delivery pace, percentile ranking, contracted grain, open grain, and any useful peer comparison."
-  );
-  lines.push("## This Week's Actions");
-  lines.push(
-    `- Give 2-3 concrete actions or watch items for Week ${currentShippingWeek ?? "N"} with a catalyst and the main risk.`
-  );
+
+  // Multi-grain farmers get grain-first structure; single-grain uses topic-first
+  const grainNames = plans.map((p) => p.grain);
+  if (grainNames.length > 1) {
+    lines.push(`This farmer grows ${grainNames.length} grains. Organize the summary BY GRAIN so each crop is clearly separated.`);
+    lines.push("Use this section structure:");
+    for (const name of grainNames) {
+      lines.push(`## ${name}`);
+      lines.push(`- Flow data, logistics, futures positioning, and farm position specific to ${name}. 3-5 bullets.`);
+    }
+    lines.push("## Weeks Ahead");
+    lines.push(
+      `- 2-3 concrete cross-grain actions or watch items for Week ${currentShippingWeek ?? "N"} with a catalyst and the main risk.`
+    );
+  } else {
+    lines.push("Use this section order when the evidence exists and omit empty sections:");
+    lines.push("## Confirmed Flow Data");
+    lines.push(
+      `- Start with what is already confirmed in lagged official flow data such as CGC Week ${grainWeek ?? "N"}.`
+    );
+    lines.push("## Forward Logistics");
+    lines.push(
+      "- Separate rail staging, producer cars, and vessel lineup from confirmed shipped tonnage. Treat them as forward-looking logistics signals."
+    );
+    lines.push("## Futures Positioning");
+    lines.push(
+      "- Include Commitment of Traders only when data is available, and remind the farmer it is Tuesday positions released Friday."
+    );
+    lines.push("## Your Farm Position");
+    lines.push(
+      "- Explain delivery pace, percentile ranking, contracted grain, open grain, and any useful peer comparison."
+    );
+    lines.push("## Weeks Ahead");
+    lines.push(
+      `- Give 2-3 concrete actions or watch items for Week ${currentShippingWeek ?? "N"} with a catalyst and the main risk.`
+    );
+  }
   lines.push("");
   lines.push("Hard rules:");
   lines.push("- Format the weekly summary as concise bullet points (3-7 bullets per section). Each bullet should be actionable or informative. Do NOT write long paragraphs.");

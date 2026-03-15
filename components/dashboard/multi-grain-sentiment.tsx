@@ -51,7 +51,7 @@ export function MultiGrainSentiment({
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-display font-semibold">
-            How are you feeling?
+            Hold or Haul this week?
           </h3>
           <span className="text-xs font-medium text-muted-foreground">
             Week {grainWeek}

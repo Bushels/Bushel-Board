@@ -165,12 +165,15 @@ export function LogisticsCard({
         <KpiTile
           icon={<TrainFront className="h-4 w-4" />}
           value={countryCapacity !== null ? `${fmtOne.format(countryCapacity)}%` : "--"}
-          label="Elevator Fill"
+          label="Terminal Fill"
           status={capacityStatus}
           grainWeek={grainWeek}
         >
           {countryCapacity !== null && (
-            <RailcarBar pct={countryCapacity} status={capacityStatus} />
+            <>
+              <p className="text-[0.55rem] text-muted-foreground/70 mt-0.5">% of working capacity</p>
+              <RailcarBar pct={countryCapacity} status={capacityStatus} />
+            </>
           )}
         </KpiTile>
         <KpiTile

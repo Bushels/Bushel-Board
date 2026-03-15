@@ -790,3 +790,37 @@ export async function getProcessorSelfSufficiency(
     cy_self_sufficiency_pct: r.cy_self_sufficiency_pct != null ? Number(r.cy_self_sufficiency_pct) : null,
   }));
 }
+
+// --- Processor Inventory (Feedback item: crusher/processor stock levels) ---
+
+export interface ProcessorInventory {
+  grain_week: number;
+  stocks_kt: number;
+  weekly_processing_kt: number;
+  weeks_of_supply: number | null;
+}
+
+export async function getProcessorInventory(
+  grainName: string,
+  cropYear?: string
+): Promise<ProcessorInventory[]> {
+  const supabase = await createClient();
+  const year = cropYear ?? CURRENT_CROP_YEAR;
+
+  const { data, error } = await supabase.rpc("get_processor_inventory", {
+    p_grain: grainName,
+    p_crop_year: year,
+  });
+
+  if (error) {
+    console.error("getProcessorInventory error:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    grain_week: Number(r.grain_week),
+    stocks_kt: Number(r.stocks_kt),
+    weekly_processing_kt: Number(r.weekly_processing_kt),
+    weeks_of_supply: r.weeks_of_supply != null ? Number(r.weeks_of_supply) : null,
+  }));
+}
