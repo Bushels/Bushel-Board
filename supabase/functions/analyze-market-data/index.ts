@@ -171,6 +171,12 @@ Deno.serve(async (req) => {
           p_max_grain_week: grainWeek,
         });
 
+        // 7. Processor self-sufficiency (Process.Producer vs Other Deliveries)
+        const { data: selfSufficiencyData } = await supabase.rpc("get_processor_self_sufficiency", {
+          p_grain: grainName,
+          p_crop_year: cropYear,
+        });
+
         const knowledgeContext = await fetchKnowledgeContext(supabase, {
           grain: grainName,
           task: "analyze",
@@ -193,6 +199,7 @@ Deno.serve(async (req) => {
           knowledgeContext.contextText,
           logisticsSnapshot,
           cotPositioning,
+          selfSufficiencyData,
         );
 
         // Call OpenRouter API
@@ -258,6 +265,12 @@ Deno.serve(async (req) => {
           analysis.key_signals = Array.isArray(analysis.key_signals)
             ? analysis.key_signals
             : [];
+          analysis.confidence_score = typeof analysis.confidence_score === "number"
+            ? Math.max(0, Math.min(100, Math.round(analysis.confidence_score)))
+            : null;
+          analysis.final_assessment = typeof analysis.final_assessment === "string"
+            ? analysis.final_assessment
+            : null;
         }
 
         // Upsert into market_analysis
@@ -274,6 +287,8 @@ Deno.serve(async (req) => {
               historical_context: analysis.historical_context ?? {},
               data_confidence: analysis.data_confidence ?? "medium",
               key_signals: analysis.key_signals ?? [],
+              confidence_score: analysis.confidence_score ?? null,
+              final_assessment: analysis.final_assessment ?? null,
               model_used: MODEL,
               llm_metadata: {
                 prompt_tokens: usage.prompt_tokens ?? null,
@@ -380,6 +395,8 @@ Return a JSON object with these fields:
   - "seasonal_observation": string — what the seasonal pattern suggests for next 4-8 weeks
   - "notable_patterns": string[] — array of standout historical comparison observations
 - "data_confidence": "high" | "medium" | "low" — based on data completeness and consistency
+- "confidence_score": integer 0-100 — numeric confidence for the analysis confidence gauge. Map: high=75-90, medium=45-65, low=15-35. Be precise based on actual data quality.
+- "final_assessment": string — 1-2 plain-English sentences that a farmer can act on. Frame as what the data suggests, not financial advice. Example: "The numbers suggest holding is reasonable — deliveries are running well below pace and export demand remains strong."
 - "key_signals": array of objects, each with:
   - "signal": "bullish" | "bearish" | "watch"
   - "title": string — short signal name
@@ -388,6 +405,8 @@ Return a JSON object with these fields:
   - "source": "CGC" | "AAFC" | "Historical" | "Community" | "CFTC"
 
 ## Rules
+- Write for prairie farmers, not traders. Use plain English. Avoid jargon.
+- Bull/bear case bullets should be short (1 sentence each) and farmer-actionable.
 - Every claim MUST reference specific numbers from the provided data.
 - If data is missing (N/A), note the gap rather than speculating.
 - Do NOT give financial advice. Frame as "data suggests" or "the numbers show".
@@ -410,6 +429,7 @@ function buildDataPrompt(
   knowledgeContext: string | null,
   logisticsSnapshot: Record<string, unknown> | null = null,
   cotData: Array<Record<string, unknown>> | null = null,
+  selfSufficiency: Array<Record<string, unknown>> | null = null,
 ): string {
   const deliveredPct =
     supply && Number(supply.total_supply_kt) > 0
@@ -487,6 +507,9 @@ ${formatLogisticsSection(logisticsSnapshot, grain)}
 
 ### CFTC COT Positioning (Disaggregated, Options+Futures Combined — Tuesday positions, released Friday)
 ${formatCotSection(cotData, grain)}
+
+### Processor Self-Sufficiency (Process worksheet — producer vs non-producer intake)
+${formatSelfSufficiencySection(selfSufficiency, grainWeek)}
 
 ### Retrieved Grain Marketing Knowledge
 ${knowledgeContext ?? "No retrieved corpus passages were available for this grain. Use the shared farmer-first framework and only rely on the data above."}
@@ -582,6 +605,47 @@ function formatCotSection(
   lines.push(`\nNOTE: COT data reflects positions as of Tuesday, released Friday. There is a 3-day lag. Use as context for next week's thesis, not real-time signal.`);
 
   return lines.join("\n");
+}
+
+// --- Self-Sufficiency Formatter ---
+
+function formatSelfSufficiencySection(
+  data: Array<Record<string, unknown>> | null,
+  currentWeek: number
+): string {
+  if (!data || data.length === 0) return "No processor self-sufficiency data available.";
+
+  const latest = data.find((r) => Number(r.grain_week) === currentWeek)
+    ?? data[data.length - 1];
+
+  if (!latest) return "No processor self-sufficiency data available.";
+
+  const cyPct = latest.cy_self_sufficiency_pct != null
+    ? `${Number(latest.cy_self_sufficiency_pct).toFixed(1)}%`
+    : "N/A";
+  const cwProducer = Number(latest.cw_producer_kt || 0).toFixed(1);
+  const cwOther = Number(latest.cw_other_kt || 0).toFixed(1);
+  const cyProducer = Number(latest.cy_producer_kt || 0).toFixed(1);
+  const cyOther = Number(latest.cy_other_kt || 0).toFixed(1);
+
+  // Calculate trend from last 4 weeks
+  const recentWeeks = data
+    .filter((r) => Number(r.grain_week) >= currentWeek - 3 && Number(r.grain_week) <= currentWeek)
+    .sort((a, b) => Number(a.grain_week) - Number(b.grain_week));
+
+  let trend = "stable";
+  if (recentWeeks.length >= 2) {
+    const first = Number(recentWeeks[0].cy_self_sufficiency_pct ?? 0);
+    const last = Number(recentWeeks[recentWeeks.length - 1].cy_self_sufficiency_pct ?? 0);
+    if (last - first > 2) trend = "rising (processors sourcing more from farmers)";
+    if (first - last > 2) trend = "falling (processors sourcing more from non-farmer channels)";
+  }
+
+  return `- CY Self-Sufficiency: ${cyPct} of processor intake comes directly from producers
+- This Week: Producer ${cwProducer} Kt, Other ${cwOther} Kt
+- CY Total: Producer ${cyProducer} Kt, Other ${cyOther} Kt
+- 4-Week Trend: ${trend}
+- SIGNAL: When self-sufficiency drops below ~65%, processors are drawing more from intermediaries/imports — this can signal tighter farm-gate supply (bullish for farmer pricing). When above ~75%, ample direct supply may limit upside.`;
 }
 
 // --- Formatting Helpers ---
