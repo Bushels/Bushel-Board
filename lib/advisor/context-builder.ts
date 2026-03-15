@@ -55,8 +55,12 @@ export async function buildChatContext(
         platform_hauling_pct: Number(sentiment?.pct_hauling ?? 0),
         platform_neutral_pct: Number(sentiment?.pct_neutral ?? 0),
         platform_vote_count: Number(sentiment?.vote_count ?? 0),
-        intelligence_stance: (intelligence?.kpi_data?.market_stance as string) ?? null,
-        recommendation: (intelligence?.kpi_data?.recommendation_signal as string) ?? null,
+        intelligence_stance: intelligence?.kpi_data?.market_stance != null
+          ? String(intelligence.kpi_data.market_stance)
+          : null,
+        recommendation: intelligence?.kpi_data?.recommendation_signal != null
+          ? String(intelligence.kpi_data.recommendation_signal)
+          : null,
         thesis_title: intelligence?.thesis_title ?? null,
         thesis_body: intelligence?.thesis_body ?? null,
         bull_case: marketAnalysis?.bull_case ?? null,
