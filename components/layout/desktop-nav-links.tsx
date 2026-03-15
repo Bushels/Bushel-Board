@@ -35,6 +35,9 @@ export function DesktopNavLinks({
       <Link href="/my-farm" className={navLinkClasses(pathname.startsWith("/my-farm"))}>
         My Farm
       </Link>
+      <Link href="/advisor" className={navLinkClasses(pathname.startsWith("/advisor"))}>
+        Advisor
+      </Link>
     </nav>
   );
 }

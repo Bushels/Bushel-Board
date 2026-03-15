@@ -86,6 +86,17 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
               >
                 My Farm
               </Link>
+              <Link
+                href="/advisor"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname.startsWith("/advisor")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                Advisor
+              </Link>
 
               {yourCrops.length === 0 && (
                 <div className="mt-2 rounded-3xl border border-canola/20 bg-canola/8 px-4 py-3 text-sm">
