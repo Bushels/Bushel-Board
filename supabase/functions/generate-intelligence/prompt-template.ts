@@ -4,6 +4,10 @@ import {
   KNOWLEDGE_SOURCE_PATHS,
   MARKET_INTELLIGENCE_VERSIONS,
 } from "../_shared/market-intelligence-config.ts";
+import {
+  formatCotPromptContext,
+  type CotPositioningResult,
+} from "../../../lib/cot-market-structure.ts";
 
 /**
  * Prompt template for generating grain market intelligence.
@@ -79,20 +83,7 @@ export interface GrainContext {
     grain_monitor: Record<string, unknown> | null;
     producer_cars: Array<Record<string, unknown>> | null;
   } | null;
-  cotPositioning?: Array<{
-    report_date: string;
-    commodity: string;
-    exchange: string;
-    mapping_type: string;
-    open_interest: number;
-    managed_money_net: number;
-    managed_money_net_pct: number;
-    wow_net_change: number;
-    commercial_net: number;
-    commercial_net_pct: number;
-    spec_commercial_divergence: boolean;
-    grain_week: number;
-  }> | null;
+  cotPositioning?: any;
   crossGrainContext?: Array<{
     grain: string;
     cy_deliveries_kt: number;
@@ -217,7 +208,8 @@ The JSON object MUST also include these top-level fields:
 - If no relevant saved X/web signals are available, skip "social" signals.
 - Return ONLY the JSON object.
 - Each insight MUST include a "sources" array with one or more of: "CGC", "AAFC", "X", "Derived", "CFTC".
-- Each insight MUST include a "confidence" field with one of: "high", "medium", "low".`;
+- Each insight MUST include a "confidence" field with one of: "high", "medium", "low".
+- If COT data exists, explain whether funds are crowded or just leaning, what drove the weekly move, and whether commercials are on the other side. Use COT to sharpen timing and reversal risk, not to replace the fundamental thesis.`;
 }
 
 function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[number]): string {
@@ -253,6 +245,8 @@ function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[num
 }
 
 function formatCotForIntelligence(ctx: GrainContext): string {
+  return formatCotPromptContext(ctx.cotPositioning as CotPositioningResult | null);
+
   if (!ctx.cotPositioning || ctx.cotPositioning.length === 0) {
     return "No CFTC futures positioning data available for this grain.";
   }

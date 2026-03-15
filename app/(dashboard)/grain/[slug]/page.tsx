@@ -487,68 +487,77 @@ export default async function GrainDetailPage({ params }: Props) {
         {/* ========== GRAIN QUALITY + COT POSITIONING (2-col grid) ========== */}
         <section className="space-y-6">
           <SectionHeader
-            title="Quality & Market Sentiment"
-            subtitle="Grade distribution and investment fund outlook"
+            title="Quality & Market Positioning"
+            subtitle="Grade mix, futures crowding, and processing pull"
           />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
             {/* Left: Grain Quality Donut */}
             {gradeDistResult.error ? (
-              <SectionStateCard
-                title="Grade data unavailable"
-                message="Terminal Receipts grade distribution is temporarily unavailable."
-              />
-            ) : (gradeDistResult.data ?? []).length > 0 ? (
-              <SectionBoundary
-                title="Grade data unavailable"
-                message="Terminal Receipts grade distribution is temporarily unavailable."
-              >
-                <GrainQualityDonut
-                  grades={gradeDistResult.data ?? []}
-                  grainName={grain.name}
+              <div className="xl:col-span-4">
+                <SectionStateCard
+                  title="Grade data unavailable"
+                  message="Terminal Receipts grade distribution is temporarily unavailable."
                 />
-              </SectionBoundary>
+              </div>
+            ) : (gradeDistResult.data ?? []).length > 0 ? (
+              <div className="xl:col-span-4">
+                <SectionBoundary
+                  title="Grade data unavailable"
+                  message="Terminal Receipts grade distribution is temporarily unavailable."
+                >
+                  <GrainQualityDonut
+                    grades={gradeDistResult.data ?? []}
+                    grainName={grain.name}
+                  />
+                </SectionBoundary>
+              </div>
             ) : (
-              <SectionStateCard
-                title="No grade data"
-                message="Grade distribution data is not yet available for this grain."
-              />
+              <div className="xl:col-span-4">
+                <SectionStateCard
+                  title="No grade data"
+                  message="Grade distribution data is not yet available for this grain."
+                />
+              </div>
             )}
 
             {/* Center: Fund Sentiment (COT) */}
             {cotResult.error ? (
-              <SectionStateCard
-                title="Fund sentiment unavailable"
-                message="CFTC COT data is temporarily unavailable."
-              />
-            ) : cotResult.data ? (
-              <SectionBoundary
-                title="Fund sentiment unavailable"
-                message="CFTC COT data is temporarily unavailable."
-              >
-                <FarmerCotCard
-                  positions={cotResult.data.positions}
-                  latest={cotResult.data.latest}
+              <div className="lg:col-span-2 xl:col-span-8">
+                <SectionStateCard
+                  title="Market positioning unavailable"
+                  message="CFTC COT data is temporarily unavailable."
                 />
-              </SectionBoundary>
+              </div>
+            ) : cotResult.data ? (
+              <div className="lg:col-span-2 xl:col-span-8">
+                <SectionBoundary
+                  title="Market positioning unavailable"
+                  message="CFTC COT data is temporarily unavailable."
+                >
+                  <FarmerCotCard data={cotResult.data} />
+                </SectionBoundary>
+              </div>
             ) : null}
 
             {/* Right: Crush Utilization Gauge */}
             {!capacityResult.error && capacityResult.data && (
-              <SectionBoundary
-                title="Crush data unavailable"
-                message="Processor utilization data is temporarily unavailable."
-              >
-                <CrushUtilizationGauge
-                  grainName={grain.name}
-                  weeklyProcessingKt={
-                    wowResult.error ? 0 :
-                    (wowResult.data?.metrics.find(m => m.metric === "Processing")?.thisWeek ?? 0)
-                  }
-                  annualCapacityKt={capacityResult.data.annual_capacity_kt}
-                  isApproximate={capacityResult.data.is_approximate}
-                  source={capacityResult.data.source}
-                />
-              </SectionBoundary>
+              <div className="xl:col-span-4">
+                <SectionBoundary
+                  title="Crush data unavailable"
+                  message="Processor utilization data is temporarily unavailable."
+                >
+                  <CrushUtilizationGauge
+                    grainName={grain.name}
+                    weeklyProcessingKt={
+                      wowResult.error ? 0 :
+                      (wowResult.data?.metrics.find(m => m.metric === "Processing")?.thisWeek ?? 0)
+                    }
+                    annualCapacityKt={capacityResult.data.annual_capacity_kt}
+                    isApproximate={capacityResult.data.is_approximate}
+                    source={capacityResult.data.source}
+                  />
+                </SectionBoundary>
+              </div>
             )}
           </div>
         </section>

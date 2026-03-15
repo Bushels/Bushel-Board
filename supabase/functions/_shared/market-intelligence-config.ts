@@ -2,8 +2,8 @@ import { COMMODITY_KNOWLEDGE } from "./commodity-knowledge.ts";
 
 export const MARKET_INTELLIGENCE_VERSIONS = {
   searchSignals: "search-signals-v3",
-  analyzeMarketData: "analyze-market-data-v6",
-  generateIntelligence: "generate-intelligence-v6",
+  analyzeMarketData: "analyze-market-data-v7",
+  generateIntelligence: "generate-intelligence-v7",
   generateFarmSummary: "generate-farm-summary-v4",
   knowledgeBase: "grain-knowledge-v3",
 } as const;

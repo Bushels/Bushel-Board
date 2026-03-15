@@ -578,9 +578,11 @@ function formatLogisticsSection(snapshot: Record<string, unknown> | null, grain:
 // --- COT Formatter ---
 
 function formatCotSection(
-  cotData: Array<Record<string, unknown>> | null,
+  cotData: any,
   grain: string
 ): string {
+  return formatCotPromptContext(cotData as CotPositioningResult | null);
+
   if (!cotData || cotData.length === 0) {
     return "No CFTC futures positioning data available for this grain.";
   }

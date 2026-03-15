@@ -172,6 +172,7 @@ export interface CftcCotPosition {
 
 const CFTC_API_BASE =
   "https://publicreporting.cftc.gov/resource/kh3c-gbw2.json";
+const DEFAULT_CFTC_FETCH_LIMIT = 520;
 
 /**
  * Map CFTC contract_market_name → CGC grain name + mapping type.
@@ -231,8 +232,8 @@ export function reportDateToGrainWeek(reportDate: Date): number {
  * Fetch CFTC COT data from the SODA API.
  *
  * @param reportDate Optional YYYY-MM-DD string to fetch a single report date.
- *                   If omitted, returns the most recent 50 rows across all
- *                   commodities in CFTC_COMMODITY_FILTERS.
+ *                   If omitted, returns a rolling multi-month window across all
+ *                   tracked commodities so the UI and AI can assess crowding.
  */
 export async function fetchCftcCotData(
   reportDate?: string
@@ -248,7 +249,7 @@ export async function fetchCftcCotData(
   const params = new URLSearchParams({
     $where: whereClause,
     $order: "report_date_as_yyyy_mm_dd DESC",
-    $limit: "50",
+    $limit: String(DEFAULT_CFTC_FETCH_LIMIT),
   });
 
   const url = `${CFTC_API_BASE}?${params.toString()}`;

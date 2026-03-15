@@ -28,6 +28,10 @@ import {
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
 import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
+import {
+  buildCotPositioningResult,
+  type CotRawRow,
+} from "../../../lib/cot-market-structure.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4.20-beta-0309-reasoning";
@@ -143,13 +147,66 @@ Deno.serve(async (req) => {
         // Get Step 3.5 Flash analysis for this grain (may be null if not available)
         const priorAnalysis = marketAnalysisByGrain.get(grainName) as Record<string, unknown> | undefined;
 
-        // CFTC COT positioning (last 4 weeks, bounded to target analysis week)
-        const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
-          p_grain: grainName,
-          p_crop_year: cropYear,
-          p_weeks_back: 4,
-          p_max_grain_week: grainWeek,
-        });
+        // CFTC COT positioning (bounded to target analysis week)
+        const { data: cotRows } = await supabase
+          .from("cftc_cot_positions")
+          .select(
+            [
+              "report_date",
+              "commodity",
+              "exchange",
+              "mapping_type",
+              "open_interest",
+              "change_open_interest",
+              "managed_money_long",
+              "managed_money_short",
+              "change_managed_money_long",
+              "change_managed_money_short",
+              "prod_merc_long",
+              "prod_merc_short",
+              "change_prod_merc_long",
+              "change_prod_merc_short",
+              "grain_week",
+            ].join(",")
+          )
+          .eq("cgc_grain", grainName)
+          .eq("crop_year", cropYear)
+          .lte("grain_week", grainWeek)
+          .order("report_date", { ascending: false })
+          .limit(156);
+
+        const cotPositioning = buildCotPositioningResult(
+          ((cotRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
+            report_date: String(row.report_date),
+            commodity: String(row.commodity),
+            exchange: String(row.exchange),
+            mapping_type:
+              row.mapping_type === "secondary" ? "secondary" : "primary",
+            open_interest: Number(row.open_interest) || 0,
+            change_open_interest: row.change_open_interest == null
+              ? null
+              : Number(row.change_open_interest),
+            managed_money_long: Number(row.managed_money_long) || 0,
+            managed_money_short: Number(row.managed_money_short) || 0,
+            change_managed_money_long: row.change_managed_money_long == null
+              ? null
+              : Number(row.change_managed_money_long),
+            change_managed_money_short: row.change_managed_money_short == null
+              ? null
+              : Number(row.change_managed_money_short),
+            prod_merc_long: Number(row.prod_merc_long) || 0,
+            prod_merc_short: Number(row.prod_merc_short) || 0,
+            change_prod_merc_long: row.change_prod_merc_long == null
+              ? null
+              : Number(row.change_prod_merc_long),
+            change_prod_merc_short: row.change_prod_merc_short == null
+              ? null
+              : Number(row.change_prod_merc_short),
+            grain_week: Number(row.grain_week) || 0,
+          })) as CotRawRow[],
+          grainName,
+          8
+        );
 
         const knowledgeContext = await fetchKnowledgeContext(supabase, {
           grain: grainName,
@@ -212,20 +269,7 @@ Deno.serve(async (req) => {
             grain_monitor: (logisticsSnapshot as Record<string, unknown>).grain_monitor as Record<string, unknown> | null,
             producer_cars: (logisticsSnapshot as Record<string, unknown>).producer_cars as Array<Record<string, unknown>> | null,
           } : null,
-          cotPositioning: (cotPositioning ?? []).map((c: Record<string, unknown>) => ({
-            report_date: String(c.report_date),
-            commodity: String(c.commodity),
-            exchange: String(c.exchange),
-            mapping_type: String(c.mapping_type),
-            open_interest: Number(c.open_interest),
-            managed_money_net: Number(c.managed_money_net),
-            managed_money_net_pct: Number(c.managed_money_net_pct),
-            wow_net_change: Number(c.wow_net_change),
-            commercial_net: Number(c.commercial_net),
-            commercial_net_pct: Number(c.commercial_net_pct),
-            spec_commercial_divergence: Boolean(c.spec_commercial_divergence),
-            grain_week: Number(c.grain_week),
-          })),
+          cotPositioning,
           socialSignals: (socialSignals ?? []).map((s: Record<string, unknown>) => ({
             sentiment: s.sentiment as string,
             category: s.category as string,

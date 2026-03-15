@@ -1,66 +1,92 @@
+import {
+  buildCotPositioningResult,
+  type CotPosition,
+  type CotPositioningResult,
+  type CotRawRow,
+} from "@/lib/cot-market-structure";
 import { createClient } from "@/lib/supabase/server";
 
-export interface CotPosition {
-  report_date: string;
-  commodity: string;
-  managed_money_net: number;
-  managed_money_net_pct: number;
-  commercial_net: number;
-  commercial_net_pct: number;
-  open_interest: number;
-  wow_net_change: number;
-  spec_commercial_divergence: boolean;
-  grain_week: number;
-}
-
-export interface CotPositioningResult {
-  positions: CotPosition[];
-  latest: CotPosition | null;
-  hasDivergence: boolean;
-}
+export type { CotPosition, CotPositioningResult };
 
 /**
- * Fetches CFTC COT positioning data for a grain.
- * Uses the existing get_cot_positioning RPC.
+ * Fetches CFTC COT positioning data for a grain and reshapes it into a
+ * farmer-friendly market structure view.
  */
 export async function getCotPositioning(
   grain: string,
   cropYear: string,
-  weeksBack: number = 8
+  weeksBack: number = 8,
+  maxGrainWeek?: number
 ): Promise<CotPositioningResult> {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("get_cot_positioning", {
-      p_grain: grain,
-      p_crop_year: cropYear,
-      p_weeks_back: weeksBack,
-    });
+    let query = supabase
+      .from("cftc_cot_positions")
+      .select(
+        [
+          "report_date",
+          "commodity",
+          "exchange",
+          "mapping_type",
+          "open_interest",
+          "change_open_interest",
+          "managed_money_long",
+          "managed_money_short",
+          "change_managed_money_long",
+          "change_managed_money_short",
+          "prod_merc_long",
+          "prod_merc_short",
+          "change_prod_merc_long",
+          "change_prod_merc_short",
+          "grain_week",
+        ].join(",")
+      )
+      .eq("cgc_grain", grain)
+      .eq("crop_year", cropYear)
+      .order("report_date", { ascending: false })
+      .limit(Math.max(weeksBack * 3, 156));
 
-    if (error || !data || !Array.isArray(data) || data.length === 0) {
-      return { positions: [], latest: null, hasDivergence: false };
+    if (typeof maxGrainWeek === "number") {
+      query = query.lte("grain_week", maxGrainWeek);
     }
 
-    const positions: CotPosition[] = (
-      data as Array<Record<string, unknown>>
-    ).map((row) => ({
-      report_date: row.report_date as string,
-      commodity: row.commodity as string,
-      managed_money_net: Number(row.managed_money_net) || 0,
-      managed_money_net_pct: Number(row.managed_money_net_pct) || 0,
-      commercial_net: Number(row.commercial_net) || 0,
-      commercial_net_pct: Number(row.commercial_net_pct) || 0,
+    const { data, error } = await query;
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return buildCotPositioningResult([], grain, weeksBack);
+    }
+
+    const rawRows = data as unknown as Array<Record<string, unknown>>;
+    const rows: CotRawRow[] = rawRows.map((row) => ({
+      report_date: String(row.report_date),
+      commodity: String(row.commodity),
+      exchange: String(row.exchange),
+      mapping_type: row.mapping_type === "secondary" ? "secondary" : "primary",
       open_interest: Number(row.open_interest) || 0,
-      wow_net_change: Number(row.wow_net_change) || 0,
-      spec_commercial_divergence: Boolean(row.spec_commercial_divergence),
+      change_open_interest:
+        row.change_open_interest == null ? null : Number(row.change_open_interest),
+      managed_money_long: Number(row.managed_money_long) || 0,
+      managed_money_short: Number(row.managed_money_short) || 0,
+      change_managed_money_long:
+        row.change_managed_money_long == null
+          ? null
+          : Number(row.change_managed_money_long),
+      change_managed_money_short:
+        row.change_managed_money_short == null
+          ? null
+          : Number(row.change_managed_money_short),
+      prod_merc_long: Number(row.prod_merc_long) || 0,
+      prod_merc_short: Number(row.prod_merc_short) || 0,
+      change_prod_merc_long:
+        row.change_prod_merc_long == null ? null : Number(row.change_prod_merc_long),
+      change_prod_merc_short:
+        row.change_prod_merc_short == null ? null : Number(row.change_prod_merc_short),
       grain_week: Number(row.grain_week) || 0,
     }));
 
-    const latest = positions[0] ?? null;
-    const hasDivergence = latest?.spec_commercial_divergence ?? false;
-
-    return { positions, latest, hasDivergence };
+    return buildCotPositioningResult(rows, grain, weeksBack);
   } catch (err) {
     console.error("getCotPositioning failed:", err);
-    return { positions: [], latest: null, hasDivergence: false };
+    return buildCotPositioningResult([], grain, weeksBack);
   }
 }
