@@ -59,3 +59,5 @@ AS $$
   FROM pivoted p
   ORDER BY p.grain_week;
 $$;
+
+GRANT EXECUTE ON FUNCTION get_processor_self_sufficiency(text, text) TO authenticated;
