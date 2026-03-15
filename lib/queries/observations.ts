@@ -103,6 +103,7 @@ export async function getProvincialDeliveries(
       .eq("grain", grainName)
       .eq("crop_year", year)
       .eq("grain_week", week)
+      .eq("grade", "")
       .in("region", PRAIRIE_PROVINCES);
 
     if (error) {
@@ -703,4 +704,49 @@ export async function getDeliveryChannelBreakdown(
     console.error("getDeliveryChannelBreakdown failed:", err);
     return [];
   }
+}
+
+// --- Processor Self-Sufficiency (Wave 4 Task 1) ---
+
+export interface ProcessorSelfSufficiency {
+  grain_week: number;
+  cw_producer_kt: number;
+  cw_other_kt: number;
+  cw_self_sufficiency_pct: number | null;
+  cy_producer_kt: number;
+  cy_other_kt: number;
+  cy_self_sufficiency_pct: number | null;
+}
+
+/**
+ * Get processor self-sufficiency ratio over time.
+ * Computes the ratio of direct producer deliveries to total processor intake.
+ * A dropping ratio signals farmer pricing power (bullish).
+ */
+export async function getProcessorSelfSufficiency(
+  grainName: string,
+  cropYear?: string
+): Promise<ProcessorSelfSufficiency[]> {
+  const supabase = await createClient();
+  const year = cropYear ?? CURRENT_CROP_YEAR;
+
+  const { data, error } = await supabase.rpc("get_processor_self_sufficiency", {
+    p_grain: grainName,
+    p_crop_year: year,
+  });
+
+  if (error) {
+    console.error("getProcessorSelfSufficiency error:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    grain_week: Number(r.grain_week),
+    cw_producer_kt: Number(r.cw_producer_kt),
+    cw_other_kt: Number(r.cw_other_kt),
+    cw_self_sufficiency_pct: r.cw_self_sufficiency_pct != null ? Number(r.cw_self_sufficiency_pct) : null,
+    cy_producer_kt: Number(r.cy_producer_kt),
+    cy_other_kt: Number(r.cy_other_kt),
+    cy_self_sufficiency_pct: r.cy_self_sufficiency_pct != null ? Number(r.cy_self_sufficiency_pct) : null,
+  }));
 }
