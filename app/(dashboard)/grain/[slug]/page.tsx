@@ -38,7 +38,11 @@ import {
 } from "@/lib/queries/observations";
 import { getCotPositioning } from "@/lib/queries/cot";
 import { getLogisticsSnapshot } from "@/lib/queries/logistics";
+import { getProcessorCapacity } from "@/lib/queries/processor-capacity";
+import { CrushUtilizationGauge } from "@/components/dashboard/crush-utilization-gauge";
 import { getMetricSentiment, getUserMetricVotes } from "@/lib/queries/metric-sentiment";
+import { getRecentPrices } from "@/lib/queries/grain-prices";
+import { PriceSparkline } from "@/components/dashboard/price-sparkline";
 
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek, getPriorCropYear, grainWeekEndDate } from "@/lib/utils/crop-year";
@@ -149,6 +153,8 @@ export default async function GrainDetailPage({ params }: Props) {
     userMetricVotesResult,
     priorYearPipelineResult,
     fiveYrAvgPipelineResult,
+    capacityResult,
+    pricesResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
       const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
@@ -177,6 +183,8 @@ export default async function GrainDetailPage({ params }: Props) {
     safeQuery("5yr avg pipeline", () =>
       getHistoricalPipelineAvg(grain.name)
     ),
+    safeQuery("Processor capacity", () => getProcessorCapacity(grain.name)),
+    safeQuery("Recent prices", () => getRecentPrices(grain.name)),
   ]);
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
@@ -262,7 +270,7 @@ export default async function GrainDetailPage({ params }: Props) {
                   message="Check back after the next Thursday data update."
                 />
               )}
-              <p className="text-xs text-muted-foreground mt-3 flex items-center gap-2">
+              <p className="text-xs text-muted-foreground mt-3 flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs">
                   Data: Week {shippingWeek}
                   <span className="text-muted-foreground/60">
@@ -271,6 +279,12 @@ export default async function GrainDetailPage({ params }: Props) {
                 </span>
                 <span className="text-muted-foreground/40">&middot;</span>
                 <span>Current: Week {getCurrentGrainWeek()}</span>
+                {!pricesResult.error && (pricesResult.data ?? []).length > 0 && (
+                  <>
+                    <span className="text-muted-foreground/40">&middot;</span>
+                    <PriceSparkline prices={pricesResult.data!} />
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -461,7 +475,7 @@ export default async function GrainDetailPage({ params }: Props) {
             title="Quality & Market Sentiment"
             subtitle="Grade distribution and investment fund outlook"
           />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Grain Quality Donut */}
             {gradeDistResult.error ? (
               <SectionStateCard
@@ -485,7 +499,7 @@ export default async function GrainDetailPage({ params }: Props) {
               />
             )}
 
-            {/* Right: Fund Sentiment (COT) */}
+            {/* Center: Fund Sentiment (COT) */}
             {cotResult.error ? (
               <SectionStateCard
                 title="Fund sentiment unavailable"
@@ -502,6 +516,25 @@ export default async function GrainDetailPage({ params }: Props) {
                 />
               </SectionBoundary>
             ) : null}
+
+            {/* Right: Crush Utilization Gauge */}
+            {!capacityResult.error && capacityResult.data && (
+              <SectionBoundary
+                title="Crush data unavailable"
+                message="Processor utilization data is temporarily unavailable."
+              >
+                <CrushUtilizationGauge
+                  grainName={grain.name}
+                  weeklyProcessingKt={
+                    wowResult.error ? 0 :
+                    (wowResult.data?.metrics.find(m => m.metric === "Processing")?.thisWeek ?? 0)
+                  }
+                  annualCapacityKt={capacityResult.data.annual_capacity_kt}
+                  isApproximate={capacityResult.data.is_approximate}
+                  source={capacityResult.data.source}
+                />
+              </SectionBoundary>
+            )}
           </div>
         </section>
 
