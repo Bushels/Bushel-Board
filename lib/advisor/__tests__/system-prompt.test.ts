@@ -48,12 +48,12 @@ const mockContext: ChatContext = {
 };
 
 describe("buildAdvisorSystemPrompt", () => {
-  it("includes farmer grain data with inventory", () => {
+  it("includes farmer grain data with inventory and crop year timeframe", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Canola");
     expect(prompt).toContain("Started with 1.5 Kt");
     expect(prompt).toContain("1.0 Kt still in bins");
-    expect(prompt).toContain("500 tonnes delivered");
+    expect(prompt).toContain("500 tonnes delivered (crop year to date)");
     expect(prompt).toContain("72th percentile");
   });
 
@@ -163,10 +163,10 @@ describe("buildAdvisorSystemPrompt", () => {
     expect(prompt).toContain("delve");
   });
 
-  it("instructs no disclaimer in responses", () => {
+  it("uses positive framing for disclaimer avoidance", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
-    expect(prompt).toContain("Do NOT include a disclaimer");
-    expect(prompt).toContain("handled elsewhere in the UI");
+    expect(prompt).toContain("Assume the farmer has already accepted all disclaimers");
+    expect(prompt).toContain("never mention being an AI");
   });
 
   it("instructs sentiment as aggregate data not thoughts", () => {
@@ -191,5 +191,37 @@ describe("buildAdvisorSystemPrompt", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("2025-2026");
     expect(prompt).toContain("Week 30");
+  });
+
+  it("enforces concise response format", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("3-4 short paragraphs MAXIMUM");
+    expect(prompt).toContain("No numbered lists");
+    expect(prompt).toContain("no bullet points");
+  });
+
+  it("prevents specific percentage recommendations", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("DIRECTION ONLY");
+    expect(prompt).toContain("NEVER recommend specific percentages");
+  });
+
+  it("guards against hallucinated data gaps", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("Only flag a gap if the data is truly missing");
+    expect(prompt).toContain("Check all sections before claiming data is unavailable");
+  });
+
+  it("bans analyst jargon terms from real failures", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("fundamental value");
+    expect(prompt).toContain("speculative buying");
+    // These should be in the "Never use" ban list
+  });
+
+  it("labels delivery data as crop year to date in voice rules", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("CROP YEAR TO DATE");
+    expect(prompt).toContain('never say "this week" when referencing delivered totals');
   });
 });
