@@ -6,10 +6,8 @@ import { Button } from "@/components/ui/button";
 
 export function GrainUnlockButton({
   grain,
-  slug,
 }: {
   grain: string;
-  slug: string;
 }) {
   const [showModal, setShowModal] = useState(false);
 
@@ -24,7 +22,6 @@ export function GrainUnlockButton({
       {showModal && (
         <UnlockModal
           grain={grain}
-          slug={slug}
           onClose={() => setShowModal(false)}
         />
       )}

@@ -8,10 +8,9 @@ import { UnlockModal } from "./unlock-modal";
 
 interface LockedGrainCardProps {
   grain: string;
-  slug: string;
 }
 
-export function LockedGrainCard({ grain, slug }: LockedGrainCardProps) {
+export function LockedGrainCard({ grain }: LockedGrainCardProps) {
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -56,7 +55,6 @@ export function LockedGrainCard({ grain, slug }: LockedGrainCardProps) {
       {showModal && (
         <UnlockModal
           grain={grain}
-          slug={slug}
           onClose={() => setShowModal(false)}
         />
       )}

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { addCropPlan, removeCropPlan } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,12 +85,18 @@ interface MyFarmClientProps {
   marketSupply?: Record<string, MarketSupplyData>;
 }
 
+interface CropPlanSetupPrefill {
+  grain?: string;
+  acres?: string;
+}
+
 export function MyFarmClient({
   currentPlans,
   percentiles,
   role = "farmer",
   marketSupply = {},
 }: MyFarmClientProps) {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveryGrain, setDeliveryGrain] = useState<CropPlan | null>(null);
@@ -104,6 +111,15 @@ export function MyFarmClient({
   const unusedGrains = AVAILABLE_GRAINS.filter(
     (grain) => !currentPlans.some((cropPlan) => cropPlan.grain === grain)
   );
+  const requestedGrain = searchParams.get("grain");
+  const requestedAcres = searchParams.get("acres")?.trim();
+  const setupPrefill: CropPlanSetupPrefill | undefined =
+    requestedGrain && unusedGrains.includes(requestedGrain)
+      ? {
+          grain: requestedGrain,
+          acres: requestedAcres || undefined,
+        }
+      : undefined;
 
   async function handleAdd(formData: FormData) {
     setLoading(true);
@@ -171,7 +187,9 @@ export function MyFarmClient({
             {isFirstRun ? "Unlock My Farm" : "Add New Crop"}
           </CardTitle>
           <CardDescription>
-            {isFirstRun
+            {setupPrefill?.grain
+              ? `Finish ${setupPrefill.grain} in My Farm. Add inventory once, then Bushel Board can keep the grain-left and priced math correct.`
+              : isFirstRun
               ? "Start with one crop. You can add the rest once the dashboard starts paying you back."
               : "Unlock local market intelligence for another grain you harvest."}
           </CardDescription>
@@ -181,10 +199,12 @@ export function MyFarmClient({
             {error && <div className="text-sm font-medium text-error">{error}</div>}
 
             <CropPlanFields
-              key={`add-${unusedGrains.join("|") || "none"}`}
+              key={`add-${setupPrefill?.grain ?? "none"}-${setupPrefill?.acres ?? "none"}-${unusedGrains.join("|") || "none"}`}
               idPrefix="add"
-              grainOptions={unusedGrains}
+              grainOptions={setupPrefill?.grain ? [setupPrefill.grain] : unusedGrains}
               grainPlaceholder={isFirstRun ? "Pick your first crop" : "Select grain to track..."}
+              grainLocked={Boolean(setupPrefill?.grain)}
+              prefill={setupPrefill}
             />
 
             <Button
@@ -616,14 +636,18 @@ function CropPlanFields({
   grainOptions = AVAILABLE_GRAINS,
   grainPlaceholder = "Select grain",
   grainLocked = false,
+  prefill,
 }: {
   idPrefix: string;
   plan?: CropPlan;
   grainOptions?: string[];
   grainPlaceholder?: string;
   grainLocked?: boolean;
+  prefill?: CropPlanSetupPrefill;
 }) {
-  const initialGrain = plan?.grain ?? grainOptions[0] ?? "";
+  const initialGrain =
+    plan?.grain
+    ?? (prefill?.grain && grainOptions.includes(prefill.grain) ? prefill.grain : grainOptions[0] ?? "");
   const initialUnit = plan?.inventory_unit_preference ?? "metric_tonnes";
   const initialBushelWeight = Number(
     plan?.bushel_weight_lbs ?? getDefaultBushelWeightLbs(initialGrain)
@@ -725,7 +749,7 @@ function CropPlanFields({
           required
           min="1"
           step="1"
-          defaultValue={plan?.acres_seeded}
+          defaultValue={plan?.acres_seeded ?? prefill?.acres}
         />
       </div>
 

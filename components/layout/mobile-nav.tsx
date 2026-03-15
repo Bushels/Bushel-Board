@@ -177,7 +177,6 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
       {unlockGrain && (
         <UnlockModal
           grain={unlockGrain.name}
-          slug={unlockGrain.slug}
           onClose={() => setUnlockGrain(null)}
         />
       )}
