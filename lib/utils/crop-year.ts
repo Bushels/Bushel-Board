@@ -70,3 +70,9 @@ export function grainWeekEndDate(grainWeek: number, cropYear?: string): Date {
 /** The current crop year, evaluated once at module load. */
 export const CURRENT_CROP_YEAR = getCurrentCropYear();
 
+/** Returns the crop year before the current one, e.g. "2024-2025" */
+export function getPriorCropYear(): string {
+  const start = parseInt(CURRENT_CROP_YEAR.split("-")[0], 10);
+  return `${start - 1}-${start}`;
+}
+

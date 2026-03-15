@@ -706,6 +706,46 @@ export async function getDeliveryChannelBreakdown(
   }
 }
 
+// --- Historical Pipeline Average (Wave 4 Task 4) ---
+
+export interface HistoricalPipelineAvg {
+  grain_week: number;
+  avg_deliveries_kt: number;
+  avg_receipts_kt: number;
+  avg_exports_kt: number;
+  avg_processing_kt: number;
+  years_count: number;
+}
+
+export async function getHistoricalPipelineAvg(
+  grainName: string,
+  cropYear?: string,
+  yearsBack = 5
+): Promise<HistoricalPipelineAvg[]> {
+  const supabase = await createClient();
+  const year = cropYear ?? CURRENT_CROP_YEAR;
+
+  const { data, error } = await supabase.rpc("get_pipeline_velocity_avg", {
+    p_grain: grainName,
+    p_crop_year: year,
+    p_years_back: yearsBack,
+  });
+
+  if (error) {
+    console.error("getHistoricalPipelineAvg error:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    grain_week: Number(r.grain_week),
+    avg_deliveries_kt: Number(r.avg_deliveries_kt),
+    avg_receipts_kt: Number(r.avg_receipts_kt),
+    avg_exports_kt: Number(r.avg_exports_kt),
+    avg_processing_kt: Number(r.avg_processing_kt),
+    years_count: Number(r.years_count),
+  }));
+}
+
 // --- Processor Self-Sufficiency (Wave 4 Task 1) ---
 
 export interface ProcessorSelfSufficiency {
