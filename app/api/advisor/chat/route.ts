@@ -3,17 +3,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedUserContext } from "@/lib/auth/role-guard";
 import { buildChatContext } from "@/lib/advisor/context-builder";
-import {
-  buildReasonerSystemPrompt,
-  buildVoiceSystemPrompt,
-} from "@/lib/advisor/system-prompt";
+import { buildAdvisorSystemPrompt } from "@/lib/advisor/system-prompt";
 import {
   createOpenRouterClient,
   CHAT_MODELS,
 } from "@/lib/advisor/openrouter-client";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Allow up to 60s for dual-model pipeline
+export const maxDuration = 30; // Single model — should respond much faster
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -100,99 +97,36 @@ export async function POST(request: Request) {
   // 6. Build farmer context
   const chatContext = await buildChatContext(user.id, role, message, grain);
 
-  // 7. Round 1: Step 3.5 Flash (Reasoner) — get structured analysis
-  const reasonerPrompt = buildReasonerSystemPrompt(chatContext);
-  let reasoningJson: Record<string, unknown> | null = null;
+  // 7. Single-model streaming: Nemotron Super with full context
+  const systemPrompt = buildAdvisorSystemPrompt(chatContext);
 
-  try {
-    const reasonerResponse = await openrouter.chat.completions.create({
-      model: CHAT_MODELS.reasoner,
-      messages: [
-        { role: "system", content: reasonerPrompt },
-        ...conversationHistory,
-        { role: "user", content: message },
-      ],
-      temperature: 0.3,
-      max_tokens: 4096,
-    });
+  // Try primary model (Nemotron Super), fall back to Trinity
+  const models = [CHAT_MODELS.primary, CHAT_MODELS.fallback];
 
-    const reasonerContent =
-      reasonerResponse.choices[0]?.message?.content ?? "";
-
-    // Parse JSON from reasoning response (may be wrapped in markdown code block)
-    // Use non-greedy match to avoid grabbing across multiple JSON objects
-    const jsonMatch = reasonerContent.match(/\{[\s\S]*?\}(?=[^{]*$)/);
-    if (jsonMatch) {
-      try {
-        reasoningJson = JSON.parse(jsonMatch[0]);
-      } catch {
-        reasoningJson = { raw_analysis: reasonerContent };
-      }
-    } else {
-      reasoningJson = { raw_analysis: reasonerContent };
-    }
-  } catch (error) {
-    console.error("Reasoner (Step 3.5 Flash) failed:", error);
-    // Fallback: proceed with voice layer only, using raw context
-    reasoningJson = {
-      fallback: true,
-      data_summary: "Analysis unavailable — answering from context only.",
-    };
-  }
-
-  // 8. Round 2: Nemotron Super (Voice) — stream farmer-friendly response
-  // Pass chatContext so voice model can validate numbers against source data
-  const voicePrompt = buildVoiceSystemPrompt(chatContext);
-  const voiceUserMessage = `The farmer asked: "${message}"
-
-Here is the structured analysis from the data review:
-${JSON.stringify(reasoningJson, null, 2)}
-
-Here is the farmer's context:
-${chatContext.farmer.grains
-  .map(
-    (g) =>
-      `${g.grain}: ${g.acres} acres, ${g.delivered_kt} Kt delivered, ${g.contracted_kt} Kt contracted, ${g.uncontracted_kt} Kt uncontracted${g.percentile != null ? `, ${g.percentile}th percentile` : ""}`
-  )
-  .join("\n")}
-
-Platform sentiment: ${chatContext.farmer.grains
-    .map(
-      (g) =>
-        `${g.grain}: ${g.platform_holding_pct}% holding, ${g.platform_hauling_pct}% hauling (${g.platform_vote_count} votes)`
-    )
-    .join("; ")}
-
-Rewrite the analysis as a kitchen-table conversation with this farmer. Be specific with their numbers. Sound like a neighbor, not a banker.`;
-
-  // Try primary voice model (Nemotron Super), fall back to Trinity
-  const voiceModels = [CHAT_MODELS.voice, CHAT_MODELS.voiceFallback];
-
-  for (const voiceModel of voiceModels) {
+  for (const model of models) {
     try {
-      const voiceStream = await openrouter.chat.completions.create({
-        model: voiceModel,
+      const stream = await openrouter.chat.completions.create({
+        model,
         messages: [
-          { role: "system", content: voicePrompt },
-          { role: "user", content: voiceUserMessage },
+          { role: "system", content: systemPrompt },
+          ...conversationHistory,
+          { role: "user", content: message },
         ],
-        temperature: 0.7,
+        temperature: 0.6,
         max_tokens: 2048,
         stream: true,
       });
 
-      // Collect the full response for saving to DB
       let fullResponse = "";
 
       const encoder = new TextEncoder();
-      const stream = new ReadableStream({
+      const sseStream = new ReadableStream({
         async start(controller) {
           try {
-            for await (const chunk of voiceStream) {
+            for await (const chunk of stream) {
               const content = chunk.choices[0]?.delta?.content ?? "";
               if (content) {
                 fullResponse += content;
-                // SSE format compatible with Vercel AI SDK useChat
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({ content })}\n\n`
@@ -207,8 +141,7 @@ Rewrite the analysis as a kitchen-table conversation with this farmer. Be specif
               thread_id: currentThreadId,
               role: "assistant",
               content: fullResponse,
-              reasoning_json: reasoningJson,
-              model_used: `${CHAT_MODELS.reasoner} → ${voiceModel}`,
+              model_used: model,
               latency_ms: latencyMs,
             });
 
@@ -231,13 +164,13 @@ Rewrite the analysis as a kitchen-table conversation with this farmer. Be specif
             );
             controller.close();
           } catch (err) {
-            console.error("Voice stream error:", err);
+            console.error("Stream error:", err);
             controller.error(err);
           }
         },
       });
 
-      return new Response(stream, {
+      return new Response(sseStream, {
         headers: {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
@@ -246,23 +179,20 @@ Rewrite the analysis as a kitchen-table conversation with this farmer. Be specif
         },
       });
     } catch (error) {
-      console.error(`Voice model ${voiceModel} failed:`, error);
-      // Try next voice model in the fallback chain
+      console.error(`Model ${model} failed:`, error);
       continue;
     }
   }
 
-  // All voice models failed — return a safe summary, not raw internal JSON
-  const fallbackContent = reasoningJson && typeof reasoningJson.recommendation === "string"
-    ? `I looked through the data but I'm having some trouble putting this together right now. The quick take: the numbers suggest "${reasoningJson.recommendation}" for your situation. Give me a minute and try again for the full breakdown.`
-    : "I'm having trouble connecting right now. Check back in a few minutes.";
+  // All models failed
+  const fallbackContent =
+    "I'm having trouble connecting right now. Check back in a few minutes.";
 
   await supabase.from("chat_messages").insert({
     thread_id: currentThreadId,
     role: "assistant",
     content: fallbackContent,
-    reasoning_json: reasoningJson,
-    model_used: `${CHAT_MODELS.reasoner} (fallback)`,
+    model_used: "fallback",
     latency_ms: Date.now() - startTime,
   });
 

@@ -3,7 +3,11 @@ import OpenAI from "openai";
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 export const CHAT_MODELS = {
-  reasoner: "stepfun/step-3.5-flash:free",
+  /** Primary advisor model — Nemotron Super 120B (57 tok/s, free) */
+  primary: "nvidia/nemotron-3-super-120b-a12b:free",
+  /** Fallback — Trinity Large 400B (free) */
+  fallback: "arcee-ai/trinity-large-preview:free",
+  // Legacy aliases for any code still referencing old names
   voice: "nvidia/nemotron-3-super-120b-a12b:free",
   voiceFallback: "arcee-ai/trinity-large-preview:free",
 } as const;

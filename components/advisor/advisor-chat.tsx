@@ -19,7 +19,7 @@ interface AdvisorChatProps {
 const WELCOME_MESSAGE: Message = {
   id: "welcome",
   role: "assistant",
-  content: `Hey there — I'm your Bushel Board advisor. I've been reading through this week's market data, the books, and what other farmers are thinking. Ask me anything about your grain — delivery timing, basis, contracts, how you stack up against other farmers.\n\nJust remember, I'm sharing analysis through an AI framework — not formal financial advice. The final call is always yours.\n\nWhat's on your mind?`,
+  content: `I'm your Bushel Board advisor — trained on grain marketing frameworks from leading publications and updated weekly with CGC pipeline data, futures prices, CFTC positioning, and platform-wide delivery sentiment.\n\nAsk me anything about your grain — delivery timing, basis, contracts, or how your pace compares to the platform.`,
 };
 
 export function AdvisorChat({ initialGrain }: AdvisorChatProps) {
@@ -46,7 +46,7 @@ export function AdvisorChat({ initialGrain }: AdvisorChatProps) {
 
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
-      setLoadingPhase("Researching your situation...");
+      setLoadingPhase("Looking at your data...");
 
       try {
         const response = await fetch("/api/advisor/chat", {
@@ -65,8 +65,6 @@ export function AdvisorChat({ initialGrain }: AdvisorChatProps) {
             (errorData as { error?: string }).error ?? `HTTP ${response.status}`
           );
         }
-
-        setLoadingPhase("Putting it together...");
 
         // Read SSE stream
         const reader = response.body?.getReader();

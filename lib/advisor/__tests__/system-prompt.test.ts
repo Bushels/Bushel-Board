@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildReasonerSystemPrompt,
-  buildVoiceSystemPrompt,
-} from "../system-prompt";
+import { buildAdvisorSystemPrompt } from "../system-prompt";
 import type { ChatContext } from "../types";
 
 const mockContext: ChatContext = {
@@ -48,45 +45,40 @@ const mockContext: ChatContext = {
   ],
 };
 
-describe("buildReasonerSystemPrompt", () => {
+describe("buildAdvisorSystemPrompt", () => {
   it("includes farmer grain data", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Canola");
     expect(prompt).toContain("500 acres");
     expect(prompt).toContain("72th percentile");
   });
 
   it("includes knowledge text", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Basis Signal Matrix");
   });
 
-  it("includes sentiment data", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+  it("includes sentiment data as aggregate", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("68% holding");
     expect(prompt).toContain("20% hauling");
+    // Sentiment should be framed as platform data, not what farmers "think"
+    expect(prompt).toContain("Platform sentiment");
   });
 
   it("includes COT summary", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("net short 52,858");
   });
 
-  it("requests JSON output format", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
-    expect(prompt).toContain("Return ONLY the JSON object");
-    expect(prompt).toContain("recommendation");
-    expect(prompt).toContain("confidence");
-  });
-
   it("includes commodity knowledge frameworks", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Storage Decision Algorithm");
     expect(prompt).toContain("Flow Coherence Rule");
   });
 
   it("shows contracted status correctly", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("0.2 Kt contracted");
   });
 
@@ -100,12 +92,12 @@ describe("buildReasonerSystemPrompt", () => {
         ],
       },
     };
-    const prompt = buildReasonerSystemPrompt(noContractCtx);
+    const prompt = buildAdvisorSystemPrompt(noContractCtx);
     expect(prompt).toContain("nothing contracted");
   });
 
   it("includes price data when available", () => {
-    const prompt = buildReasonerSystemPrompt(mockContext);
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("$672.50");
     expect(prompt).toContain("-1.2%");
     expect(prompt).toContain("ICE");
@@ -116,7 +108,7 @@ describe("buildReasonerSystemPrompt", () => {
       ...mockContext,
       priceContext: [],
     };
-    const prompt = buildReasonerSystemPrompt(noPriceCtx);
+    const prompt = buildAdvisorSystemPrompt(noPriceCtx);
     expect(prompt).toContain("No recent price data available");
   });
 
@@ -125,62 +117,51 @@ describe("buildReasonerSystemPrompt", () => {
       ...mockContext,
       knowledgeText: null,
     };
-    const prompt = buildReasonerSystemPrompt(noKnowledgeCtx);
+    const prompt = buildAdvisorSystemPrompt(noKnowledgeCtx);
     expect(prompt).toContain("No specific book knowledge retrieved");
   });
-});
 
-describe("buildVoiceSystemPrompt", () => {
   it("establishes prairie advisor persona", () => {
-    const prompt = buildVoiceSystemPrompt();
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("kitchen table");
-    expect(prompt).toContain("neighbor");
+    expect(prompt).toContain("grain marketing");
   });
 
   it("includes voice rules against AI jargon", () => {
-    const prompt = buildVoiceSystemPrompt();
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("still in bins");
     expect(prompt).toContain("haul it");
     expect(prompt).toContain("Never use");
     expect(prompt).toContain("delve");
   });
 
-  it("includes disclaimer framing", () => {
-    const prompt = buildVoiceSystemPrompt();
-    expect(prompt).toContain("not handing out formal financial advice");
-    expect(prompt).toContain("final call");
+  it("instructs no disclaimer in responses", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("Do NOT include a disclaimer");
+    expect(prompt).toContain("handled elsewhere in the UI");
   });
 
-  it("instructs validation of Round 1 analysis", () => {
-    const prompt = buildVoiceSystemPrompt();
-    expect(prompt).toContain("VALIDATE");
-    expect(prompt).toContain("logic check out");
-  });
-
-  it("includes sentiment weaving instruction", () => {
-    const prompt = buildVoiceSystemPrompt();
-    expect(prompt).toContain("SENTIMENT");
-    expect(prompt).toContain("farmers on the platform");
+  it("instructs sentiment as aggregate data not thoughts", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("aggregate data");
+    expect(prompt).not.toContain("what farmers are thinking");
   });
 
   it("instructs risk ending", () => {
-    const prompt = buildVoiceSystemPrompt();
+    const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("RISK");
     expect(prompt).toContain("main risk");
   });
 
-  it("includes verified farmer numbers when context provided", () => {
-    const prompt = buildVoiceSystemPrompt(mockContext);
-    expect(prompt).toContain("Farmer's Verified Numbers");
-    expect(prompt).toContain("Canola: 500 acres");
-    expect(prompt).toContain("0.5 Kt delivered");
-    expect(prompt).toContain("72th percentile");
+  it("instructs flow coherence check", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("FLOW COHERENCE");
+    expect(prompt).toContain("absorbing supply");
   });
 
-  it("works without context (backward compatible)", () => {
-    const prompt = buildVoiceSystemPrompt();
-    // Without context, there should be no actual grain data line
-    expect(prompt).not.toContain("Canola: 500 acres");
-    expect(prompt).toContain("kitchen table");
+  it("includes crop year and grain week", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("2025-2026");
+    expect(prompt).toContain("Week 30");
   });
 });
