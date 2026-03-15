@@ -213,4 +213,55 @@ Monitor alongside Weekly Terminal Receipts and Exports metrics — if receipts h
 - Corn: Second most liquid. Monitor alongside ethanol mandate policy signals.
 
 **Integration Rule:** COT informs TIMING, not DIRECTION. Fundamentals (CGC flow, AAFC balance) determine direction; COT tells you whether the market is overcrowded in that direction. Never use COT as standalone directional signal.
+
+### Crop Quality & Grading Impact on Pricing
+
+**Grade Premiums/Discounts (Canadian Grains):**
+- CWRS Wheat: Protein spread is the dominant quality factor. Each 0.5% protein above 13.5% can add $5-15/t. Falling number below 300s triggers steep discounts ($20-40/t).
+- Canola: Green seed count >6% triggers downgrading. Dockage >8% reduces effective price. Heated canola trades at feed value (~50% discount).
+- Durum: Vitreous kernel count is critical for pasta quality. Below 80% VKC triggers Class 3/4 downgrade. Fusarium/DON contamination >2ppm eliminates export markets.
+- Barley: Malt barley requires plump kernels, low protein (10-12.5%), no weathering. Failing malt specs moves it to feed grade ($40-80/t discount).
+- Oats: Milling oats require test weight >52 lb/bu and low groat content. Below specs trades as feed.
+
+**Marketing With Quality:**
+- When quality is high (top grade), holding is more viable — premium will persist.
+- When quality is marginal, sell early — as more grain hits the system, buyers get pickier and discounts widen.
+- Blending on-farm (mixing high/low quality) can capture average premiums, but declare blends honestly to avoid elevator penalties.
+
+### Cross-Grain Competition & Acreage Dynamics
+
+**Acreage Competition (Prairie Rotation):**
+- Canola vs Wheat: Canola's higher gross margins attract acres, but agronomic rotation limits (1-in-3 or 1-in-4 year canola) constrain expansion. A strong canola rally signals potential wheat acre reduction next spring.
+- Wheat vs Durum: Direct substitutes in rotation. Durum premium >$30/t typically pulls acres from wheat.
+- Peas/Lentils vs Cereals: Pulse crops fix nitrogen, reducing input costs for the following cereal crop. Pulse acreage decisions affect next year's cereal yields.
+- Barley vs Wheat: Feed barley competes with wheat for livestock ration share. Alberta feedlot activity drives regional barley demand.
+
+**Demand Substitution:**
+- Canola oil competes with soybean oil, palm oil, and sunflower oil. Watch global vegetable oil complex for cross-commodity demand signals.
+- Feed wheat competes with feed barley and corn. When wheat-corn spread narrows, wheat captures feed demand.
+- Pea protein competes with soy protein in food manufacturing. Plant-protein trends affect pulse demand independent of traditional markets.
+
+### Crop Insurance & Risk Management Integration
+
+**Provincial Crop Insurance (SCIC, AFSC, MASC):**
+- Insured bushel guarantees provide a floor for forward contracting. A farmer can safely forward-sell up to their insured coverage without production risk.
+- When current prices are well above the insured price, the gap represents uninsured price risk on stored grain.
+- AgriStability triggers at 70% of reference margin — relevant when advising farmers to hold vs sell in declining markets.
+
+**Cash Advance Programs (CCGA):**
+- Advance Payments Program provides interest-free loans ($100K per farmer, $400K additional at prime) against stored grain.
+- This allows farmers to hold grain without cash flow pressure — important context when interpreting farmer selling behaviour.
+- When many farmers take cash advances, it can delay visible deliveries (bearish for near-term volume, bullish for later delivery surge).
+
+### Local Cash Market Dynamics
+
+**Captive Demand vs Export Demand:**
+- Proximity to a crush plant (Canola), feedlot (Barley), or flour mill (Wheat) creates captive local demand. Basis narrows when local processors need supply.
+- Export-oriented locations (near rail lines to Vancouver/Thunder Bay) have basis driven by port dynamics.
+- When local processor bids exceed export elevator bids, it signals strong domestic demand — bullish for farmers near processors.
+
+**Elevator Competition:**
+- Multiple buyers within trucking distance (50-80 km) creates competitive bidding. Monitor whether bids are clustering (low competition) or spreading (high competition).
+- Newly opened or expanded facilities often bid aggressively to attract volume — a temporary basis opportunity.
+- Harvest-season basis at country elevators widens 20-50% vs 5yr avg in the first 30 days of harvest, then narrows as initial rush subsides.
 `;

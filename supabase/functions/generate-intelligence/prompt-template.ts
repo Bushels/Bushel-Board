@@ -93,6 +93,14 @@ export interface GrainContext {
     spec_commercial_divergence: boolean;
     grain_week: number;
   }> | null;
+  crossGrainContext?: Array<{
+    grain: string;
+    cy_deliveries_kt: number;
+    yoy_deliveries_pct: number | null;
+    cy_exports_kt: number;
+    yoy_exports_pct: number | null;
+    wow_stocks_change_kt: number;
+  }> | null;
 }
 
 export const INTELLIGENCE_PROMPT_VERSION = MARKET_INTELLIGENCE_VERSIONS.generateIntelligence;
@@ -143,6 +151,9 @@ ${formatLogisticsForIntelligence(ctx)}
 
 ### CFTC COT Positioning (Tuesday data, released Friday — 3-day lag)
 ${formatCotForIntelligence(ctx)}
+
+### Cross-Grain Context (other grains this week — for acreage competition and demand substitution signals)
+${formatCrossGrainContext(ctx)}
 
 ## Retrieved Grain Knowledge
 ${ctx.knowledgeContext?.contextText ?? "No retrieved corpus passages were available for this grain. Use the shared system framework plus the structured data above."}
@@ -303,4 +314,27 @@ function formatLogisticsForIntelligence(ctx: GrainContext): string {
   return sections.length > 0
     ? sections.join("\n") + "\n\nUse logistics data to contextualize delivery pace and basis signals. Port congestion, elevated out-of-car time, or low producer car allocations may explain delivery lags independent of farmer sentiment."
     : "No logistics data available for this period.";
+}
+
+function formatCrossGrainContext(ctx: GrainContext): string {
+  if (!ctx.crossGrainContext || ctx.crossGrainContext.length === 0) {
+    return "No cross-grain data available.";
+  }
+
+  // Show up to 5 other grains with the most notable moves (largest absolute YoY delivery change)
+  const others = ctx.crossGrainContext
+    .filter((g) => g.grain !== ctx.grain)
+    .sort((a, b) => Math.abs(b.yoy_deliveries_pct ?? 0) - Math.abs(a.yoy_deliveries_pct ?? 0))
+    .slice(0, 5);
+
+  if (others.length === 0) return "No cross-grain data available.";
+
+  const lines = others.map((g) => {
+    const delYoY = g.yoy_deliveries_pct != null ? `${g.yoy_deliveries_pct > 0 ? "+" : ""}${g.yoy_deliveries_pct.toFixed(1)}%` : "N/A";
+    const expYoY = g.yoy_exports_pct != null ? `${g.yoy_exports_pct > 0 ? "+" : ""}${g.yoy_exports_pct.toFixed(1)}%` : "N/A";
+    const stockDir = g.wow_stocks_change_kt > 0 ? "building" : g.wow_stocks_change_kt < 0 ? "drawing" : "flat";
+    return `- ${g.grain}: CY deliveries ${g.cy_deliveries_kt.toLocaleString()} Kt (YoY ${delYoY}), exports YoY ${expYoY}, stocks ${stockDir}`;
+  });
+
+  return lines.join("\n") + "\n\nUse cross-grain context to identify acreage competition, demand substitution, or system-wide trends (e.g., all grains stocks drawing = system-wide tightness).";
 }

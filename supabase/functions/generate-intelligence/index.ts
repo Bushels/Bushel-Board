@@ -241,6 +241,14 @@ Deno.serve(async (req) => {
             total_votes: (s.total_votes as number) ?? 0,
             farmer_relevance_pct: (s.farmer_relevance_pct as number) ?? null,
           })),
+          crossGrainContext: (yoyData ?? []).map((g: Record<string, unknown>) => ({
+            grain: g.grain as string,
+            cy_deliveries_kt: Number(g.cy_deliveries_kt ?? 0),
+            yoy_deliveries_pct: g.yoy_deliveries_pct != null ? Number(g.yoy_deliveries_pct) : null,
+            cy_exports_kt: Number(g.cy_exports_kt ?? 0),
+            yoy_exports_pct: g.yoy_exports_pct != null ? Number(g.yoy_exports_pct) : null,
+            wow_stocks_change_kt: Number(g.wow_stocks_change_kt ?? 0),
+          })),
         };
 
         const prompt = buildIntelligencePrompt(ctx);
@@ -255,7 +263,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             model: MODEL,
-            max_output_tokens: 1024,
+            max_output_tokens: 4096,
             input: [
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
