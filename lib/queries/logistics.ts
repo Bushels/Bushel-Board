@@ -7,7 +7,7 @@ import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 
 export interface WeeklyTerminalFlow {
   grain_week: number;
-  week_ending_date: string;
+  week_ending_date: string | null;
   terminal_receipts_kt: number;
   exports_kt: number;
   net_flow_kt: number;

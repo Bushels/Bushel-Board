@@ -70,22 +70,22 @@ export function TerminalFlowChart({
           <div className="grid grid-cols-3 gap-2">
             <LogisticsStatPill
               label="Vessels (Van)"
-              value={monitor.vessels_vancouver}
+              value={Number(monitor.vessels_vancouver)}
               sentiment={vesselSentiment(
-                monitor.vessels_vancouver,
-                monitor.vessel_avg_one_year_vancouver
+                Number(monitor.vessels_vancouver),
+                Number(monitor.vessel_avg_one_year_vancouver)
               )}
-              sublabel={`Avg ${monitor.vessel_avg_one_year_vancouver}`}
+              sublabel={`Avg ${Number(monitor.vessel_avg_one_year_vancouver)}`}
             />
             <LogisticsStatPill
               label="Out-of-Car Time"
-              value={`${monitor.out_of_car_time_pct}%`}
-              sentiment={octSentiment(monitor.out_of_car_time_pct)}
+              value={`${Number(monitor.out_of_car_time_pct).toFixed(1)}%`}
+              sentiment={octSentiment(Number(monitor.out_of_car_time_pct))}
             />
             <LogisticsStatPill
               label="Shipments YoY"
-              value={`${monitor.ytd_shipments_yoy_pct > 0 ? "+" : ""}${monitor.ytd_shipments_yoy_pct}%`}
-              sentiment={shipmentYoySentiment(monitor.ytd_shipments_yoy_pct)}
+              value={`${Number(monitor.ytd_shipments_yoy_pct) > 0 ? "+" : ""}${Number(monitor.ytd_shipments_yoy_pct).toFixed(0)}%`}
+              sentiment={shipmentYoySentiment(Number(monitor.ytd_shipments_yoy_pct))}
             />
           </div>
         </div>
