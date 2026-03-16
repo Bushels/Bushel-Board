@@ -23,6 +23,23 @@ const COLOR_PRIOR = "hsl(var(--muted-foreground))";
 
 const formatAxis = (v: number) => fmtKt(v, 0).replace(" kt", "");
 
+// Stable object references for Recharts shallow-equality bailout
+const CHART_MARGIN = { top: 5, right: 60, left: 20, bottom: 5 } as const;
+const AXIS_TICK = { fontSize: 11 } as const;
+const AXIS_TICK_GAP = { fontSize: 11, fill: COLOR_GAP } as const;
+const LEFT_AXIS_LABEL = {
+  value: "Cumulative Deliveries (Kt)",
+  angle: -90,
+  position: "insideLeft" as const,
+  style: { fontSize: 11, fill: "currentColor" },
+};
+const RIGHT_AXIS_LABEL = {
+  value: "YoY Gap (Kt)",
+  angle: 90,
+  position: "insideRight" as const,
+  style: { fontSize: 11, fill: COLOR_GAP },
+};
+
 interface DeliveryGapChartProps {
   currentYearData: CumulativeWeekRow[];
   priorYearData: CumulativeWeekRow[];
@@ -136,7 +153,7 @@ export function DeliveryGapChart({
       <ResponsiveContainer width="100%" height={320}>
         <ComposedChart
           data={chartData}
-          margin={{ top: 5, right: 60, left: 20, bottom: 5 }}
+          margin={CHART_MARGIN}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -146,37 +163,27 @@ export function DeliveryGapChart({
           />
           <XAxis
             dataKey="week_label"
-            tick={{ fontSize: 11 }}
+            tick={AXIS_TICK}
             className="text-muted-foreground"
           />
 
           {/* Left Y-axis: cumulative deliveries (Kt) */}
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 11 }}
+            tick={AXIS_TICK}
             tickFormatter={formatAxis}
             className="text-muted-foreground"
-            label={{
-              value: "Cumulative Deliveries (Kt)",
-              angle: -90,
-              position: "insideLeft",
-              style: { fontSize: 11, fill: "currentColor" },
-            }}
+            label={LEFT_AXIS_LABEL}
           />
 
           {/* Right Y-axis: YoY gap (Kt) — separate scale for gap line */}
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 11, fill: COLOR_GAP }}
+            tick={AXIS_TICK_GAP}
             tickFormatter={formatAxis}
             className="text-muted-foreground"
-            label={{
-              value: "YoY Gap (Kt)",
-              angle: 90,
-              position: "insideRight",
-              style: { fontSize: 11, fill: COLOR_GAP },
-            }}
+            label={RIGHT_AXIS_LABEL}
           />
 
           <Tooltip content={<GapTooltip />} />
