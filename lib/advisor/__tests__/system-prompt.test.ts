@@ -32,6 +32,7 @@ const mockContext: ChatContext = {
     ],
   },
   knowledgeText: "### Basis Signal Matrix\nNarrowing basis = bullish",
+  decisionSupportText: null,
   logisticsSnapshot: { vessels_vancouver: 26 },
   cotSummary: "Managed Money: net short 52,858 contracts",
   priceContext: [
@@ -149,6 +150,17 @@ describe("buildAdvisorSystemPrompt", () => {
     expect(prompt).toContain("No specific book knowledge retrieved");
   });
 
+  it("includes decision guardrails when provided", () => {
+    const prompt = buildAdvisorSystemPrompt({
+      ...mockContext,
+      decisionSupportText:
+        "Storage decision guardrail: Storage Decision Algorithm is in play, but the message still does not include your current elevator basis.",
+    });
+
+    expect(prompt).toContain("Decision Guardrails");
+    expect(prompt).toContain("Storage decision guardrail");
+  });
+
   it("establishes prairie advisor persona", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("kitchen table");
@@ -212,6 +224,25 @@ describe("buildAdvisorSystemPrompt", () => {
     expect(prompt).toContain("Check all sections before claiming data is unavailable");
   });
 
+  it("instructs a storage follow-up when critical storage inputs are missing", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("STORAGE FOLLOW-UP RULE");
+    expect(prompt).toContain("current basis, nearby carry/spread, and storage cost");
+    expect(prompt).toContain("do NOT bluff a firm yes/no answer");
+  });
+
+  it("tells the advisor not to ask for more numbers once the core storage inputs are present", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("If those three inputs are already present");
+    expect(prompt).toContain("do NOT ask for another number");
+  });
+
+  it("treats decision guardrails as an override when core storage inputs are already present", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("DECISION GUARDRAILS OVERRIDE");
+    expect(prompt).toContain("end without a question");
+  });
+
   it("bans analyst jargon terms from real failures", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("fundamental value");
@@ -223,5 +254,11 @@ describe("buildAdvisorSystemPrompt", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("CROP YEAR TO DATE");
     expect(prompt).toContain('never say "this week" when referencing delivered totals');
+  });
+
+  it("limits follow-ups to one short question at the end", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("ask only ONE short question");
+    expect(prompt).toContain("put it at the end");
   });
 });

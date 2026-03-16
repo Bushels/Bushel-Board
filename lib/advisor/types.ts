@@ -42,6 +42,7 @@ export interface GrainPriceContext {
 export interface ChatContext {
   farmer: FarmerContext;
   knowledgeText: string | null;
+  decisionSupportText: string | null;
   logisticsSnapshot: Record<string, unknown> | null;
   cotSummary: string | null;
   priceContext: GrainPriceContext[];

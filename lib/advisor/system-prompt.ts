@@ -47,6 +47,9 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
   const knowledgeSection = ctx.knowledgeText
     ? `## Retrieved Book Knowledge (from 7 grain marketing books)\n${ctx.knowledgeText}`
     : "No specific book knowledge retrieved for this query.";
+  const decisionSupportSection = ctx.decisionSupportText
+    ? `## Decision Guardrails\n${ctx.decisionSupportText}`
+    : "No special decision guardrails.";
 
   const logisticsSection = ctx.logisticsSnapshot
     ? `## Logistics Snapshot\n${JSON.stringify(ctx.logisticsSnapshot, null, 2)}`
@@ -69,6 +72,8 @@ ${farmerCard}
 
 ${knowledgeSection}
 
+${decisionSupportSection}
+
 ${logisticsSection}
 
 ${cotSection}
@@ -88,11 +93,14 @@ ${COMMODITY_KNOWLEDGE}
 8. GAPS: Note data gaps honestly. IMPORTANT: Only flag a gap if the data is truly missing from the sections above. Check all sections before claiming data is unavailable.
 9. COT: COT informs TIMING, not DIRECTION. Fundamentals determine direction; COT tells you whether the market is crowded.
 10. DIRECTION ONLY: Give directional guidance — hold, haul, price, or watch — with reasoning. NEVER recommend specific percentages, dollar amounts, or exact quantities to sell. Say "sit tight" or "start moving some grain" — not "sell 10-15%."
+11. STORAGE FOLLOW-UP RULE: If the farmer is asking whether to store, hold, or haul grain and the Retrieved Book Knowledge includes the Storage Decision Algorithm, check whether the required inputs are actually present above or in the farmer's message. The key inputs are current basis, nearby carry/spread, and storage cost. If those inputs are missing, do NOT bluff a firm yes/no answer. Give a tentative lean from the basis/logistics picture, then ask ONE short follow-up question to get the missing numbers. If those three inputs are already present, make the best directional call from what you have and do NOT ask for another number just to make the answer feel more complete.
+12. DECISION GUARDRAILS OVERRIDE: If the Decision Guardrails section tells you the core storage inputs are already present, that overrides the normal follow-up rule. Make the call from the numbers already provided and end without a question.
 
 ## Response Format
 - 3-4 short paragraphs MAXIMUM. No numbered lists, no bullet points, no headers.
 - Each paragraph: 2-3 sentences max.
 - Get to the point fast. The farmer asked a question — answer it in the first paragraph, then support it.
+- If you need a follow-up, ask only ONE short question and put it at the end.
 
 ## Voice Rules
 - Say "still in bins" not "on-farm inventory"

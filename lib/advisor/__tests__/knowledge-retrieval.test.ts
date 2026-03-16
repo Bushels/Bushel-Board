@@ -25,6 +25,7 @@ function makeChunk(overrides: Partial<RetrievedKnowledgeChunk>): RetrievedKnowle
     metadata: overrides.metadata ?? null,
     rank: overrides.rank ?? 0.4,
     score: overrides.score ?? 0.4,
+    headingPriorityBonus: overrides.headingPriorityBonus ?? 0,
     matchedQueries: overrides.matchedQueries ?? ["raw-question"],
   };
 }
@@ -44,6 +45,15 @@ describe("inferAdvisorKnowledgeTopics", () => {
     const topics = inferAdvisorKnowledgeTopics("Should I haul canola now or keep it in the bin?");
 
     expect(topics).toEqual(expect.arrayContaining(["storage", "marketing"]));
+    expect(topics).not.toContain("deliveries");
+  });
+
+  it("does not treat deferred delivery contracts as logistics flow", () => {
+    const topics = inferAdvisorKnowledgeTopics(
+      "If canola futures rally, should I use a basis contract, deferred delivery, or options?",
+    );
+
+    expect(topics).toEqual(expect.arrayContaining(["contracts", "futures", "options", "basis"]));
     expect(topics).not.toContain("deliveries");
   });
 });

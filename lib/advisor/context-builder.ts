@@ -9,8 +9,71 @@ import { getSentimentOverview } from "@/lib/queries/sentiment";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 
-import { retrieveAdvisorKnowledgeContext } from "./knowledge-retrieval";
+import {
+  retrieveAdvisorKnowledgeContext,
+  type KnowledgeRetrievalResult,
+} from "./knowledge-retrieval";
 import type { ChatContext, FarmerGrainContext, GrainPriceContext } from "./types";
+
+const STORAGE_QUESTION_PATTERN = /\b(store|storage|hold|haul|bin|carry)\b/i;
+const BASIS_VALUE_PATTERN =
+  /\bbasis\b[^\n]{0,24}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
+const SPREAD_VALUE_PATTERN =
+  /\b(?:spread|carry)\b[^\n]{0,24}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
+const MONTH_SPREAD_VALUE_PATTERN =
+  /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-/ ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b[^\n]{0,16}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
+const STORAGE_COST_PATTERN =
+  /\b(?:storage cost|cost to store|bin cost|interest)\b[^\n]{0,24}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
+
+function formatNaturalList(values: string[]): string {
+  if (values.length === 0) return "";
+  if (values.length === 1) return values[0];
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+}
+
+export function buildStorageDecisionSupport(
+  messageText: string,
+  knowledgeContext: KnowledgeRetrievalResult | null,
+): string | null {
+  if (!STORAGE_QUESTION_PATTERN.test(messageText)) {
+    return null;
+  }
+
+  const hasStorageAlgorithm = knowledgeContext?.chunks.some(
+    (chunk) => chunk.heading === "Storage Decision Algorithm",
+  );
+  if (!hasStorageAlgorithm) {
+    return null;
+  }
+
+  const missingInputs: string[] = [];
+  if (!BASIS_VALUE_PATTERN.test(messageText)) {
+    missingInputs.push("your current elevator basis");
+  }
+  if (!SPREAD_VALUE_PATTERN.test(messageText) && !MONTH_SPREAD_VALUE_PATTERN.test(messageText)) {
+    missingInputs.push("the nearby futures spread/carry");
+  }
+  if (!STORAGE_COST_PATTERN.test(messageText)) {
+    missingInputs.push("your storage cost");
+  }
+
+  if (missingInputs.length === 0) {
+    return (
+      "Storage decision guardrail: Core storage inputs are already present in the message " +
+      "(current basis, nearby spread/carry, and storage cost). Make the best directional call from those numbers " +
+      "and the current logistics picture. Do not ask a follow-up question. End without a question unless the " +
+      "farmer explicitly asks for scenario planning beyond the current setup."
+    );
+  }
+
+  return (
+    `Storage decision guardrail: Storage Decision Algorithm is in play, ` +
+    `but the message still does not include ${formatNaturalList(missingInputs)}. ` +
+    "Give only a tentative lean from the current basis and logistics picture, then ask one short follow-up question. " +
+    "Best follow-up: ask for the current elevator basis and the nearby spread first."
+  );
+}
 
 /**
  * Build the complete farmer context for a chat message.
@@ -114,12 +177,14 @@ export async function buildChatContext(
   const targetGrain = grainHint ?? farmerGrains[0] ?? null;
 
   let knowledgeText: string | null = null;
+  let decisionSupportText: string | null = null;
   if (targetGrain) {
     const knowledgeContext = await retrieveAdvisorKnowledgeContext({
       messageText,
       grain: targetGrain,
     });
     knowledgeText = knowledgeContext.contextText;
+    decisionSupportText = buildStorageDecisionSupport(messageText, knowledgeContext);
   }
 
   let logisticsSnapshot: Record<string, unknown> | null = null;
@@ -166,6 +231,7 @@ export async function buildChatContext(
       grains: grainContexts,
     },
     knowledgeText,
+    decisionSupportText,
     logisticsSnapshot,
     cotSummary,
     priceContext,

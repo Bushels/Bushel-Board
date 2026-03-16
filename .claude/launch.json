@@ -3,16 +3,21 @@
   "configurations": [
     {
       "name": "Next.js dev",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev"],
-      "port": 3001,
-      "autoPort": true
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001
     },
     {
       "name": "Supabase local",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["supabase", "start"],
       "port": 54321
+    },
+    {
+      "name": "Vitest watch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "test:watch"],
+      "port": 51204
     }
   ]
 }
