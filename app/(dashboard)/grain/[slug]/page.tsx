@@ -45,6 +45,8 @@ import { CrushUtilizationGauge } from "@/components/dashboard/crush-utilization-
 import { getMetricSentiment, getUserMetricVotes } from "@/lib/queries/metric-sentiment";
 import { getRecentPrices } from "@/lib/queries/grain-prices";
 import { PriceSparkline } from "@/components/dashboard/price-sparkline";
+import { DeliveryGapChart } from "@/components/dashboard/delivery-gap-chart";
+import { fmtKt } from "@/lib/utils/format";
 
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek, getPriorCropYear, grainWeekEndDate } from "@/lib/utils/crop-year";
@@ -238,6 +240,25 @@ export default async function GrainDetailPage({ params }: Props) {
     pipelineVelocityResult.error ? [] : pipelineVelocityResult.data ?? []
   );
 
+  // Delivery gap pills (Canola only, server-side computation)
+  const currentYearDeliveries = pipelineVelocityResult.error ? [] : pipelineVelocityResult.data ?? [];
+  const priorYearDeliveries = priorYearPipelineResult.error ? [] : priorYearPipelineResult.data ?? [];
+  const hasGapData = currentYearDeliveries.length > 0 && priorYearDeliveries.length > 0;
+
+  let yoyDeliveryPct = 0;
+  let gapKt = 0;
+  if (hasGapData) {
+    const latestWeek = currentYearDeliveries[currentYearDeliveries.length - 1];
+    const currentLatest = latestWeek.producer_deliveries_kt;
+    const priorLatest = priorYearDeliveries.find(
+      (r) => r.grain_week === latestWeek.grain_week
+    )?.producer_deliveries_kt ?? 0;
+    if (priorLatest > 0) {
+      yoyDeliveryPct = ((currentLatest - priorLatest) / priorLatest) * 100;
+    }
+    gapKt = priorLatest - currentLatest;
+  }
+
   return (
     <GrainPageTransition>
       <div className="space-y-10">
@@ -329,6 +350,45 @@ export default async function GrainDetailPage({ params }: Props) {
             />
           )}
         </section>
+
+        {/* ========== DELIVERY PACE (Canola only) ========== */}
+        {grain.slug === "canola" && hasGapData && (
+          <section className="space-y-6">
+            <SectionHeader
+              title="Delivery Pace"
+              subtitle="Cumulative deliveries vs prior year"
+            >
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                yoyDeliveryPct < 0
+                  ? "border border-red-500/30 text-red-600 dark:text-red-400"
+                  : "border border-prairie/30 text-prairie"
+              }`}>
+                {yoyDeliveryPct > 0 ? "+" : ""}{yoyDeliveryPct.toFixed(1)}% YoY
+              </span>
+              {gapKt !== 0 && (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  gapKt > 0
+                    ? "border border-prairie/30 text-prairie"
+                    : "border border-amber-500/30 text-amber-600 dark:text-amber-400"
+                }`}>
+                  {gapKt > 0 ? `${fmtKt(gapKt, 0)} withheld` : `${fmtKt(Math.abs(gapKt), 0)} ahead`}
+                </span>
+              )}
+            </SectionHeader>
+            <SectionBoundary
+              title="Delivery pace unavailable"
+              message="The delivery gap chart is temporarily unavailable."
+            >
+              <GlassCard hover={false} elevation={2} className="p-4">
+                <DeliveryGapChart
+                  currentYearData={currentYearDeliveries}
+                  priorYearData={priorYearDeliveries}
+                  grainName={grain.name}
+                />
+              </GlassCard>
+            </SectionBoundary>
+          </section>
+        )}
 
         {/* ========== NET BALANCE (full-width) ========== */}
         <section className="space-y-6">
