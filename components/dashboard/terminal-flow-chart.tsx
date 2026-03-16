@@ -101,8 +101,7 @@ export function TerminalFlowChart({
             <CartesianGrid
               strokeDasharray="3 3"
               stroke="hsl(var(--muted-foreground))"
-              opacity={0.2}
-              vertical={false}
+              opacity={0.35}
             />
 
             <XAxis
