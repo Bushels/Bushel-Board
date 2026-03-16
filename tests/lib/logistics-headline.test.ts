@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateLogisticsHeadline } from "@/lib/queries/logistics";
+import { generateLogisticsHeadline } from "@/lib/queries/logistics-utils";
 
 describe("generateLogisticsHeadline", () => {
   it("returns vessel congestion headline when vessels exceed average", () => {

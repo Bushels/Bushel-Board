@@ -13,11 +13,11 @@ import {
   vesselSentiment,
   octSentiment,
   shipmentYoySentiment,
-} from "@/lib/queries/logistics";
+} from "@/lib/queries/logistics-utils";
 import type {
   LogisticsSnapshot,
   WeeklyTerminalFlow,
-} from "@/lib/queries/logistics";
+} from "@/lib/queries/logistics-utils";
 
 interface LogisticsBannerProps {
   logistics: LogisticsSnapshot;
@@ -75,14 +75,14 @@ export function LogisticsBanner({
         />
         <LogisticsStatPill
           label="Out-of-Car Time"
-          value={`${oct}%`}
+          value={`${oct.toFixed(1)}%`}
           sentiment={octSentiment(oct)}
         />
         <LogisticsStatPill
           label="YTD Shipments"
           value={`${ytdShipments.toLocaleString()} kt`}
           sentiment={shipmentYoySentiment(ytdYoy)}
-          sublabel={`${ytdYoy >= 0 ? "+" : ""}${ytdYoy}% YoY`}
+          sublabel={`${ytdYoy >= 0 ? "+" : ""}${ytdYoy.toFixed(0)}% YoY`}
         />
       </div>
 
