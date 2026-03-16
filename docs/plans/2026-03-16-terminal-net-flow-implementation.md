@@ -10,6 +10,18 @@
 
 **Design Doc:** `docs/plans/2026-03-16-terminal-net-flow-design.md`
 
+**CSS Color Convention:** This codebase uses TWO variable patterns:
+- `hsl(var(--muted-foreground))` — for shadcn theme variables stored as HSL channel values
+- `var(--color-canola)` — for custom hex variables (e.g., `--color-canola: #c17f24`)
+- **NEVER** wrap hex variables in `hsl()`. Use `var(--color-xxx)` directly.
+- For opacity, use `color-mix(in srgb, var(--color-prairie) 65%, transparent)` — NOT `hsl(var(...) / 0.65)`.
+- For shadcn theme vars like `--border`, `--destructive`, `--card` which store hex values in this project, use `var(--border)` directly or `color-mix` for opacity.
+
+**Existing Recharts color pattern** (from `gamified-grain-chart.tsx`):
+- `stroke="var(--color-canola)"` — custom colors
+- `stroke="hsl(var(--muted-foreground))"` — shadcn HSL-based vars
+- `fill="hsl(var(--primary))"` — shadcn HSL-based vars
+
 ---
 
 ### Task 1: Create `get_weekly_terminal_flow` RPC Migration
@@ -678,13 +690,13 @@ export function TerminalFlowChart({
                   key={`bar-${index}`}
                   fill={
                     entry.netFlow >= 0
-                      ? "hsl(var(--prairie) / 0.65)"
-                      : "hsl(var(--destructive) / 0.65)"
+                      ? "color-mix(in srgb, var(--color-prairie) 65%, transparent)"
+                      : "color-mix(in srgb, var(--destructive) 65%, transparent)"
                   }
                   stroke={
                     entry.netFlow >= 0
-                      ? "hsl(var(--prairie) / 0.9)"
-                      : "hsl(var(--destructive) / 0.9)"
+                      ? "color-mix(in srgb, var(--color-prairie) 90%, transparent)"
+                      : "color-mix(in srgb, var(--destructive) 90%, transparent)"
                   }
                   strokeWidth={1}
                 />
@@ -693,14 +705,14 @@ export function TerminalFlowChart({
             <Line
               dataKey="receipts"
               type="monotone"
-              stroke="hsl(var(--sk-province))"
+              stroke="var(--color-province-sk)"
               strokeWidth={2}
               dot={false}
             />
             <Line
               dataKey="exports"
               type="monotone"
-              stroke="hsl(var(--canola))"
+              stroke="var(--color-canola)"
               strokeWidth={2}
               strokeDasharray="6 3"
               dot={false}
@@ -739,7 +751,7 @@ git commit -m "feat: add TerminalFlowChart diverging bar + line component"
 
 **Step 1: Write the banner component**
 
-This is a server-friendly wrapper (no `"use client"`) that renders the narrative headline, stat pills, and a compact sparkline. The sparkline itself needs `"use client"` so we extract it as a sub-component.
+This is a `"use client"` component (Recharts requires client-side rendering). It receives plain JSON props from the server component parent.
 
 ```typescript
 // components/dashboard/logistics-banner.tsx
@@ -848,8 +860,8 @@ export function LogisticsBanner({
                     key={`spark-${index}`}
                     fill={
                       entry.netFlow >= 0
-                        ? "hsl(var(--prairie) / 0.6)"
-                        : "hsl(var(--destructive) / 0.6)"
+                        ? "color-mix(in srgb, var(--color-prairie) 60%, transparent)"
+                        : "color-mix(in srgb, var(--destructive) 60%, transparent)"
                     }
                   />
                 ))}
@@ -1030,10 +1042,12 @@ git commit -m "feat: wire LogisticsBanner into Overview page"
 Run: Search `globals.css` and `tailwind.config.ts` for these variable names.
 
 The components reference:
-- `hsl(var(--prairie) / 0.65)` — green for positive net flow
-- `hsl(var(--destructive) / 0.65)` — red for negative net flow
-- `hsl(var(--sk-province))` — blue for receipts line
-- `hsl(var(--canola))` — amber for exports line
+- `color-mix(in srgb, var(--color-prairie) 65%, transparent)` — green for positive net flow
+- `color-mix(in srgb, var(--destructive) 65%, transparent)` — red for negative net flow
+- `var(--color-province-sk)` — blue for receipts line
+- `var(--color-canola)` — amber for exports line
+
+All of these already exist in `globals.css` under `@theme inline`. Verify they resolve correctly in the browser.
 
 If any are missing, add them to the CSS variables in `globals.css` using the values from CLAUDE.md design tokens:
 - prairie: `#437a22`
