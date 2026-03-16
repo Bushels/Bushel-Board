@@ -33,6 +33,20 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "stepfun/step-3.5-flash:free";
 const BATCH_SIZE = 1;
 
+interface CotPositioningRpcRow {
+  report_date: string;
+  commodity: string;
+  exchange: string;
+  open_interest: number;
+  managed_money_net: number;
+  managed_money_net_pct: number;
+  wow_net_change: number;
+  commercial_net: number;
+  commercial_net_pct: number;
+  spec_commercial_divergence: boolean;
+  grain_week: number;
+}
+
 Deno.serve(async (req) => {
   const authError = requireInternalRequest(req);
   if (authError) {
@@ -164,12 +178,13 @@ Deno.serve(async (req) => {
         ]);
 
         // 6. CFTC COT positioning (last 4 weeks, bounded to target analysis week)
-        const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
+        const { data: cotPositioningData } = await supabase.rpc("get_cot_positioning", {
           p_grain: grainName,
           p_crop_year: cropYear,
           p_weeks_back: 4,
           p_max_grain_week: grainWeek,
         });
+        const cotPositioning = parseCotPositioningRows(cotPositioningData);
 
         // 7. Processor self-sufficiency (Process.Producer vs Other Deliveries)
         const { data: selfSufficiencyData } = await supabase.rpc("get_processor_self_sufficiency", {
@@ -415,6 +430,29 @@ Return a JSON object with these fields:
 - Return ONLY the JSON object. No markdown, no explanation outside the JSON.`;
 }
 
+function parseCotPositioningRows(data: unknown): CotPositioningRpcRow[] | null {
+  if (!Array.isArray(data) || data.length === 0) {
+    return null;
+  }
+
+  return data.map((row) => {
+    const record = row as Record<string, unknown>;
+    return {
+      report_date: String(record.report_date ?? ""),
+      commodity: String(record.commodity ?? "Unknown"),
+      exchange: String(record.exchange ?? "Unknown"),
+      open_interest: Number(record.open_interest ?? 0),
+      managed_money_net: Number(record.managed_money_net ?? 0),
+      managed_money_net_pct: Number(record.managed_money_net_pct ?? 0),
+      wow_net_change: Number(record.wow_net_change ?? 0),
+      commercial_net: Number(record.commercial_net ?? 0),
+      commercial_net_pct: Number(record.commercial_net_pct ?? 0),
+      spec_commercial_divergence: Boolean(record.spec_commercial_divergence),
+      grain_week: Number(record.grain_week ?? 0),
+    };
+  });
+}
+
 function buildDataPrompt(
   grain: string,
   cropYear: string,
@@ -428,7 +466,7 @@ function buildDataPrompt(
   stocksHist: Record<string, unknown> | null,
   knowledgeContext: string | null,
   logisticsSnapshot: Record<string, unknown> | null = null,
-  cotData: Array<Record<string, unknown>> | null = null,
+  cotData: CotPositioningRpcRow[] | null = null,
   selfSufficiency: Array<Record<string, unknown>> | null = null,
 ): string {
   const deliveredPct =
@@ -506,7 +544,7 @@ ${
 ${formatLogisticsSection(logisticsSnapshot, grain)}
 
 ### CFTC COT Positioning (Disaggregated, Options+Futures Combined — Tuesday positions, released Friday)
-${formatCotSection(cotData, grain)}
+${formatCotSection(cotData)}
 
 ### Processor Self-Sufficiency (Process worksheet — producer vs non-producer intake)
 ${formatSelfSufficiencySection(selfSufficiency, grainWeek)}
@@ -578,11 +616,8 @@ function formatLogisticsSection(snapshot: Record<string, unknown> | null, grain:
 // --- COT Formatter ---
 
 function formatCotSection(
-  cotData: any,
-  grain: string
+  cotData: CotPositioningRpcRow[] | null
 ): string {
-  return formatCotPromptContext(cotData as CotPositioningResult | null);
-
   if (!cotData || cotData.length === 0) {
     return "No CFTC futures positioning data available for this grain.";
   }

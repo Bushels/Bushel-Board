@@ -83,7 +83,7 @@ export interface GrainContext {
     grain_monitor: Record<string, unknown> | null;
     producer_cars: Array<Record<string, unknown>> | null;
   } | null;
-  cotPositioning?: any;
+  cotPositioning?: CotPositioningResult | null;
   crossGrainContext?: Array<{
     grain: string;
     cy_deliveries_kt: number;
@@ -245,14 +245,9 @@ function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[num
 }
 
 function formatCotForIntelligence(ctx: GrainContext): string {
-  return formatCotPromptContext(ctx.cotPositioning as CotPositioningResult | null);
+  return formatCotPromptContext(ctx.cotPositioning ?? null);
+  /*
 
-  if (!ctx.cotPositioning || ctx.cotPositioning.length === 0) {
-    return "No CFTC futures positioning data available for this grain.";
-  }
-
-  const latest = ctx.cotPositioning[0];
-  const lines: string[] = [
     `**${latest.commodity} (${latest.exchange}) — as of ${latest.report_date}:**`,
     `- Managed Money Net: ${latest.managed_money_net.toLocaleString()} (${latest.managed_money_net_pct}% OI), WoW: ${latest.wow_net_change > 0 ? "+" : ""}${latest.wow_net_change.toLocaleString()}`,
     `- Commercial Net: ${latest.commercial_net.toLocaleString()} (${latest.commercial_net_pct}% OI)`,
@@ -266,6 +261,7 @@ function formatCotForIntelligence(ctx: GrainContext): string {
   }
 
   return lines.join("\n");
+  */
 }
 
 function formatLogisticsForIntelligence(ctx: GrainContext): string {
