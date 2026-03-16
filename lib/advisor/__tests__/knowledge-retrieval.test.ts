@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildTieredKnowledgeQueryPlan,
+  inferAdvisorKnowledgeIntents,
   inferAdvisorKnowledgeTopics,
   resolveKnowledgeRetrievalMode,
   selectTieredKnowledgeChunks,
@@ -38,6 +39,29 @@ describe("inferAdvisorKnowledgeTopics", () => {
       expect.arrayContaining(["basis", "futures", "options", "contracts", "marketing"]),
     );
   });
+
+  it("does not treat hauling language alone as a delivery-signal proxy", () => {
+    const topics = inferAdvisorKnowledgeTopics("Should I haul canola now or keep it in the bin?");
+
+    expect(topics).toEqual(expect.arrayContaining(["storage", "marketing"]));
+    expect(topics).not.toContain("deliveries");
+  });
+});
+
+describe("inferAdvisorKnowledgeIntents", () => {
+  it("prioritizes storage intent over logistics noise in store-vs-haul questions", () => {
+    expect(
+      inferAdvisorKnowledgeIntents("Basis is improving. Should I store canola in the bin or haul it now?"),
+    ).toEqual(expect.arrayContaining(["storage", "basis"]));
+  });
+
+  it("suppresses basis-framework intent when contract selection is the real task", () => {
+    expect(
+      inferAdvisorKnowledgeIntents(
+        "If canola futures rally, should I use a basis contract, deferred delivery, or options?",
+      ),
+    ).toEqual(["contracts"]);
+  });
 });
 
 describe("buildTieredKnowledgeQueryPlan", () => {
@@ -59,6 +83,16 @@ describe("buildTieredKnowledgeQueryPlan", () => {
     );
 
     expect(plan.map((entry) => entry.id)).toContain("cot-positioning");
+  });
+
+  it("keeps basis-storage expansion out of contract-selection questions", () => {
+    const plan = buildTieredKnowledgeQueryPlan(
+      "If I think canola futures can still rally, should I use a basis contract, deferred delivery, or options?",
+      "Canola",
+    );
+
+    expect(plan.map((entry) => entry.id)).toContain("hedging-contracts");
+    expect(plan.map((entry) => entry.id)).not.toContain("basis-storage-frameworks");
   });
 });
 

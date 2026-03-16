@@ -23,6 +23,7 @@ import {
 } from "../lib/advisor/knowledge-retrieval";
 
 const args = process.argv.slice(2);
+const DEFAULT_XAI_MODEL = "grok-4-1-fast-reasoning";
 
 if (args.includes("--help") || args.includes("-h")) {
   console.error(`
@@ -30,7 +31,9 @@ Benchmark Knowledge Retrieval - Bushel Board Advisor
 
 Usage:
   OPENROUTER_API_KEY=sk-or-... npx tsx scripts/benchmark-knowledge-retrieval.ts
+  XAI_API_KEY=xai-... npx tsx scripts/benchmark-knowledge-retrieval.ts --provider xai
   OPENROUTER_API_KEY=sk-or-... npx tsx scripts/benchmark-knowledge-retrieval.ts --model <openrouter-model-id>
+  XAI_API_KEY=xai-... npx tsx scripts/benchmark-knowledge-retrieval.ts --provider xai --model <grok-model-id>
 
 Compares:
   1. baseline retrieval (current raw-message RPC usage)
@@ -43,6 +46,12 @@ Measures:
   - negative-control resistance to guessing
 `);
   process.exit(0);
+}
+
+function readFlagValue(flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  if (index === -1) return undefined;
+  return args[index + 1];
 }
 
 function loadEnvLocal() {
@@ -67,11 +76,24 @@ function loadEnvLocal() {
 
 loadEnvLocal();
 
-const modelArgIndex = args.indexOf("--model");
-const modelId = modelArgIndex !== -1 ? args[modelArgIndex + 1] : CHAT_MODELS.primary;
+type BenchmarkProvider = "openrouter" | "xai";
 
-if (!process.env.OPENROUTER_API_KEY) {
+const providerArg = readFlagValue("--provider");
+const provider: BenchmarkProvider =
+  providerArg === "xai" || providerArg === "openrouter"
+    ? providerArg
+    : process.env.BUSHEL_BENCHMARK_PROVIDER === "xai"
+      ? "xai"
+      : "openrouter";
+const modelId = readFlagValue("--model") ?? (provider === "xai" ? DEFAULT_XAI_MODEL : CHAT_MODELS.primary);
+
+if (provider === "openrouter" && !process.env.OPENROUTER_API_KEY) {
   console.error("ERROR: OPENROUTER_API_KEY must be set in .env.local or the environment.");
+  process.exit(1);
+}
+
+if (provider === "xai" && !process.env.XAI_API_KEY) {
+  console.error("ERROR: XAI_API_KEY must be set in .env.local or the environment.");
   process.exit(1);
 }
 
@@ -184,6 +206,51 @@ function scoreCase(caseDef: BenchmarkCase, chunks: RetrievedKnowledgeChunk[], re
 }
 
 async function askModel(question: string, contextText: string | null): Promise<string> {
+  const systemPrompt =
+    "Answer only from the Retrieved Knowledge. Do not use outside knowledge. " +
+    'If the answer is not contained in the Retrieved Knowledge, reply exactly "INSUFFICIENT_KNOWLEDGE". ' +
+    "If you do answer, end with a single line formatted exactly as: Sources: heading one; heading two";
+  const userPrompt = `Question:\n${question}\n\nRetrieved Knowledge:\n${contextText ?? "(none)"}`;
+
+  if (provider === "xai") {
+    const response = await fetch("https://api.x.ai/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        temperature: 0,
+        input: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+
+    const payload = await response.text();
+    if (!response.ok) {
+      throw new Error(`xAI ${response.status}: ${payload.slice(0, 300)}`);
+    }
+
+    const parsed = JSON.parse(payload) as {
+      output?: Array<{
+        type?: string;
+        content?: Array<{ type?: string; text?: string }>;
+      }>;
+    };
+    return (parsed.output ?? [])
+      .filter((item) => item.type === "message")
+      .flatMap((item) =>
+        (item.content ?? [])
+          .filter((content) => content.type === "output_text")
+          .map((content) => content.text ?? ""),
+      )
+      .join("")
+      .trim();
+  }
+
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -197,17 +264,8 @@ async function askModel(question: string, contextText: string | null): Promise<s
       temperature: 0,
       max_tokens: 450,
       messages: [
-        {
-          role: "system",
-          content:
-            "Answer only from the Retrieved Knowledge. Do not use outside knowledge. " +
-            'If the answer is not contained in the Retrieved Knowledge, reply exactly "INSUFFICIENT_KNOWLEDGE". ' +
-            "If you do answer, end with a single line formatted exactly as: Sources: heading one; heading two",
-        },
-        {
-          role: "user",
-          content: `Question:\n${question}\n\nRetrieved Knowledge:\n${contextText ?? "(none)"}`,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     }),
   });
@@ -250,6 +308,7 @@ async function runMode(caseDef: BenchmarkCase, mode: KnowledgeRetrievalMode): Pr
 
 async function main() {
   console.error("=== Bushel Board Knowledge Retrieval Benchmark ===\n");
+  console.error(`Provider: ${provider}`);
   console.error(`Model: ${modelId}`);
   console.error("Comparing baseline vs tiered retrieval on fixed advisor knowledge cases...\n");
 

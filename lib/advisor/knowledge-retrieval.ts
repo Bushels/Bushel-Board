@@ -3,6 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type KnowledgeRetrievalMode = "baseline" | "tiered";
+export type KnowledgeIntent =
+  | "basis"
+  | "storage"
+  | "contracts"
+  | "cot"
+  | "logistics"
+  | "seasonality";
 
 interface RpcChunkRow {
   chunk_id: number;
@@ -79,7 +86,7 @@ export interface KnowledgeRetrievalResult {
 
 const BASELINE_LIMIT = 4;
 const BASELINE_TOPICS = ["basis", "storage", "hedging", "deliveries", "marketing"] as const;
-const TIERED_DEFAULT_TOPICS = ["basis", "storage", "marketing"] as const;
+const TIERED_DEFAULT_TOPICS = ["marketing"] as const;
 const TIERED_MAX_LIMIT = 4;
 const TIERED_CANDIDATE_LIMIT = 8;
 
@@ -89,7 +96,7 @@ const INFERRED_TOPIC_PATTERNS: Array<{ tag: string; pattern: RegExp }> = [
   { tag: "hedging", pattern: /\bhedg(e|ing|ed)\b/i },
   { tag: "futures", pattern: /\bfutures?\b|\bspread(s)?\b/i },
   { tag: "options", pattern: /\boption(s)?\b|\bput(s)?\b|\bcall(s)?\b/i },
-  { tag: "deliveries", pattern: /\bdeliver(y|ies|ing)\b|\bhaul(ing)?\b/i },
+  { tag: "deliveries", pattern: /\bdeliver(y|ies|ing)\b/i },
   { tag: "exports", pattern: /\bexport(s|ed|ing)?\b/i },
   { tag: "stocks", pattern: /\bstock(s)?\b|\binventor(y|ies)\b/i },
   { tag: "logistics", pattern: /\blogistics\b|\bport(s)?\b|\brail\b|\bterminal(s)?\b|\bcongestion\b/i },
@@ -126,6 +133,45 @@ const QUERY_MATCH_BONUSES: Record<string, number> = {
   "flow-logistics": 0.07,
 };
 
+const HEADING_PRIORITY_BY_INTENT: Record<
+  KnowledgeIntent,
+  Array<{ heading: string; bonus: number }>
+> = {
+  basis: [
+    { heading: "Basis Signal Matrix", bonus: 0.42 },
+    { heading: "Basis Analysis Rules", bonus: 0.28 },
+    { heading: "Bullish Signal Checklist", bonus: 0.18 },
+    { heading: "Bearish Signal Checklist", bonus: 0.18 },
+  ],
+  storage: [
+    { heading: "Storage Decision Algorithm", bonus: 0.48 },
+    { heading: "Basis Signal Matrix", bonus: 0.36 },
+    { heading: "Carry Trade & Spread Analysis", bonus: 0.24 },
+  ],
+  contracts: [
+    { heading: "Contract Type Selection by Market Outlook", bonus: 0.46 },
+    { heading: "Option Strategies for Sellers (Farmers)", bonus: 0.42 },
+    { heading: "Hedging Mechanics — Canadian Grains", bonus: 0.24 },
+    { heading: "Risk Management Overlay", bonus: 0.18 },
+  ],
+  cot: [
+    { heading: "COT Integration Rule", bonus: 0.46 },
+    { heading: "CFTC COT Positioning Analysis", bonus: 0.42 },
+    { heading: "Spec/Commercial Divergence — Strongest Timing Signal", bonus: 0.38 },
+    { heading: "COT Positioning Signals", bonus: 0.24 },
+  ],
+  logistics: [
+    { heading: "Logistics & Transport Awareness", bonus: 0.44 },
+    { heading: "Regional Transport Cost Context", bonus: 0.4 },
+    { heading: "Export Demand Indicators", bonus: 0.24 },
+  ],
+  seasonality: [
+    { heading: "Seasonal Patterns & Cyclical Tendencies", bonus: 0.42 },
+    { heading: "Grain-Specific Seasonal Cycle", bonus: 0.34 },
+    { heading: "Carry Trade & Spread Analysis", bonus: 0.2 },
+  ],
+};
+
 function dedupe(values: Array<string | null | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value && value.trim())).map((value) => value.trim()))];
 }
@@ -134,6 +180,10 @@ function inferMessageTopicSignals(messageText: string): string[] {
   return INFERRED_TOPIC_PATTERNS
     .filter(({ pattern }) => pattern.test(messageText))
     .map(({ tag }) => tag);
+}
+
+function hasAnyTopics(topicTags: string[], expectedTags: string[]): boolean {
+  return expectedTags.some((tag) => topicTags.includes(tag));
 }
 
 function compareNumbersDesc(a: number, b: number): number {
@@ -191,9 +241,32 @@ export function inferAdvisorKnowledgeTopics(messageText: string): string[] {
   return dedupe([...TIERED_DEFAULT_TOPICS, ...inferMessageTopicSignals(messageText)]);
 }
 
-export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string): KnowledgeQueryPlanEntry[] {
+export function inferAdvisorKnowledgeIntents(messageText: string): KnowledgeIntent[] {
   const explicitTopics = inferMessageTopicSignals(messageText);
-  const topicTags = dedupe([...TIERED_DEFAULT_TOPICS, ...explicitTopics]);
+  const intents: KnowledgeIntent[] = [];
+
+  const hasStorage = explicitTopics.includes("storage");
+  const hasContracts = hasAnyTopics(explicitTopics, ["hedging", "futures", "options", "contracts"]);
+  const hasCot = explicitTopics.includes("cot");
+  const hasLogistics =
+    hasAnyTopics(explicitTopics, ["logistics", "exports"]) ||
+    (explicitTopics.includes("deliveries") && !hasContracts && !/\bdeferred delivery\b/i.test(messageText));
+  const hasSeasonality = explicitTopics.includes("seasonality");
+  const hasBasis = explicitTopics.includes("basis");
+
+  if (hasStorage) intents.push("storage");
+  if (hasContracts) intents.push("contracts");
+  if (hasCot) intents.push("cot");
+  if (hasLogistics) intents.push("logistics");
+  if (hasSeasonality) intents.push("seasonality");
+  if (hasBasis && !hasContracts && !hasCot && !hasLogistics) intents.push("basis");
+
+  return dedupe(intents) as KnowledgeIntent[];
+}
+
+export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string): KnowledgeQueryPlanEntry[] {
+  const topicTags = inferAdvisorKnowledgeTopics(messageText);
+  const intents = inferAdvisorKnowledgeIntents(messageText);
   const queryPlan: KnowledgeQueryPlanEntry[] = [
     {
       id: "raw-question",
@@ -209,7 +282,7 @@ export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string
     },
   ];
 
-  if (explicitTopics.includes("basis") || explicitTopics.includes("storage")) {
+  if (intents.includes("basis") || intents.includes("storage")) {
     queryPlan.push({
       id: "basis-storage-frameworks",
       label: "Basis and storage frameworks",
@@ -219,10 +292,7 @@ export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string
   }
 
   if (
-    explicitTopics.includes("hedging") ||
-    explicitTopics.includes("futures") ||
-    explicitTopics.includes("options") ||
-    explicitTopics.includes("contracts")
+    intents.includes("contracts")
   ) {
     queryPlan.push({
       id: "hedging-contracts",
@@ -232,7 +302,7 @@ export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string
     });
   }
 
-  if (explicitTopics.includes("cot") || /\bmanaged money\b|\bcommercials\b|\bspecs\b/i.test(messageText)) {
+  if (intents.includes("cot") || /\bmanaged money\b|\bcommercials\b|\bspecs\b/i.test(messageText)) {
     queryPlan.push({
       id: "cot-positioning",
       label: "COT timing",
@@ -241,7 +311,7 @@ export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string
     });
   }
 
-  if (explicitTopics.includes("logistics") || explicitTopics.includes("exports")) {
+  if (intents.includes("logistics")) {
     queryPlan.push({
       id: "flow-logistics",
       label: "Logistics and export flow",
@@ -250,7 +320,7 @@ export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string
     });
   }
 
-  if (explicitTopics.includes("seasonality")) {
+  if (intents.includes("seasonality")) {
     queryPlan.push({
       id: "seasonality-carry",
       label: "Seasonality and carry",
@@ -270,6 +340,19 @@ export function buildTieredKnowledgeQueryPlan(messageText: string, grain: string
 
 function buildHeadingHints(topicTags: string[]): string[] {
   return dedupe(topicTags.flatMap((tag) => TOPIC_HEADING_HINTS[tag] ?? []));
+}
+
+function buildHeadingPriorityMap(intents: KnowledgeIntent[]): Map<string, number> {
+  const priorityMap = new Map<string, number>();
+
+  for (const intent of intents) {
+    for (const priority of HEADING_PRIORITY_BY_INTENT[intent] ?? []) {
+      const key = normalizeText(priority.heading);
+      priorityMap.set(key, Math.max(priorityMap.get(key) ?? 0, priority.bonus));
+    }
+  }
+
+  return priorityMap;
 }
 
 export function selectTieredKnowledgeChunks(candidates: RetrievedKnowledgeChunk[], limit: number): RetrievedKnowledgeChunk[] {
@@ -476,6 +559,7 @@ async function retrieveTieredKnowledgeContext(
   grain: string,
 ): Promise<KnowledgeRetrievalResult> {
   const topicTags = inferAdvisorKnowledgeTopics(messageText);
+  const intents = inferAdvisorKnowledgeIntents(messageText);
   const queryPlan = buildTieredKnowledgeQueryPlan(messageText, grain);
   const rpcCandidates = await runKnowledgeRpc(supabase, queryPlan, grain, topicTags);
   const chunkDetails = await loadChunkDetails(
@@ -483,6 +567,7 @@ async function retrieveTieredKnowledgeContext(
     rpcCandidates.map((candidate) => candidate.chunk_id),
   );
   const headingHints = buildHeadingHints(topicTags);
+  const headingPriorityMap = buildHeadingPriorityMap(intents);
   const questionTokens = new Set(tokenize(messageText));
 
   const candidates = rpcCandidates
@@ -493,6 +578,7 @@ async function retrieveTieredKnowledgeContext(
       const { title, sourcePath } = getDocumentMeta(detail);
       const headingText = normalizeText(detail.heading ?? "");
       const headingHintMatches = headingHints.filter((hint) => headingText.includes(hint)).length;
+      const headingPriorityBonus = headingPriorityMap.get(headingText) ?? 0;
       const contentTokens = new Set(tokenize(detail.content));
       const overlappingTokens = [...questionTokens].filter((token) => contentTokens.has(token)).length;
       const topicOverlap = detail.topic_tags.filter((tag) => topicTags.includes(tag)).length;
@@ -504,6 +590,7 @@ async function retrieveTieredKnowledgeContext(
         candidate.rank +
         (candidate.matchedQueries.length - 1) * 0.03 +
         queryBonus +
+        headingPriorityBonus +
         headingHintMatches * 0.03 +
         topicOverlap * 0.015 +
         Math.min(overlappingTokens, 3) * 0.01 +
