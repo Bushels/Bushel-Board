@@ -1,5 +1,25 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-15 — Delivery Gap Chart: Prototype Fidelity Failure (Missing Right Y-Axis + Gap Line)
+
+**Symptom:** User provided exact HTML/Chart.js prototype with 3 datasets on 2 axes. Implementation produced 2 lines on 1 axis with fill-area approximation. The gap LINE on a secondary right Y-axis — the most important visual element ("the gap is the thesis") — was never built.
+
+**Root Cause (process):** The design doc silently simplified the prototype without documenting deviations. Clarifying questions focused on UX (page position, style, toggle behavior) rather than structure (axes, datasets, visual layers). All reviewer agents validated against the derived design doc, not the original prototype. Gemini was consulted on a detail (color choice), not architecture.
+
+**What was lost:**
+1. **Right Y-axis** labeled "YoY Gap (Kt)" with green tick marks — completely dropped
+2. **Gap as its own plotted LINE** on the right axis — replaced with fill-area between two lines
+3. **Headline numbers** — prototype showed 293 Kt gap vs implementation's 563 Kt (different data period, not investigated)
+
+**Process fixes applied:**
+1. Gemini collab skill updated with "Prototype Fidelity Check" pattern (Pattern 4) and "Design Doc Deviation Check" (Pattern 5)
+2. New Workflow 6 in gemini-collab: "Prototype Fidelity Review" — run BEFORE writing design doc when user provides source code
+3. Rule: When user provides exact code, default to faithful reproduction first, improvements second
+4. Rule: Spec reviewers must receive both original source AND design doc
+5. Rule: Clarifying questions must inventory structural elements (axes, datasets, visual layers) before UX details
+
+**Fix:** Add right Y-axis with gap line to the chart component (pending).
+
 ## 2026-03-15 — Exports Missing Producer Cars Component (112.6 vs 113.5 Kt)
 
 **Symptom:** Dashboard showed Canola exports as 112.6 Kt for week 31 current week, but CGC Excel Summary!H27 showed 113.5 Kt. The 0.9 Kt gap was consistent and exact.

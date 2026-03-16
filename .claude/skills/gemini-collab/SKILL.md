@@ -80,6 +80,37 @@ Write 5 debate rules for evaluating wheat export demand signals, in the style of
 agent-debate-rules.md.
 ```
 
+### Pattern 4: Prototype Fidelity Check (CRITICAL for user-provided code)
+
+When a user provides source code, HTML prototypes, or visual mockups, use Gemini to verify
+your design preserves all structural elements before implementation.
+
+```
+Here is the user's prototype code (Chart.js):
+[paste key dataset/config sections, not full HTML boilerplate]
+
+Here is my Recharts design plan:
+[paste the visual elements list from your design doc]
+
+What structural elements from the prototype am I missing or simplifying away?
+Focus on: axes, datasets, visual layers, interactions.
+```
+
+**Key rule:** Ask about STRUCTURE first, details (colors, labels) second. A missing axis
+is 100x worse than a wrong color.
+
+### Pattern 5: Design Doc Deviation Check
+
+Before implementation, verify your design doc against the source material.
+
+```
+The user asked for: [1-sentence summary of what they showed/requested]
+My design doc proposes: [1-sentence summary of what you designed]
+
+List every element from the original that my design removes, changes, or adds.
+Flag any that seem like unintentional simplifications.
+```
+
 ## Prompt Patterns That FAIL
 
 These consistently produce generic "I'm ready" placeholder responses. Avoid them.
@@ -173,6 +204,31 @@ Here is the actual data:
 
 Identify every analytical error. What should the corrected thesis say?
 ```
+
+### Workflow 6: Prototype Fidelity Review
+
+Run BEFORE writing a design doc when the user provides source code or a visual prototype.
+
+```
+Step 1: Inventory the prototype elements:
+        "The user's Chart.js prototype has: [list every dataset, axis, visual layer,
+        interaction]. I'm converting to Recharts. Which elements are hardest to reproduce
+        faithfully and what Recharts components map to each?"
+
+Step 2: After writing the design doc, run deviation check:
+        "Original prototype has [N datasets on M axes]. My design has [X datasets on Y axes].
+        What did I lose? Is the simplification justified?"
+
+Step 3: After implementation, verify headline numbers:
+        "The prototype shows -6.2% YoY and 293 Kt gap. Our implementation shows -4.4% YoY
+        and 563 Kt. What could explain this difference — different data, different formula,
+        or a bug?"
+```
+
+**Lesson learned (2026-03-15):** Delivery gap chart prototype had 3 datasets on 2 axes (including
+a gap LINE on a right Y-axis). Design doc silently simplified to 2 lines on 1 axis with fill area.
+All reviewer agents validated against the design doc, not the prototype. The gap line — the most
+important element — was never built.
 
 ## Parallel Multi-Query Strategy
 
