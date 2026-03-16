@@ -3,9 +3,9 @@
  * Benchmark advisor knowledge retrieval before vs. after the tiered upgrade.
  *
  * Usage:
- *   OPENROUTER_API_KEY=sk-or-... npx tsx scripts/benchmark-knowledge-retrieval.ts
- *   OPENROUTER_API_KEY=sk-or-... npx tsx scripts/benchmark-knowledge-retrieval.ts --model stepfun/step-3.5-flash:free
- *   OPENROUTER_API_KEY=sk-or-... npx tsx scripts/benchmark-knowledge-retrieval.ts --help
+ *   XAI_API_KEY=xai-... npx tsx scripts/benchmark-knowledge-retrieval.ts
+ *   XAI_API_KEY=xai-... npx tsx scripts/benchmark-knowledge-retrieval.ts --model grok-4-1-fast-reasoning
+ *   XAI_API_KEY=xai-... npx tsx scripts/benchmark-knowledge-retrieval.ts --help
  *
  * Output:
  *   - JSON summary to stdout
@@ -15,7 +15,7 @@
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
-import { CHAT_MODELS, OPENROUTER_BASE_URL } from "../lib/advisor/openrouter-client";
+import { CHAT_MODELS, XAI_BASE_URL } from "../lib/advisor/openrouter-client";
 import {
   retrieveAdvisorKnowledgeContext,
   type KnowledgeRetrievalMode,
@@ -251,13 +251,11 @@ async function askModel(question: string, contextText: string | null): Promise<s
       .trim();
   }
 
-  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+  const response = await fetch(`${XAI_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${process.env.XAI_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://bushelboard.com",
-      "X-Title": "Bushel Board Knowledge Benchmark",
     },
     body: JSON.stringify({
       model: modelId,

@@ -1,14 +1,14 @@
 /**
  * Supabase Edge Function: analyze-market-data
  *
- * Step 3.5 Flash analytical workhorse in the dual-LLM intelligence pipeline.
+ * Round 1 analytical workhorse in the intelligence pipeline.
  * Runs BEFORE generate-intelligence in the chain:
  *   search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary
  *
  * Queries CGC data, AAFC supply balance, historical averages, farmer sentiment,
- * and community stats. Calls Step 3.5 Flash via OpenRouter to produce structured
+ * and community stats. Calls Grok 4.1 Fast via xAI Responses API to produce structured
  * market analysis (thesis, bull/bear cases, historical context, key signals).
- * Stores results in market_analysis table for Grok to cross-validate.
+ * Stores results in market_analysis table for Round 2 synthesis.
  *
  * Request body (optional):
  *   { "crop_year": "2025-2026", "grain_week": 29, "grains": ["Canola"] }
@@ -29,8 +29,8 @@ import {
 } from "../_shared/market-intelligence-config.ts";
 import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "stepfun/step-3.5-flash:free";
+const XAI_API_URL = "https://api.x.ai/v1/responses";
+const MODEL = "grok-4-1-fast-reasoning";
 const BATCH_SIZE = 1;
 
 interface CotPositioningRpcRow {
@@ -61,10 +61,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
-    if (!openRouterKey) {
+    const xaiKey = Deno.env.get("XAI_API_KEY");
+    if (!xaiKey) {
       return new Response(
-        JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }),
+        JSON.stringify({ error: "XAI_API_KEY not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -217,23 +217,66 @@ Deno.serve(async (req) => {
           selfSufficiencyData,
         );
 
-        // Call OpenRouter API
-        const response = await fetch(OPENROUTER_URL, {
+        // Call xAI Grok Responses API with structured outputs
+        const response = await fetch(XAI_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${openRouterKey}`,
-            "HTTP-Referer": "https://bushelboard.ca",
-            "X-Title": "Bushel Board",
+            "Authorization": `Bearer ${xaiKey}`,
           },
           body: JSON.stringify({
             model: MODEL,
-            messages: [
+            max_output_tokens: 16384,
+            input: [
               { role: "system", content: systemPrompt },
               { role: "user", content: dataPrompt },
             ],
-            response_format: { type: "json_object" },
-            max_tokens: 16384,
+            text: {
+              format: {
+                type: "json_schema",
+                name: "market_analysis",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    initial_thesis: { type: "string" },
+                    bull_case: { type: "string" },
+                    bear_case: { type: "string" },
+                    historical_context: {
+                      type: "object",
+                      properties: {
+                        deliveries_vs_5yr_avg_pct: { type: ["number", "null"] },
+                        exports_vs_5yr_avg_pct: { type: ["number", "null"] },
+                        seasonal_observation: { type: "string" },
+                        notable_patterns: { type: "array", items: { type: "string" } },
+                      },
+                      required: ["deliveries_vs_5yr_avg_pct", "exports_vs_5yr_avg_pct", "seasonal_observation", "notable_patterns"],
+                      additionalProperties: false,
+                    },
+                    data_confidence: { type: "string", enum: ["high", "medium", "low"] },
+                    confidence_score: { type: ["integer", "null"] },
+                    final_assessment: { type: ["string", "null"] },
+                    key_signals: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          signal: { type: "string", enum: ["bullish", "bearish", "watch"] },
+                          title: { type: "string" },
+                          body: { type: "string" },
+                          confidence: { type: "string", enum: ["high", "medium", "low"] },
+                          source: { type: "string", enum: ["CGC", "AAFC", "Historical", "Community", "CFTC"] },
+                        },
+                        required: ["signal", "title", "body", "confidence", "source"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["initial_thesis", "bull_case", "bear_case", "historical_context", "data_confidence", "confidence_score", "final_assessment", "key_signals"],
+                  additionalProperties: false,
+                },
+              },
+            },
           }),
         });
 
@@ -242,7 +285,7 @@ Deno.serve(async (req) => {
           results.push({
             grain: grainName,
             status: "failed",
-            error: `OpenRouter ${response.status}: ${errText.slice(0, 200)}`,
+            error: `Grok API ${response.status}: ${errText.slice(0, 200)}`,
           });
           continue;
         }
@@ -250,8 +293,13 @@ Deno.serve(async (req) => {
         const aiResponse = await response.json();
         const usage = aiResponse.usage ?? {};
 
-        // OpenRouter chat completions format
-        const content = aiResponse.choices?.[0]?.message?.content ?? "";
+        // Extract text content from xAI Responses API output array
+        const messageOutput = (aiResponse.output ?? []).find(
+          (o: { type: string }) => o.type === "message"
+        );
+        const content = messageOutput?.content?.find(
+          (c: { type: string }) => c.type === "output_text"
+        )?.text ?? "";
 
         let analysis;
         try {
@@ -306,10 +354,9 @@ Deno.serve(async (req) => {
               final_assessment: analysis.final_assessment ?? null,
               model_used: MODEL,
               llm_metadata: {
-                prompt_tokens: usage.prompt_tokens ?? null,
-                completion_tokens: usage.completion_tokens ?? null,
-                total_tokens: usage.total_tokens ?? null,
-                openrouter_id: aiResponse.id ?? null,
+                request_id: aiResponse.id ?? null,
+                input_tokens: usage.input_tokens ?? null,
+                output_tokens: usage.output_tokens ?? null,
                 prompt_version: MARKET_INTELLIGENCE_VERSIONS.analyzeMarketData,
                 knowledge_version: MARKET_INTELLIGENCE_VERSIONS.knowledgeBase,
                 knowledge_sources: [...new Set([...KNOWLEDGE_SOURCE_PATHS, ...knowledgeContext.sourcePaths])],

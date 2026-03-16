@@ -5,12 +5,12 @@ import { getAuthenticatedUserContext } from "@/lib/auth/role-guard";
 import { buildChatContext } from "@/lib/advisor/context-builder";
 import { buildAdvisorSystemPrompt } from "@/lib/advisor/system-prompt";
 import {
-  createOpenRouterClient,
+  createXaiClient,
   CHAT_MODELS,
 } from "@/lib/advisor/openrouter-client";
 
 export const runtime = "nodejs";
-export const maxDuration = 30; // Single model — should respond much faster
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -50,7 +50,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
-  const openrouter = createOpenRouterClient();
+  const xai = createXaiClient();
+  const model = CHAT_MODELS.primary;
 
   // 3. Create or load thread
   let currentThreadId = threadId;
@@ -97,107 +98,100 @@ export async function POST(request: Request) {
   // 6. Build farmer context
   const chatContext = await buildChatContext(user.id, role, message, grain);
 
-  // 7. Single-model streaming: Nemotron Super with full context
+  // 7. Stream Grok 4.1 Fast response
   const systemPrompt = buildAdvisorSystemPrompt(chatContext);
 
-  // Try primary model (Nemotron Super), fall back to Trinity
-  const models = [CHAT_MODELS.primary, CHAT_MODELS.fallback];
+  try {
+    const stream = await xai.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...conversationHistory,
+        { role: "user", content: message },
+      ],
+      temperature: 0.6,
+      max_tokens: 2048,
+      stream: true,
+    });
 
-  for (const model of models) {
-    try {
-      const stream = await openrouter.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...conversationHistory,
-          { role: "user", content: message },
-        ],
-        temperature: 0.6,
-        max_tokens: 2048,
-        stream: true,
-      });
+    let fullResponse = "";
 
-      let fullResponse = "";
-
-      const encoder = new TextEncoder();
-      const sseStream = new ReadableStream({
-        async start(controller) {
-          try {
-            for await (const chunk of stream) {
-              const content = chunk.choices[0]?.delta?.content ?? "";
-              if (content) {
-                fullResponse += content;
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ content })}\n\n`
-                  )
-                );
-              }
+    const encoder = new TextEncoder();
+    const sseStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content ?? "";
+            if (content) {
+              fullResponse += content;
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ content })}\n\n`
+                )
+              );
             }
-
-            // Save assistant message to DB
-            const latencyMs = Date.now() - startTime;
-            await supabase.from("chat_messages").insert({
-              thread_id: currentThreadId,
-              role: "assistant",
-              content: fullResponse,
-              model_used: model,
-              latency_ms: latencyMs,
-            });
-
-            // Update thread
-            await supabase
-              .from("chat_threads")
-              .update({
-                message_count: (history?.length ?? 0) + 2,
-                updated_at: new Date().toISOString(),
-                grain_context: grain
-                  ? [grain]
-                  : chatContext.farmer.grains.map((g) => g.grain),
-              })
-              .eq("id", currentThreadId);
-
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ threadId: currentThreadId, done: true })}\n\n`
-              )
-            );
-            controller.close();
-          } catch (err) {
-            console.error("Stream error:", err);
-            controller.error(err);
           }
-        },
-      });
 
-      return new Response(sseStream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-          "X-Thread-Id": currentThreadId!,
-        },
-      });
-    } catch (error) {
-      console.error(`Model ${model} failed:`, error);
-      continue;
-    }
+          // Save assistant message to DB
+          const latencyMs = Date.now() - startTime;
+          await supabase.from("chat_messages").insert({
+            thread_id: currentThreadId,
+            role: "assistant",
+            content: fullResponse,
+            model_used: model,
+            latency_ms: latencyMs,
+          });
+
+          // Update thread
+          await supabase
+            .from("chat_threads")
+            .update({
+              message_count: (history?.length ?? 0) + 2,
+              updated_at: new Date().toISOString(),
+              grain_context: grain
+                ? [grain]
+                : chatContext.farmer.grains.map((g) => g.grain),
+            })
+            .eq("id", currentThreadId);
+
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ threadId: currentThreadId, done: true })}\n\n`
+            )
+          );
+          controller.close();
+        } catch (err) {
+          console.error("Stream error:", err);
+          controller.error(err);
+        }
+      },
+    });
+
+    return new Response(sseStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Thread-Id": currentThreadId!,
+      },
+    });
+  } catch (error) {
+    console.error("Grok API failed:", error);
+
+    const fallbackContent =
+      "I'm having trouble connecting right now. Check back in a few minutes.";
+
+    await supabase.from("chat_messages").insert({
+      thread_id: currentThreadId,
+      role: "assistant",
+      content: fallbackContent,
+      model_used: "fallback",
+      latency_ms: Date.now() - startTime,
+    });
+
+    return Response.json({
+      content: fallbackContent,
+      threadId: currentThreadId,
+    });
   }
-
-  // All models failed
-  const fallbackContent =
-    "I'm having trouble connecting right now. Check back in a few minutes.";
-
-  await supabase.from("chat_messages").insert({
-    thread_id: currentThreadId,
-    role: "assistant",
-    content: fallbackContent,
-    model_used: "fallback",
-    latency_ms: Date.now() - startTime,
-  });
-
-  return Response.json({
-    content: fallbackContent,
-    threadId: currentThreadId,
-  });
 }

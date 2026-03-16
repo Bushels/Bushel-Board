@@ -1,33 +1,24 @@
 import OpenAI from "openai";
 
-export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+export const XAI_BASE_URL = "https://api.x.ai/v1";
 
 export const CHAT_MODELS = {
-  /** Primary advisor model — Nemotron Super 120B (57 tok/s, free) */
-  primary: "nvidia/nemotron-3-super-120b-a12b:free",
-  /** Fallback — Trinity Large 400B (free) */
-  fallback: "arcee-ai/trinity-large-preview:free",
-  // Legacy aliases for any code still referencing old names
-  voice: "nvidia/nemotron-3-super-120b-a12b:free",
-  voiceFallback: "arcee-ai/trinity-large-preview:free",
+  /** Primary advisor model — Grok 4.1 Fast via xAI */
+  primary: "grok-4-1-fast-reasoning",
 } as const;
 
 /**
- * Create an OpenAI-compatible client for OpenRouter.
- * Requires OPENROUTER_API_KEY env var.
+ * Create an OpenAI-compatible client for xAI.
+ * Requires XAI_API_KEY env var.
  */
-export function createOpenRouterClient(): OpenAI {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+export function createXaiClient(): OpenAI {
+  const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY environment variable is required for advisor chat");
+    throw new Error("XAI_API_KEY environment variable is required for advisor chat");
   }
 
   return new OpenAI({
-    baseURL: OPENROUTER_BASE_URL,
+    baseURL: XAI_BASE_URL,
     apiKey,
-    defaultHeaders: {
-      "HTTP-Referer": "https://bushelboard.com",
-      "X-Title": "Bushel Board Advisor",
-    },
   });
 }
