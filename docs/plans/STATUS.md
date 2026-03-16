@@ -33,6 +33,25 @@ Last updated: 2026-03-14
 
 | 25 | Dashboard Redesign V2 — Wave 3: Engagement & My Farm | Complete | 2026-03-14 | `components/dashboard/metric-sentiment-vote.tsx`, `components/dashboard/percentile-graph.tsx`, `components/ui/grain-icon.tsx`, `app/(dashboard)/overview/signal-strip-with-voting.tsx`, `components/dashboard/farmer-cot-card.tsx` |
 | 26 | Dashboard Redesign V2 — Wave 4: Advanced Intelligence | Complete | 2026-03-14 | `supabase/migrations/20260314500000_*`, `components/dashboard/crush-utilization-gauge.tsx`, `components/dashboard/price-sparkline.tsx`, `lib/queries/processor-capacity.ts`, `lib/queries/grain-prices.ts` |
+| 27 | Delivery Pace Chart (YoY Cumulative Gap, Dual Y-Axis) | Complete | 2026-03-15 | `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`, `app/(dashboard)/grain/[slug]/page.tsx` |
+
+### 2026-03-15 — Delivery Pace Chart: YoY Cumulative Gap with Dual Y-Axis (Track 27)
+
+**What was delivered:**
+- `DeliveryGapChart` component with dual Y-axes: left axis for cumulative deliveries (Kt), right axis for YoY gap (Kt) with green ticks
+- 3 datasets on 2 axes: current year solid line + prior year dashed line (left), gap line + shaded fill area (right)
+- Pure utility function `computeDeliveryGap()` with 5 passing tests
+- Canola-gated Delivery Pace section on grain detail page between Key Metrics and Net Balance
+- SectionHeader with dynamic pills: YoY % (red/green) and gap Kt ("X kt withheld"/"X kt ahead")
+- Prototype fidelity lesson documented — design doc initially simplified the user's Chart.js prototype, dropping the right Y-axis
+
+**Process improvements from this track:**
+- Updated gemini-collab skill with Prototype Fidelity Check (Pattern 4), Design Doc Deviation Check (Pattern 5), and Prototype Fidelity Review workflow (Workflow 6)
+- Documented full retrospective in `docs/lessons-learned/issues.md`
+- Rule: when user provides source code, default to faithful reproduction first, improvements second
+
+**New files:** `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`
+**Modified files:** `app/(dashboard)/grain/[slug]/page.tsx`, `components/dashboard/CLAUDE.md`
 
 ### 2026-03-14 — Dashboard Redesign V2: Wave 4 Advanced Intelligence (Track 26)
 

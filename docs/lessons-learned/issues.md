@@ -18,7 +18,13 @@
 4. Rule: Spec reviewers must receive both original source AND design doc
 5. Rule: Clarifying questions must inventory structural elements (axes, datasets, visual layers) before UX details
 
-**Fix:** Add right Y-axis with gap line to the chart component (pending).
+**Fix applied:** Rewrote `delivery-gap-chart.tsx` with dual Y-axes (`yAxisId="left"` for cumulative deliveries, `yAxisId="right"` for gap) and 3 datasets: current year Line, prior year dashed Line (both left axis), gap Area + Line (right axis with green ticks). Key Recharts lesson: when using multiple `<YAxis>` components, *every* `<Line>` and `<Area>` must specify a `yAxisId` prop or Recharts throws a runtime error.
+
+**Takeaway for future prototype conversions:**
+1. Inventory EVERY axis, dataset, and visual layer from the prototype BEFORE writing a design doc
+2. Default to faithful reproduction first — improvements/simplifications second, and only if documented
+3. Run the Prototype Fidelity Review workflow (gemini-collab Workflow 6) when user provides source code
+4. Spec reviewers must receive both the original source AND the design doc
 
 ## 2026-03-15 — Exports Missing Producer Cars Component (112.6 vs 113.5 Kt)
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   ComposedChart,
   Area,
@@ -20,22 +21,19 @@ const COLOR_GAP = "#437a22"; // prairie green — gap line + fill
 const COLOR_CURRENT = "#c17f24"; // canola
 const COLOR_PRIOR = "hsl(var(--muted-foreground))";
 
+const formatAxis = (v: number) => fmtKt(v, 0).replace(" kt", "");
+
 interface DeliveryGapChartProps {
   currentYearData: CumulativeWeekRow[];
   priorYearData: CumulativeWeekRow[];
-  grainName: string;
 }
-
-type ChartPoint = DeliveryGapPoint & {
-  week_label: string;
-};
 
 interface TooltipPayloadItem {
   color?: string;
   name?: string;
   value?: number | string;
   dataKey?: string;
-  payload?: ChartPoint;
+  payload?: DeliveryGapPoint & { week_label: string };
 }
 
 function GapTooltip({
@@ -80,15 +78,13 @@ function GapTooltip({
 export function DeliveryGapChart({
   currentYearData,
   priorYearData,
-  grainName,
 }: DeliveryGapChartProps) {
-  const gapData = computeDeliveryGap(currentYearData, priorYearData);
-  if (gapData.length === 0) return null;
+  const chartData = useMemo(() => {
+    const gapData = computeDeliveryGap(currentYearData, priorYearData);
+    return gapData.map((d) => ({ ...d, week_label: `W${d.week}` }));
+  }, [currentYearData, priorYearData]);
 
-  const chartData: ChartPoint[] = gapData.map((d) => ({
-    ...d,
-    week_label: `W${d.week}`,
-  }));
+  if (chartData.length === 0) return null;
 
   return (
     <div>
@@ -158,7 +154,7 @@ export function DeliveryGapChart({
           <YAxis
             yAxisId="left"
             tick={{ fontSize: 11 }}
-            tickFormatter={(v: number) => fmtKt(v, 0).replace(" kt", "")}
+            tickFormatter={formatAxis}
             className="text-muted-foreground"
             label={{
               value: "Cumulative Deliveries (Kt)",
@@ -173,10 +169,7 @@ export function DeliveryGapChart({
             yAxisId="right"
             orientation="right"
             tick={{ fontSize: 11, fill: COLOR_GAP }}
-            tickFormatter={(v: number) => {
-              const abs = Math.abs(v);
-              return abs >= 1000 ? `${(v / 1000).toFixed(1)}M` : `${v}`;
-            }}
+            tickFormatter={formatAxis}
             className="text-muted-foreground"
             label={{
               value: "YoY Gap (Kt)",

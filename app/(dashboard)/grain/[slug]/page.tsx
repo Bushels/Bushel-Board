@@ -381,7 +381,6 @@ export default async function GrainDetailPage({ params }: Props) {
                 <DeliveryGapChart
                   currentYearData={currentYearDeliveries}
                   priorYearData={priorYearDeliveries}
-                  grainName={grain.name}
                 />
               </GlassCard>
             </SectionBoundary>

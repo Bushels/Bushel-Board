@@ -24,7 +24,7 @@ Both Overview and grain detail pages use a **3-section layout** with `SectionHea
 | `bull-bear-cards.tsx` | Side-by-side bull/bear cases with confidence bar + assessment | Grain detail |
 | `crush-utilization-gauge.tsx` | Semicircle SVG gauge: annualized processing vs capacity | Grain detail |
 | `price-sparkline.tsx` | Compact SVG price sparkline with latest settlement + daily change | Grain detail |
-| `delivery-gap-chart.tsx` | YoY cumulative delivery gap with stacked area fill between lines | Grain detail (Canola only) |
+| `delivery-gap-chart.tsx` | YoY cumulative delivery gap with dual Y-axes: left for deliveries, right for gap line + fill | Grain detail (Canola only) |
 
 ## Deleted Components — Do Not Recreate
 

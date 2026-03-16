@@ -122,6 +122,8 @@ These consistently produce generic "I'm ready" placeholder responses. Avoid them
 | "Score each section 1-10" | Evaluative/scoring requests | Ask "what's wrong with X" instead |
 | Multi-part questions (A, B, C, D, E) | Too many asks at once | One question per call |
 | Pasting full file contents in the prompt | Redundant with @file | Use @file syntax instead |
+| Meta-process questions ("How should we improve our agents/workflow?") | Not a domain question; returns generic advice | Keep Gemini on domain/code tasks; handle process improvement internally |
+| Asking for UX data display opinions without specifying constraints | Returns vague "both approaches work" | Provide specific options A/B with constraints for Gemini to evaluate |
 
 ## Model Selection
 
@@ -241,6 +243,24 @@ Call 1: @commodity-knowledge.ts What basis analysis rules are missing?
 Call 2: What weather data sources are free and useful for prairie grain farmers?
 Call 3: @prompt-template.ts Where could this prompt produce hallucinated export numbers?
 ```
+
+## When Gemini Adds Value vs When It Doesn't
+
+**High value (use Gemini):**
+- Domain-specific questions: commodity knowledge gaps, basis analysis rules, farming patterns
+- File review: "What's wrong with this prompt?" / "What topics are missing?"
+- Structural verification: "My design has X, the prototype has Y — what did I lose?"
+- Writing concrete output: debate rules, system prompts, framework sections
+
+**Low value (handle internally):**
+- Meta-process questions: "How should we improve our agents?" → returns generic advice
+- Workflow design: "What's the best CI/CD approach?" → not Gemini's domain
+- Bug investigation: "Why did our chart render wrong?" → need codebase context, not LLM opinion
+- UX opinions without constraints: "Should we use tabs or accordion?" → vague responses
+
+**Lesson (2026-03-15):** During the delivery gap chart work, Gemini was consulted for meta-process
+improvement ideas and returned unhelpful/placeholder responses. The MCP bridge works best for
+domain-specific tasks where Gemini can reason about concrete code or agricultural concepts.
 
 ## Integrating Gemini Output
 
