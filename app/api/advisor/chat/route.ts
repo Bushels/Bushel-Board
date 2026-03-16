@@ -4,13 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthenticatedUserContext } from "@/lib/auth/role-guard";
 import { buildChatContext } from "@/lib/advisor/context-builder";
 import { buildAdvisorSystemPrompt } from "@/lib/advisor/system-prompt";
-import {
-  createXaiClient,
-  CHAT_MODELS,
-} from "@/lib/advisor/openrouter-client";
+import { CHAT_MODELS } from "@/lib/advisor/openrouter-client";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 45; // Responses API with x_search may take longer
+
+const XAI_RESPONSES_URL = "https://api.x.ai/v1/responses";
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -49,8 +48,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const xaiKey = process.env.XAI_API_KEY;
+  if (!xaiKey) {
+    return Response.json(
+      { error: "AI service not configured" },
+      { status: 500 }
+    );
+  }
+
   const supabase = await createClient();
-  const xai = createXaiClient();
   const model = CHAT_MODELS.primary;
 
   // 3. Create or load thread
@@ -98,37 +104,77 @@ export async function POST(request: Request) {
   // 6. Build farmer context
   const chatContext = await buildChatContext(user.id, role, message, grain);
 
-  // 7. Stream Grok 4.1 Fast response
+  // 7. Stream via xAI Responses API with x_search for real-time data
   const systemPrompt = buildAdvisorSystemPrompt(chatContext);
 
   try {
-    const stream = await xai.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...conversationHistory,
-        { role: "user", content: message },
-      ],
-      temperature: 0.6,
-      max_tokens: 2048,
-      stream: true,
+    const xaiResponse = await fetch(XAI_RESPONSES_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${xaiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        max_output_tokens: 2048,
+        temperature: 0.6,
+        tools: [{ type: "x_search" }],
+        input: [
+          { role: "system", content: systemPrompt },
+          ...conversationHistory,
+          { role: "user", content: message },
+        ],
+      }),
     });
 
-    let fullResponse = "";
+    if (!xaiResponse.ok) {
+      const errText = await xaiResponse.text();
+      console.error(`Grok API ${xaiResponse.status}:`, errText.slice(0, 300));
+      throw new Error(`Grok API error: ${xaiResponse.status}`);
+    }
 
+    let fullResponse = "";
     const encoder = new TextEncoder();
+
     const sseStream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content ?? "";
-            if (content) {
-              fullResponse += content;
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ content })}\n\n`
-                )
-              );
+          const reader = xaiResponse.body!.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const payload = line.slice(6).trim();
+              if (payload === "[DONE]") continue;
+
+              try {
+                const event = JSON.parse(payload);
+
+                // Extract text deltas from Responses API streaming
+                if (event.type === "response.output_text.delta") {
+                  const delta = event.delta ?? "";
+                  if (delta) {
+                    fullResponse += delta;
+                    controller.enqueue(
+                      encoder.encode(
+                        `data: ${JSON.stringify({ content: delta })}\n\n`
+                      )
+                    );
+                  }
+                }
+              } catch {
+                // Skip unparseable events
+              }
             }
           }
 

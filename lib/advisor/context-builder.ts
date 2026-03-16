@@ -4,6 +4,7 @@ import { getUserCropPlans } from "@/lib/queries/crop-plans";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getRecentPrices } from "@/lib/queries/grain-prices";
+import { getXSignalsForGrain } from "@/lib/queries/x-signals";
 import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +14,7 @@ import {
   retrieveAdvisorKnowledgeContext,
   type KnowledgeRetrievalResult,
 } from "./knowledge-retrieval";
-import type { ChatContext, FarmerGrainContext, GrainPriceContext } from "./types";
+import type { ChatContext, FarmerGrainContext, GrainPriceContext, XSignalContext } from "./types";
 
 const STORAGE_QUESTION_PATTERN = /\b(store|storage|hold|haul|bin|carry)\b/i;
 const BASIS_VALUE_PATTERN =
@@ -187,6 +188,25 @@ export async function buildChatContext(
     decisionSupportText = buildStorageDecisionSupport(messageText, knowledgeContext);
   }
 
+  // Fetch recent X market signals for the target grain
+  let xSignals: XSignalContext[] = [];
+  if (targetGrain) {
+    try {
+      const signals = await getXSignalsForGrain(targetGrain);
+      xSignals = signals.slice(0, 5).map((s) => ({
+        grain: s.grain,
+        sentiment: s.sentiment,
+        category: s.category,
+        post_summary: s.post_summary,
+        relevance_score: s.relevance_score,
+        post_date: s.post_date,
+        source: s.source ?? null,
+      }));
+    } catch {
+      // X signals are optional — chat still works without them.
+    }
+  }
+
   let logisticsSnapshot: Record<string, unknown> | null = null;
   try {
     const { data } = await supabase.rpc("get_logistics_snapshot", {
@@ -235,5 +255,6 @@ export async function buildChatContext(
     logisticsSnapshot,
     cotSummary,
     priceContext,
+    xSignals,
   };
 }

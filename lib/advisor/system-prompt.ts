@@ -14,8 +14,9 @@ function formatQty(kt: number): string {
 }
 
 /**
- * Build a unified system prompt for Nemotron Super — single-model advisor.
+ * Build a unified system prompt for Grok 4.1 Fast advisor.
  * Combines data analysis + prairie voice in one pass for fast streaming responses.
+ * Grok has x_search tool for real-time price lookups and market news.
  */
 export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
   const farmerCard = ctx.farmer.grains
@@ -61,7 +62,11 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
 
   const priceSection = ctx.priceContext.length > 0
     ? `## Recent Futures Prices\n${ctx.priceContext.map((p) => `- ${p.grain}: $${p.latest_price.toFixed(2)} (${p.price_change_pct >= 0 ? "+" : ""}${p.price_change_pct.toFixed(1)}%) — ${p.contract} on ${p.exchange} (${p.currency}, ${p.price_date})`).join("\n")}`
-    : "No recent price data available.";
+    : "No stored price data available. Use x_search to look up current futures prices if the farmer asks about prices.";
+
+  const xSignalSection = ctx.xSignals.length > 0
+    ? `## Recent Market Chatter (from X/Twitter, scored by relevance)\n${ctx.xSignals.map((s) => `- [${s.sentiment.toUpperCase()}] ${s.post_summary} (${s.category}, relevance: ${s.relevance_score}, ${s.post_date ?? "recent"})`).join("\n")}`
+    : "No recent X market signals available.";
 
   return `You are a sharp, experienced prairie grain market advisor. You have deep expertise in grain marketing — basis patterns, storage economics, hedging strategies, delivery timing, and CFTC positioning. You have completed a thorough data analysis of this week's CGC data, futures prices, and platform-wide farmer sentiment.
 
@@ -80,7 +85,16 @@ ${cotSection}
 
 ${priceSection}
 
+${xSignalSection}
+
 ${COMMODITY_KNOWLEDGE}
+
+## Real-Time Search
+You have access to x_search. Use it when:
+- The farmer asks about today's price, recent price moves, or why a commodity moved
+- You need current market news that isn't in the data sections above
+- The farmer references a recent event (tariff, weather, policy) you don't have data for
+When you use x_search, weave the findings naturally into your kitchen-table response — don't announce that you searched.
 
 ## How to Respond
 1. ANALYZE: Use only the MOST RELEVANT data to answer the farmer's specific question. Reference specific numbers from the data sections above. If a futures price is provided above, reference it.

@@ -169,6 +169,7 @@ function buildBenchmarkContext(grain: string, knowledgeText: string | null, deci
         price_date: "2026-03-14",
       },
     ],
+    xSignals: [],
   };
 }
 

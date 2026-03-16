@@ -46,6 +46,7 @@ const mockContext: ChatContext = {
       price_date: "2026-03-14",
     },
   ],
+  xSignals: [],
 };
 
 describe("buildAdvisorSystemPrompt", () => {
@@ -138,7 +139,7 @@ describe("buildAdvisorSystemPrompt", () => {
       priceContext: [],
     };
     const prompt = buildAdvisorSystemPrompt(noPriceCtx);
-    expect(prompt).toContain("No recent price data available");
+    expect(prompt).toContain("No stored price data available");
   });
 
   it("handles missing knowledge gracefully", () => {
