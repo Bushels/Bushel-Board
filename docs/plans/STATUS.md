@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-14
+Last updated: 2026-03-16
 
 ## Feature Tracks
 
@@ -34,6 +34,25 @@ Last updated: 2026-03-14
 | 25 | Dashboard Redesign V2 — Wave 3: Engagement & My Farm | Complete | 2026-03-14 | `components/dashboard/metric-sentiment-vote.tsx`, `components/dashboard/percentile-graph.tsx`, `components/ui/grain-icon.tsx`, `app/(dashboard)/overview/signal-strip-with-voting.tsx`, `components/dashboard/farmer-cot-card.tsx` |
 | 26 | Dashboard Redesign V2 — Wave 4: Advanced Intelligence | Complete | 2026-03-14 | `supabase/migrations/20260314500000_*`, `components/dashboard/crush-utilization-gauge.tsx`, `components/dashboard/price-sparkline.tsx`, `lib/queries/processor-capacity.ts`, `lib/queries/grain-prices.ts` |
 | 27 | Delivery Pace Chart (YoY Cumulative Gap, Dual Y-Axis) | Complete | 2026-03-15 | `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`, `app/(dashboard)/grain/[slug]/page.tsx` |
+| 28 | Terminal Net Flow Visualization | Complete | 2026-03-16 | `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql` |
+
+### 2026-03-16 — Terminal Net Flow Visualization (Track 28)
+
+**What was delivered:**
+- `TerminalFlowChart` component on grain detail page — diverging bar + line chart showing weekly terminal receipts vs exports with net flow
+- `LogisticsBanner` component on overview page — narrative headline with sparkline summarizing terminal flow across grains
+- `LogisticsStatPill` component — compact stat display used within the logistics banner
+- Two new RPC functions: `get_weekly_terminal_flow` (per-grain weekly receipts/exports/net) and `get_aggregate_terminal_flow` (cross-grain summary)
+- Client-safe utility module `lib/queries/logistics-utils.ts` for headline generation logic
+- Server query module `lib/queries/logistics.ts` for Supabase RPC calls
+- 5 unit tests for the logistics headline generator
+- Wired into `app/(dashboard)/grain/[slug]/page.tsx` (TerminalFlowChart) and `app/(dashboard)/overview/page.tsx` (LogisticsBanner)
+
+**Design doc:** `docs/plans/2026-03-16-terminal-net-flow-design.md`
+**Implementation plan:** `docs/plans/2026-03-16-terminal-net-flow-implementation.md` (9 tasks, all complete)
+
+**New files:** `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql`
+**Modified files:** `app/(dashboard)/grain/[slug]/page.tsx`, `app/(dashboard)/overview/page.tsx`
 
 ### 2026-03-15 — Delivery Pace Chart: YoY Cumulative Gap with Dual Y-Axis (Track 27)
 
@@ -291,3 +310,5 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 | `snapshot_weekly_sentiment()` | RPC | Archives weekly per-grain sentiment aggregates to `sentiment_history` |
 | `snapshot_daily_sentiment()` | RPC | Snapshots daily sentiment with delta tracking to `sentiment_daily_rollup` |
 | `get_cot_positioning()` | RPC | Managed money and commercial net positions with spec/commercial divergence flag |
+| `get_weekly_terminal_flow()` | RPC | Per-grain weekly terminal receipts, exports, and net flow |
+| `get_aggregate_terminal_flow()` | RPC | Cross-grain aggregate terminal flow summary |

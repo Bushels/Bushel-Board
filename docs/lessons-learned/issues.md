@@ -1,5 +1,59 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-16 — CSS color-mix() vs hsl() for Hex CSS Variables
+
+**Symptom:** Implementation plan specified `hsl(var(--prairie) / 0.65)` to apply 65% opacity to a CSS custom property for the TerminalFlowChart bar colors.
+
+**Root cause:** The `hsl()` alpha syntax only works when the CSS variable contains raw HSL channel values (e.g., `--prairie: 100 60% 30%`). Bushel Board's design tokens store hex values (e.g., `--color-prairie: #437a22`), so `hsl(var(--color-prairie) / 0.65)` is invalid CSS and silently fails — the browser drops the declaration entirely, producing no color.
+
+**Fix:** Use `color-mix(in srgb, var(--color-prairie) 65%, transparent)` instead. This works with any color format stored in the variable (hex, rgb, hsl, named colors).
+
+**Caught by:** Gemini pre-review, before any code was written. This is exactly the kind of bug that would have been invisible until visual QA — no build error, no runtime error, just a missing fill color.
+
+**Tags:** #css #design-tokens #color-mix #gemini-review #terminal-net-flow
+
+## 2026-03-16 — PostgREST numeric-as-string in Sentiment/Logistics Pure Functions
+
+**Symptom:** The `vesselSentiment()`, `octSentiment()`, and `shipmentYoySentiment()` pure functions in `logistics-utils.ts` performed numeric comparisons like `vessels > avg + 5`, but the comparisons produced wrong results for certain value ranges.
+
+**Root cause:** Supabase PostgREST serializes `numeric` column values as **strings**, not numbers. When the Grain Monitor snapshot values (e.g., `vessels_vancouver: "9"`, `oct_pct: "205"`) were compared without conversion, JavaScript performed lexicographic string comparison: `"9" <= "205"` evaluates to `true` (because `"9"` > `"2"` in ASCII), but numerically 9 < 205. This is a recurring PostgREST footgun — see also the earlier `Number()` fix for `cgc_observations.ktonnes`.
+
+**Fix:** Wrap all `grain_monitor_snapshots` values in `Number()` at the query boundary before passing to pure functions. The pure functions themselves accept `number` types, keeping the type-safety contract clean.
+
+**Caught by:** Gemini mid-implementation review.
+
+**Tags:** #postgrest #numeric #type-coercion #logistics #gemini-review #terminal-net-flow
+
+## 2026-03-16 — Server/Client Module Boundary: "use client" Transitive Import of Server Module
+
+**Symptom:** `terminal-flow-chart.tsx` (a `"use client"` component) imported types and pure functions from `logistics.ts`, which in turn imports `createClient` from `@/lib/supabase/server`. Build failed with a server-only module error.
+
+**Root cause:** Next.js enforces that `"use client"` components cannot transitively import server-only modules. Even if the client component only uses exported types and pure functions from a module, if that module has *any* import of a server-only dependency (like `@/lib/supabase/server`), the entire dependency chain is invalid. The original `logistics.ts` mixed Supabase query functions (server-only) with pure utility functions and TypeScript types (client-safe) in a single file.
+
+**Fix:** Split into two files:
+1. `lib/queries/logistics-utils.ts` — client-safe: TypeScript types, interfaces, and pure functions (sentiment scoring, formatting). No Supabase imports.
+2. `lib/queries/logistics.ts` — server-only: Supabase queries that re-export everything from `logistics-utils.ts` for backward compatibility.
+
+Client components import from `logistics-utils.ts`. Server components and server actions import from `logistics.ts` (which provides both queries and re-exported utils).
+
+**Caught by:** Task 6 subagent during component integration.
+
+**Pattern:** When a query module contains both data-fetching functions and pure utility functions, proactively split them if any client component will need the utilities. This is the same pattern used by `lib/queries/observations.ts` (server) vs the composite metric types that live in shared scope.
+
+**Tags:** #nextjs #use-client #module-boundary #server-components #terminal-net-flow
+
+## 2026-03-16 — Float Formatting for Display Values (OCT% and YoY%)
+
+**Symptom:** OCT percentage values rendered as `12.345678%` and YoY percentage values as `7.891234%` in the TerminalFlowChart and LogisticsBanner components. Long decimal strings cluttered the UI and looked unfinished.
+
+**Root cause:** The raw `numeric` values from `grain_monitor_snapshots` (after `Number()` conversion) were interpolated directly into template strings without formatting. No `.toFixed()` call was applied before rendering.
+
+**Fix:** Applied `.toFixed(1)` for OCT percentages (one decimal place provides meaningful precision for car-unloading times) and `.toFixed(0)` for YoY change percentages (whole numbers are sufficient for directional context). Applied at the component render level, not in the query layer, to keep raw precision available for calculations.
+
+**Caught by:** Gemini final review.
+
+**Tags:** #formatting #display #toFixed #gemini-review #terminal-net-flow
+
 ## 2026-03-15 — Delivery Gap Chart: Prototype Fidelity Failure (Missing Right Y-Axis + Gap Line)
 
 **Symptom:** User provided exact HTML/Chart.js prototype with 3 datasets on 2 axes. Implementation produced 2 lines on 1 axis with fill-area approximation. The gap LINE on a secondary right Y-axis — the most important visual element ("the gap is the thesis") — was never built.
