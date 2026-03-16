@@ -235,13 +235,11 @@ export default async function GrainDetailPage({ params }: Props) {
     processorInventory
   );
 
-  // Build net balance from pipeline velocity data
-  const netBalanceData = buildNetBalanceData(
-    pipelineVelocityResult.error ? [] : pipelineVelocityResult.data ?? []
-  );
+  // Hoist pipeline data once — reused by net balance and delivery gap
+  const currentYearDeliveries = pipelineVelocityResult.error ? [] : pipelineVelocityResult.data ?? [];
+  const netBalanceData = buildNetBalanceData(currentYearDeliveries);
 
   // Delivery gap pills (Canola only, server-side computation)
-  const currentYearDeliveries = pipelineVelocityResult.error ? [] : pipelineVelocityResult.data ?? [];
   const priorYearDeliveries = priorYearPipelineResult.error ? [] : priorYearPipelineResult.data ?? [];
   const hasGapData = currentYearDeliveries.length > 0 && priorYearDeliveries.length > 0;
 
@@ -256,7 +254,7 @@ export default async function GrainDetailPage({ params }: Props) {
     if (priorLatest > 0) {
       yoyDeliveryPct = ((currentLatest - priorLatest) / priorLatest) * 100;
     }
-    gapKt = priorLatest - currentLatest;
+    gapKt = priorLatest > 0 ? priorLatest - currentLatest : 0;
   }
 
   return (
