@@ -16,8 +16,7 @@ import { computeDeliveryGap } from "@/lib/utils/delivery-gap";
 import type { DeliveryGapPoint } from "@/lib/utils/delivery-gap";
 import type { CumulativeWeekRow } from "@/lib/queries/observations";
 
-const COLOR_BEHIND = "#437a22"; // prairie green — bullish/holding
-const COLOR_AHEAD = "#d97706"; // amber — bearish pressure
+const COLOR_GAP = "#437a22"; // prairie green — gap line + fill
 const COLOR_CURRENT = "#c17f24"; // canola
 const COLOR_PRIOR = "hsl(var(--muted-foreground))";
 
@@ -29,10 +28,6 @@ interface DeliveryGapChartProps {
 
 type ChartPoint = DeliveryGapPoint & {
   week_label: string;
-  /** Minimum of current and prior — stacked Area base (transparent) */
-  gapBase: number;
-  /** Height of the gap above gapBase — stacked Area fill (colored) */
-  gapHeight: number;
 };
 
 interface TooltipPayloadItem {
@@ -46,7 +41,6 @@ interface TooltipPayloadItem {
 function GapTooltip({
   active,
   payload,
-  label,
 }: {
   active?: boolean;
   payload?: TooltipPayloadItem[];
@@ -70,19 +64,15 @@ function GapTooltip({
   }
 
   let gapText: string;
-  let gapColor: string;
   if (row.gap > 0) {
-    gapText = `${fmtKt(row.gap)} behind`;
-    gapColor = COLOR_BEHIND;
+    gapText = `+${fmtKt(row.gap)} behind`;
   } else if (row.gap < 0) {
-    gapText = `${fmtKt(Math.abs(row.gap))} ahead`;
-    gapColor = COLOR_AHEAD;
+    gapText = `${fmtKt(row.gap)} ahead`;
   } else {
     gapText = "On pace";
-    gapColor = "hsl(var(--muted-foreground))";
   }
 
-  items.push({ name: "Gap", value: gapText, color: gapColor });
+  items.push({ name: "YoY Gap", value: gapText, color: COLOR_GAP });
 
   return <GlassTooltip active={active} label={`Week ${row.week}`} payload={items} />;
 }
@@ -95,19 +85,14 @@ export function DeliveryGapChart({
   const gapData = computeDeliveryGap(currentYearData, priorYearData);
   if (gapData.length === 0) return null;
 
-  const chartData: ChartPoint[] = gapData.map((d) => {
-    const priorVal = d.prior ?? d.current;
-    return {
-      ...d,
-      week_label: `W${d.week}`,
-      gapBase: Math.min(d.current, priorVal),
-      gapHeight: Math.abs(d.current - priorVal),
-    };
-  });
+  const chartData: ChartPoint[] = gapData.map((d) => ({
+    ...d,
+    week_label: `W${d.week}`,
+  }));
 
   return (
     <div>
-      {/* Inline legend */}
+      {/* Inline legend — 3 items matching the 3 datasets */}
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <svg width="16" height="2" className="shrink-0">
@@ -137,19 +122,25 @@ export function DeliveryGapChart({
           Last Year
         </span>
         <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-            style={{ backgroundColor: COLOR_BEHIND }}
-          />
-          Behind (bullish)
+          <svg width="16" height="4" className="shrink-0">
+            <rect width="16" height="4" rx="1" fill={COLOR_GAP} fillOpacity="0.3" />
+            <line
+              x1="0"
+              y1="2"
+              x2="16"
+              y2="2"
+              stroke={COLOR_GAP}
+              strokeWidth="1.5"
+            />
+          </svg>
+          YoY Gap (bullish)
         </span>
-{/* Ahead (pressure) legend swatch deferred to Task 4 when two-color gap fill is implemented */}
       </div>
 
       <ResponsiveContainer width="100%" height={320}>
         <ComposedChart
           data={chartData}
-          margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
+          margin={{ top: 5, right: 60, left: 20, bottom: 5 }}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -162,7 +153,10 @@ export function DeliveryGapChart({
             tick={{ fontSize: 11 }}
             className="text-muted-foreground"
           />
+
+          {/* Left Y-axis: cumulative deliveries (Kt) */}
           <YAxis
+            yAxisId="left"
             tick={{ fontSize: 11 }}
             tickFormatter={(v: number) => fmtKt(v, 0).replace(" kt", "")}
             className="text-muted-foreground"
@@ -173,38 +167,55 @@ export function DeliveryGapChart({
               style: { fontSize: 11, fill: "currentColor" },
             }}
           />
+
+          {/* Right Y-axis: YoY gap (Kt) — separate scale for gap line */}
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            tick={{ fontSize: 11, fill: COLOR_GAP }}
+            tickFormatter={(v: number) => {
+              const abs = Math.abs(v);
+              return abs >= 1000 ? `${(v / 1000).toFixed(1)}M` : `${v}`;
+            }}
+            className="text-muted-foreground"
+            label={{
+              value: "YoY Gap (Kt)",
+              angle: 90,
+              position: "insideRight",
+              style: { fontSize: 11, fill: COLOR_GAP },
+            }}
+          />
+
           <Tooltip content={<GapTooltip />} />
 
-          {/*
-            Gap fill: stacked area technique.
-            Two areas with the same stackId — the bottom (gapBase) is transparent,
-            the top (gap height) is colored. This fills only the gap between the lines.
-          */}
+          {/* Gap fill area on right Y-axis — shaded region under gap line */}
           <Area
+            yAxisId="right"
             type="monotone"
-            dataKey="gapBase"
-            stackId="gap"
+            dataKey="gap"
             stroke="none"
-            fill="transparent"
-            fillOpacity={0}
-            animationDuration={800}
-            name="_gap_base"
-            legendType="none"
-          />
-          <Area
-            type="monotone"
-            dataKey="gapHeight"
-            stackId="gap"
-            stroke="none"
-            fill={COLOR_BEHIND}
+            fill={COLOR_GAP}
             fillOpacity={0.15}
             animationDuration={800}
             name="_gap_fill"
             legendType="none"
           />
 
-          {/* Prior year — dashed line */}
+          {/* Gap line on right Y-axis */}
           <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="gap"
+            name="YoY Gap"
+            stroke={COLOR_GAP}
+            strokeWidth={2}
+            dot={false}
+            animationDuration={800}
+          />
+
+          {/* Prior year — dashed line on left Y-axis */}
+          <Line
+            yAxisId="left"
             type="monotone"
             dataKey="prior"
             name="Last Year"
@@ -216,8 +227,9 @@ export function DeliveryGapChart({
             animationDuration={800}
           />
 
-          {/* Current year — solid line */}
+          {/* Current year — solid line on left Y-axis */}
           <Line
+            yAxisId="left"
             type="monotone"
             dataKey="current"
             name="This Year"
