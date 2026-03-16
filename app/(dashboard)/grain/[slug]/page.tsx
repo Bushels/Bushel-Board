@@ -9,6 +9,7 @@ import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SentimentPoll } from "@/components/dashboard/sentiment-poll";
 import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
 import { SupplyPipeline } from "@/components/dashboard/supply-pipeline";
+import { TerminalFlowChart } from "@/components/dashboard/terminal-flow-chart";
 import { ThesisBanner } from "@/components/dashboard/thesis-banner";
 
 import { NetBalanceKpi } from "@/components/dashboard/net-balance-kpi";
@@ -36,6 +37,7 @@ import { getGrainSentiment, getUserSentimentVote } from "@/lib/queries/sentiment
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek } from "@/lib/utils/crop-year";
 import { safeQuery } from "@/lib/utils/safe-query";
+import { getWeeklyTerminalFlow, getLogisticsSnapshot } from "@/lib/queries/logistics";
 import { getXSignalsWithFeedback } from "@/lib/queries/x-signals";
 import { getSupplyPipeline } from "@/lib/queries/intelligence";
 import { GrainPageTransition } from "./client";
@@ -83,6 +85,8 @@ export default async function GrainDetailPage({ params }: Props) {
     supplyPipelineResult,
     storageResult,
     roleResult,
+    terminalFlowResult,
+    logisticsResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
       const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
@@ -101,6 +105,8 @@ export default async function GrainDetailPage({ params }: Props) {
     safeQuery("Supply pipeline", () => getSupplyPipeline(grain.slug)),
     safeQuery("Storage breakdown", () => getStorageBreakdown(grain.name)),
     safeQuery("User role", () => getUserRole()),
+    safeQuery("Terminal flow", () => getWeeklyTerminalFlow(grain.name)),
+    safeQuery("Logistics snapshot", () => getLogisticsSnapshot(CURRENT_CROP_YEAR, getCurrentGrainWeek())),
   ]);
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
@@ -278,13 +284,33 @@ export default async function GrainDetailPage({ params }: Props) {
               </AnimatedCard>
             )}
 
+            {terminalFlowResult.error ? (
+              <SectionStateCard
+                title="Terminal flow unavailable"
+                message="The terminal net flow chart is temporarily unavailable."
+              />
+            ) : terminalFlowResult.data && terminalFlowResult.data.length > 0 ? (
+              <AnimatedCard index={1}>
+                <SectionBoundary
+                  title="Terminal flow unavailable"
+                  message="The terminal net flow chart is temporarily unavailable."
+                >
+                  <TerminalFlowChart
+                    flowData={terminalFlowResult.data}
+                    logistics={logisticsResult.error ? null : (logisticsResult.data ?? null)}
+                    grainName={grain.name}
+                  />
+                </SectionBoundary>
+              </AnimatedCard>
+            ) : null}
+
             {supplyPipelineResult.error ? (
               <SectionStateCard
                 title="Supply pipeline unavailable"
                 message="AAFC supply pipeline data is temporarily unavailable."
               />
             ) : supplyPipelineResult.data ? (
-              <AnimatedCard index={1}>
+              <AnimatedCard index={2}>
                 <SectionBoundary
                   title="Supply pipeline unavailable"
                   message="AAFC supply pipeline data is temporarily unavailable."
@@ -310,7 +336,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 message="The provincial delivery map is temporarily unavailable."
               />
             ) : (
-              <AnimatedCard index={2}>
+              <AnimatedCard index={3}>
                 <SectionBoundary
                   title="Provincial deliveries unavailable"
                   message="The provincial delivery map is temporarily unavailable."
@@ -336,7 +362,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 message="The storage breakdown is temporarily unavailable."
               />
             ) : storageResult.data ? (
-              <AnimatedCard index={3}>
+              <AnimatedCard index={4}>
                 <SectionBoundary
                   title="Storage breakdown unavailable"
                   message="The storage breakdown is temporarily unavailable."

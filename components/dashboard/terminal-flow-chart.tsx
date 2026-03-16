@@ -19,11 +19,11 @@ import {
   vesselSentiment,
   octSentiment,
   shipmentYoySentiment,
-} from "@/lib/queries/logistics";
+} from "@/lib/queries/logistics-utils";
 import type {
   WeeklyTerminalFlow,
   LogisticsSnapshot,
-} from "@/lib/queries/logistics";
+} from "@/lib/queries/logistics-utils";
 import { fmtKt } from "@/lib/utils/format";
 
 interface TerminalFlowChartProps {

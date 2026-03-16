@@ -5,6 +5,7 @@ import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
 import { CompactSignalStrip } from "@/components/dashboard/compact-signal-strip";
+import { LogisticsBanner } from "@/components/dashboard/logistics-banner";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { StaggerGroup } from "@/components/motion/stagger-group";
@@ -16,6 +17,7 @@ import {
   getSupplyDispositionForGrains,
   type SupplyDisposition,
 } from "@/lib/queries/supply-disposition";
+import { getLogisticsSnapshot, getAggregateTerminalFlow } from "@/lib/queries/logistics";
 import { getLatestXSignals } from "@/lib/queries/x-signals";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, getCurrentGrainWeek } from "@/lib/utils/crop-year";
@@ -68,12 +70,14 @@ export default async function OverviewPage() {
   const grainContext = await getActiveGrainContext();
   const grainWeek = getCurrentGrainWeek();
 
-  const [summaryResult, sentimentResult, signalsResult, marketPulseResult] =
+  const [summaryResult, sentimentResult, signalsResult, marketPulseResult, logisticsResult, aggregateFlowResult] =
     await Promise.all([
       safeQuery("Overview cards", () => buildSummarySection(grainContext)),
       safeQuery("Farmer sentiment", () => getSentimentOverview(CURRENT_CROP_YEAR, grainWeek)),
       safeQuery("Market signal tape", () => getLatestXSignals(20)),
       buildMarketPulse(grainContext),
+      safeQuery("Logistics snapshot", () => getLogisticsSnapshot(CURRENT_CROP_YEAR, grainWeek)),
+      safeQuery("Aggregate terminal flow", () => getAggregateTerminalFlow()),
     ]);
 
   return (
@@ -112,6 +116,12 @@ export default async function OverviewPage() {
                 <CropSummaryCard key={card.slug} {...card} />
               ))}
             </div>
+            {logisticsResult.data && !logisticsResult.error && (
+              <LogisticsBanner
+                logistics={logisticsResult.data}
+                aggregateFlow={aggregateFlowResult.error ? [] : (aggregateFlowResult.data ?? [])}
+              />
+            )}
           </section>
         </SectionBoundary>
       ) : (

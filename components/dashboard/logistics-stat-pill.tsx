@@ -1,4 +1,4 @@
-import type { PillSentiment } from "@/lib/queries/logistics";
+import type { PillSentiment } from "@/lib/queries/logistics-utils";
 
 interface LogisticsStatPillProps {
   label: string;
