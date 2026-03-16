@@ -122,7 +122,7 @@ curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/generate-int
 | `rows_inserted: 0` | CSV not yet published | Wait until Thursday afternoon MST |
 | Internal calls return 401 | Missing or wrong `BUSHEL_INTERNAL_FUNCTION_SECRET` | Use `x-bushel-internal-secret` for direct function calls; never use anon JWTs for internal chaining |
 | Intelligence not generated | Chain trigger failed silently (401 was caught but not re-thrown) | Check `net._http_response` for errors; invoke each step manually via curl |
-| Canola deliveries undercounted | Intelligence only used Primary Elevator data | Fixed: `v_grain_yoy_comparison` now uses FULL OUTER JOIN of Primary + Process. Grain detail page overrides AI KPIs with `v_grain_overview`. |
+| Canola deliveries undercounted | A stale delivery formula omitted BC Primary deliveries and Producer Cars shipments | Fix the canonical country-delivery path: `v_country_producer_deliveries`, `v_grain_overview`, `v_grain_yoy_comparison`, and `get_pipeline_velocity()` must all use `Primary (AB/SK/MB/BC) + Process + Producer Cars`, with `grade=''` on aggregate rows. |
 | Phantom migration | DDL tracked in `schema_migrations` but table never created | Verify table exists with `\dt tablename`; apply DDL manually if missing |
 | Duplicate week import | Already imported | Safe to ignore — upsert handles it |
 | `validate-import` flagged anomaly | YoY variance >50% or missing grains | Review validation_reports, may be normal for new crop year |

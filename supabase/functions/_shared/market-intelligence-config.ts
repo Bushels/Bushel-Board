@@ -2,9 +2,9 @@ import { COMMODITY_KNOWLEDGE } from "./commodity-knowledge.ts";
 
 export const MARKET_INTELLIGENCE_VERSIONS = {
   searchSignals: "search-signals-v3",
-  analyzeMarketData: "analyze-market-data-v5",
-  generateIntelligence: "generate-intelligence-v5",
-  generateFarmSummary: "generate-farm-summary-v3",
+  analyzeMarketData: "analyze-market-data-v7",
+  generateIntelligence: "generate-intelligence-v7",
+  generateFarmSummary: "generate-farm-summary-v4",
   knowledgeBase: "grain-knowledge-v3",
 } as const;
 
@@ -43,11 +43,16 @@ const TEMPORAL_AWARENESS = `CRITICAL - Data timing and week awareness:
 
 const CGC_DATA_GUARDRAILS = `Critical CGC and balance-sheet rules:
 - Total producer deliveries require Primary.Deliveries plus Process.Producer Deliveries plus Producer Cars.Shipments. Primary alone is incomplete.
-- Total exports require Terminal Exports plus Primary Shipment Distribution rows for Export Destinations. Terminal exports must be summed across grades.
+- Total exports require THREE components: Terminal Exports (summed across grades) plus Primary Shipment Distribution "Export Destinations" (direct cross-border from elevators) plus Producer Cars Shipment Distribution "Export" (farmer railcars direct to US).
 - Summary worksheet is reliable for visible commercial stocks, not as a single source for deliveries or exports.
 - "Crop Year" values are cumulative; "Current Week" values are weekly snapshots. Stocks are point-in-time snapshots.
 - When making year-over-year comparisons, compare the same grain week, not nearby dates.
-- If data is missing, conflicting, or structurally incomplete, state the gap plainly instead of smoothing it away.`;
+- If data is missing, conflicting, or structurally incomplete, state the gap plainly instead of smoothing it away.
+- All CGC data provided here is in thousands of metric tonnes (Kt). Do not treat raw numbers as individual tonnes or bushels. Do not convert to bushels unless the farmer's context explicitly uses bushels.
+- Domestic crush/processing should be derived from Process worksheet data (Milled/Mfg Grain or Producer Deliveries), not by subtracting exports from total deliveries.
+- Wheat and Amber Durum are distinct grains in CGC reporting. Never combine them unless explicitly analyzing "Total Wheat." If only "Wheat" data is provided, it excludes Durum.
+- Never calculate cumulative totals by summing historical "Current Week" values — CGC retroactively revises past weeks. Always use the published "Crop Year" (YTD) figure for cumulative tracking.
+- During the first 4 weeks of a new crop year (Aug-Sep), high visible stocks are carry-in from the prior crop year, not new-crop deliveries. Distinguish old-crop carry-over from new-crop production in early-season analysis.`;
 
 const SIGNAL_RESEARCH_RULES = `Signal research rules:
 - Prioritize Canadian prairie-specific intelligence before generic commodity commentary.

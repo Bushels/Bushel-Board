@@ -1,0 +1,22 @@
+{
+  "id": "agent-db-architect-missing-grant",
+  "target_type": "agent",
+  "target_name": "db-architect",
+  "source_anchor": "supabase/migrations/20260314500000_processor_self_sufficiency_rpc.sql",
+  "scenario": "db-architect agent created RPC get_processor_self_sufficiency without GRANT EXECUTE ON FUNCTION ... TO authenticated. All 13 other migrations in the project include explicit grants. The omission was caught by code-reviewer agent, not by the implementer. Without the grant, the RPC would fail with permission denied when called from the frontend via PostgREST.",
+  "expected_findings": [
+    "Agent instructions do not enforce a mandatory post-migration checklist that includes GRANT verification",
+    "Pattern recognition failed: 13/13 prior migrations had explicit GRANT EXECUTE, but the agent did not self-check against this convention",
+    "No grep-based verification step to confirm new functions have matching GRANT statements"
+  ],
+  "expected_patch_focus": [
+    "Add explicit post-migration verification step: grep for GRANT EXECUTE matching every CREATE FUNCTION in the migration",
+    "Add convention callout: 'Every RPC function MUST include GRANT EXECUTE ON FUNCTION ... TO authenticated'",
+    "Reference the historical pattern: all migrations in supabase/migrations/ include explicit grants"
+  ],
+  "replay_plan": {
+    "failed_slice": "Create a new RPC function migration — verify the agent includes GRANT EXECUTE without prompting",
+    "near_neighbor": "Create a migration with multiple functions — verify each gets its own GRANT",
+    "canary": "Apply a simple ALTER TABLE migration with no functions — should not trigger GRANT checks"
+  }
+}

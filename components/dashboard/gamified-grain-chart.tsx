@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import {
   XAxis,
@@ -12,7 +13,7 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
-import type { CumulativeWeekRow } from "@/lib/queries/observations";
+import type { CumulativeWeekRow, HistoricalPipelineAvg } from "@/lib/queries/observations";
 import type { DeliveryEntry } from "@/lib/queries/crop-plans";
 import { fmtKt } from "@/lib/utils/format";
 
@@ -29,13 +30,20 @@ interface GamifiedGrainChartProps {
   weeklyData: CumulativeWeekRow[];
   userDeliveries: DeliveryEntry[];
   cropYearStart?: number;
+  priorYearData?: CumulativeWeekRow[];
+  fiveYrAvgData?: HistoricalPipelineAvg[];
 }
 
 export function GamifiedGrainChart({
   weeklyData,
   userDeliveries,
   cropYearStart = 2025,
+  priorYearData,
+  fiveYrAvgData,
 }: GamifiedGrainChartProps) {
+  const [showPriorYear, setShowPriorYear] = useState(false);
+  const [showFiveYrAvg, setShowFiveYrAvg] = useState(false);
+
   if (weeklyData.length === 0) return null;
 
   // Build user delivery cumulative by grain week
@@ -58,9 +66,23 @@ export function GamifiedGrainChart({
     userByWeek.set(weekNum, cumulative);
   }
 
+  // Build lookup maps for overlay data
+  const priorByWeek = new Map<number, number>();
+  if (priorYearData) {
+    for (const row of priorYearData) {
+      priorByWeek.set(row.grain_week, row.producer_deliveries_kt);
+    }
+  }
+  const avgByWeek = new Map<number, number>();
+  if (fiveYrAvgData) {
+    for (const row of fiveYrAvgData) {
+      avgByWeek.set(row.grain_week, row.avg_deliveries_kt);
+    }
+  }
+
   // Merge CGC weekly data with user deliveries (forward-fill last known value)
   const chartData = weeklyData.reduce<
-    { week: number; weekDate: string; deliveries: number; terminalReceipts: number; exports: number; processing: number; userDeliveries: number | undefined }[]
+    { week: number; weekDate: string; deliveries: number; terminalReceipts: number; exports: number; processing: number; userDeliveries: number | undefined; priorYearDeliveries: number | undefined; fiveYrAvgDeliveries: number | undefined }[]
   >((acc, row) => {
     const userVal = userByWeek.get(row.grain_week);
     const prev = acc.length > 0 ? acc[acc.length - 1].userDeliveries ?? 0 : 0;
@@ -73,14 +95,54 @@ export function GamifiedGrainChart({
       exports: row.exports_kt,
       processing: row.processing_kt,
       userDeliveries: currentVal > 0 ? currentVal : undefined,
+      priorYearDeliveries: priorByWeek.get(row.grain_week) ?? undefined,
+      fiveYrAvgDeliveries: avgByWeek.get(row.grain_week) ?? undefined,
     });
     return acc;
   }, []);
 
   const hasUserData = userDeliveries.length > 0;
 
+  const hasPrior = priorYearData && priorYearData.length > 0;
+  const hasAvg = fiveYrAvgData && fiveYrAvgData.length > 0;
+
   return (
-    <Card className="bg-card w-full h-[400px] border-border/40 p-4">
+    <Card className="bg-card w-full border-border/40 p-4">
+      {/* YoY toggle buttons */}
+      {(hasPrior || hasAvg) && (
+        <div className="flex items-center gap-2 mb-3 text-xs">
+          <span className="text-muted-foreground font-medium">Compare:</span>
+          {hasPrior && (
+            <button
+              type="button"
+              onClick={() => setShowPriorYear((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors ${
+                showPriorYear
+                  ? "bg-muted-foreground/20 text-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted-foreground/10"
+              }`}
+            >
+              <svg width="16" height="8" className="shrink-0"><line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="1.5" strokeDasharray="8 4" /></svg>
+              Last Year
+            </button>
+          )}
+          {hasAvg && (
+            <button
+              type="button"
+              onClick={() => setShowFiveYrAvg((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors ${
+                showFiveYrAvg
+                  ? "bg-muted-foreground/20 text-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted-foreground/10"
+              }`}
+            >
+              <svg width="16" height="8" className="shrink-0"><line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" /></svg>
+              5yr Avg
+            </button>
+          )}
+        </div>
+      )}
+      <div className="h-[400px]">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={chartData}
@@ -226,8 +288,40 @@ export function GamifiedGrainChart({
               connectNulls={false}
             />
           )}
+
+          {/* Prior Year overlay (dashed) */}
+          {showPriorYear && (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="priorYearDeliveries"
+              name="Last Year Deliveries"
+              stroke="hsl(var(--muted-foreground))"
+              strokeWidth={1.5}
+              strokeDasharray="8 4"
+              dot={false}
+              connectNulls
+            />
+          )}
+
+          {/* 5-Year Average overlay (dotted) */}
+          {showFiveYrAvg && (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="fiveYrAvgDeliveries"
+              name="5yr Avg Deliveries"
+              stroke="hsl(var(--muted-foreground))"
+              strokeWidth={1.5}
+              strokeDasharray="3 3"
+              opacity={0.6}
+              dot={false}
+              connectNulls
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </Card>
   );
 }

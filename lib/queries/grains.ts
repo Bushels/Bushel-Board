@@ -12,7 +12,8 @@ export interface GrainOverviewRow {
 
 /**
  * Fetch the grain overview for the dashboard — latest week summary per grain.
- * Queries the v_grain_overview view which aggregates deliveries across provinces.
+ * Queries the v_grain_overview view which aggregates country-level producer
+ * deliveries (Primary + Process + Producer Cars).
  */
 export async function getGrainOverview(): Promise<GrainOverviewRow[]> {
   try {
@@ -67,7 +68,7 @@ export async function getGrainBySlug(slug: string): Promise<Grain | null> {
 
 /**
  * Fetch a single grain's overview row from v_grain_overview.
- * Returns CW/CY deliveries that include both Primary + Process pathways.
+ * Returns CW/CY country-level producer deliveries.
  */
 export async function getGrainOverviewBySlug(
   slug: string

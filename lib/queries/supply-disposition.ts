@@ -15,6 +15,7 @@ export interface SupplyDisposition {
   total_domestic_kt: number | null;
   carry_out_kt: number | null;
   source: string;
+  is_approximate?: boolean;
 }
 
 export async function getSupplyDisposition(

@@ -48,6 +48,9 @@ build-log*.txt
 lint-output.txt
 lint-results*.json
 
+# large data files (downloaded at import time)
+data/grain-monitor-data-tables.xlsx
+
 # local browser/debug artifacts
 .playwright-cli/
 output/

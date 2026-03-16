@@ -1,6 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 import type { FarmSummary } from "@/lib/queries/intelligence";
+import { parseFarmSummary } from "@/lib/utils/farm-summary";
+import { ALL_GRAINS } from "@/lib/constants/grains";
+
+const GRAIN_NAMES = new Set(ALL_GRAINS.map((g) => g.name));
 
 interface FarmSummaryCardProps {
   summary: FarmSummary | null;
@@ -54,51 +58,93 @@ export function FarmSummaryCard({
       </CardHeader>
       <CardContent>
         {(() => {
-          const parts = summary.summary_text.split(/\n*Sources?:\n*/i);
-          const rawNarrative = parts[0].trim();
-          const sourcesRaw = parts[1]?.trim();
-
-          const inlineCiteRegex = /\[\[(\d+)\]\]\((https?:\/\/[^\s)]+)\)/g;
-          const inlineUrls: string[] = [];
-          let match;
-          while ((match = inlineCiteRegex.exec(rawNarrative)) !== null) {
-            if (!inlineUrls.includes(match[2])) inlineUrls.push(match[2]);
-          }
-
-          const narrative = rawNarrative
-            .replace(inlineCiteRegex, "")
-            .replace(/\s{2,}/g, " ")
-            .trim();
-
-          const sourceLines = sourcesRaw
-            ? sourcesRaw.split("\n").filter(Boolean)
-            : inlineUrls.map((url, i) => `[${i + 1}] ${url}`);
+          const parsedSummary = parseFarmSummary(summary.summary_text);
 
           return (
             <>
-              <p className="text-sm leading-relaxed text-foreground/90">
-                {narrative}
-              </p>
-              {sourceLines.length > 0 && (
+              {parsedSummary.metaTitle && (
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-canola/80">
+                  {parsedSummary.metaTitle}
+                </p>
+              )}
+
+              <div className="space-y-4">
+                {parsedSummary.sections.map((section, sectionIndex) => {
+                  const isGrainSection = section.title ? GRAIN_NAMES.has(section.title) : false;
+
+                  return (
+                  <section
+                    key={`${section.title ?? "section"}-${sectionIndex}`}
+                    className={
+                      isGrainSection
+                        ? "border-l-2 border-l-canola/40 pl-3 pt-1"
+                        : sectionIndex > 0
+                          ? "border-t border-border/20 pt-4"
+                          : ""
+                    }
+                  >
+                    {section.title && (
+                      <h3
+                        className={
+                          isGrainSection
+                            ? "text-sm font-display font-semibold text-foreground"
+                            : "text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+                        }
+                      >
+                        {section.title}
+                      </h3>
+                    )}
+                    <div className={section.title ? "mt-2 space-y-2" : "space-y-2"}>
+                      {section.blocks.map((block, blockIndex) =>
+                        block.type === "bullet" ? (
+                          <div
+                            key={`${block.text}-${blockIndex}`}
+                            className="flex items-start gap-2 text-sm leading-relaxed text-foreground/90"
+                          >
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-canola/80" />
+                            <p>{block.text}</p>
+                          </div>
+                        ) : (
+                          <p
+                            key={`${block.text}-${blockIndex}`}
+                            className="text-sm leading-relaxed text-foreground/90"
+                          >
+                            {block.text}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </section>
+                  );
+                })}
+              </div>
+
+              {parsedSummary.sources.length > 0 && (
                 <div className="mt-3 border-t border-border/30 pt-2">
                   <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                     Sources
                   </p>
                   <div className="flex flex-col gap-0.5">
-                    {sourceLines.map((line, i) => {
-                      const urlMatch = line.match(/https?:\/\/[^\s)]+/);
-                      return (
+                    {parsedSummary.sources.map((source, i) =>
+                      source.url ? (
                         <a
-                          key={i}
-                          href={urlMatch?.[0] ?? "#"}
+                          key={`${source.label}-${i}`}
+                          href={source.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="truncate text-[11px] text-canola/70 hover:text-canola"
+                          className="text-[11px] text-canola/70 hover:text-canola"
                         >
-                          [{i + 1}] {urlMatch?.[0] || line}
+                          {source.label}
                         </a>
-                      );
-                    })}
+                      ) : (
+                        <p
+                          key={`${source.label}-${i}`}
+                          className="text-[11px] text-muted-foreground"
+                        >
+                          {source.label}
+                        </p>
+                      )
+                    )}
                   </div>
                 </div>
               )}

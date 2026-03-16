@@ -1,0 +1,22 @@
+{
+  "id": "agent-documentation-staleness",
+  "target_type": "agent",
+  "target_name": "documentation-agent",
+  "source_anchor": "CLAUDE.md",
+  "scenario": "After sentiment voting icons were upgraded from emojis (🔒📦⚖️🚜🚛) to Lucide SVG icons (Lock, Warehouse, Scale, Truck, Rocket), CLAUDE.md still referenced the old emoji icons in the Sentiment voting section. The documentation-agent should automatically detect when code changes invalidate existing documentation and flag or fix stale references.",
+  "expected_findings": [
+    "Agent does not cross-reference code changes against CLAUDE.md content after implementation",
+    "No grep-based staleness detection step: search CLAUDE.md for literals that were just removed from code",
+    "Documentation updates are treated as optional cleanup rather than mandatory Gate 4"
+  ],
+  "expected_patch_focus": [
+    "Add post-implementation step: grep CLAUDE.md for any literals, names, or patterns that were just changed in code",
+    "Make documentation staleness detection part of the mandatory Gate 4 checklist",
+    "Require documentation-agent to verify CLAUDE.md accuracy after any UI component or API surface changes"
+  ],
+  "replay_plan": {
+    "failed_slice": "Rename a component or change a constant referenced in CLAUDE.md — verify agent catches the stale reference",
+    "near_neighbor": "Remove an RPC function — verify agent removes the corresponding monitoring query from CLAUDE.md",
+    "canary": "Fix a CSS class typo in a component — should not trigger CLAUDE.md review (no documentation references)"
+  }
+}

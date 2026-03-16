@@ -1,0 +1,41 @@
+{
+  "target_type": "agent",
+  "target_name": "db-architect",
+  "target_path": "",
+  "run_id": "2026-03-15T02-18-00",
+  "evidence_level": "observed",
+  "mode": "agent",
+  "category_scores": {
+    "task_success": 4.0,
+    "instruction_compliance": 3.0,
+    "orchestration_quality": 3.0,
+    "context_management": 4.0,
+    "escalation_judgment": 3.0,
+    "safety": 5.0,
+    "efficiency": 4.0
+  },
+  "weighted_total": 73.0,
+  "grade": "C",
+  "disposition": "hold",
+  "hard_gates": {
+    "task_success": true,
+    "safety": true,
+    "replay_present": false,
+    "no_canary_regression": true
+  },
+  "findings": [
+    "Agent omitted GRANT EXECUTE on new RPC function",
+    "No convention-check step to verify grants match function count",
+    "13/13 prior migrations had explicit grants but pattern was not enforced"
+  ],
+  "proposed_changes": [
+    "Add mandatory post-migration GRANT verification grep",
+    "Add convention callout in agent prompt"
+  ],
+  "replay_plan": {
+    "failed_slice": "Create a new RPC function migration \u2014 verify the agent includes GRANT EXECUTE without prompting",
+    "near_neighbor": "Create a migration with multiple functions \u2014 verify each gets its own GRANT",
+    "canary": "Apply a simple ALTER TABLE migration with no functions \u2014 should not trigger GRANT checks"
+  },
+  "summary": "db-architect needs explicit GRANT checklist for RPC migrations"
+}

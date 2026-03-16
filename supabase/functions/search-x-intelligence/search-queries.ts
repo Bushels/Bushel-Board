@@ -19,22 +19,22 @@ export type Season = "seeding" | "growing" | "harvest" | "marketing";
  * Keys match the grain names in the `grains` table exactly.
  */
 export const GRAIN_HASHTAGS: Record<string, string[]> = {
-  "Wheat": ["#wheat", "#CWRS", "#westcdnag"],
-  "Canola": ["#Canola", "#westcdnag", "#CanolaCouncil"],
-  "Amber Durum": ["#durum", "#durumwheat", "#pasta"],
-  "Barley": ["#barley", "#maltbarley", "#feedbarley"],
-  "Oats": ["#oats", "#oatmarket"],
-  "Peas": ["#peas", "#pulses", "#CDNpulses"],
-  "Lentils": ["#lentils", "#pulses", "#CDNlentils"],
-  "Flaxseed": ["#flax", "#flaxseed"],
-  "Soybeans": ["#soybeans", "#CDNsoy"],
-  "Mustard Seed": ["#mustard", "#mustardmarket"],
-  "Corn": ["#corn", "#CDNcorn"],
-  "Rye": ["#rye", "#ryemarket"],
-  "Chick Peas": ["#chickpeas", "#desi", "#kabuli"],
-  "Sunflower": ["#sunflower", "#sunflowermarket"],
-  "Canaryseed": ["#canaryseed"],
-  "Beans": ["#drybeans", "#CDNbeans"],
+  "Wheat": ["#wheat", "#CWRS", "#westcdnag", "#cdnag"],
+  "Canola": ["#Canola", "#westcdnag", "#CanolaCouncil", "#cdnag"],
+  "Amber Durum": ["#durum", "#durumwheat", "#CWAD", "#cdnag"],
+  "Barley": ["#barley", "#maltbarley", "#feedbarley", "#cdnag"],
+  "Oats": ["#oats", "#oatmarket", "#cdnag"],
+  "Peas": ["#peas", "#pulses", "#CDNpulses", "#cdnag"],
+  "Lentils": ["#lentils", "#pulses", "#CDNlentils", "#cdnag"],
+  "Flaxseed": ["#flax", "#flaxseed", "#cdnag"],
+  "Soybeans": ["#soybeans", "#CDNsoy", "#cdnag"],
+  "Mustard Seed": ["#mustard", "#mustardmarket", "#cdnag"],
+  "Corn": ["#corn", "#CDNcorn", "#cdnag"],
+  "Rye": ["#rye", "#ryemarket", "#cdnag"],
+  "Chick Peas": ["#chickpeas", "#desi", "#kabuli", "#cdnag"],
+  "Sunflower": ["#sunflower", "#sunflowermarket", "#cdnag"],
+  "Canaryseed": ["#canaryseed", "#cdnag"],
+  "Beans": ["#drybeans", "#CDNbeans", "#cdnag"],
 };
 
 // --- Season Detection ---
@@ -119,7 +119,10 @@ export function isMajorGrain(grain: string): boolean {
 
 // --- Query Builder ---
 
-const GEO_SCOPE = "Canada prairies western Canadian";
+// OR grouping ensures X search matches any regional tag, not all of them.
+// Prior AND search ("Canada prairies western Canadian") required every word
+// to appear in a tweet, returning near-zero results for most grains.
+const GEO_SCOPE = "(#westcdnag OR #cdnag OR #skag OR #abag OR #mbag OR #agtwitter OR prairies)";
 
 /**
  * Builds 3-5 search queries for a given grain and date (original weekly mode).

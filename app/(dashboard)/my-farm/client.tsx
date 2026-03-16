@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { addCropPlan, removeCropPlan } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,8 +73,9 @@ const FIRST_RUN_BENEFITS = [
 ];
 
 export interface MarketSupplyData {
-  total_supply_kt: number;
-  carry_out_kt: number;
+  total_opening_supply_kt: number;
+  cytd_producer_deliveries_kt: number;
+  is_approximate?: boolean;
 }
 
 interface MyFarmClientProps {
@@ -83,12 +85,18 @@ interface MyFarmClientProps {
   marketSupply?: Record<string, MarketSupplyData>;
 }
 
+interface CropPlanSetupPrefill {
+  grain?: string;
+  acres?: string;
+}
+
 export function MyFarmClient({
   currentPlans,
   percentiles,
   role = "farmer",
   marketSupply = {},
 }: MyFarmClientProps) {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveryGrain, setDeliveryGrain] = useState<CropPlan | null>(null);
@@ -103,6 +111,15 @@ export function MyFarmClient({
   const unusedGrains = AVAILABLE_GRAINS.filter(
     (grain) => !currentPlans.some((cropPlan) => cropPlan.grain === grain)
   );
+  const requestedGrain = searchParams.get("grain");
+  const requestedAcres = searchParams.get("acres")?.trim();
+  const setupPrefill: CropPlanSetupPrefill | undefined =
+    requestedGrain && unusedGrains.includes(requestedGrain)
+      ? {
+          grain: requestedGrain,
+          acres: requestedAcres || undefined,
+        }
+      : undefined;
 
   async function handleAdd(formData: FormData) {
     setLoading(true);
@@ -170,7 +187,9 @@ export function MyFarmClient({
             {isFirstRun ? "Unlock My Farm" : "Add New Crop"}
           </CardTitle>
           <CardDescription>
-            {isFirstRun
+            {setupPrefill?.grain
+              ? `Finish ${setupPrefill.grain} in My Farm. Add inventory once, then Bushel Board can keep the grain-left and priced math correct.`
+              : isFirstRun
               ? "Start with one crop. You can add the rest once the dashboard starts paying you back."
               : "Unlock local market intelligence for another grain you harvest."}
           </CardDescription>
@@ -180,10 +199,12 @@ export function MyFarmClient({
             {error && <div className="text-sm font-medium text-error">{error}</div>}
 
             <CropPlanFields
-              key={`add-${unusedGrains.join("|") || "none"}`}
+              key={`add-${setupPrefill?.grain ?? "none"}-${setupPrefill?.acres ?? "none"}-${unusedGrains.join("|") || "none"}`}
               idPrefix="add"
-              grainOptions={unusedGrains}
+              grainOptions={setupPrefill?.grain ? [setupPrefill.grain] : unusedGrains}
               grainPlaceholder={isFirstRun ? "Pick your first crop" : "Select grain to track..."}
+              grainLocked={Boolean(setupPrefill?.grain)}
+              prefill={setupPrefill}
             />
 
             <Button
@@ -348,9 +369,10 @@ export function MyFarmClient({
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-sm text-muted-foreground">Estimated Yield</span>
-                          <span className="text-right font-semibold">
-                            {yieldMetrics.bushelsPerAcre.toFixed(1)} bu/ac
-                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          <span className="text-right">
+                            <span className="font-semibold">{yieldMetrics.bushelsPerAcre.toFixed(1)} bu/ac</span>
+                            <br />
+                            <span className="text-xs text-muted-foreground">
                               {yieldMetrics.tonnesPerAcre.toFixed(2)} t/ac
                             </span>
                           </span>
@@ -415,13 +437,14 @@ export function MyFarmClient({
                           const ms = marketSupply[plan.grain];
                           if (!ms || marketing.startingGrainKt <= 0) return null;
                           const farmerPctLeft = marketing.grainLeftPct;
-                          const marketPctLeft = Math.max(0, Math.min(100, (ms.carry_out_kt / ms.total_supply_kt) * 100));
+                          const marketBinStock = ms.total_opening_supply_kt - ms.cytd_producer_deliveries_kt;
+                          const marketPctLeft = Math.max(0, Math.min(100, (marketBinStock / ms.total_opening_supply_kt) * 100));
                           const diff = farmerPctLeft - marketPctLeft;
                           const diffLabel = diff > 1
-                            ? `${Math.abs(diff).toFixed(0)}pp more than market`
+                            ? `${Math.abs(diff).toFixed(0)}% more grain remaining than the market average`
                             : diff < -1
-                              ? `${Math.abs(diff).toFixed(0)}pp less than market`
-                              : "on par with market";
+                              ? `${Math.abs(diff).toFixed(0)}% less grain remaining than the market average`
+                              : "on par with the market average";
                           return (
                             <div className="rounded-2xl border border-canola/20 bg-canola/5 p-3 space-y-2">
                               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -443,7 +466,7 @@ export function MyFarmClient({
                                 <div className="flex-1">
                                   <div className="flex items-baseline justify-between">
                                     <span className="text-xs font-medium text-muted-foreground">Market</span>
-                                    <span className="font-display text-lg font-semibold text-muted-foreground">{marketPctLeft.toFixed(0)}%</span>
+                                    <span className="font-display text-lg font-semibold text-muted-foreground">{ms.is_approximate ? '~' : ''}{marketPctLeft.toFixed(0)}%</span>
                                   </div>
                                   <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
                                     <div
@@ -455,7 +478,7 @@ export function MyFarmClient({
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 You have <span className="font-semibold text-foreground">{diffLabel}</span> remaining.
-                                Market figure is AAFC projected carry-out as a share of total supply.
+                                Market figure is total opening supply minus cumulative producer deliveries to date.{ms.is_approximate ? ' Supply estimate is approximate (~).' : ''}
                               </p>
                             </div>
                           );
@@ -613,14 +636,18 @@ function CropPlanFields({
   grainOptions = AVAILABLE_GRAINS,
   grainPlaceholder = "Select grain",
   grainLocked = false,
+  prefill,
 }: {
   idPrefix: string;
   plan?: CropPlan;
   grainOptions?: string[];
   grainPlaceholder?: string;
   grainLocked?: boolean;
+  prefill?: CropPlanSetupPrefill;
 }) {
-  const initialGrain = plan?.grain ?? grainOptions[0] ?? "";
+  const initialGrain =
+    plan?.grain
+    ?? (prefill?.grain && grainOptions.includes(prefill.grain) ? prefill.grain : grainOptions[0] ?? "");
   const initialUnit = plan?.inventory_unit_preference ?? "metric_tonnes";
   const initialBushelWeight = Number(
     plan?.bushel_weight_lbs ?? getDefaultBushelWeightLbs(initialGrain)
@@ -722,7 +749,7 @@ function CropPlanFields({
           required
           min="1"
           step="1"
-          defaultValue={plan?.acres_seeded}
+          defaultValue={plan?.acres_seeded ?? prefill?.acres}
         />
       </div>
 

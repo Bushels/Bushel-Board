@@ -1,0 +1,31 @@
+{
+  "id": "agent-verification-gates-skipped",
+  "target_type": "agent",
+  "target_name": "ultra-agent",
+  "target_paths": [
+    ".claude/agents/ultra-agent.md",
+    ".claude/agents/data-audit.md",
+    ".claude/agents/security-auditor.md",
+    "CLAUDE.md"
+  ],
+  "source_paths": [
+    "docs/lessons-learned/issues.md"
+  ],
+  "source_anchor": "2026-03-12 - Agent Orchestration Failure: Zero Verification Gates Run",
+  "scenario": "Track #17 shipped 9 bugs because a long multi-step session skipped all verification agents and never used the coordinator to enforce workflow gates.",
+  "expected_findings": [
+    "Verification gates were not mandatory enough in the operational workflow.",
+    "Coordinator enforcement was too implicit for long multi-step work.",
+    "The agent system lacked a hard stop before shipping unverified changes."
+  ],
+  "expected_patch_focus": [
+    "Make verification gates explicit and mandatory.",
+    "Require the coordinator to invoke verification agents after risky changes.",
+    "Add a critical lesson callout tied to the historical failure."
+  ],
+  "replay_plan": {
+    "failed_slice": "Replay a long feature task that touches auth, data, and docs without pre-invoking verification agents.",
+    "near_neighbor": "Replay a multi-file infrastructure change that should force the same verify-and-document gates.",
+    "canary": "Replay a small single-file wording change that should not trigger the full gate stack."
+  }
+}

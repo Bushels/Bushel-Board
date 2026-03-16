@@ -1,5 +1,229 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-16 — CSS color-mix() vs hsl() for Hex CSS Variables
+
+**Symptom:** Implementation plan specified `hsl(var(--prairie) / 0.65)` to apply 65% opacity to a CSS custom property for the TerminalFlowChart bar colors.
+
+**Root cause:** The `hsl()` alpha syntax only works when the CSS variable contains raw HSL channel values (e.g., `--prairie: 100 60% 30%`). Bushel Board's design tokens store hex values (e.g., `--color-prairie: #437a22`), so `hsl(var(--color-prairie) / 0.65)` is invalid CSS and silently fails — the browser drops the declaration entirely, producing no color.
+
+**Fix:** Use `color-mix(in srgb, var(--color-prairie) 65%, transparent)` instead. This works with any color format stored in the variable (hex, rgb, hsl, named colors).
+
+**Caught by:** Gemini pre-review, before any code was written. This is exactly the kind of bug that would have been invisible until visual QA — no build error, no runtime error, just a missing fill color.
+
+**Tags:** #css #design-tokens #color-mix #gemini-review #terminal-net-flow
+
+## 2026-03-16 — PostgREST numeric-as-string in Sentiment/Logistics Pure Functions
+
+**Symptom:** The `vesselSentiment()`, `octSentiment()`, and `shipmentYoySentiment()` pure functions in `logistics-utils.ts` performed numeric comparisons like `vessels > avg + 5`, but the comparisons produced wrong results for certain value ranges.
+
+**Root cause:** Supabase PostgREST serializes `numeric` column values as **strings**, not numbers. When the Grain Monitor snapshot values (e.g., `vessels_vancouver: "9"`, `oct_pct: "205"`) were compared without conversion, JavaScript performed lexicographic string comparison: `"9" <= "205"` evaluates to `true` (because `"9"` > `"2"` in ASCII), but numerically 9 < 205. This is a recurring PostgREST footgun — see also the earlier `Number()` fix for `cgc_observations.ktonnes`.
+
+**Fix:** Wrap all `grain_monitor_snapshots` values in `Number()` at the query boundary before passing to pure functions. The pure functions themselves accept `number` types, keeping the type-safety contract clean.
+
+**Caught by:** Gemini mid-implementation review.
+
+**Tags:** #postgrest #numeric #type-coercion #logistics #gemini-review #terminal-net-flow
+
+## 2026-03-16 — Server/Client Module Boundary: "use client" Transitive Import of Server Module
+
+**Symptom:** `terminal-flow-chart.tsx` (a `"use client"` component) imported types and pure functions from `logistics.ts`, which in turn imports `createClient` from `@/lib/supabase/server`. Build failed with a server-only module error.
+
+**Root cause:** Next.js enforces that `"use client"` components cannot transitively import server-only modules. Even if the client component only uses exported types and pure functions from a module, if that module has *any* import of a server-only dependency (like `@/lib/supabase/server`), the entire dependency chain is invalid. The original `logistics.ts` mixed Supabase query functions (server-only) with pure utility functions and TypeScript types (client-safe) in a single file.
+
+**Fix:** Split into two files:
+1. `lib/queries/logistics-utils.ts` — client-safe: TypeScript types, interfaces, and pure functions (sentiment scoring, formatting). No Supabase imports.
+2. `lib/queries/logistics.ts` — server-only: Supabase queries that re-export everything from `logistics-utils.ts` for backward compatibility.
+
+Client components import from `logistics-utils.ts`. Server components and server actions import from `logistics.ts` (which provides both queries and re-exported utils).
+
+**Caught by:** Task 6 subagent during component integration.
+
+**Pattern:** When a query module contains both data-fetching functions and pure utility functions, proactively split them if any client component will need the utilities. This is the same pattern used by `lib/queries/observations.ts` (server) vs the composite metric types that live in shared scope.
+
+**Tags:** #nextjs #use-client #module-boundary #server-components #terminal-net-flow
+
+## 2026-03-16 — Float Formatting for Display Values (OCT% and YoY%)
+
+**Symptom:** OCT percentage values rendered as `12.345678%` and YoY percentage values as `7.891234%` in the TerminalFlowChart and LogisticsBanner components. Long decimal strings cluttered the UI and looked unfinished.
+
+**Root cause:** The raw `numeric` values from `grain_monitor_snapshots` (after `Number()` conversion) were interpolated directly into template strings without formatting. No `.toFixed()` call was applied before rendering.
+
+**Fix:** Applied `.toFixed(1)` for OCT percentages (one decimal place provides meaningful precision for car-unloading times) and `.toFixed(0)` for YoY change percentages (whole numbers are sufficient for directional context). Applied at the component render level, not in the query layer, to keep raw precision available for calculations.
+
+**Caught by:** Gemini final review.
+
+**Tags:** #formatting #display #toFixed #gemini-review #terminal-net-flow
+
+## 2026-03-15 — Delivery Gap Chart: Prototype Fidelity Failure (Missing Right Y-Axis + Gap Line)
+
+**Symptom:** User provided exact HTML/Chart.js prototype with 3 datasets on 2 axes. Implementation produced 2 lines on 1 axis with fill-area approximation. The gap LINE on a secondary right Y-axis — the most important visual element ("the gap is the thesis") — was never built.
+
+**Root Cause (process):** The design doc silently simplified the prototype without documenting deviations. Clarifying questions focused on UX (page position, style, toggle behavior) rather than structure (axes, datasets, visual layers). All reviewer agents validated against the derived design doc, not the original prototype. Gemini was consulted on a detail (color choice), not architecture.
+
+**What was lost:**
+1. **Right Y-axis** labeled "YoY Gap (Kt)" with green tick marks — completely dropped
+2. **Gap as its own plotted LINE** on the right axis — replaced with fill-area between two lines
+3. **Headline numbers** — prototype showed 293 Kt gap vs implementation's 563 Kt (different data period, not investigated)
+
+**Process fixes applied:**
+1. Gemini collab skill updated with "Prototype Fidelity Check" pattern (Pattern 4) and "Design Doc Deviation Check" (Pattern 5)
+2. New Workflow 6 in gemini-collab: "Prototype Fidelity Review" — run BEFORE writing design doc when user provides source code
+3. Rule: When user provides exact code, default to faithful reproduction first, improvements second
+4. Rule: Spec reviewers must receive both original source AND design doc
+5. Rule: Clarifying questions must inventory structural elements (axes, datasets, visual layers) before UX details
+
+**Fix applied:** Rewrote `delivery-gap-chart.tsx` with dual Y-axes (`yAxisId="left"` for cumulative deliveries, `yAxisId="right"` for gap) and 3 datasets: current year Line, prior year dashed Line (both left axis), gap Area + Line (right axis with green ticks). Key Recharts lesson: when using multiple `<YAxis>` components, *every* `<Line>` and `<Area>` must specify a `yAxisId` prop or Recharts throws a runtime error.
+
+**Takeaway for future prototype conversions:**
+1. Inventory EVERY axis, dataset, and visual layer from the prototype BEFORE writing a design doc
+2. Default to faithful reproduction first — improvements/simplifications second, and only if documented
+3. Run the Prototype Fidelity Review workflow (gemini-collab Workflow 6) when user provides source code
+4. Spec reviewers must receive both the original source AND the design doc
+
+## 2026-03-15 — Exports Missing Producer Cars Component (112.6 vs 113.5 Kt)
+
+**Symptom:** Dashboard showed Canola exports as 112.6 Kt for week 31 current week, but CGC Excel Summary!H27 showed 113.5 Kt. The 0.9 Kt gap was consistent and exact.
+
+**Root Cause:** The CGC Summary "Exports" row has **THREE** components, not two:
+1. **Terminal Exports** (vessels leaving ports, all grades summed): 112.5 Kt
+2. **Primary Shipment Distribution "Export Destinations"** (direct cross-border from primary elevators): 0.1 Kt
+3. **Producer Cars Shipment Distribution "Export"** (farmer-loaded railcars shipped direct to US): 0.9 Kt
+
+Our code only included components 1+2. Component 3 — Producer Cars exports — was missed because for most grains it's 0 Kt (e.g., Wheat week 31 = 0.0 Kt), making the error invisible unless you checked Canola or other grains with active US rail shipments.
+
+**Verification (cross-grain):**
+- Canola week 31: 112.5 + 0.1 + 0.9 = 113.5 ✓ (matches CGC Excel Summary!H27)
+- Wheat week 31: 420.7 + 21.4 + 0.0 = 442.1 ✓ (matches CGC Excel Summary!B27)
+
+**Solution:** Added `Producer Cars.Shipment Distribution` with `region = 'Export'` to all exports queries:
+1. `lib/queries/observations.ts` — WoW composite metric (new source + "producer_cars_export" region filter)
+2. `get_pipeline_velocity()` — SQL exports CTE
+3. `get_pipeline_velocity_avg()` — SQL exports CTE
+4. `v_grain_yoy_comparison` — both `current_exports` and `prior_exports` CTEs
+5. `supabase/functions/_shared/market-intelligence-config.ts` — CGC_DATA_GUARDRAILS documentation
+
+**Also fixed:**
+- `supabase/functions/import-cgc-weekly/index.ts` — changed `ignoreDuplicates: true` to `false` (same stale-data bug as the main import route, but in the legacy Edge Function)
+- Identified `fetch-cgc-grain-data` as completely dead Edge Function (deployed on Supabase with no local source code, zero references in codebase)
+
+**Prevention:**
+- CGC "Exports" = Terminal Exports + PSD Export Destinations + Producer Cars Export. This is now the ONLY correct formula. Update CLAUDE.md to reflect all three components.
+- When verifying export totals, always check grains with active Producer Cars US shipments (typically Canola, sometimes Wheat, Peas) — these are the only grains where the third component is non-zero.
+- Cross-check new metric definitions against CGC Excel hardcoded values, not just against our own DB queries. Excel is the source of truth.
+
+**Files modified:**
+- `lib/queries/observations.ts` (3-component exports composite)
+- `supabase/migrations/20260315400000_add_producer_cars_export_to_exports.sql`
+- `supabase/functions/_shared/market-intelligence-config.ts` (guardrail docs)
+- `supabase/functions/import-cgc-weekly/index.ts` (ignoreDuplicates fix)
+
+**Tags:** #data-integrity #exports #producer-cars #cgc #pipeline #audit
+
+## 2026-03-15 — Stale Prior-Week Data Caused Wrong WoW Direction (Stocks Showed -10.7% Instead of +3.2%)
+
+**Symptom:** After fixing the Stocks formula (see next entry), the Canola Stocks card correctly showed 1,470.5 Kt for week 31, but the WoW change showed **-10.7% "Stock drawdown"** when it should have been **+3.2% "Stock build"**. CGC Excel confirmed week 30 Canola Summary Stocks = 1,424.4 Kt, but our database had 1,646.1 Kt for week 30.
+
+**Root Cause (two compounding bugs):**
+
+1. **Import route only captured current-week rows:** `app/api/cron/import-cgc/route.ts` filtered the full CGC CSV down to `grain_week === grainWeek` (line 106-108). CGC revises prior-week data when publishing new weeks (preliminary → final values). By discarding all non-current-week rows, we never picked up CGC's revisions to prior weeks. Week 30's preliminary value of 1,646.1 Kt was never corrected to the final 1,424.4 Kt.
+
+2. **`ignoreDuplicates: true` prevented updates even if rows were included:** Both the import route (line 139) and the backfill script (line 160) used `ignoreDuplicates: true`, which maps to PostgreSQL's `ON CONFLICT DO NOTHING`. Even if prior-week rows had been included, they would have been silently skipped because the rows already existed. This meant once a row was inserted, it could never be corrected by the pipeline.
+
+**Impact:** Every prior-week value in the database was potentially stale. Any WoW, YoY, or trend calculation that compared current-week values against prior-week values could show the wrong direction and magnitude. This affected all 16 grains, not just Canola.
+
+**Solution:**
+1. **Import route:** Changed filter from `grain_week === grainWeek` to `crop_year === cropYear` — now imports ALL rows for the current crop year on every weekly run. Changed `ignoreDuplicates: false` (= `ON CONFLICT DO UPDATE`) so revised values overwrite stale ones.
+2. **Backfill script:** Changed `ignoreDuplicates: false`. Added `--live` flag to fetch directly from grainscanada.gc.ca instead of requiring a local CSV file.
+3. **Data repair:** Ran `npm run backfill -- --live` to upsert all 126,776 rows from the live CGC CSV, correcting all stale prior-week values across the entire crop year.
+
+**Verification (Canola Summary Stocks after backfill):**
+- Week 29: 1,451.3 Kt ✓
+- Week 30: 1,424.4 Kt ✓ (was 1,646.1 — now matches CGC Excel)
+- Week 31: 1,470.5 Kt ✓
+- WoW change: +3.2% (stock build) ✓ (was -10.7% drawdown)
+
+**Prevention:**
+- **Never use `ignoreDuplicates: true` for CGC data imports.** CGC revises prior-week data. The pipeline must always use `ON CONFLICT DO UPDATE` to accept revisions.
+- **Never filter the CGC CSV to only the current week.** Import the full crop year to catch all prior-week revisions. The CSV is ~127K rows — well within Supabase upsert capacity.
+- **Treat any WoW change >10% with suspicion.** A 10.7% swing in national commercial stocks in one week is implausible and should trigger a data freshness check.
+- Add a validation rule to `validate-import` that compares prior-week values against the CSV and flags discrepancies.
+
+**Files modified:**
+- `app/api/cron/import-cgc/route.ts` (import full crop year, ignoreDuplicates: false)
+- `scripts/backfill.ts` (ignoreDuplicates: false, --live flag)
+
+**Tags:** #data-integrity #stale-data #import-pipeline #cgc #wow #revision
+
+## 2026-03-15 — Exports and Commercial Stocks Under-Reported Across Entire Pipeline
+
+**Symptom:** Dashboard showed Canola commercial stocks as 962.5 Kt instead of the CGC-reported 1,470.5 Kt (missing 508 Kt). Exports were under-counted by ~102 Kt across all grains. The user noticed the Stocks key metric card didn't match the CGC Excel, and the Exports pipeline velocity chart was below CGC Summary totals.
+
+**Root Cause (Bug 1 — Stocks):** The `v_grain_yoy_comparison` view and the `getWeekOverWeekComparison()` TypeScript function both filtered `region IN ('Primary Elevators', 'Process Elevators')` for stocks. This excluded all six terminal port locations (Vancouver, Prince Rupert, Churchill, Thunder Bay, Bay & Lakes, St. Lawrence) which hold ~290-500 Kt of grain. The CGC "Total Commercial Stocks" includes ALL Summary Stocks regions. The `getStorageBreakdown()` function also only fetched Primary + Process, then queried a non-existent "Terminal Stocks" worksheet.
+
+**Root Cause (Bug 2 — Exports):** The `get_pipeline_velocity()` RPC, `get_pipeline_velocity_avg()` RPC, and `v_grain_yoy_comparison` view all defined exports as only `Terminal Exports.Exports`. But the CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct cross-border exports bypassing terminals). This was already documented in CLAUDE.md but never applied to the SQL objects.
+
+**Root Cause (Bug 3 — Delivery delta):** The key metrics card used `period = 'Current Week'` (460.2 Kt) while the Net Balance chart derived weekly deltas from `period = 'Crop Year'` cumulative data (462.0 Kt). The 1.8 Kt (<0.5%) difference is a CGC rounding artifact — they round weekly and cumulative values independently. Not a code bug.
+
+**Solution:**
+1. **Stocks:** Removed region filter from `current_stocks`/`prior_stocks` CTEs in `v_grain_yoy_comparison`, made Stocks a composite metric in WoW comparison (summing all Summary Stocks regions), fixed `getStorageBreakdown()` to pull all Summary regions and group terminal ports into "Terminal Elevators"
+2. **Exports:** Added PSD Export Destinations to exports CTEs in `get_pipeline_velocity()`, `get_pipeline_velocity_avg()`, `v_grain_yoy_comparison` (current + prior year), and made Exports a composite metric in WoW comparison
+3. **Delivery delta:** Documented as acceptable CGC rounding artifact
+
+**Verification (Canola Week 31 vs CGC Excel):**
+- Commercial stocks: 1,470.5 Kt ✓ (was 962.5)
+- Exports CY: 4,585.8 Kt ✓ (was 4,484.3, Excel shows 4,586.7 — 0.9 Kt CGC rounding)
+- Producer deliveries CW: 460.2 Kt ✓ (Excel: 460.1)
+- Wheat, Barley, Oats also verified correct
+
+**Prevention:**
+- CGC "Exports" always means Terminal Exports + PSD Export Destinations + Producer Cars Export (3 components). Any new SQL/TypeScript that queries exports must include all three.
+- CGC "Commercial Stocks" always means ALL Summary Stocks regions — never filter by region unless you explicitly want a subset.
+- The fact that CLAUDE.md documented the correct formula didn't prevent the bug because the SQL was written before the documentation. New SQL must be audited against CLAUDE.md definitions before deployment.
+- Run `npm run audit-data` after any pipeline SQL changes to catch definition drift.
+
+**Files modified:**
+- `lib/queries/observations.ts` (WoW comparison + StorageBreakdown)
+- `supabase/migrations/20260315300000_fix_exports_and_stocks_definitions.sql`
+
+**Tags:** #data-integrity #exports #stocks #cgc #pipeline #audit
+
+## 2026-03-15 — Producer-Delivery Formula Drift Broke Week 31 Dashboard Totals
+
+**Symptom:** Week 31 producer-delivery totals on the dashboard did not match the CGC workbook. For Canola, the CGC Summary sheet showed **460.1 Kt** current-week producer deliveries, while Bushel Board surfaced **455.6 Kt** in derived dashboard paths.
+
+**Root Cause:** The repo had multiple competing definitions of "producer deliveries." The canonical framework doc was correct, but active SQL views/RPCs, repo AGENTS guidance, and skill docs still used an older `Primary + Process` shortcut. That shortcut omitted:
+- `Primary.Deliveries` from **British Columbia**
+- `Producer Cars.Shipments`
+
+There was a second risk layered on top: some query helpers were not filtering `grade=''` on aggregate Primary rows, which can silently double-count grade detail rows. The local `gsw-shg-en.csv` cache was also stale at Week 30, so the audit path initially failed open instead of proving the mismatch against the live Week 31 source.
+
+**Solution:**
+1. Added `v_country_producer_deliveries` as the single canonical SQL definition
+2. Rebuilt `v_grain_overview`, `v_grain_yoy_comparison`, `get_pipeline_velocity()`, `get_historical_average()`, `get_week_percentile()`, and `get_pipeline_velocity_avg()` on top of that canonical view
+3. Hardened TypeScript helpers to require `grade=''` for aggregate Primary / Process / Producer Cars totals
+4. Upgraded `scripts/audit-data.ts` to fall back to the live CGC CSV and to audit derived dashboard objects against the workbook Summary sheet
+5. Updated AGENTS, agent docs, skills, and planning docs so the wrong formula is no longer documented as valid
+
+**Prevention:**
+- Define country producer deliveries in exactly two places only:
+  - SQL: `v_country_producer_deliveries`
+  - TypeScript: `lib/cgc/delivery-metrics.ts`
+- Treat any query that says "Primary + Process" as incomplete unless it explicitly explains why Producer Cars and BC are excluded
+- For aggregate Primary / Process / Producer Cars totals, decide explicitly between `grade=''` and per-grade rows; never leave grade handling implicit
+- Never trust the local CGC CSV cache for a latest-week audit without checking whether the live source has advanced
+- Do not run `npx supabase db push --linked` blindly when unrelated local migrations are still pending on the remote project
+
+**Files modified:**
+- `lib/cgc/delivery-metrics.ts`
+- `lib/queries/observations.ts`
+- `scripts/audit-data.ts`
+- `supabase/migrations/20260315100000_fix_country_producer_deliveries.sql`
+- `AGENTS.md`
+- `docs/reference/data-sources.md`
+- `docs/architecture/data-pipeline.md`
+
+**Tags:** #data-integrity #deliveries #cgc #audit #documentation #migration-safety
+
 ## 2026-03-12 — v_grain_overview Statement Timeout From Full-Table Scan on 1M+ Rows
 
 **Symptom:** The Overview page displayed "No grain data available yet" even though `v_grain_overview` contained 16 valid rows. No error was surfaced to the user.
@@ -86,6 +310,13 @@
 **Root Cause:** `get_historical_average()` queried only `worksheet='Primary'` for deliveries. But crush-heavy grains like Canola send ~31% of deliveries directly to processors (tracked in the Process worksheet as "Producer Deliveries"). The YoY view correctly uses `FULL OUTER JOIN` of Primary + Process, but the historical RPC didn't.
 
 **Solution:** Added a `CASE` expression: when `p_metric='Deliveries' AND p_worksheet='Primary'`, expand to `worksheet IN ('Primary', 'Process') AND metric IN ('Deliveries', 'Producer Deliveries')`. Applied same fix to `get_week_percentile()`.
+
+**2026-03-15 correction:** `Primary + Process` was still an incomplete intermediate fix. The full country producer-delivery formula also requires:
+- `Primary.Deliveries` from **AB, SK, MB, and BC**
+- `Process.Producer Deliveries` national totals
+- `Producer Cars.Shipments`
+
+Treat any older doc or query that says "Primary + Process" as obsolete for producer-delivery totals.
 
 **Prevention:** Any new RPC that aggregates deliveries must check whether Primary+Process combination is needed. See `v_grain_yoy_comparison` as the reference pattern.
 
@@ -677,3 +908,89 @@ Buckwheat left unmatched (minor grain, not in the tracked 16 Canadian grains).
 - Add a smoke test that fetches one CFTC row and asserts non-null values for key positioning fields
 
 **Tags:** #cftc #parser #soda-api #field-mapping #silent-null
+
+## 2026-03-13 — Dashboard Overhaul Data Audit Findings
+
+Four findings from a systematic audit of the dashboard data layer during the Dashboard Overhaul work.
+
+### Finding 1: Logistics Tables Have No Import Pipeline (HIGH)
+
+**Symptom:** `LogisticsCard` shows empty state. AI intelligence narratives lack logistics context (port throughput, vessel queues, producer car allocations).
+
+**Root cause:** `grain_monitor_snapshots` and `producer_car_allocations` tables exist with proper schema, and the `get_logistics_snapshot()` RPC is consumed by `analyze-market-data` and `generate-intelligence` Edge Functions — but there is NO automated import mechanism. No Edge Function, no cron job, and no script exists to populate these tables. They are likely empty in production.
+
+**Impact:** HIGH. The logistics data path is fully wired (schema, RPC, AI prompts, UI card) but has no data source. This is a silent gap — no errors are thrown, the system simply operates without logistics context.
+
+**Fix needed:** Build an import Edge Function that fetches Grain Monitor and Producer Car data, plus a cron trigger to run it on a regular schedule.
+
+**Tags:** #data-pipeline #logistics #grain-monitor #producer-cars #missing-import
+
+### Finding 2: Oats Missing from CFTC COT Mapping (MEDIUM)
+
+**Symptom:** Oats intelligence narratives have no CFTC COT positioning context, even though CME trades Oats futures which are reported in CFTC COT data.
+
+**Root cause:** The CFTC parser in `supabase/functions/_shared/cftc-cot-parser.ts` maps CME commodity names to CGC grain names, but Oats is not included in the mapping. 10 of 16 CGC grains correctly lack COT data (no futures contracts exist), but Oats is a genuine gap.
+
+**Fix:** Add `{ "OATS": { cgcGrain: "Oats", mappingType: "primary" } }` to the commodity-to-grain mapping in the CFTC parser.
+
+**Tags:** #cftc #parser #oats #mapping-gap
+
+### Finding 3: AAFC Supply Data Static from November 2025 (MEDIUM)
+
+**Symptom:** Supply pipeline card shows AAFC balance sheet data sourced from November 2025. By March 2026, carry-out and export estimates may be stale.
+
+**Root cause:** Data was seeded via `scripts/seed-supply-disposition.ts` with source `AAFC_2025-11-24`. AAFC typically publishes 2-3 updated Outlooks per crop year, but there is no automated refresh mechanism — re-seeding is a manual process.
+
+**Fix:** Re-run the seed script with updated AAFC numbers when a new Outlook is published. Consider adding an observability check that flags when supply data is more than 3 months old.
+
+**Tags:** #aafc #supply-disposition #data-freshness #manual-process
+
+### Finding 4: Deliveries WoW Redundancy Resolved (LOW — CLOSED)
+
+**Prior issue:** Deliveries data was shown in 3 components simultaneously (NetBalanceKpi, IntelligenceKpis, WoWComparisonCard), creating visual redundancy on the grain detail page.
+
+**Resolution:** The WS4 grain detail page restructure removed NetBalanceKpi and moved WoWComparisonCard into an expandable accordion. The remaining redundancy (IntelligenceKpis headline number + WoW table detail) is intentional — KPIs serve as a quick-scan summary while the WoW table provides detailed week-over-week context.
+
+**Tags:** #ux #redundancy #resolved #grain-detail
+
+## 2026-03-13 — Import Pipeline Build: Producer Cars + Grain Monitor
+
+### Finding 5: CGC Blocks Supabase Edge Function IPs (HIGH — RESOLVED)
+
+**Symptom:** The `import-producer-cars` Edge Function returned `error sending request for url: Connection reset by peer (os error 104)` when trying to fetch the CGC Producer Car CSV from `grainscanada.gc.ca`.
+
+**Root cause:** The CGC website blocks connections from Supabase Edge Function IPs (AWS us-west-2). This is likely an IP-based WAF rule or rate limiter targeting cloud provider ranges.
+
+**Fix:** Restructured the import to use a **Vercel cron route** (`app/api/cron/import-producer-cars/route.ts`) that fetches the CSV directly from Vercel's infrastructure (which CGC allows). The Edge Function remains deployed as a fallback but is not used in the production pipeline.
+
+**Lesson:** When building import pipelines for government data sources, always test connectivity from the target execution environment before building the full pipeline. Government websites frequently block cloud provider IP ranges.
+
+**Tags:** #import #cgc #edge-function #connectivity #producer-cars
+
+### Finding 6: Grain Monitor Data is Monthly, Not Weekly (MEDIUM — DOCUMENTED)
+
+**Symptom:** Expected weekly granularity from the Quorum Corp Grain Monitor data tables, but the `MonthlyReportDataTables.xlsx` (14.4 MB) contains monthly aggregates for stock levels, vessel data, and terminal volumes.
+
+**Exception:** The Out-of-Car Time sheet (5C-5) has **weekly** granularity — each grain week gets its own column. This is the only weekly metric in the Excel.
+
+**Fix:** The import script (`scripts/import-grain-monitor.mjs`) handles both granularities:
+- Weekly OCT data: imported directly with correct grain week numbers (weeks 1-26 for current crop year)
+- Monthly stock/terminal data: mapped to approximate grain week midpoints (AUG→wk3, SEP→wk7, etc.)
+- Manual weekly entries (from PDF reports) are preserved and never overwritten by auto-import
+
+**Data sources:**
+- Weekly PDF reports: `grainmonitor.ca/Downloads/WeeklyReports/GMPGOCWeek{YYYYWW}.pdf` (rich but requires PDF parsing)
+- Monthly Excel data tables: `grainmonitor.ca/Downloads/MonthlyReports/MonthlyReportDataTables.xlsx` (machine-readable, auto-importable)
+- GMODS web UI: `grainmonitor.ca/GMODS/` (interactive, no REST API)
+
+**Tags:** #import #grain-monitor #quorum #data-granularity
+
+### Finding 7: Excel Crop Year Duplicate Column Trap (MEDIUM — FIXED)
+
+**Symptom:** January stock values showed ~5 kt instead of ~6,929 kt after import.
+
+**Root cause:** The Quorum Excel has a duplicate "JAN" column at the end of each crop year section — one for actual January data (col 274) and one for the YoY variance comparison (col 289). The parser's month-to-week mapping picked up both, with the variance column (value -0.21) overwriting the real data.
+
+**Fix:** Stop scanning month columns when encountering "YTD AVG" or "YTD" labels, which marks the boundary between real data and variance/comparison columns.
+
+**Tags:** #import #grain-monitor #excel #parsing-bug

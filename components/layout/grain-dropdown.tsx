@@ -121,7 +121,6 @@ export function GrainDropdown({
       {unlockGrain && (
         <UnlockModal
           grain={unlockGrain.name}
-          slug={unlockGrain.slug}
           onClose={() => setUnlockGrain(null)}
         />
       )}

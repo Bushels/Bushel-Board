@@ -1,0 +1,28 @@
+{
+  "id": "skill-algorithmic-art-oververbose",
+  "target_type": "skill",
+  "target_name": "algorithmic-art",
+  "target_paths": [
+    "skill-upgrades/algorithmic-art/SKILL.md"
+  ],
+  "source_paths": [
+    "skill-upgrades/UPGRADE-SUMMARY.md"
+  ],
+  "source_anchor": "Tier 2 - algorithmic-art was 404 lines with verbose philosophy sections before being trimmed to 142",
+  "scenario": "The historical algorithmic-art skill carried too much philosophy and not enough tight operational guidance, causing context bloat and slower execution.",
+  "expected_findings": [
+    "Core instructions were buried under low-leverage context.",
+    "Progressive disclosure was weak because too much detail lived in the main skill body.",
+    "Negative triggers were not strong enough to separate it from adjacent design skills."
+  ],
+  "expected_patch_focus": [
+    "Trim philosophy and preserve only operationally useful guidance.",
+    "Move detailed variants into references instead of the main body.",
+    "Strengthen negative triggers to avoid cross-skill overlap."
+  ],
+  "replay_plan": {
+    "failed_slice": "Replay a small art request where the operator needs fast tactical guidance, not philosophy.",
+    "near_neighbor": "Replay a complex generative-art request where deeper references may still be useful.",
+    "canary": "Replay a general UI design request that should route to another skill."
+  }
+}

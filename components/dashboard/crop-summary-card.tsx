@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Lock, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowRight, Lock, TrendingUp, TrendingDown } from "lucide-react";
 import { fmtKt, fmtPct } from "@/lib/utils/format";
-import { AnimatedCard } from "@/components/motion/animated-card";
+import { GlassCard } from "@/components/ui/glass-card";
 
 interface CropSummaryCardProps {
   grain: string;
@@ -30,54 +30,60 @@ export function CropSummaryCard({
   const isPositive = wowChange >= 0;
 
   return (
-    <AnimatedCard index={index}>
-    <Link
-      href={isUnlocked ? `/grain/${slug}` : "/my-farm"}
-      className={`group relative flex flex-col gap-3 rounded-xl border bg-card/40 backdrop-blur-sm p-4 transition-colors duration-300 hover:shadow-xl ${
-        !isUnlocked ? "opacity-60" : ""
-      }`}
-    >
-      {!isUnlocked && (
-        <Lock className="absolute top-3 right-3 h-4 w-4 text-muted-foreground" />
-      )}
+    <GlassCard index={index} className="transition-colors duration-200 hover:border-canola/30">
+      <Link
+        href={isUnlocked ? `/grain/${slug}` : "/my-farm"}
+        className={`group relative flex flex-col gap-3 p-4 ${
+          !isUnlocked ? "opacity-60" : ""
+        }`}
+      >
+        {!isUnlocked && (
+          <Lock className="absolute top-3 right-3 h-4 w-4 text-muted-foreground" />
+        )}
 
-      <div className="flex items-center justify-between">
-        <h3 className="font-display font-semibold text-sm">{grain}</h3>
-        <span
-          className={`flex items-center gap-0.5 text-xs font-mono ${
-            isPositive ? "text-prairie" : "text-error"
-          }`}
-        >
-          {isPositive ? (
-            <TrendingUp className="h-3 w-3" />
-          ) : (
-            <TrendingDown className="h-3 w-3" />
-          )}
-          {fmtPct(wowChange)}
-        </span>
-      </div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-display font-semibold text-sm">{grain}</h3>
+          <span
+            className={`flex items-center gap-0.5 text-xs font-mono ${
+              isPositive ? "text-prairie" : "text-error"
+            }`}
+          >
+            {isPositive ? (
+              <TrendingUp className="h-3 w-3" />
+            ) : (
+              <TrendingDown className="h-3 w-3" />
+            )}
+            {fmtPct(wowChange)}
+          </span>
+        </div>
 
-      <div className="text-xs text-muted-foreground">
-        Starting: {fmtKt(startingStock)}
-      </div>
+        <div className="text-xs text-muted-foreground">
+          Starting: {fmtKt(startingStock)}
+        </div>
 
-      {/* Progress bar */}
-      <div className="w-full bg-muted rounded-full h-2">
-        <div
-          className="h-2 rounded-full bg-gradient-to-r from-canola to-canola/70 transition-all duration-1000"
-          style={{ width: `${Math.min(deliveredPct, 100)}%` }}
-        />
-      </div>
+        {/* Progress bar */}
+        <div className="w-full bg-muted rounded-full h-2">
+          <div
+            className="h-2 rounded-full bg-gradient-to-r from-canola to-canola/70 transition-all duration-1000"
+            style={{ width: `${Math.min(deliveredPct, 100)}%` }}
+          />
+        </div>
 
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">
-          {deliveredPct.toFixed(1)}% delivered
-        </span>
-        <span className="font-mono font-semibold">
-          +{fmtKt(cwDeliveries)} this week
-        </span>
-      </div>
-    </Link>
-    </AnimatedCard>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">
+            {deliveredPct.toFixed(1)}% delivered
+          </span>
+          <span className="font-mono font-semibold">
+            +{fmtKt(cwDeliveries)} this week
+          </span>
+        </div>
+
+        {isUnlocked && (
+          <span className="text-xs text-canola opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 mt-1">
+            View details <ArrowRight className="h-3 w-3" />
+          </span>
+        )}
+      </Link>
+    </GlassCard>
   );
 }

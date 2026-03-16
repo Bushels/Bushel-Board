@@ -1,0 +1,22 @@
+{
+  "id": "agent-parallel-subagent-file-conflicts",
+  "target_type": "agent",
+  "target_name": "ultra-agent",
+  "source_anchor": "app/(dashboard)/grain/[slug]/page.tsx",
+  "scenario": "Wave 4 dispatched Tasks 4, 5, and 7 as parallel subagents, all of which modified grain/[slug]/page.tsx concurrently — adding imports, Promise.all entries, and component placements. The merge worked this time due to non-overlapping line ranges, but this is a known risk. The ultra-agent coordinator should identify shared-file conflicts before parallel dispatch and either serialize those tasks or designate a single agent to own the shared file.",
+  "expected_findings": [
+    "Coordinator dispatched parallel tasks without analyzing which files each would modify",
+    "No pre-dispatch conflict analysis: if two tasks both modify the same file, they should not run in parallel",
+    "Success was coincidental (non-overlapping edits) rather than by design"
+  ],
+  "expected_patch_focus": [
+    "Add pre-dispatch file-ownership analysis: identify which files each task will modify before parallelizing",
+    "If tasks share a target file, either serialize them or designate one task as the file owner with a merge step",
+    "Document the pattern: page.tsx files are common merge-conflict hotspots when parallelizing UI tasks"
+  ],
+  "replay_plan": {
+    "failed_slice": "Dispatch 3 parallel tasks that all modify the same page.tsx — verify coordinator detects the conflict",
+    "near_neighbor": "Dispatch 2 parallel tasks where one modifies a query file and the other modifies a component — verify clean parallel execution",
+    "canary": "Dispatch 2 fully independent tasks (different directories) — should parallelize without any conflict warnings"
+  }
+}

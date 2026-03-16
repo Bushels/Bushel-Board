@@ -4,6 +4,10 @@ import {
   KNOWLEDGE_SOURCE_PATHS,
   MARKET_INTELLIGENCE_VERSIONS,
 } from "../_shared/market-intelligence-config.ts";
+import {
+  formatCotPromptContext,
+  type CotPositioningResult,
+} from "../../../lib/cot-market-structure.ts";
 
 /**
  * Prompt template for generating grain market intelligence.
@@ -79,19 +83,14 @@ export interface GrainContext {
     grain_monitor: Record<string, unknown> | null;
     producer_cars: Array<Record<string, unknown>> | null;
   } | null;
-  cotPositioning?: Array<{
-    report_date: string;
-    commodity: string;
-    exchange: string;
-    mapping_type: string;
-    open_interest: number;
-    managed_money_net: number;
-    managed_money_net_pct: number;
-    wow_net_change: number;
-    commercial_net: number;
-    commercial_net_pct: number;
-    spec_commercial_divergence: boolean;
-    grain_week: number;
+  cotPositioning?: any;
+  crossGrainContext?: Array<{
+    grain: string;
+    cy_deliveries_kt: number;
+    yoy_deliveries_pct: number | null;
+    cy_exports_kt: number;
+    yoy_exports_pct: number | null;
+    wow_stocks_change_kt: number;
   }> | null;
 }
 
@@ -144,6 +143,9 @@ ${formatLogisticsForIntelligence(ctx)}
 ### CFTC COT Positioning (Tuesday data, released Friday — 3-day lag)
 ${formatCotForIntelligence(ctx)}
 
+### Cross-Grain Context (other grains this week — for acreage competition and demand substitution signals)
+${formatCrossGrainContext(ctx)}
+
 ## Retrieved Grain Knowledge
 ${ctx.knowledgeContext?.contextText ?? "No retrieved corpus passages were available for this grain. Use the shared system framework plus the structured data above."}
 
@@ -193,7 +195,12 @@ Your role is to challenge and refine this assessment. Ask:
 
 Generate a JSON object with the intelligence analysis. Include 3-6 insight cards. Use signal types: "bullish", "bearish", "watch", or "social" (for insights driven by saved X or web signals). Include at least one "watch" signal. If relevant saved X or web signals exist, include at least one "social" signal referencing them. The kpi_data must echo the exact numbers above.
 
+The JSON object MUST also include these top-level fields:
+- "market_stance": one of "bullish", "bearish", or "neutral" — your overall directional assessment based on the weight of evidence.
+- "recommendation_signal": one of "haul", "hold", "price", or "watch" — a single action-oriented signal guiding farmer behaviour based on the analysis. "haul" = deliver now, "hold" = wait for better conditions, "price" = lock in contracts at current levels, "watch" = no clear action, monitor closely.
+
 ## Rules
+- Format the thesis_body as 3-5 concise bullet points, each starting with '• '. Do NOT write paragraphs. Each bullet should be a standalone insight a farmer can scan in 2 seconds.
 - Every insight MUST reference specific numbers from the data or a specific saved X/web signal.
 - If data is insufficient (for example N/A values), note the gap rather than speculating.
 - Do NOT give financial advice. Frame insights as "data suggests" or "the numbers show".
@@ -201,7 +208,8 @@ Generate a JSON object with the intelligence analysis. Include 3-6 insight cards
 - If no relevant saved X/web signals are available, skip "social" signals.
 - Return ONLY the JSON object.
 - Each insight MUST include a "sources" array with one or more of: "CGC", "AAFC", "X", "Derived", "CFTC".
-- Each insight MUST include a "confidence" field with one of: "high", "medium", "low".`;
+- Each insight MUST include a "confidence" field with one of: "high", "medium", "low".
+- If COT data exists, explain whether funds are crowded or just leaning, what drove the weekly move, and whether commercials are on the other side. Use COT to sharpen timing and reversal risk, not to replace the fundamental thesis.`;
 }
 
 function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[number]): string {
@@ -237,6 +245,8 @@ function formatSignalLine(signal: NonNullable<GrainContext["socialSignals"]>[num
 }
 
 function formatCotForIntelligence(ctx: GrainContext): string {
+  return formatCotPromptContext(ctx.cotPositioning as CotPositioningResult | null);
+
   if (!ctx.cotPositioning || ctx.cotPositioning.length === 0) {
     return "No CFTC futures positioning data available for this grain.";
   }
@@ -298,4 +308,27 @@ function formatLogisticsForIntelligence(ctx: GrainContext): string {
   return sections.length > 0
     ? sections.join("\n") + "\n\nUse logistics data to contextualize delivery pace and basis signals. Port congestion, elevated out-of-car time, or low producer car allocations may explain delivery lags independent of farmer sentiment."
     : "No logistics data available for this period.";
+}
+
+function formatCrossGrainContext(ctx: GrainContext): string {
+  if (!ctx.crossGrainContext || ctx.crossGrainContext.length === 0) {
+    return "No cross-grain data available.";
+  }
+
+  // Show up to 5 other grains with the most notable moves (largest absolute YoY delivery change)
+  const others = ctx.crossGrainContext
+    .filter((g) => g.grain !== ctx.grain)
+    .sort((a, b) => Math.abs(b.yoy_deliveries_pct ?? 0) - Math.abs(a.yoy_deliveries_pct ?? 0))
+    .slice(0, 5);
+
+  if (others.length === 0) return "No cross-grain data available.";
+
+  const lines = others.map((g) => {
+    const delYoY = g.yoy_deliveries_pct != null ? `${g.yoy_deliveries_pct > 0 ? "+" : ""}${g.yoy_deliveries_pct.toFixed(1)}%` : "N/A";
+    const expYoY = g.yoy_exports_pct != null ? `${g.yoy_exports_pct > 0 ? "+" : ""}${g.yoy_exports_pct.toFixed(1)}%` : "N/A";
+    const stockDir = g.wow_stocks_change_kt > 0 ? "building" : g.wow_stocks_change_kt < 0 ? "drawing" : "flat";
+    return `- ${g.grain}: CY deliveries ${g.cy_deliveries_kt.toLocaleString()} Kt (YoY ${delYoY}), exports YoY ${expYoY}, stocks ${stockDir}`;
+  });
+
+  return lines.join("\n") + "\n\nUse cross-grain context to identify acreage competition, demand substitution, or system-wide trends (e.g., all grains stocks drawing = system-wide tightness).";
 }

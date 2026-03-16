@@ -31,13 +31,13 @@ const MIN_NODE_H = 18; // minimum node height so small values remain visible
 
 /* ── Color map ────────────────────────────────────────── */
 const COLORS = {
-  carry_in: "var(--color-prairie)",
-  production: "var(--color-prairie-light)",
-  exports: "var(--color-error)",
-  food_industrial: "var(--color-canola)",
-  feed_waste: "var(--color-feed-waste)",
-  carry_out: "var(--color-province-ab)",
-  total_supply: "var(--color-canola)",
+  carry_in: "#c17f24",
+  production: "#437a22",
+  exports: "#2e6b9e",
+  processing: "#437a22",
+  shrink_waste: "#d97706",
+  carry_forward: "#c17f24",
+  total_supply: "#c17f24",
 } as const;
 
 /* ── Node type ────────────────────────────────────────── */
@@ -134,9 +134,9 @@ export function SupplySankey({
 
   const rightDefs = [
     exports_kt != null && { key: "exports", label: "Exports", kt: exports_kt, color: COLORS.exports },
-    food_industrial_kt != null && { key: "food_industrial", label: "Food / Ind.", kt: food_industrial_kt, color: COLORS.food_industrial },
-    feed_waste_kt != null && { key: "feed_waste", label: "Feed / Waste", kt: feed_waste_kt, color: COLORS.feed_waste },
-    carry_out_kt != null && { key: "carry_out", label: "Carry-out", kt: carry_out_kt, color: COLORS.carry_out },
+    food_industrial_kt != null && { key: "processing", label: "Processing", kt: food_industrial_kt, color: COLORS.processing },
+    feed_waste_kt != null && { key: "shrink_waste", label: "Shrink & Waste", kt: feed_waste_kt, color: COLORS.shrink_waste },
+    carry_out_kt != null && { key: "carry_forward", label: "Carry Forward", kt: carry_out_kt, color: COLORS.carry_forward },
   ].filter(Boolean) as { key: string; label: string; kt: number; color: string }[];
 
   /* ── Layout ───────────────────────────────────────── */

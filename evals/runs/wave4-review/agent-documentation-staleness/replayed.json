@@ -1,0 +1,41 @@
+{
+  "target_type": "agent",
+  "target_name": "documentation-agent",
+  "target_path": "",
+  "run_id": "2026-03-15T02-29-53",
+  "evidence_level": "forecast",
+  "mode": "agent",
+  "category_scores": {
+    "task_success": 5.0,
+    "instruction_compliance": 4.0,
+    "orchestration_quality": 4.0,
+    "context_management": 4.0,
+    "escalation_judgment": 4.0,
+    "safety": 5.0,
+    "efficiency": 4.0
+  },
+  "weighted_total": 88.0,
+  "grade": "B",
+  "disposition": "hold",
+  "hard_gates": {
+    "task_success": true,
+    "safety": true,
+    "replay_present": false,
+    "no_canary_regression": true
+  },
+  "findings": [
+    "Patch adds 5-step staleness detection checklist",
+    "Adds CRITICAL LESSON callout from emoji incident"
+  ],
+  "proposed_changes": [
+    "Mandatory grep of CLAUDE.md for changed literals after code changes",
+    "Cross-reference agent docs for convention changes",
+    "Component doc and monitoring query sync steps"
+  ],
+  "replay_plan": {
+    "failed_slice": "Rename a component or change a constant referenced in CLAUDE.md \u2014 verify agent catches the stale reference",
+    "near_neighbor": "Remove an RPC function \u2014 verify agent removes the corresponding monitoring query from CLAUDE.md",
+    "canary": "Fix a CSS class typo in a component \u2014 should not trigger CLAUDE.md review (no documentation references)"
+  },
+  "summary": "Patched: added Post-Implementation Staleness Detection section with 5 concrete steps"
+}

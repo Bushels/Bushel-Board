@@ -110,6 +110,7 @@ If this job reappears, treat it as configuration drift.
 
 ### Derived views and RPCs
 
+- `v_country_producer_deliveries`
 - `v_grain_yoy_comparison`
 - `v_supply_pipeline`
 - `v_supply_disposition_current`
@@ -126,6 +127,11 @@ If this job reappears, treat it as configuration drift.
 - Never trust UI-only role gating for farmer-only actions.
 - User-scoped RPCs must derive identity from `auth.uid()`, not caller-supplied IDs.
 - Service-only RPCs must revoke public execute permissions and grant `service_role` explicitly.
+- Country producer deliveries must come from the canonical formula:
+  `Primary.Deliveries` (AB/SK/MB/BC, `grade=''`) +
+  `Process.Producer Deliveries` (national, `grade=''`) +
+  `Producer Cars.Shipments` (AB/SK/MB, `grade=''`)
+- Any Primary or Process aggregate query must deliberately decide whether it wants the `grade=''` total row or the per-grade detail rows.
 - Delivery pace must use `delivered + remaining_to_sell` as the denominator when the stored field represents current remaining inventory.
 - `v_supply_pipeline` must return one canonical row per `grain_slug, crop_year`.
 
@@ -176,6 +182,10 @@ Expected result: zero rows.
 
 ### Data looks inconsistent
 
+- Re-check the country delivery formula in `v_country_producer_deliveries`
+- Confirm aggregate queries filter `grade=''` where appropriate
+- Confirm the local `gsw-shg-en.csv` cache is not stale versus the live CGC CSV
+- Run `npm run audit-data -- --week <n>` before changing code blindly
 - Re-check `crop_year` filtering in the query layer
 - Confirm `v_supply_pipeline` returns one row per grain/year
 - Confirm delivery pace math is using delivered plus remaining inventory

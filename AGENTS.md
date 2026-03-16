@@ -59,19 +59,20 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 
 ### CGC Data Nuances
 - **Exports:** CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct exports bypassing terminals)
-- **Producer Deliveries:** Primary.Deliveries (provincial: AB, SK, MB) + Process.Producer Deliveries (national total). Crush-heavy grains like Canola send ~31% directly to processors, so Primary alone undercounts.
+- **Producer Deliveries:** Use the country-level CGC formula: `Primary.Deliveries` (AB, SK, MB, BC, `grade=''`) + `Process.Producer Deliveries` (national, `grade=''`) + `Producer Cars.Shipments` (AB, SK, MB, `grade=''`). Anything less is incomplete.
 - **Domestic Disappearance:** A residual calculation, not a separate CSV metric
 - **FULL OUTER JOIN required:** When combining Primary + Process data, not all grains appear in both worksheets. Always use FULL OUTER JOIN to avoid dropping data.
 - **Forward-fill for cumulative series:** Different CGC worksheets (Primary, Terminal Exports, Process) may report up to different grain weeks. When merging `period: "Crop Year"` data across worksheets, missing weeks must carry forward the last known cumulative value — NOT default to 0. See `getCumulativeTimeSeries()` in `lib/queries/observations.ts`.
 - **PostgREST max_rows=1000 limit:** Supabase silently truncates query results exceeding 1,000 rows — no error returned. Terminal Receipts has ~3,648 rows per grain (20 grades × 6 ports × 30 weeks) and Terminal Exports ~1,050 rows. Always use server-side RPC with `SUM() GROUP BY` for these worksheets. Client `.limit()` does NOT override the server cap.
 - **No grade='' aggregates for Terminal Receipts/Exports:** Unlike Primary worksheet (which has pre-aggregated `grade=''` rows), Terminal Receipts and Terminal Exports only have per-grade rows. Must sum all grades in SQL.
+- **Aggregate row guardrail:** For Primary, Process producer deliveries, and Producer Cars shipments, filter `grade=''` whenever you want the pre-aggregated total. Omitting that filter can double-count grade rows.
 
 ## Design Tokens
 - Background: wheat-50 (#f5f3ee) / wheat-900 (#2a261e) dark
 - Primary: canola (#c17f24)
 - Success: prairie (#437a22)
 - Warning: amber (#d97706)
-- Province AB: #2e6b9e, SK: #6d9e3a, MB: #b37d24
+- Province AB: #2e6b9e, BC: #2f8f83, SK: #6d9e3a, MB: #b37d24
 - Easing: cubic-bezier(0.16, 1, 0.3, 1)
 - Animation stagger: 40ms between siblings
 
@@ -92,7 +93,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
 - **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
-- **Views:** `v_grain_yoy_comparison` (YoY metrics, FULL OUTER JOIN of Primary + Process deliveries + Terminal Receipts cw/cy/wow columns), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (blended relevance: 60% Grok AI + 40% farmer consensus when votes >= 3)
+- **Views:** `v_country_producer_deliveries` (canonical country-level producer-delivery formula), `v_grain_yoy_comparison` (YoY metrics built from that delivery view + terminal receipts/exports/stocks), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (blended relevance: 60% Grok AI + 40% farmer consensus when votes >= 3)
 - **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role)
 - **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
 - **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
@@ -108,7 +109,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Intelligence: `SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generated_at DESC LIMIT 5;`
 - Farm summaries: `SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;`
 - pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
-- Delivery audit (Primary by province): `SELECT grain, SUM(ktonnes) FROM cgc_observations WHERE crop_year='2025-2026' AND grain_week=30 AND metric='Deliveries' AND worksheet='Primary' AND period='Current Week' AND region IN ('Alberta','Saskatchewan','Manitoba') AND grade='' GROUP BY grain;`
+- Delivery audit (country producer deliveries): `SELECT grain, total_kt FROM v_country_producer_deliveries WHERE crop_year='2025-2026' AND grain_week=30 AND period='Current Week' ORDER BY grain;`
 - Terminal Receipts check: `SELECT grain, ktonnes FROM cgc_observations WHERE worksheet='Terminal Receipts' AND metric='Receipts' AND period='Current Week' AND grain_week=30 AND crop_year='2025-2026';`
 - Signal feedback: `SELECT grain, grain_week, COUNT(*) FROM signal_feedback GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
 - Blended scores: `SELECT signal_id, grain, blended_relevance, total_votes, farmer_relevance_pct FROM v_signal_relevance_scores ORDER BY blended_relevance DESC LIMIT 10;`

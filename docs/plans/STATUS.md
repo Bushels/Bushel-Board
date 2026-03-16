@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-13
+Last updated: 2026-03-16
 
 ## Feature Tracks
 
@@ -26,6 +26,116 @@ Last updated: 2026-03-13
 | 18 | Supplementary Data Pipeline (Grain Monitor & Producer Cars) | Complete | 2026-03-13 | `supabase/migrations/20260313120000_create_grain_monitor_and_producer_cars.sql`, `supabase/functions/analyze-market-data/`, `supabase/functions/generate-intelligence/`, `docs/reference/agent-debate-rules.md` |
 | 19 | AI Thesis Debate Moderation & Agent Improvement | Complete | 2026-03-13 | `docs/lessons-learned/canola-week31-debate-moderation.md`, `docs/reference/agent-debate-rules.md` |
 | 20 | CFTC COT Positioning Integration | Complete | 2026-03-13 | `supabase/migrations/20260313140000_create_cftc_cot_positions.sql`, `supabase/functions/import-cftc-cot/`, `app/api/cron/import-cftc-cot/route.ts`, `.claude/skills/cftc-cot/SKILL.md`, `docs/plans/2026-03-13-cftc-cot-integration-design.md` |
+| 21 | Dashboard Overhaul — Farmer Decision Architecture | Complete | 2026-03-13 | `components/ui/glass-card.tsx`, `components/dashboard/cot-positioning-card.tsx`, `components/dashboard/logistics-card.tsx`, `components/dashboard/flow-donut-chart.tsx`, `components/dashboard/recommendation-card.tsx`, `components/dashboard/multi-grain-sentiment.tsx` |
+| 22 | Farmer Advisor Chat & Memory | Proposed | 2026-03-13 | `docs/plans/2026-03-13-farmer-advisor-chat-design.md`, `docs/plans/2026-03-13-farmer-advisor-chat-implementation.md` |
+| 23 | Dashboard Redesign V2 — Wave 1: Data Foundation | Complete | 2026-03-14 | `scripts/seed-supply-disposition.ts`, `app/(dashboard)/my-farm/client.tsx`, `app/(dashboard)/grain/[slug]/page.tsx`, `lib/utils/crop-year.ts`, `components/auth/auth-shell.tsx`, `components/dashboard/crop-summary-card.tsx` |
+| 24 | Dashboard Redesign V2 — Wave 2: Grain Page Redesign | Complete | 2026-03-14 | `components/dashboard/key-metrics-cards.tsx`, `components/dashboard/net-balance-chart.tsx`, `components/dashboard/delivery-breakdown-chart.tsx`, `components/dashboard/grain-quality-donut.tsx`, `app/(dashboard)/grain/[slug]/page.tsx` |
+
+| 25 | Dashboard Redesign V2 — Wave 3: Engagement & My Farm | Complete | 2026-03-14 | `components/dashboard/metric-sentiment-vote.tsx`, `components/dashboard/percentile-graph.tsx`, `components/ui/grain-icon.tsx`, `app/(dashboard)/overview/signal-strip-with-voting.tsx`, `components/dashboard/farmer-cot-card.tsx` |
+| 26 | Dashboard Redesign V2 — Wave 4: Advanced Intelligence | Complete | 2026-03-14 | `supabase/migrations/20260314500000_*`, `components/dashboard/crush-utilization-gauge.tsx`, `components/dashboard/price-sparkline.tsx`, `lib/queries/processor-capacity.ts`, `lib/queries/grain-prices.ts` |
+| 27 | Delivery Pace Chart (YoY Cumulative Gap, Dual Y-Axis) | Complete | 2026-03-15 | `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`, `app/(dashboard)/grain/[slug]/page.tsx` |
+| 28 | Terminal Net Flow Visualization | Complete | 2026-03-16 | `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql` |
+
+### 2026-03-16 — Terminal Net Flow Visualization (Track 28)
+
+**What was delivered:**
+- `TerminalFlowChart` component on grain detail page — diverging bar + line chart showing weekly terminal receipts vs exports with net flow
+- `LogisticsBanner` component on overview page — narrative headline with sparkline summarizing terminal flow across grains
+- `LogisticsStatPill` component — compact stat display used within the logistics banner
+- Two new RPC functions: `get_weekly_terminal_flow` (per-grain weekly receipts/exports/net) and `get_aggregate_terminal_flow` (cross-grain summary)
+- Client-safe utility module `lib/queries/logistics-utils.ts` for headline generation logic
+- Server query module `lib/queries/logistics.ts` for Supabase RPC calls
+- 5 unit tests for the logistics headline generator
+- Wired into `app/(dashboard)/grain/[slug]/page.tsx` (TerminalFlowChart) and `app/(dashboard)/overview/page.tsx` (LogisticsBanner)
+
+**Design doc:** `docs/plans/2026-03-16-terminal-net-flow-design.md`
+**Implementation plan:** `docs/plans/2026-03-16-terminal-net-flow-implementation.md` (9 tasks, all complete)
+
+**New files:** `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql`
+**Modified files:** `app/(dashboard)/grain/[slug]/page.tsx`, `app/(dashboard)/overview/page.tsx`
+
+### 2026-03-15 — Delivery Pace Chart: YoY Cumulative Gap with Dual Y-Axis (Track 27)
+
+**What was delivered:**
+- `DeliveryGapChart` component with dual Y-axes: left axis for cumulative deliveries (Kt), right axis for YoY gap (Kt) with green ticks
+- 3 datasets on 2 axes: current year solid line + prior year dashed line (left), gap line + shaded fill area (right)
+- Pure utility function `computeDeliveryGap()` with 5 passing tests
+- Canola-gated Delivery Pace section on grain detail page between Key Metrics and Net Balance
+- SectionHeader with dynamic pills: YoY % (red/green) and gap Kt ("X kt withheld"/"X kt ahead")
+- Prototype fidelity lesson documented — design doc initially simplified the user's Chart.js prototype, dropping the right Y-axis
+
+**Process improvements from this track:**
+- Updated gemini-collab skill with Prototype Fidelity Check (Pattern 4), Design Doc Deviation Check (Pattern 5), and Prototype Fidelity Review workflow (Workflow 6)
+- Documented full retrospective in `docs/lessons-learned/issues.md`
+- Rule: when user provides source code, default to faithful reproduction first, improvements second
+
+**New files:** `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`
+**Modified files:** `app/(dashboard)/grain/[slug]/page.tsx`, `components/dashboard/CLAUDE.md`
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 4 Advanced Intelligence (Track 26)
+
+**What was delivered:**
+- Processor self-sufficiency RPC (`get_processor_self_sufficiency`) — computes producer vs non-producer delivery ratio from Process worksheet
+- Self-sufficiency signal injected into `analyze-market-data` Edge Function for AI thesis generation
+- Processor capacity reference table with 12 grains seeded from AAFC/industry data
+- YoY toggle on Pipeline Velocity chart — "Last Year" and "5yr Avg" overlay lines with toggle pills
+- Historical pipeline average RPC (`get_pipeline_velocity_avg`) — N-year average cumulative metrics per grain week
+- Crush utilization gauge — semicircular SVG arc showing annualized processing vs capacity with bullish/moderate/low signals
+- Grain prices table (`grain_prices`) with sample futures data for Canola, Wheat, Barley, Oats
+- Price sparkline in grain detail hero — compact SVG trend line with latest settlement price and daily change
+- New migrations: `20260314500000` (self-sufficiency RPC), `20260314510000` (processor capacity table), `20260314520000` (historical pipeline avg RPC), `20260314530000` (grain prices table)
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 3 Engagement & My Farm (Track 25)
+
+**What was delivered:**
+- Per-card metric sentiment voting (bullish/bearish) on Key Metrics cards with optimistic UI
+- X signal voting on overview page CompactSignalStrip (thumbs up/down with vote state management)
+- Farmer-friendly COT positioning card replacing trader-focused chart (mood gauge, plain-English insights)
+- Bull/Bear confidence bar made prominent, model attribution removed
+- Prairie Chatter removed from grain detail page (overview only)
+- Key Metrics cards moved above Net Balance chart (both full-width)
+- Custom grain SVG icons component
+- Percentile distribution bell curve graph for delivery pace comparison
+- Delivery logging default unit changed to kg, destination helper text added
+- Edge Function prompt updated for shorter bullets, `confidence_score` (0-100), and `final_assessment`
+- New migration: `metric_sentiment_votes` table + `confidence_score`/`final_assessment` columns on `market_analysis`
+
+**New components:** `farmer-cot-card.tsx`, `metric-sentiment-vote.tsx`, `percentile-graph.tsx`, `grain-icon.tsx`, `key-metrics-with-voting.tsx`, `signal-strip-with-voting.tsx`
+**New queries:** `lib/queries/metric-sentiment.ts`
+**New actions:** `app/(dashboard)/overview/actions.ts`, `app/(dashboard)/grain/[slug]/metric-actions.ts`
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 2 Grain Page Redesign (Track 24)
+
+**What was delivered:**
+- Grain detail page completely restructured from reporting dashboard to signal-generating decision tool
+- New components: Key Metrics Cards (4 vertical cards with WoW + insights), Net Balance Chart (surplus/deficit bars + cumulative line), Delivery Breakdown Chart (stacked area: elevators/processors/cars), Grain Quality Donut (Terminal Receipts by grade)
+- Enhanced components: StorageBreakdown redesigned with CSS horizontal bars, BullBearCards with confidence gauge + final assessment, LogisticsCard with grain week labels on every KPI
+- Bull & Bear Cases promoted from collapsed `<details>` to visible section
+- Removed redundant sections: Flow Donut, Supply Pipeline, IntelligenceKpis, expandable Market Signals
+- New queries: `getGradeDistribution()` (Terminal Receipts by grade), `getDeliveryChannelBreakdown()` (3 delivery channels)
+
+**Deleted components:** `flow-donut-chart.tsx`, `supply-pipeline.tsx`, `intelligence-kpis.tsx`, `x-signal-feed.tsx`
+
+### 2026-03-14 — Dashboard Redesign V2: Wave 1 Data Foundation (Track 23)
+
+**What was delivered:**
+- AAFC supply baseline updated to Feb 2026 figures (16 grains, `is_approximate` flag for 5 estimated grains)
+- "% Left in Bin vs Market" calculation corrected: Total Opening Supply - CYTD Producer Deliveries (live CGC data)
+- Data freshness badge on grain detail page hero section
+- Fraunces font rendering fix (variable font axes), estimated yield alignment, hover arrows on crop summary cards, flow donut overflow fix
+
+### 2026-03-13 — Dashboard Overhaul: Farmer Decision Architecture (Track 21)
+
+**What was delivered:**
+- Grain detail page restructured with 2-column layout, hero BULLISH/BEARISH badge, bullet-point thesis format
+- New components: COT Positioning card, Logistics Snapshot card, "Where Grain Went" donut chart, Recommendation cards (HAUL/HOLD/PRICE/WATCH)
+- My Farm page restructured with multi-grain sentiment voting and recommendation badges
+- Supply Pipeline redesigned with "Still in Bins" hero metric and corrected labels (Processing, Carry Forward, Shrink & Waste)
+- Glassmorphism design system: GlassCard, GlassTooltip, MarketStanceBadge, ActionBadge components with 3D elevation shadows and button underglow
+- Overview page upgraded with glass treatment and market stance badges
+- AI prompts updated for bullet-point format and `market_stance` field in `generate-intelligence` and `generate-farm-summary`
+
+**New query modules:** `lib/queries/cot.ts`, `lib/queries/logistics.ts`, `lib/queries/flow-breakdown.ts`
 
 ## Performance Fixes
 
@@ -182,7 +292,7 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 
 | Name | Type | Purpose |
 |------|------|---------|
-| `v_grain_yoy_comparison` | View | YoY metrics with FULL OUTER JOIN of Primary + Process + Terminal |
+| `v_grain_yoy_comparison` | View | YoY metrics built from `v_country_producer_deliveries` plus terminal receipts/exports/stocks |
 | `v_supply_pipeline` | View | Canonical AAFC balance sheet for the supply pipeline component |
 | `v_supply_disposition_current` | View | Canonical latest supply-disposition row per grain/year |
 | `v_signal_relevance_scores` | View | Blended relevance: 50% recency-adjusted AI + 40% farmer + 10% bonuses |
@@ -200,3 +310,5 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 | `snapshot_weekly_sentiment()` | RPC | Archives weekly per-grain sentiment aggregates to `sentiment_history` |
 | `snapshot_daily_sentiment()` | RPC | Snapshots daily sentiment with delta tracking to `sentiment_daily_rollup` |
 | `get_cot_positioning()` | RPC | Managed money and commercial net positions with spec/commercial divergence flag |
+| `get_weekly_terminal_flow()` | RPC | Per-grain weekly terminal receipts, exports, and net flow |
+| `get_aggregate_terminal_flow()` | RPC | Cross-grain aggregate terminal flow summary |

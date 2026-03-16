@@ -1,0 +1,28 @@
+{
+  "id": "skill-skill-creator-missing-benchmark-trigger",
+  "target_type": "skill",
+  "target_name": "skill-creator",
+  "target_paths": [
+    "skill-upgrades/skill-creator/SKILL.md"
+  ],
+  "source_paths": [
+    "skill-upgrades/UPGRADE-SUMMARY.md"
+  ],
+  "source_anchor": "Tier 3 - skill-creator later gained trigger phrases like 'benchmark this skill' and was trimmed substantially",
+  "scenario": "The historical skill-creator flow was too long and did not advertise post-use benchmarking clearly enough, making skill improvement requests harder to route and execute cleanly.",
+  "expected_findings": [
+    "The description did not clearly advertise benchmarking or post-use improvement.",
+    "The body was near the practical size limit and needed tighter progressive disclosure.",
+    "Negative triggers and examples were not clear enough for adjacent tasks."
+  ],
+  "expected_patch_focus": [
+    "Add benchmark and post-use improvement trigger phrases.",
+    "Trim the body and push secondary detail into references.",
+    "Add examples and common issues for the audit-and-improve workflow."
+  ],
+  "replay_plan": {
+    "failed_slice": "Replay a user request such as 'benchmark this skill after it was used' and confirm correct routing.",
+    "near_neighbor": "Replay a normal 'create a new skill' request that should still trigger the same skill cleanly.",
+    "canary": "Replay a document-editing request that should route elsewhere."
+  }
+}

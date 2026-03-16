@@ -1,0 +1,22 @@
+{
+  "id": "agent-frontend-shared-constant-drift",
+  "target_type": "agent",
+  "target_name": "frontend-dev",
+  "source_anchor": "components/dashboard/multi-grain-sentiment.tsx",
+  "scenario": "sentiment-poll.tsx and multi-grain-sentiment.tsx both defined identical SENTIMENT_OPTIONS arrays independently (same 5 options with emojis). When icons were upgraded to Lucide SVGs, both files had to be changed separately. If only one had been updated, the UI would show inconsistent icons on My Farm vs grain detail pages. The frontend-dev agent should identify shared constants and extract them, or at minimum flag when two components define duplicate data structures.",
+  "expected_findings": [
+    "Agent did not identify duplicate SENTIMENT_OPTIONS definitions across two components",
+    "No convention for extracting shared UI constants into a shared module (e.g., lib/constants/sentiment.ts)",
+    "DRY principle violation: identical 5-option arrays maintained in two separate files"
+  ],
+  "expected_patch_focus": [
+    "Add instruction to grep for duplicate constant definitions before creating new UI data arrays",
+    "Establish pattern: shared UI options/enums belong in lib/constants/ not duplicated per component",
+    "When modifying a shared data structure, require grep to find all other instances and update them together"
+  ],
+  "replay_plan": {
+    "failed_slice": "Modify sentiment options in one component — verify agent finds and updates the duplicate in the other",
+    "near_neighbor": "Add a new voting option — verify agent updates both components or extracts to shared constant",
+    "canary": "Modify a component-specific prop (e.g., card padding) — should not trigger cross-component search"
+  }
+}

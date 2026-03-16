@@ -76,6 +76,8 @@ You are the Database Architect for Bushel Board. You own Supabase schema, migrat
 11. `volume_left_to_sell_kt` means remaining inventory, so pace math must use `delivered + remaining`
 12. Delivery events belong in append-only rows with idempotency keys, not only mutable JSONB arrays
 13. Source names are data, not contracts; pick canonical supply sources in SQL instead of hardcoding dated literals in app queries
+14. Country producer deliveries are defined once: `Primary.Deliveries` (AB/SK/MB/BC, `grade=''`) + `Process.Producer Deliveries` (national, `grade=''`) + `Producer Cars.Shipments` (AB/SK/MB, `grade=''`). Never ship a `Primary + Process`-only shortcut.
+15. If the linked remote is missing unrelated local migrations, do not run `npx supabase db push --linked` blindly. Use an isolated hotfix workdir or a single-migration apply path.
 
 **Current RPC Inventory:**
 | Function | Purpose | Caller |
@@ -92,6 +94,8 @@ You are the Database Architect for Bushel Board. You own Supabase schema, migrat
 3. **Edge Function parity:** If you fixed a utility function in one Edge Function, check ALL Edge Functions for the same pattern. They share no code — each has its own copy.
 4. **Local migration files:** Supabase MCP `apply_migration` does NOT create local `.sql` files. Always write the migration to `supabase/migrations/` manually.
 5. **RPC return shape:** If an RPC `RETURNS jsonb`, verify it actually returns a scalar jsonb, not multiple rows. `GROUP BY` in a `RETURNS jsonb` function = runtime error.
+6. **GRANT verification (CRITICAL):** Every `CREATE FUNCTION` in a migration MUST have a matching `GRANT EXECUTE ON FUNCTION ... TO authenticated;`. After writing a migration, count the functions and count the grants — they must match. All 13+ existing migrations follow this convention. Grep: `grep -c 'CREATE.*FUNCTION' migration.sql` must equal `grep -c 'GRANT EXECUTE' migration.sql`.
+7. **PostgREST row-count audit:** If your query targets a high-cardinality worksheet (Terminal Receipts ~3648 rows/grain, Terminal Exports ~1050 rows/grain), NEVER use raw PostgREST `.select()`. Use an RPC with `SUM() GROUP BY` instead. Any query returning exactly 1000 rows is a truncation signal.
 
 **Operational Checklist:**
 - [ ] `npm run test`

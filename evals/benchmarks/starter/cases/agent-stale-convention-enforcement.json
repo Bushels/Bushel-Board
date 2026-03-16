@@ -1,0 +1,30 @@
+{
+  "id": "agent-stale-convention-enforcement",
+  "target_type": "agent",
+  "target_name": "data-audit",
+  "target_paths": [
+    ".claude/agents/data-audit.md",
+    ".claude/agents/db-architect.md",
+    "CLAUDE.md"
+  ],
+  "source_paths": [
+    "docs/lessons-learned/issues.md"
+  ],
+  "source_anchor": "2026-03-12 - Systemic Crop Year Format Mismatch (6 Competing Implementations)",
+  "scenario": "A crop year format split across utilities, Edge Functions, and tables survived because the agent workflow did not force a convention consistency audit across all code paths.",
+  "expected_findings": [
+    "Convention-audit language was missing, weak, or too easy to skip.",
+    "Cross-table join format checks were not explicit enough.",
+    "The agent did not force a full grep across duplicate implementations."
+  ],
+  "expected_patch_focus": [
+    "Add a mandatory convention consistency procedure.",
+    "Require grep across all implementations when shared formats change.",
+    "Promote cross-table join checks into a first-class verification step."
+  ],
+  "replay_plan": {
+    "failed_slice": "Replay a shared format change that touches utilities, Edge Functions, and multiple tables.",
+    "near_neighbor": "Replay a metric-name change that requires the same cross-codebase sweep.",
+    "canary": "Replay a local UI-only copy change that should not trigger the convention audit."
+  }
+}
