@@ -27,7 +27,13 @@ interface DeliveryGapChartProps {
   grainName: string;
 }
 
-type ChartPoint = DeliveryGapPoint & { week_label: string };
+type ChartPoint = DeliveryGapPoint & {
+  week_label: string;
+  /** Minimum of current and prior — stacked Area base (transparent) */
+  gapBase: number;
+  /** Height of the gap above gapBase — stacked Area fill (colored) */
+  gapHeight: number;
+};
 
 interface TooltipPayloadItem {
   color?: string;
@@ -89,10 +95,15 @@ export function DeliveryGapChart({
   const gapData = computeDeliveryGap(currentYearData, priorYearData);
   if (gapData.length === 0) return null;
 
-  const chartData: ChartPoint[] = gapData.map((d) => ({
-    ...d,
-    week_label: `W${d.week}`,
-  }));
+  const chartData: ChartPoint[] = gapData.map((d) => {
+    const priorVal = d.prior ?? d.current;
+    return {
+      ...d,
+      week_label: `W${d.week}`,
+      gapBase: Math.min(d.current, priorVal),
+      gapHeight: Math.abs(d.current - priorVal),
+    };
+  });
 
   return (
     <div>
@@ -164,15 +175,32 @@ export function DeliveryGapChart({
           />
           <Tooltip content={<GapTooltip />} />
 
-          {/* Gap fill area — approximation using prior line as baseline */}
+          {/*
+            Gap fill: stacked area technique.
+            Two areas with the same stackId — the bottom (gapBase) is transparent,
+            the top (gap height) is colored. This fills only the gap between the lines.
+          */}
           <Area
             type="monotone"
-            dataKey="prior"
+            dataKey="gapBase"
+            stackId="gap"
+            stroke="none"
+            fill="transparent"
+            fillOpacity={0}
+            animationDuration={800}
+            name="_gap_base"
+            legendType="none"
+          />
+          <Area
+            type="monotone"
+            dataKey="gapHeight"
+            stackId="gap"
             stroke="none"
             fill={COLOR_BEHIND}
-            fillOpacity={0.08}
-            connectNulls
+            fillOpacity={0.15}
             animationDuration={800}
+            name="_gap_fill"
+            legendType="none"
           />
 
           {/* Prior year — dashed line */}
