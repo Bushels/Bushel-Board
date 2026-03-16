@@ -11,6 +11,7 @@ import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { StorageBreakdown } from "@/components/dashboard/storage-breakdown";
+import { TerminalFlowChart } from "@/components/dashboard/terminal-flow-chart";
 
 import { WoWComparisonCard } from "@/components/dashboard/wow-comparison";
 import { GamifiedGrainChart } from "@/components/dashboard/gamified-grain-chart";
@@ -52,6 +53,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek, getPriorCropYear, grainWeekEndDate } from "@/lib/utils/crop-year";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { safeQuery } from "@/lib/utils/safe-query";
+import { getWeeklyTerminalFlow } from "@/lib/queries/logistics";
 import { GrainPageTransition } from "./client";
 
 interface Props {
@@ -160,6 +162,7 @@ export default async function GrainDetailPage({ params }: Props) {
     capacityResult,
     pricesResult,
     processorInventoryResult,
+    terminalFlowResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
       const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
@@ -191,6 +194,7 @@ export default async function GrainDetailPage({ params }: Props) {
     safeQuery("Processor capacity", () => getProcessorCapacity(grain.name)),
     safeQuery("Recent prices", () => getRecentPrices(grain.name)),
     safeQuery("Processor inventory", () => getProcessorInventory(grain.name)),
+    safeQuery("Terminal flow", () => getWeeklyTerminalFlow(grain.name)),
   ]);
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
@@ -435,6 +439,31 @@ export default async function GrainDetailPage({ params }: Props) {
               message="Delivery breakdown data is not yet available."
             />
           )}
+        </section>
+
+        {/* ========== TERMINAL NET FLOW (full-width) ========== */}
+        <section className="space-y-6">
+          <SectionHeader
+            title="Terminal Net Flow"
+            subtitle="Weekly receipts vs exports at terminal elevators"
+          />
+          {terminalFlowResult.error ? (
+            <SectionStateCard
+              title="Terminal flow unavailable"
+              message="The terminal net flow chart is temporarily unavailable."
+            />
+          ) : terminalFlowResult.data && terminalFlowResult.data.length > 0 ? (
+            <SectionBoundary
+              title="Terminal flow unavailable"
+              message="The terminal net flow chart is temporarily unavailable."
+            >
+              <TerminalFlowChart
+                flowData={terminalFlowResult.data}
+                logistics={null}
+                grainName={grain.name}
+              />
+            </SectionBoundary>
+          ) : null}
         </section>
 
         {/* ========== PROVINCIAL DELIVERIES + GRAIN STORAGE (2-col grid) ========== */}

@@ -1,12 +1,14 @@
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
 import { MarketSnapshotGrid } from "@/components/dashboard/market-snapshot-grid";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
+import { LogisticsBanner } from "@/components/dashboard/logistics-banner";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { getUserRole } from "@/lib/auth/role-guard";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { getMarketOverviewSnapshot } from "@/lib/queries/market-overview";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
+import { getLogisticsSnapshotRaw, getAggregateTerminalFlow } from "@/lib/queries/logistics";
 import { getLatestXSignals } from "@/lib/queries/x-signals";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
@@ -23,11 +25,13 @@ export default async function OverviewPage() {
   const grainContext = await getUnlockedGrainContext();
   const grainWeek = await getLatestImportedWeek();
 
-  const [marketResult, sentimentResult, signalsResult, userRole] = await Promise.all([
+  const [marketResult, sentimentResult, signalsResult, userRole, logisticsResult, aggregateFlowResult] = await Promise.all([
     safeQuery("Market overview snapshot", () => getMarketOverviewSnapshot()),
     safeQuery("Farmer sentiment", () => getSentimentOverview(CURRENT_CROP_YEAR, grainWeek)),
     safeQuery("Market signal tape", () => getLatestXSignals(20)),
     getUserRole(),
+    safeQuery("Logistics snapshot", () => getLogisticsSnapshotRaw(CURRENT_CROP_YEAR, grainWeek)),
+    safeQuery("Aggregate terminal flow", () => getAggregateTerminalFlow()),
   ]);
 
   return (
@@ -47,6 +51,12 @@ export default async function OverviewPage() {
             <SectionStateCard
               title="Market snapshot unavailable"
               message="The overview page could not load the combined market totals right now."
+            />
+          )}
+          {logisticsResult.data && !logisticsResult.error && (
+            <LogisticsBanner
+              logistics={logisticsResult.data}
+              aggregateFlow={aggregateFlowResult.error ? [] : (aggregateFlowResult.data ?? [])}
             />
           )}
         </section>

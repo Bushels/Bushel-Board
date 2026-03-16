@@ -1,4 +1,27 @@
 import { createClient } from "@/lib/supabase/server";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
+
+// Re-export types and pure functions so existing server-side imports still work.
+// Client components should import from "@/lib/queries/logistics-utils" directly.
+export type {
+  WeeklyTerminalFlow,
+  LogisticsSnapshot,
+  HeadlineInput,
+  LogisticsHeadline,
+  PillSentiment,
+} from "./logistics-utils";
+export {
+  generateLogisticsHeadline,
+  vesselSentiment,
+  octSentiment,
+  shipmentYoySentiment,
+} from "./logistics-utils";
+
+import type { WeeklyTerminalFlow, LogisticsSnapshot } from "./logistics-utils";
+
+// ---------------------------------------------------------------------------
+// Types for the LogisticsCard component (kitchen-table-advisor grain page)
+// ---------------------------------------------------------------------------
 
 export interface GrainMonitorData {
   vessels_vancouver: number | null;
@@ -23,9 +46,47 @@ export interface LogisticsResult {
   producerCars: ProducerCarData[];
 }
 
+// ---------------------------------------------------------------------------
+// Supabase queries
+// ---------------------------------------------------------------------------
+
+/** Convert a value to number or null, handling PostgREST numeric-as-string. */
+function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
 /**
- * Fetches logistics snapshot (port + railcar data) for a grain week.
- * Uses the existing get_logistics_snapshot RPC which returns JSON.
+ * Fetches logistics snapshot in the raw RPC shape (LogisticsSnapshot).
+ * Used by LogisticsBanner on overview page which needs the full grain_monitor fields.
+ */
+export async function getLogisticsSnapshotRaw(
+  cropYear: string,
+  grainWeek: number
+): Promise<LogisticsSnapshot | null> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("get_logistics_snapshot", {
+      p_crop_year: cropYear,
+      p_grain_week: grainWeek,
+    });
+
+    if (error) {
+      console.error("getLogisticsSnapshotRaw error:", error.message);
+      return null;
+    }
+
+    return (typeof data === "string" ? JSON.parse(data) : data) as LogisticsSnapshot | null;
+  } catch (err) {
+    console.error("getLogisticsSnapshotRaw failed:", err);
+    return null;
+  }
+}
+
+/**
+ * Fetches logistics snapshot for the LogisticsCard component.
+ * Returns a structured result with grainMonitor + producerCars.
  */
 export async function getLogisticsSnapshot(
   cropYear: string,
@@ -76,9 +137,58 @@ export async function getLogisticsSnapshot(
   }
 }
 
-/** Convert a value to number or null, handling PostgREST numeric-as-string. */
-function numOrNull(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
-  const n = Number(v);
-  return isNaN(n) ? null : n;
+/**
+ * Fetch weekly terminal flow data for a specific grain.
+ * Calls the `get_weekly_terminal_flow` RPC function.
+ */
+export async function getWeeklyTerminalFlow(
+  grain: string,
+  cropYear?: string
+): Promise<WeeklyTerminalFlow[]> {
+  try {
+    const supabase = await createClient();
+    const year = cropYear ?? CURRENT_CROP_YEAR;
+
+    const { data, error } = await supabase.rpc("get_weekly_terminal_flow", {
+      p_grain: grain,
+      p_crop_year: year,
+    });
+
+    if (error) {
+      console.error("getWeeklyTerminalFlow error:", error.message);
+      return [];
+    }
+
+    return (data as WeeklyTerminalFlow[]) ?? [];
+  } catch (err) {
+    console.error("getWeeklyTerminalFlow failed:", err);
+    return [];
+  }
+}
+
+/**
+ * Fetch aggregate terminal flow across all grains.
+ * Calls the `get_aggregate_terminal_flow` RPC function.
+ */
+export async function getAggregateTerminalFlow(
+  cropYear?: string
+): Promise<WeeklyTerminalFlow[]> {
+  try {
+    const supabase = await createClient();
+    const year = cropYear ?? CURRENT_CROP_YEAR;
+
+    const { data, error } = await supabase.rpc("get_aggregate_terminal_flow", {
+      p_crop_year: year,
+    });
+
+    if (error) {
+      console.error("getAggregateTerminalFlow error:", error.message);
+      return [];
+    }
+
+    return (data as WeeklyTerminalFlow[]) ?? [];
+  } catch (err) {
+    console.error("getAggregateTerminalFlow failed:", err);
+    return [];
+  }
 }
