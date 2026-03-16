@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-"""Extract page text from a PDF as JSON for the knowledge ingestion script."""
+"""Extract page text from a PDF as JSON for the knowledge ingestion script.
+
+Extraction priority:
+  1. PyMuPDF (fitz) — best text extraction for academic/complex layouts
+  2. pypdf — fallback if PyMuPDF is not installed
+  3. OCR via RapidOCR — rescue path for scanned/image-heavy pages
+"""
 
 from __future__ import annotations
 
@@ -27,6 +33,40 @@ def should_use_ocr(pages: list[dict[str, object]]) -> bool:
         return False
 
     return total_chars < page_count * MIN_CHARS_PER_PAGE_FOR_TEXT_EXTRACTION or pages_with_text < max(3, page_count // 4)
+
+
+def extract_with_pymupdf(pdf_path: Path) -> list[dict[str, object]] | None:
+    """Primary extractor using PyMuPDF (fitz) for high-quality text extraction."""
+    try:
+        import fitz
+    except ModuleNotFoundError:
+        return None
+
+    doc = fitz.open(pdf_path)
+    pages = []
+    for index, page in enumerate(doc, start=1):
+        text = page.get_text("text") or ""
+        pages.append({"page": index, "text": text})
+    doc.close()
+    return pages
+
+
+def extract_with_pypdf(pdf_path: Path) -> list[dict[str, object]] | None:
+    """Fallback extractor using pypdf."""
+    try:
+        from pypdf import PdfReader
+    except ModuleNotFoundError:
+        return None
+
+    reader = PdfReader(str(pdf_path))
+    pages = []
+    for index, page in enumerate(reader.pages, start=1):
+        try:
+            text = page.extract_text() or ""
+        except Exception as exc:
+            emit_error(f"Failed to extract page {index} from {pdf_path.name}: {exc}")
+        pages.append({"page": index, "text": text})
+    return pages
 
 
 def extract_with_ocr(pdf_path: Path, pages: list[dict[str, object]]) -> tuple[list[dict[str, object]], int]:
@@ -57,6 +97,7 @@ def extract_with_ocr(pdf_path: Path, pages: list[dict[str, object]]) -> tuple[li
         if ocr_text.strip():
             ocr_count += 1
 
+    doc.close()
     return ocr_pages, ocr_count
 
 
@@ -71,24 +112,24 @@ def main() -> None:
     if not pdf_path.exists():
         emit_error(f"PDF not found: {pdf_path}")
 
-    try:
-        from pypdf import PdfReader
-    except ModuleNotFoundError:
-        emit_error(
-            "Missing dependency: pypdf. Install with `python -m pip install -r scripts/requirements-knowledge.txt`.",
-            code=2,
-        )
+    extractor_used = "unknown"
 
-    reader = PdfReader(str(pdf_path))
-    pages = []
-
-    for index, page in enumerate(reader.pages, start=1):
-        try:
-            text = page.extract_text() or ""
-        except Exception as exc:  # pragma: no cover - defensive path
-            emit_error(f"Failed to extract page {index} from {pdf_path.name}: {exc}")
-
-        pages.append({"page": index, "text": text})
+    # Try PyMuPDF first (best quality), fall back to pypdf
+    pages = extract_with_pymupdf(pdf_path)
+    if pages is not None:
+        extractor_used = "pymupdf"
+        print(f"Using PyMuPDF extractor ({len(pages)} pages)", file=sys.stderr)
+    else:
+        pages = extract_with_pypdf(pdf_path)
+        if pages is not None:
+            extractor_used = "pypdf"
+            print(f"Using pypdf fallback extractor ({len(pages)} pages)", file=sys.stderr)
+        else:
+            emit_error(
+                "No PDF extractor available. Install PyMuPDF (`pip install pymupdf`) "
+                "or pypdf (`pip install pypdf`).",
+                code=2,
+            )
 
     ocr_used = False
     ocr_page_count = 0
@@ -101,6 +142,7 @@ def main() -> None:
         {
           "path": str(pdf_path),
           "page_count": len(pages),
+          "extractor": extractor_used,
           "ocr_used": ocr_used,
           "ocr_page_count": ocr_page_count,
           "pages": pages,

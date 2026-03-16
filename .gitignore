@@ -67,9 +67,10 @@ data/CGC Weekly/21gsw-shg-en.csv
 data/CGC Weekly/22gsw-shg-en.csv
 data/CGC Weekly/23gsw-shg-en.csv
 
-# Local-only knowledge library and derived artifacts
-data/Knowledge/
-data/knowledge/
+# Knowledge library — raw books are large/copyrighted, distillations are tracked
+data/Knowledge/raw/
+data/Knowledge/tmp/
+# Note: data/Knowledge/distillations/ is intentionally NOT ignored — those are tracked in git
 data/Grain Monitor/
 tmp/
 scripts/__pycache__/

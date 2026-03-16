@@ -1,0 +1,30 @@
+{
+  "source_path": "data/Knowledge/Agricultural Marketing and Price Analysis (F. Bailey Norwood, Jayson L. Lusk) (z-library.sk, 1lib.sk, z-lib.sk).pdf",
+  "source_title": "Agricultural Marketing and Price Analysis (F. Bailey Norwood, Jayson L. Lusk) (z library.sk, 1lib.sk, z lib.sk)",
+  "source_hash": "fe65940e32af365b5c3bc6b4f58504999422cd4ce44c6c322b30b9d6e38feb2b",
+  "prompt_version": "step-distillation-v1",
+  "model_used": "openrouter/healer-alpha + stepfun/step-3.5-flash:free",
+  "source_metadata": {
+    "page_count": 233,
+    "extraction_method": "pypdf",
+    "ocr_used": false,
+    "ocr_page_count": 0,
+    "filename": "Agricultural Marketing and Price Analysis (F. Bailey Norwood, Jayson L. Lusk) (z-library.sk, 1lib.sk, z-lib.sk).pdf"
+  },
+  "packet_count": 39,
+  "distillation_mode": "vision_page_packets",
+  "pdf_rescue_engine": null,
+  "vision_model_used": "openrouter/healer-alpha",
+  "cached_vision_packets": 7,
+  "warnings": [
+    "low_text_yield_for_source_size",
+    "very_few_chunks_for_large_source"
+  ],
+  "generated_at": "2026-03-12T19:54:37.434Z",
+  "output_markdown_path": "C:/Users/kyle/Agriculture/bushel-board-app/data/knowledge/distillations/knowledge-agricultural-marketing-and-price-analysis-f-bailey-norwood-jayson-l-lusk-z-library-sk-1lib.distilled.md",
+  "usage": {
+    "prompt_tokens": 254253,
+    "completion_tokens": 75463,
+    "total_tokens": 329716
+  }
+}

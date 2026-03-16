@@ -1,0 +1,29 @@
+{
+  "source_path": "knowledge/raw/A traders first book on commodities.pdf",
+  "source_title": "A traders first book on commodities",
+  "source_hash": "8c6e575838e2a73f586bb07b41e9e2c83513bdd802a36d7f1897148f2c2d4989",
+  "prompt_version": "step-distillation-v1",
+  "model_used": "stepfun/step-3.5-flash:free",
+  "source_metadata": {
+    "page_count": 72,
+    "extraction_method": "pypdf",
+    "ocr_used": false,
+    "ocr_page_count": 0,
+    "filename": "A traders first book on commodities.pdf"
+  },
+  "packet_count": 13,
+  "distillation_mode": "chunk_packets",
+  "pdf_rescue_engine": null,
+  "vision_model_used": null,
+  "cached_vision_packets": 0,
+  "l0_summary": "To protect farm capital, treat hedging strictly as price insurance and maintain substantial cash liquidity to survive multi-day margin calls during irrational, speculative market rallies.",
+  "l1_summary": "- Treat hedging strictly as price insurance for physical crop value, not a speculative tool.\n- Understand market signals: store grain when distant futures pay storage premiums (contango), but sell immediately during an inverted market (backwardation).\n- Maintain robust cash liquidity to survive multi-day margin calls during volatile rallies and avoid forced liquidation of hedges.\n- Protect farm capital by diversifying margin accounts across independent brokers to mitigate counterparty insolvency risk.\n- Avoid selling strictly at harvest to bypass severe seasonal price discounts and wide basis levels.",
+  "warnings": [],
+  "generated_at": "2026-03-16T17:33:47.381Z",
+  "output_markdown_path": "C:/Users/kyle/Agriculture/bushel-board-app/data/Knowledge/distillations/knowledge-raw-a-traders-first-book-on-commodities.distilled.md",
+  "usage": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0
+  }
+}

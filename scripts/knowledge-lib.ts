@@ -50,9 +50,8 @@ function loadEnvFileIntoProcess(filePath: string) {
 
 loadEnvFileIntoProcess(resolve(WORKSPACE_ROOT, ".env.local"));
 
-const USER_HOME = process.env.USERPROFILE || process.env.HOME || WORKSPACE_ROOT;
 export const DEFAULT_KNOWLEDGE_HOME = resolve(
-  process.env.BUSHEL_KNOWLEDGE_HOME || resolve(USER_HOME, "BushelBoardKnowledge"),
+  process.env.BUSHEL_KNOWLEDGE_HOME || resolve(WORKSPACE_ROOT, "data", "Knowledge"),
 );
 export const DEFAULT_RAW_KNOWLEDGE_DIR = resolve(
   process.env.BUSHEL_KNOWLEDGE_LIBRARY_DIR || resolve(DEFAULT_KNOWLEDGE_HOME, "raw"),
