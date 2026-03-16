@@ -78,7 +78,7 @@ function GapTooltip({
 
   items.push({ name: "Gap", value: gapText, color: gapColor });
 
-  return <GlassTooltip active={active} label={label} payload={items} />;
+  return <GlassTooltip active={active} label={`Week ${row.week}`} payload={items} />;
 }
 
 export function DeliveryGapChart({
@@ -132,13 +132,7 @@ export function DeliveryGapChart({
           />
           Behind (bullish)
         </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-            style={{ backgroundColor: COLOR_AHEAD }}
-          />
-          Ahead (pressure)
-        </span>
+{/* Ahead (pressure) legend swatch deferred to Task 4 when two-color gap fill is implemented */}
       </div>
 
       <ResponsiveContainer width="100%" height={320}>
