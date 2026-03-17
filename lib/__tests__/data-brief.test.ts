@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { computeAnalystRatios, type AnalystRatios } from "../data-brief";
+import { computeAnalystRatios, type AnalystRatioInput, type AnalystRatios } from "../data-brief";
 
 describe("computeAnalystRatios", () => {
-  const baseData = {
+  const baseData: AnalystRatioInput = {
     cyExportsKt: 3000,
     projectedExportsKt: 6000,
     cyCrushKt: 2000,
@@ -55,6 +55,11 @@ describe("computeAnalystRatios", () => {
     });
     expect(ratios.exportPaceRatio).toBeNull();
     expect(ratios.stocksToUse).toBeNull();
+  });
+
+  it("returns null crush utilization when capacity is null", () => {
+    const ratios = computeAnalystRatios({ ...baseData, annualCrushCapacityKt: null });
+    expect(ratios.crushUtilizationPct).toBeNull();
   });
 
   it("formats prompt section with all ratios", () => {

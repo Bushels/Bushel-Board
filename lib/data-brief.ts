@@ -44,12 +44,14 @@ function fmt(val: number | null, decimals = 1): string {
   return val.toFixed(decimals);
 }
 
+const CROP_YEAR_WEEKS = 52;
+
 export function computeAnalystRatios(input: AnalystRatioInput): AnalystRatios {
   const exportPaceRatio = safePct(input.cyExportsKt, input.projectedExportsKt);
 
   const annualizedExportPace =
     input.latestDataWeek > 0
-      ? (input.cyExportsKt / input.latestDataWeek) * 52
+      ? (input.cyExportsKt / input.latestDataWeek) * CROP_YEAR_WEEKS
       : null;
 
   const totalDemand =
@@ -78,7 +80,7 @@ export function computeAnalystRatios(input: AnalystRatioInput): AnalystRatios {
 
   const annualizedCrush =
     input.latestDataWeek > 0
-      ? (input.cyCrushKt / input.latestDataWeek) * 52
+      ? (input.cyCrushKt / input.latestDataWeek) * CROP_YEAR_WEEKS
       : null;
   const crushUtilizationPct =
     annualizedCrush != null &&
@@ -87,7 +89,7 @@ export function computeAnalystRatios(input: AnalystRatioInput): AnalystRatios {
       ? (annualizedCrush / input.annualCrushCapacityKt) * 100
       : null;
 
-  const weeksRemaining = Math.max(0, 52 - input.latestDataWeek);
+  const weeksRemaining = Math.max(0, CROP_YEAR_WEEKS - input.latestDataWeek);
 
   const mmDirection =
     input.mmNetContracts == null

@@ -37,6 +37,31 @@ Last updated: 2026-03-17
 | 28 | Terminal Net Flow Visualization | Complete | 2026-03-16 | `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql` |
 | 29 | Unified Grok 4.1 Fast Migration | Complete | 2026-03-16 | `supabase/functions/analyze-market-data/index.ts`, `supabase/functions/generate-intelligence/index.ts`, `lib/advisor/openrouter-client.ts`, `app/api/advisor/chat/route.ts`, `lib/advisor/system-prompt.ts` |
 | 30 | Stance Spectrum Meter & Confidence Gauge | Complete | 2026-03-16 | `components/dashboard/bull-bear-cards.tsx`, `components/dashboard/recommendation-card.tsx`, `lib/utils/recommendations.ts`, `supabase/migrations/20260316130000_add_stance_score.sql` |
+| 31 | Pipeline v2: Senior Analyst (single-pass) | Complete | 2026-03-17 | `supabase/functions/analyze-grain-market/`, `lib/shipping-calendar.ts`, `lib/data-brief.ts`, `lib/analyst-prompt.ts` |
+
+### 2026-03-17 — Pipeline v2: Senior Analyst Single-Pass Architecture (Track 31)
+
+**What was delivered:**
+- New `analyze-grain-market` Edge Function replacing the dual-LLM chain (`analyze-market-data` + `generate-intelligence`) with a single-pass Senior Analyst using xAI Responses API with native `web_search` + `x_search` tools
+- **Dynamic Shipping Calendar** (`lib/shipping-calendar.ts`) — temporal context module computing data lag, seasonal context, and week-aware framing for LLM injection (6 seasonal buckets, RangeError validation)
+- **Pre-computed Analyst Ratios** (`lib/data-brief.ts`) — server-side arithmetic (export pace, stocks-to-use, crush utilization, delivery/export vs 5yr avg, managed money positioning) so LLM interprets rather than calculates
+- **Analyst Prompt Builder** (`lib/analyst-prompt.ts`) — research-tier system (major 4+4 queries, mid 2+2, minor 1+1) with commodity knowledge injection, data hygiene rules, and structured output schema
+- Self-batching with BATCH_SIZE=1, self-triggers via `enqueue_internal_function` RPC, chains to `generate-farm-summary` after all grains complete
+- 27 new unit tests across 3 modules (shipping-calendar: 10, data-brief: 8, analyst-prompt: 9)
+- Deno-compatible copies in `supabase/functions/_shared/` for Edge Function runtime
+
+**Benchmark results (litmus tests):**
+- Barley: v1 stance=-45 → v2 stance=+35 (PASS — correctly identified +78% export pace)
+- Flaxseed: v1 stance=+25 → v2 stance=+20 (Partial — web search found offsetting factors: firm $16-17/bu cash bids, low commercial stocks tempering the bearish 17% export pace signal)
+- Canola: v1 stance=-45 → v2 stance=+45 (Bonus — web search enriched thesis with real-time context)
+
+**Architecture change:** Single xAI API call with tool use replaces 2 sequential LLM calls + separate X signal search. The model autonomously decides when/how to use web_search and x_search based on research tier guidance.
+
+**Design doc:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-design.md`
+**Implementation plan:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-implementation.md` (7 tasks)
+
+**New files:** `supabase/functions/analyze-grain-market/index.ts`, `lib/shipping-calendar.ts`, `lib/data-brief.ts`, `lib/analyst-prompt.ts`, `lib/commodity-knowledge-text.ts`, `lib/__tests__/shipping-calendar.test.ts`, `lib/__tests__/data-brief.test.ts`, `lib/__tests__/analyst-prompt.test.ts`, `supabase/functions/_shared/shipping-calendar.ts`, `supabase/functions/_shared/data-brief.ts`, `supabase/functions/_shared/analyst-prompt.ts`
+**Modified files:** `supabase/config.toml`, `supabase/functions/_shared/market-intelligence-config.ts`
 
 ### 2026-03-16 — Stance Spectrum Meter & Confidence Gauge (Track 30)
 
@@ -271,17 +296,25 @@ Last updated: 2026-03-17
 
 ## Intelligence Pipeline
 
+### v2 (Current — Track 31)
+```text
+GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-grain-market -> generate-farm-summary -> validate-site-health
+```
+
+- Single-pass Senior Analyst: `analyze-grain-market` — Grok 4.1 Fast with native `web_search` + `x_search` tools, pre-computed ratios, shipping calendar context
+- Model: `grok-4-1-fast-reasoning` (xAI Responses API)
+- Batch size: 1 grain per invocation (self-triggers for remaining), 50 users for farm summaries
+- Version: `analyze-grain-market-v1`
+
+### v1 (Legacy — Tracks 17/29)
 ```text
 GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary -> validate-site-health
 ```
 
-- Trigger: Vercel cron -> `/api/cron/import-cgc`
-- Schedule: Thursday afternoon after the CGC weekly release window
-- Round 1: `analyze-market-data` — Step 3.5 Flash (free via OpenRouter) produces data-driven thesis, bull/bear cases, historical context
-- Round 2: `generate-intelligence` — Grok reviews/challenges Step 3.5 Flash's thesis with X signals and farmer sentiment
-- Models: `stepfun/step-3.5-flash:free` (OpenRouter) + `grok-4.20-beta-0309-reasoning` (xAI)
-- Cost: about `$0.04` per weekly run (Step 3.5 Flash is free, only Grok costs)
-- Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users per invocation for farm summaries
+- Round 1: `analyze-market-data` — data-driven thesis, bull/bear cases, historical context
+- Round 2: `generate-intelligence` — reviews/challenges with X signals and farmer sentiment
+- Model: `grok-4-1-fast-reasoning` (xAI) for both rounds
+- Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users for farm summaries
 
 ## Database Tables
 
