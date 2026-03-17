@@ -272,9 +272,17 @@ export default async function GrainDetailPage({ params }: Props) {
                 <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                   {grain.name}
                 </h1>
-                {intelligence && (
+                {(intelligence || marketAnalysis) && (
                   <MarketStanceBadge
-                    stance={deriveStanceFromThesis(intelligence.thesis_title ?? "")}
+                    stance={
+                      marketAnalysis?.stance_score != null
+                        ? marketAnalysis.stance_score >= 20
+                          ? "bullish"
+                          : marketAnalysis.stance_score <= -20
+                            ? "bearish"
+                            : "neutral"
+                        : deriveStanceFromThesis(intelligence?.thesis_title ?? "")
+                    }
                     size="lg"
                   />
                 )}
@@ -628,7 +636,6 @@ export default async function GrainDetailPage({ params }: Props) {
                   message="Processor utilization data is temporarily unavailable."
                 >
                   <CrushUtilizationGauge
-                    grainName={grain.name}
                     weeklyProcessingKt={
                       wowResult.error ? 0 :
                       (wowResult.data?.metrics.find(m => m.metric === "Processing")?.thisWeek ?? 0)
@@ -659,6 +666,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 bearCase={marketAnalysis.bear_case}
                 confidence={marketAnalysis.data_confidence}
                 confidenceScore={marketAnalysis.confidence_score ?? undefined}
+                stanceScore={marketAnalysis.stance_score}
                 finalAssessment={marketAnalysis.final_assessment ?? undefined}
               />
             </SectionBoundary>
