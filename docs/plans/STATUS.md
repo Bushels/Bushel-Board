@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-16
+Last updated: 2026-03-17
 
 ## Feature Tracks
 
@@ -35,6 +35,27 @@ Last updated: 2026-03-16
 | 26 | Dashboard Redesign V2 — Wave 4: Advanced Intelligence | Complete | 2026-03-14 | `supabase/migrations/20260314500000_*`, `components/dashboard/crush-utilization-gauge.tsx`, `components/dashboard/price-sparkline.tsx`, `lib/queries/processor-capacity.ts`, `lib/queries/grain-prices.ts` |
 | 27 | Delivery Pace Chart (YoY Cumulative Gap, Dual Y-Axis) | Complete | 2026-03-15 | `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`, `app/(dashboard)/grain/[slug]/page.tsx` |
 | 28 | Terminal Net Flow Visualization | Complete | 2026-03-16 | `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql` |
+| 29 | Unified Grok 4.1 Fast Migration | Complete | 2026-03-16 | `supabase/functions/analyze-market-data/index.ts`, `supabase/functions/generate-intelligence/index.ts`, `lib/advisor/openrouter-client.ts`, `app/api/advisor/chat/route.ts`, `lib/advisor/system-prompt.ts` |
+| 30 | Stance Spectrum Meter & Confidence Gauge | Complete | 2026-03-16 | `components/dashboard/bull-bear-cards.tsx`, `components/dashboard/recommendation-card.tsx`, `lib/utils/recommendations.ts`, `supabase/migrations/20260316130000_add_stance_score.sql` |
+
+### 2026-03-16 — Stance Spectrum Meter & Confidence Gauge (Track 30)
+
+**What was delivered:**
+- Stance spectrum meter in `BullBearCards` — horizontal gradient bar (bullish green → neutral gray → bearish amber) with positioned marker driven by `stance_score` (-100 to +100)
+- Semicircle confidence gauge in `RecommendationCard` — replaces text badge with SVG arc showing numeric confidence (0-100%)
+- `stance_score smallint` column added to `market_analysis` table with CHECK constraint
+- `computeConfidenceScore()` in `lib/utils/recommendations.ts` — blends stance magnitude (60%) with pace alignment (40%)
+- Edge Function schema updated to request `stance_score` from Grok 4.1 Fast structured output
+- Hero `MarketStanceBadge` now derives stance from `stance_score` instead of keyword matching
+
+### 2026-03-16 — Unified Grok 4.1 Fast Migration (Track 29)
+
+**What was delivered:**
+- All AI systems migrated from mixed OpenRouter/xAI to unified `grok-4-1-fast-reasoning` via xAI API
+- `analyze-market-data` Edge Function switched from OpenRouter (Step 3.5 Flash) to xAI Responses API with structured JSON schema
+- Advisor chat switched to xAI Responses API with `x_search` tool for real-time price lookups
+- X market signals added to advisor context for richer market awareness
+- Full pipeline re-run completed — all 16 grains regenerated with Grok 4.1 Fast
 
 ### 2026-03-16 — Terminal Net Flow Visualization (Track 28)
 
