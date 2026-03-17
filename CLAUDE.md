@@ -18,7 +18,7 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 
 ## Tech Stack
 - **Frontend:** Next.js 16 (App Router) + TypeScript, deployed on Vercel
-- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions) + Vercel Cron ingress
+- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions) + manual trigger (crons disabled 2026-03-17)
 - **UI:** shadcn/ui + Tailwind CSS (custom wheat palette)
 - **Charts:** Recharts — dual Y-axis gotcha: every `<Line>`/`<Area>` must specify `yAxisId` when multiple `<YAxis>` exist. CSS vars like `hsl(var(--background))` don't resolve in SVG `fill` attrs (renders black); use hex colors.
 - **CSS opacity on hex vars:** Never use `hsl(var(--color) / opacity)` — our CSS custom properties are hex values. Use `color-mix(in srgb, var(--color-name) 65%, transparent)` for opacity.
@@ -129,9 +129,10 @@ Every piece of work must satisfy before being marked complete:
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
 ## Intelligence Pipeline
-- **v2 production chain (current, 5 stages):** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `analyze-grain-market` (single-pass Senior Analyst with native `web_search` + `x_search`) → `generate-farm-summary` → `validate-site-health`
+- **⚠️ ALL CRONS DISABLED (2026-03-17):** Pipeline is manual-only until agent workflow is improved. Trigger via `curl` or Vercel dashboard. Previous cron config preserved in memory for restoration.
+- **v2 production chain (current, 5 stages):** Manual `GET /api/cron/import-cgc` → `validate-import` → `analyze-grain-market` (single-pass Senior Analyst with native `web_search` + `x_search`) → `generate-farm-summary` → `validate-site-health`
 - **v1 legacy chain (retained for recovery):** `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary`
-- **CFTC COT cron:** `GET /api/cron/import-cftc-cot` → `import-cftc-cot` Edge Function. Schedule: Friday 20:30 UTC (1:30pm MST). Independent of CGC pipeline.
+- **CFTC COT import:** `GET /api/cron/import-cftc-cot` → `import-cftc-cot` Edge Function. Previously: Friday 20:30 UTC. Now manual-only.
 - **Legacy fallback:** `import-cgc-weekly` remains internal-only for recovery/testing, not public ingress
 - **v2 architecture:** Single xAI Responses API call per grain with `grok-4-1-fast-reasoning`. Pre-computed analyst ratios (`lib/data-brief.ts`) + dynamic shipping calendar (`lib/shipping-calendar.ts`) + commodity knowledge injected into prompt. Model autonomously uses `web_search` + `x_search` tools based on research tier (major 4+4, mid 2+2, minor 1+1 search queries). Self-batching: BATCH_SIZE=1, chains via `enqueue_internal_function` RPC.
 - **grain_week resolution:** v2 queries `MAX(grain_week) FROM cgc_observations` to label analysis with the data week, not the calendar week. This prevents ghost rows from masking current analysis.
