@@ -140,10 +140,24 @@ UNION ALL SELECT 'validation_reports', COUNT(*) FROM validation_reports WHERE cr
 
 **Expected:** ALL counts = 0. Any non-zero count is a **CRITICAL** finding (short-format crop year still in the database).
 
-### 5. Intelligence Pipeline Check
+### 5. Intelligence Pipeline Check (v2 — Senior Analyst)
 
 ```sql
--- Latest intelligence should be for current crop year
+-- v2 writes to market_analysis as primary target — check grain_week matches MAX from cgc_observations
+SELECT grain, crop_year, grain_week, stance_score, data_confidence, model_used, generated_at
+FROM market_analysis
+WHERE crop_year = (SELECT CASE WHEN EXTRACT(MONTH FROM now()) >= 8 THEN EXTRACT(YEAR FROM now())::text || '-' || (EXTRACT(YEAR FROM now()) + 1)::text ELSE (EXTRACT(YEAR FROM now()) - 1)::text || '-' || EXTRACT(YEAR FROM now())::text END)
+ORDER BY generated_at DESC
+LIMIT 5;
+
+-- grain_week in market_analysis should match MAX(grain_week) from cgc_observations, NOT calendar week
+-- If these diverge, stale v1 rows may be masking v2 results (see lessons-learned)
+SELECT MAX(grain_week) AS data_week FROM cgc_observations WHERE crop_year = '2025-2026';
+
+-- Check for ghost rows: market_analysis grain_week should NOT exceed the data week
+SELECT DISTINCT grain_week FROM market_analysis WHERE crop_year = '2025-2026' ORDER BY grain_week DESC;
+
+-- Backward-compat: grain_intelligence should also have recent data
 SELECT grain, crop_year, grain_week, generated_at
 FROM grain_intelligence
 ORDER BY generated_at DESC
@@ -162,7 +176,7 @@ ORDER BY generated_at DESC
 LIMIT 5;
 ```
 
-**Expected:** All point to the current crop year and recent grain weeks.
+**Expected:** All point to the current crop year. `market_analysis.grain_week` should match `MAX(grain_week)` from `cgc_observations`. No `grain_week` values exceeding the data week (those would be mislabeled v1 rows).
 
 ### 6. Build Check
 

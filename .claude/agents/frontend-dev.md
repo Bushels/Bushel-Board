@@ -75,6 +75,7 @@ lib/
 - Multi-source pages must isolate failures by section; one broken query should not take down the entire page
 - Server fetch wrappers must rethrow Next.js dynamic-rendering bailout errors instead of swallowing them
 - Surface action failures in the UI; do not leave farmers guessing whether a click worked
+- **Confidence-scaled visualizations:** When a UI element represents conviction/confidence, its visual weight (position, size, opacity) MUST scale proportionally. Fixed positions for variable data mislead users. See `recommendation-card.tsx` `getDecisionPosition()` for the interpolation pattern: `position = 50 + (target - 50) * (confidence / 100)`
 
 **Design System Reference:**
 - Colors: wheat-50 (bg), canola (primary), prairie (success), province-ab/sk/mb

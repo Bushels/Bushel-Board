@@ -1,5 +1,55 @@
 # Bushel Board - Lessons Learned
 
+## 2026-03-17 — LLM Attention Anchoring on First Number in Prompt
+
+**Symptom:** The Advisor told a farmer "10,000 tonnes still sitting in your bins" when the farmer actually had 5,000 MT remaining (started with 10,000 MT, delivered 5,000 MT). The data injected into the prompt was correct — both numbers were present.
+
+**Root cause:** The farmer card in the system prompt was formatted as `Started with 10.0 Kt, 5.0 Kt still in bins`. The LLM anchored on the first number it encountered (10 Kt) and treated it as the current bin inventory. This is a known LLM behavior — models disproportionately weight the first numeric value in a sequence, especially when both values are in similar units.
+
+**Fix:** Reorder the inventory line to lead with the actionable figure: `5.0 Kt still in bins (of 10.0 Kt starting)`. The remaining quantity — what matters for marketing decisions — now appears first. The starting amount is parenthetical context.
+
+**General principle:** When constructing LLM prompts with numeric data, always lead with the number the model should reference in its response. Background/historical figures should follow in parentheses.
+
+**File:** `lib/advisor/system-prompt.ts:25-26`
+
+**Tags:** #llm #prompt-engineering #advisor #attention-anchoring
+
+## 2026-03-17 — grain_week Mismatch: Calendar Week vs Data Week
+
+**Symptom:** After running the v2 pipeline (`analyze-grain-market`), the dashboard still showed old v1 analysis with stance -45 for Canola. The v2 results (stance +25) were in the database but invisible.
+
+**Root cause:** The v1 pipeline used `getCurrentGrainWeek()` which returns the **calendar shipping week** (= 33 at the time). The v2 pipeline correctly queries `MAX(grain_week) FROM cgc_observations` which returns the **latest data week** (= 31). The dashboard query `ORDER BY grain_week DESC LIMIT 1` picked up the v1 week-33 row over the v2 week-31 row because 33 > 31.
+
+**Fix:** Deleted the mislabeled week-33 rows from `market_analysis` and `grain_intelligence`. The v2 week-31 data (which accurately reflects what the CGC data actually covers) now surfaces correctly.
+
+**Lesson:** Analysis should always be labeled with the week the data covers, not the calendar week when the analysis ran. The `MAX(grain_week) FROM cgc_observations` pattern is the correct approach. When transitioning between pipeline versions, clean up stale data from the old version to prevent ghost rows from masking new results.
+
+**Tags:** #pipeline #grain-week #data-freshness #v1-to-v2-migration
+
+## 2026-03-17 — Decision Rail Marker Position Must Scale with Confidence
+
+**Symptom:** The recommendation card's HAUL/HOLD slider showed the marker at ~86% (far right) for a 55/100 "moderate conviction" HOLD recommendation. Visually, it looked like a high-conviction call when the data was actually borderline.
+
+**Root cause:** `getDecisionPosition()` returned a fixed position based only on action + market stance, ignoring the confidence score. A 55/100 hold and a 95/100 hold had identical marker positions.
+
+**Fix:** Interpolate the marker between center (50%) and the action target based on confidence: `position = 50 + (target - 50) * (confidence / 100)`. At 55/100, a bullish hold moves from 86% → ~70%, which visually reads as "leaning hold, not emphatic." The band width (uncertainty region) was already confidence-scaled — now the marker position matches.
+
+**File:** `components/dashboard/recommendation-card.tsx:107-117`
+
+**Tags:** #ux #visualization #confidence #recommendation-card
+
+## 2026-03-17 — Edge Function 150s Wall-Clock Timeout with xAI Tool Use
+
+**Symptom:** The v2 `analyze-grain-market` Edge Function returned 504 Gateway Timeout on the 3rd grain in the first benchmark run. The xAI API call with `web_search` + `x_search` tool use took 150,087ms.
+
+**Root cause:** Supabase Edge Functions have a 150-second wall-clock limit. When the xAI model decides to use multiple search tools sequentially, each tool call adds latency. The Barley analysis (which involved extensive web search) came close at 124s. With BATCH_SIZE=1, only one grain per invocation, but tool-heavy grains can still hit the ceiling.
+
+**Impact:** A 504 breaks the self-triggering chain — the function never reaches the `enqueue_internal_function` code for remaining grains. The chain must be manually restarted.
+
+**Mitigation:** BATCH_SIZE=1 limits blast radius. If one grain 504s, restart the chain with the remaining grains. The xAI `max_output_tokens: 16384` setting helps but doesn't control tool use latency. A future fix could add a per-grain timeout with graceful fallback.
+
+**Tags:** #edge-function #timeout #xai #pipeline-v2 #tool-use
+
 ## 2026-03-16 — CSS color-mix() vs hsl() for Hex CSS Variables
 
 **Symptom:** Implementation plan specified `hsl(var(--prairie) / 0.65)` to apply 65% opacity to a CSS custom property for the TerminalFlowChart bar colors.

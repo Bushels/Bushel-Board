@@ -65,6 +65,24 @@ Deno.serve(async (req) => {
 });
 ```
 
+### Intelligence Pipeline — v2 Senior Analyst (current)
+The canonical production pipeline is now:
+```
+Vercel cron → import-cgc → validate-import → analyze-grain-market (v2, single-pass) → generate-farm-summary → validate-site-health
+```
+- `analyze-grain-market` uses xAI Responses API with native `web_search` + `x_search` tools
+- Pre-computed analyst ratios + shipping calendar injected into prompt (LLM interprets, not calculates)
+- Self-batching: BATCH_SIZE=1, chains via `enqueue_internal_function` RPC
+- `grain_week` resolved from `MAX(grain_week) FROM cgc_observations` — NOT calendar week
+- Shared modules live in both `lib/` (Next.js/Vitest) and `supabase/functions/_shared/` (Deno Edge Functions)
+- **Key lesson:** When transitioning pipeline versions, clean up stale data from the old version. See `docs/lessons-learned/issues.md`
+- **Design doc:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-design.md`
+
+### LLM Prompt Engineering Lessons
+- **Lead with the actionable number.** LLMs anchor on the first numeric value in a sequence. Put "5 Kt still in bins" before "of 10 Kt starting" — not the reverse.
+- **Pre-compute arithmetic.** Don't ask the LLM to calculate ratios — inject them as pre-computed values. See `lib/data-brief.ts`.
+- **Specify temporal context explicitly.** Tell the model which week each data source covers. See `lib/shipping-calendar.ts`.
+
 ## Next.js 16 Patterns
 
 ### Server Components (default)

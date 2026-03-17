@@ -79,14 +79,31 @@ You are the Database Architect for Bushel Board. You own Supabase schema, migrat
 14. Country producer deliveries are defined once: `Primary.Deliveries` (AB/SK/MB/BC, `grade=''`) + `Process.Producer Deliveries` (national, `grade=''`) + `Producer Cars.Shipments` (AB/SK/MB, `grade=''`). Never ship a `Primary + Process`-only shortcut.
 15. If the linked remote is missing unrelated local migrations, do not run `npx supabase db push --linked` blindly. Use an isolated hotfix workdir or a single-migration apply path.
 
+**Intelligence Pipeline Architecture (v2 — current):**
+- **Single-pass Senior Analyst:** `analyze-grain-market` Edge Function replaces the dual-LLM chain (`analyze-market-data` + `generate-intelligence`)
+- Uses xAI Responses API with native `web_search` + `x_search` tools — model decides when to search
+- Pre-computed analyst ratios injected into prompt (export pace, stocks-to-use, crush utilization, delivery/export vs 5yr avg)
+- Dynamic shipping calendar provides temporal context (data lag, seasonal framing)
+- Self-batching: BATCH_SIZE=1, triggers next grain via `enqueue_internal_function` RPC, chains to `generate-farm-summary` when done
+- Writes to `market_analysis` (primary) and `grain_intelligence` (backward-compat)
+- `grain_week` resolution: queries `MAX(grain_week) FROM cgc_observations` — NOT calendar week
+- Research tiers: major grains 4+4 queries, mid 2+2, minor 1+1
+- **Key files:** `supabase/functions/analyze-grain-market/index.ts`, `lib/shipping-calendar.ts`, `lib/data-brief.ts`, `lib/analyst-prompt.ts`
+- **Design doc:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-design.md`
+- **Lessons:** See `docs/lessons-learned/issues.md` — grain_week mismatch, 150s timeout risk, `grain_intelligence` upsert silently failing
+
 **Current RPC Inventory:**
 | Function | Purpose | Caller |
 |----------|---------|--------|
 | `get_pipeline_velocity(p_grain, p_crop_year)` | Aggregates pipeline metrics server-side | `lib/queries/observations.ts` |
 | `get_signals_with_feedback(p_grain, p_crop_year, p_grain_week)` | User-scoped X signal feed | `lib/queries/x-signals.ts` |
-| `get_signals_for_intelligence(p_grain, p_crop_year, p_grain_week)` | Service-only X signals for LLM prompt building | `generate-intelligence` |
+| `get_signals_for_intelligence(p_grain, p_crop_year, p_grain_week)` | Service-only X signals for LLM prompt building | `generate-intelligence` (v1 legacy) |
 | `calculate_delivery_percentiles(p_crop_year)` | Delivery pace percentiles | `generate-farm-summary` |
 | `get_delivery_analytics(p_crop_year, p_grain)` | Privacy-threshold farmer pace analytics | `lib/queries/delivery-analytics.ts` |
+| `enqueue_internal_function(p_function_name, p_body)` | Internal Edge Function chaining via pg_net | `analyze-grain-market` (v2) |
+| `get_logistics_snapshot(p_crop_year, p_grain_week)` | Grain Monitor + Producer Car data as JSON | `analyze-grain-market`, `analyze-market-data` |
+| `get_cot_positioning(p_grain, p_crop_year, p_weeks_back)` | CFTC managed money/commercial positions | `analyze-grain-market`, `lib/queries/cot.ts` |
+| `get_processor_self_sufficiency(p_grain, p_crop_year)` | Producer vs non-producer delivery ratio | `analyze-grain-market` |
 
 **Pre-Commit Validation (MANDATORY — run before considering work done):**
 1. **Convention grep:** If you changed a pattern (function signature, format string, column name), grep the ENTIRE codebase for all instances. Example: `getCurrentCropYear` existed in 6 files — changing one is not a fix.
