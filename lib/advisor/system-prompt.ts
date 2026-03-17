@@ -21,9 +21,9 @@ function formatQty(kt: number): string {
 export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
   const farmerCard = ctx.farmer.grains
     .map((g) => {
-      // Inventory line — what's in the bin matters most
+      // Inventory line — remaining in bins FIRST (LLMs anchor on the first number they see)
       const inventoryLine = g.starting_grain_kt != null && g.remaining_kt != null
-        ? `Started with ${formatQty(g.starting_grain_kt)}, ${formatQty(g.remaining_kt)} still in bins`
+        ? `${formatQty(g.remaining_kt)} still in bins (of ${formatQty(g.starting_grain_kt)} starting)`
         : g.remaining_kt != null
           ? `${formatQty(g.remaining_kt)} still in bins`
           : `${g.acres} acres seeded (no starting inventory entered)`;

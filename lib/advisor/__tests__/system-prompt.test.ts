@@ -53,8 +53,7 @@ describe("buildAdvisorSystemPrompt", () => {
   it("includes farmer grain data with inventory and crop year timeframe", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Canola");
-    expect(prompt).toContain("Started with 1.5 Kt");
-    expect(prompt).toContain("1.0 Kt still in bins");
+    expect(prompt).toContain("1.0 Kt still in bins (of 1.5 Kt starting)");
     expect(prompt).toContain("500 tonnes delivered (crop year to date)");
     expect(prompt).toContain("72th percentile");
   });

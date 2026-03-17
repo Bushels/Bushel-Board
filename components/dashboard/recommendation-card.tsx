@@ -88,7 +88,7 @@ function getActionHeadline(action: Recommendation): string {
   }
 }
 
-function getDecisionPosition(
+function getDecisionTarget(
   action: Recommendation,
   marketStance: RecommendationResult["marketStance"]
 ): number {
@@ -102,6 +102,18 @@ function getDecisionPosition(
     case "watch":
       return 50
   }
+}
+
+function getDecisionPosition(
+  action: Recommendation,
+  marketStance: RecommendationResult["marketStance"],
+  confidenceScore: number
+): number {
+  const target = getDecisionTarget(action, marketStance)
+  // Interpolate between center (50) and target based on confidence.
+  // At 100 confidence → full target position. At 0 → dead center.
+  const t = clamp(confidenceScore, 0, 100) / 100
+  return Math.round(50 + (target - 50) * t)
 }
 
 function getConvictionLabel(score: number): string {
@@ -125,7 +137,7 @@ function DecisionRail({
   confidenceScore: number
 }) {
   const tone = railToneMap[action]
-  const position = getDecisionPosition(action, marketStance)
+  const position = getDecisionPosition(action, marketStance, confidenceScore)
   const bandWidth = getConvictionBandWidth(confidenceScore)
   const bandLeft = clamp(position - bandWidth / 2, 2, 98 - bandWidth)
 
