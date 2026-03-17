@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
                     },
                     data_confidence: { type: "string", enum: ["high", "medium", "low"] },
                     confidence_score: { type: ["integer", "null"] },
+                    stance_score: { type: ["integer", "null"] },
                     final_assessment: { type: ["string", "null"] },
                     key_signals: {
                       type: "array",
@@ -331,6 +332,9 @@ Deno.serve(async (req) => {
           analysis.confidence_score = typeof analysis.confidence_score === "number"
             ? Math.max(0, Math.min(100, Math.round(analysis.confidence_score)))
             : null;
+          analysis.stance_score = typeof analysis.stance_score === "number"
+            ? Math.max(-100, Math.min(100, Math.round(analysis.stance_score)))
+            : null;
           analysis.final_assessment = typeof analysis.final_assessment === "string"
             ? analysis.final_assessment
             : null;
@@ -351,6 +355,7 @@ Deno.serve(async (req) => {
               data_confidence: analysis.data_confidence ?? "medium",
               key_signals: analysis.key_signals ?? [],
               confidence_score: analysis.confidence_score ?? null,
+              stance_score: analysis.stance_score ?? null,
               final_assessment: analysis.final_assessment ?? null,
               model_used: MODEL,
               llm_metadata: {
@@ -458,6 +463,7 @@ Return a JSON object with these fields:
   - "notable_patterns": string[] — array of standout historical comparison observations
 - "data_confidence": "high" | "medium" | "low" — based on data completeness and consistency
 - "confidence_score": integer 0-100 — numeric confidence for the analysis confidence gauge. Map: high=75-90, medium=45-65, low=15-35. Be precise based on actual data quality.
+- "stance_score": integer -100 to +100 — directional market stance. Strongly bullish = +70 to +100, bullish = +20 to +69, neutral = -19 to +19, bearish = -69 to -20, strongly bearish = -100 to -70. Base on the weight of evidence between bull and bear cases. Consider: delivery pace vs historical, export momentum, spec positioning, basis trends, and farmer sentiment.
 - "final_assessment": string — 1-2 plain-English sentences that a farmer can act on. Frame as what the data suggests, not financial advice. Example: "The numbers suggest holding is reasonable — deliveries are running well below pace and export demand remains strong."
 - "key_signals": array of objects, each with:
   - "signal": "bullish" | "bearish" | "watch"

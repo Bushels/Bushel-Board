@@ -114,6 +114,7 @@ export interface MarketAnalysis {
   }>;
   model_used: string;
   confidence_score: number | null;
+  stance_score: number | null;
   final_assessment: string | null;
   generated_at: string;
 }
