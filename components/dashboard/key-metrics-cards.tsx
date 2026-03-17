@@ -6,6 +6,9 @@ import { MetricSentimentVote, type MetricType, type MetricSentimentAggregates } 
 import { fmtKt, fmtPct } from "@/lib/utils/format"
 import type { UserRole } from "@/lib/auth/role-guard"
 
+const POSITIVE_TREND_COLOR = "#437a22"
+const NEGATIVE_TREND_COLOR = "#d91c1c"
+
 export interface KeyMetric {
   label: string
   metricKey: MetricType
@@ -28,7 +31,13 @@ interface KeyMetricsCardsProps {
 function WowBadge({ pct }: { pct: number }) {
   if (pct > 0) {
     return (
-      <span className="inline-flex items-center gap-0.5 rounded-full bg-[#437a22]/10 px-1.5 py-0.5 text-xs font-medium text-[#437a22]">
+      <span
+        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium"
+        style={{
+          backgroundColor: `${POSITIVE_TREND_COLOR}1a`,
+          color: POSITIVE_TREND_COLOR,
+        }}
+      >
         <TrendingUp className="h-3 w-3" />
         {fmtPct(pct)}
       </span>
@@ -36,7 +45,13 @@ function WowBadge({ pct }: { pct: number }) {
   }
   if (pct < 0) {
     return (
-      <span className="inline-flex items-center gap-0.5 rounded-full bg-[#d91c1c]/10 px-1.5 py-0.5 text-xs font-medium text-[#d91c1c]">
+      <span
+        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-medium"
+        style={{
+          backgroundColor: `${NEGATIVE_TREND_COLOR}1a`,
+          color: NEGATIVE_TREND_COLOR,
+        }}
+      >
         <TrendingDown className="h-3 w-3" />
         {fmtPct(pct)}
       </span>

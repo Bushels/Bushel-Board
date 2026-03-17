@@ -55,7 +55,7 @@ export function deriveRecommendation(params: DeriveParams): RecommendationResult
     contractedPct,
   }
 
-  // Priority 1: HAUL — bearish market, get grain moving
+  // Priority 1: bearish market, move grain.
   if (
     marketStance === "bearish" &&
     (deliveryPacePct >= 50 || contractedPct < 30) &&
@@ -65,27 +65,25 @@ export function deriveRecommendation(params: DeriveParams): RecommendationResult
     return {
       ...base,
       action: "haul",
-      reason: "Market bearish \u2014 consider delivering uncontracted grain",
+      reason: "Bearish market -> hauling uncontracted grain is safer this week",
       confidence: cs >= 70 ? "high" : cs >= 40 ? "medium" : "low",
       confidenceScore: cs,
     }
   }
 
-  // Priority 2: HOLD — bullish market, wait for better prices
-  // Must be evaluated BEFORE PRICE so bullish farmers hold rather than lock in
+  // Priority 2: bullish market, wait for better prices.
   if (marketStance === "bullish" && deliveryPacePct <= 70) {
     const cs = computeConfidenceScore("hold", params.stanceScore, deliveryPacePct, contractedPct)
     return {
       ...base,
       action: "hold",
-      reason: "Market bullish \u2014 holding for better prices",
+      reason: "Bullish market -> holding grain may capture stronger pricing",
       confidence: cs >= 70 ? "high" : cs >= 40 ? "medium" : "low",
       confidenceScore: cs,
     }
   }
 
-  // Priority 3: PRICE — neutral market or bullish with high delivery pace,
-  // lock in prices on uncontracted volume
+  // Priority 3: mixed-to-firm market, get pricing orders working.
   if (
     (marketStance === "neutral" || marketStance === "bullish") &&
     contractedPct < 50 &&
@@ -95,18 +93,18 @@ export function deriveRecommendation(params: DeriveParams): RecommendationResult
     return {
       ...base,
       action: "price",
-      reason: "Lock in prices on uncontracted volume",
+      reason: "Mixed setup -> get offers working on uncontracted grain",
       confidence: cs >= 70 ? "high" : cs >= 40 ? "medium" : "low",
       confidenceScore: cs,
     }
   }
 
-  // Priority 4: WATCH (default)
+  // Priority 4: not enough edge yet, keep watching.
   const cs = computeConfidenceScore("watch", params.stanceScore, deliveryPacePct, contractedPct)
   return {
     ...base,
     action: "watch",
-    reason: "Monitor market conditions",
+    reason: "Signals are mixed -> wait for a cleaner setup",
     confidence: cs >= 70 ? "high" : cs >= 40 ? "medium" : "low",
     confidenceScore: cs,
   }

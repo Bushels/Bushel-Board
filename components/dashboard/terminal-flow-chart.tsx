@@ -39,6 +39,11 @@ export function TerminalFlowChart({
 }: TerminalFlowChartProps) {
   if (flowData.length === 0) return null;
 
+  const chartChromeColor = "var(--muted-foreground)";
+  const tooltipCardColor = "var(--card)";
+  const tooltipBorderColor = "var(--border)";
+  const tooltipTextColor = "var(--foreground)";
+
   // PostgREST returns numeric as strings — always wrap in Number()
   const chartData = flowData.map((row) => ({
     week: `Wk${row.grain_week}`,
@@ -100,19 +105,19 @@ export function TerminalFlowChart({
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="hsl(var(--muted-foreground))"
+              stroke={chartChromeColor}
               opacity={0.35}
             />
 
             <XAxis
               dataKey="week"
-              stroke="hsl(var(--muted-foreground))"
+              stroke={chartChromeColor}
               fontSize={12}
               tickMargin={8}
             />
 
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
+              stroke={chartChromeColor}
               fontSize={12}
               tickFormatter={(val) => fmtKt(val)}
               axisLine={false}
@@ -124,24 +129,24 @@ export function TerminalFlowChart({
                 offset: -5,
                 style: {
                   fontSize: 11,
-                  fill: "hsl(var(--muted-foreground))",
+                  fill: chartChromeColor,
                 },
               }}
             />
 
             <ReferenceLine
               y={0}
-              stroke="hsl(var(--muted-foreground))"
+              stroke={chartChromeColor}
               strokeOpacity={0.5}
             />
 
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                borderColor: "hsl(var(--border))",
+                backgroundColor: tooltipCardColor,
+                borderColor: tooltipBorderColor,
                 borderRadius: "8px",
               }}
-              itemStyle={{ color: "hsl(var(--foreground))" }}
+              itemStyle={{ color: tooltipTextColor }}
               formatter={(value, name) => {
                 const v = Number(value ?? 0);
                 const label = String(name ?? "");

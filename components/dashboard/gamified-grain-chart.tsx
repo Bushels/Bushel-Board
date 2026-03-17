@@ -46,6 +46,12 @@ export function GamifiedGrainChart({
 
   if (weeklyData.length === 0) return null;
 
+  const chartChromeColor = "var(--muted-foreground)";
+  const tooltipCardColor = "var(--card)";
+  const tooltipBorderColor = "var(--border)";
+  const tooltipTextColor = "var(--foreground)";
+  const primaryColor = "var(--primary)";
+
   // Build user delivery cumulative by grain week
   const weekStart = new Date(cropYearStart, 7, 1); // Aug 1
   const userByWeek = new Map<number, number>();
@@ -150,7 +156,7 @@ export function GamifiedGrainChart({
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="hsl(var(--muted-foreground))"
+            stroke={chartChromeColor}
             opacity={0.2}
             vertical={false}
           />
@@ -158,7 +164,7 @@ export function GamifiedGrainChart({
           <XAxis
             dataKey="week"
             tickFormatter={(val) => `Wk ${val}`}
-            stroke="hsl(var(--muted-foreground))"
+            stroke={chartChromeColor}
             fontSize={12}
             tickMargin={10}
           />
@@ -166,7 +172,7 @@ export function GamifiedGrainChart({
           {/* Left axis: pipeline-scale (kt) */}
           <YAxis
             yAxisId="left"
-            stroke="hsl(var(--muted-foreground))"
+            stroke={chartChromeColor}
             fontSize={12}
             tickFormatter={(val) => fmtKt(val)}
             axisLine={false}
@@ -176,7 +182,7 @@ export function GamifiedGrainChart({
               angle: -90,
               position: "insideLeft",
               offset: -5,
-              style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" },
+              style: { fontSize: 11, fill: chartChromeColor },
             }}
           />
 
@@ -202,11 +208,11 @@ export function GamifiedGrainChart({
 
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              borderColor: "hsl(var(--border))",
+              backgroundColor: tooltipCardColor,
+              borderColor: tooltipBorderColor,
               borderRadius: "8px",
             }}
-            itemStyle={{ color: "hsl(var(--foreground))" }}
+            itemStyle={{ color: tooltipTextColor }}
             labelFormatter={(val) => `Week ${val}`}
             formatter={(value, name) => {
               const v = Number(value ?? 0);
@@ -233,9 +239,9 @@ export function GamifiedGrainChart({
             type="monotone"
             dataKey="deliveries"
             name="Producer Deliveries"
-            fill="hsl(var(--primary))"
+            fill={primaryColor}
             fillOpacity={0.2}
-            stroke="hsl(var(--primary))"
+            stroke={primaryColor}
             strokeWidth={2}
           />
 
@@ -296,7 +302,7 @@ export function GamifiedGrainChart({
               type="monotone"
               dataKey="priorYearDeliveries"
               name="Last Year Deliveries"
-              stroke="hsl(var(--muted-foreground))"
+              stroke={chartChromeColor}
               strokeWidth={1.5}
               strokeDasharray="8 4"
               dot={false}
@@ -311,7 +317,7 @@ export function GamifiedGrainChart({
               type="monotone"
               dataKey="fiveYrAvgDeliveries"
               name="5yr Avg Deliveries"
-              stroke="hsl(var(--muted-foreground))"
+              stroke={chartChromeColor}
               strokeWidth={1.5}
               strokeDasharray="3 3"
               opacity={0.6}
