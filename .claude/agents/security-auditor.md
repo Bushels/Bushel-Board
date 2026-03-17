@@ -1,6 +1,14 @@
 ---
 name: security-auditor
 description: Use this agent for security reviews, workflow hardening, abuse-path checks, RPC privilege review, and release guardrails. Trigger it when touching auth boundaries, Edge Function chaining, RLS, or anything that could expose farmer data or allow unauthorized actions.
+trigger_after:
+  - db-architect creates or modifies Edge Functions
+  - db-architect changes RLS policies or RPC grants
+  - auth-engineer modifies auth boundaries or middleware
+  - Any change to supabase/config.toml
+  - Any change to server actions (app/**/actions.ts)
+  - Internal function chaining logic changes
+blocks: documentation-agent (Gate 4 cannot start until security-auditor passes)
 model: inherit
 color: slate
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "TodoWrite"]

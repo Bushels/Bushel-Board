@@ -20,6 +20,13 @@ description: Use this agent for verifying CGC data integrity, cross-checking Exc
   </commentary>
   </example>
 
+trigger_after:
+  - db-architect modifies any RPC, view, or migration
+  - frontend-dev changes files in lib/queries/*
+  - Edge Function data logic changes
+  - Data import pipeline modifications
+  - Crop year format, metric names, or column name changes
+blocks: documentation-agent (Gate 4 cannot start until data-audit passes)
 model: inherit
 color: amber
 tools: ["Read", "Bash", "Grep", "Glob", "TodoWrite"]
@@ -80,13 +87,7 @@ CGC Excel (.xlsx) → CSV (gsw-shg-en.csv) → Supabase (cgc_observations) → D
 3. **Derived dashboard objects** — cross-check `v_grain_overview`, `v_grain_yoy_comparison`, and `get_pipeline_velocity()` against the CGC Summary workbook
 4. **Live-source fallback** — if local `gsw-shg-en.csv` is stale, fetch the live CGC CSV before concluding the audit
 
-**Known Data Gotchas:**
-- PostgREST silently truncates at 1,000 rows — always use RPC for Terminal worksheets
-- `numeric` columns return as strings from PostgREST — wrap in `Number()`
-- Crop year format: ALL tables and code use long format `"2025-2026"` (standardized March 2026). Short format `"2025-26"` is display-only via `toShortFormat()`. If you find short format in any table, it's a bug.
-- Primary, Process producer-delivery, and Producer Cars aggregate rows require `grade=''`. Missing that filter can silently double-count grade rows.
-- Terminal Receipts: ~3,648 rows per grain (20 grades × 6 ports × 30 weeks) — MUST use `SUM() GROUP BY`
-- No `grade=''` aggregates for Terminal Receipts/Exports (unlike Primary which has them)
+**Known Data Gotchas:** See `data-integrity-rules` skill for the complete 15-rule reference, PostgREST gotchas, grade aggregation rules, and row-count audit guidance.
 
 **Audit Script:**
 ```bash

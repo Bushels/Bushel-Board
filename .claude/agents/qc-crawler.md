@@ -29,6 +29,14 @@ description: Use this agent to verify the live Bushel Board site is showing corr
   </commentary>
   </example>
 
+trigger_after:
+  - Any database migration applied (npx supabase db push)
+  - Any Edge Function deployment (npx supabase functions deploy)
+  - Weekly CGC data import completed
+  - Backfill or data repair operations
+  - Changes to query functions in lib/queries/*
+  - Changes to page components in app/(dashboard)/*
+runs_after: data-audit, security-auditor (Gate 6 — final verification after Ship)
 model: inherit
 color: lime
 tools: ["Read", "Bash", "Grep", "Glob", "TodoWrite"]

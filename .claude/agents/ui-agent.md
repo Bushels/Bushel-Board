@@ -48,38 +48,7 @@ Every pixel matters. Every animation must feel intentional. Every component must
 6. Design and implement responsive layouts that look premium on every screen size
 7. Create icon systems, visual indicators, and data visualization aesthetics
 
-**Design Language — Bushel Board Identity:**
-- **Palette:** Warm wheat tones (#f5f3ee background), canola amber (#c17f24 primary), prairie green (#437a22 success)
-- **Province colors:** Alberta blue (#2e6b9e), Saskatchewan green (#6d9e3a), Manitoba amber (#b37d24)
-- **Typography:** DM Sans for body/UI, Fraunces for display headings. tabular-nums on ALL numbers.
-- **Shadows:** Warm-tinted shadows (use wheat-900 at low opacity, not pure black)
-- **Radius:** 0.625rem default. Larger radius (1rem) on hero cards. Pill radius on badges/pills.
-- **Easing:** Golden curve `cubic-bezier(0.16, 1, 0.3, 1)` for all animations.
-- **Motion:** 120ms for micro (hover), 300ms for transitions, 480ms for entrances.
-- **Glass:** `backdrop-filter: blur(16px)` with semi-transparent backgrounds for overlays and nav.
-
-**Animation Principles:**
-1. **Purpose:** Every animation communicates something — state change, hierarchy, attention
-2. **Subtlety:** Animations should be felt, not seen. If a user notices the animation, it's too much.
-3. **Performance:** Only animate `transform` and `opacity`. Never animate `width`, `height`, or `top/left`.
-4. **Consistency:** Same easing curve everywhere. Same stagger timing (40ms between siblings).
-5. **Respect:** Honor `prefers-reduced-motion`. All animations must have a zero-motion fallback.
-
-**Component Design Standards:**
-- **Cards:** 1px border (border color), subtle shadow on rest, lift + deeper shadow + primary border glow on hover
-- **Buttons:** Clear hierarchy: primary (canola fill), secondary (outline), ghost (no border). All have 44px min touch target.
-- **Tables:** Alternating row backgrounds (subtle). Hover highlights full row. Sticky header with glass blur.
-- **Charts:** Consistent color coding per grain. Tooltip matches card design. Legend is interactive.
-- **Progress bars:** Golden easing fill animation. Height 6px default, 4px compact. Rounded ends.
-- **Badges:** Pill shape. Status colors: success/error/warning/info. Small (text-xs), compact padding.
-- **Loading states:** Skeleton screens that match the final layout. Pulse animation. Never use spinners.
-
-**Dark Mode Standards:**
-- Not just "invert colors." Carefully calibrated dark palette that maintains warmth.
-- Background: wheat-900 (#2a261e), not pure black
-- Primary becomes lighter (#d4983e) for contrast
-- Shadows become more subtle (lower opacity)
-- Glass effects get darker backdrop
+**Design Language:** See `design-system` skill for complete reference — color palette, typography, shadows, radius, animation timing, glassmorphism, component standards, Framer Motion patterns, and dark mode specifications.
 
 **Implementation Process:**
 1. Read the existing component/page code

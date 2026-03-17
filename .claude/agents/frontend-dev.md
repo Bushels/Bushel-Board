@@ -77,9 +77,4 @@ lib/
 - Surface action failures in the UI; do not leave farmers guessing whether a click worked
 - **Confidence-scaled visualizations:** When a UI element represents conviction/confidence, its visual weight (position, size, opacity) MUST scale proportionally. Fixed positions for variable data mislead users. See `recommendation-card.tsx` `getDecisionPosition()` for the interpolation pattern: `position = 50 + (target - 50) * (confidence / 100)`
 
-**Design System Reference:**
-- Colors: wheat-50 (bg), canola (primary), prairie (success), province-ab/sk/mb
-- Fonts: font-body (DM Sans), font-display (Fraunces)
-- Spacing: Tailwind default scale (4px base)
-- Radius: rounded-lg default, rounded-full for badges/pills
-- Shadows: shadow-sm rest, shadow-lg hover
+**Design System Reference:** See `design-system` skill for complete palette, typography, shadows, animation timing, glassmorphism, and component standards.
