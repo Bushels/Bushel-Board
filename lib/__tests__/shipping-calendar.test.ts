@@ -52,4 +52,16 @@ describe("buildShippingCalendar", () => {
     expect(cal.promptText).toContain("2 weeks");
     expect(cal.promptText).toContain("Thursday");
   });
+
+  it("uses singular 'week' for dataLag of 1", () => {
+    const cal = buildShippingCalendar(32, 31, "2025-2026");
+    expect(cal.promptText).toContain("1 week");
+    expect(cal.promptText).not.toContain("1 weeks");
+  });
+
+  it("throws RangeError for invalid week values", () => {
+    expect(() => buildShippingCalendar(0, 31, "2025-2026")).toThrow(RangeError);
+    expect(() => buildShippingCalendar(33, 0, "2025-2026")).toThrow(RangeError);
+    expect(() => buildShippingCalendar(53, 31, "2025-2026")).toThrow(RangeError);
+  });
 });

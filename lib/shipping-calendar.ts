@@ -38,6 +38,13 @@ export function buildShippingCalendar(
   latestDataWeek: number,
   cropYear: string,
 ): ShippingCalendar {
+  if (currentCalendarWeek < 1 || currentCalendarWeek > 52 ||
+      latestDataWeek < 1 || latestDataWeek > 52) {
+    throw new RangeError(
+      `Week values must be 1-52. Got currentCalendarWeek=${currentCalendarWeek}, latestDataWeek=${latestDataWeek}`
+    );
+  }
+
   const dataLag = currentCalendarWeek - latestDataWeek;
   const seasonalContext = getSeasonalContext(currentCalendarWeek);
 
@@ -48,7 +55,7 @@ export function buildShippingCalendar(
 - Next CGC release: Thursday, ~1pm MST
 - Crop year: ${cropYear}
 - Season: ${seasonalContext}
-- FRAMING: Your Supabase data is verified through Week ${latestDataWeek}. Your web/X research covers what's happening NOW — you're building the story for Week${dataLag > 1 ? `s ${latestDataWeek + 1}-${currentCalendarWeek}` : ` ${currentCalendarWeek}`} that the next data release will confirm or contradict.`;
+- FRAMING: ${dataLag === 0 ? `Your Supabase data is current through Week ${latestDataWeek}. Your web/X research can validate what the data already shows.` : `Your Supabase data is verified through Week ${latestDataWeek}. Your web/X research covers what's happening NOW — you're building the story for Week${dataLag > 1 ? `s ${latestDataWeek + 1}-${currentCalendarWeek}` : ` ${currentCalendarWeek}`} that the next data release will confirm or contradict.`}`;
 
   return {
     currentCalendarWeek,
