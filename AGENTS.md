@@ -137,7 +137,20 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 ### Script Conventions
 All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnostics to stderr, be idempotent, pin dependency versions.
 
+## Jules Guardrails
+- Jules sessions must start from pushed GitHub state only. If local changes exist in overlapping files, push first or do not use Jules for that task.
+- Prefer one narrow Jules session per concern. Do not mix lint cleanup, query logic, UI work, and auth changes in the same run.
+- For lint-only or type-only tasks, keep runtime behavior unchanged. Fix only the verified diagnostics named in the prompt.
+- Never satisfy lint by casting partial SQL or RPC rows to richer domain types just to fit a shared helper or formatter.
+- Before changing types around SQL or RPC data, read the source-of-truth shape first: the migration, RPC definition, or query helper that defines the returned columns.
+- Before reusing a shared formatter or builder, verify the input data contains every field that helper expects. If not, either transform from the raw source with the existing builder or keep a local formatter typed to the reduced shape.
+- If the safe fix requires broader refactoring than the task scope, stop and report the mismatch instead of guessing.
+- Reject any Jules plan that introduces `as unknown as` on database rows, rewrites large blocks for a small lint fix, or touches files outside the stated scope.
+- Example guardrail: `get_cot_positioning()` returns a reduced RPC shape. Do not cast those rows directly to `CotPosition`. If `CotPositioningResult` is needed, build it from raw `cftc_cot_positions` rows with `buildCotPositioningResult()` or keep a formatter typed to the reduced RPC row.
+
 ## Reference Files
+- `docs/reference/jules-playbook.md` - Repo-specific Jules workflow, sequencing, and review gates
+- `docs/reference/jules-prompts.md` - Reusable Jules prompt templates and rejection checklist
 - `.Codex/agents/AGENTS.md` — Detailed framework patterns, Supabase code samples, design tokens, CGC schema
 - `docs/plans/STATUS.md` — Feature completion tracker (13 tracks)
 - `docs/plans/2026-03-04-bushel-board-mvp-design.md` — Approved MVP design

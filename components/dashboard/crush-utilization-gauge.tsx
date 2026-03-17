@@ -3,7 +3,6 @@
 import { GlassCard } from "@/components/ui/glass-card";
 
 interface CrushUtilizationGaugeProps {
-  grainName: string;
   weeklyProcessingKt: number;
   annualCapacityKt: number;
   isApproximate?: boolean;
@@ -28,8 +27,8 @@ function getArcPath(
 
 function getColor(pct: number): string {
   if (pct >= 85) return "var(--color-prairie)";
-  if (pct >= 65) return "hsl(var(--primary))";
-  return "hsl(var(--muted-foreground))";
+  if (pct >= 65) return "var(--primary)";
+  return "var(--muted-foreground)";
 }
 
 function getSignalText(pct: number): string {
@@ -39,7 +38,6 @@ function getSignalText(pct: number): string {
 }
 
 export function CrushUtilizationGauge({
-  grainName,
   weeklyProcessingKt,
   annualCapacityKt,
   isApproximate = false,
@@ -77,7 +75,8 @@ export function CrushUtilizationGauge({
           <path
             d={bgPath}
             fill="none"
-            stroke="hsl(var(--muted) / 0.5)"
+            stroke="var(--muted)"
+            strokeOpacity={0.5}
             strokeWidth="12"
             strokeLinecap="round"
           />

@@ -4,6 +4,7 @@ export const MARKET_INTELLIGENCE_VERSIONS = {
   searchSignals: "search-signals-v3",
   analyzeMarketData: "analyze-market-data-v7",
   generateIntelligence: "generate-intelligence-v7",
+  analyzeGrainMarket: "analyze-grain-market-v1",
   generateFarmSummary: "generate-farm-summary-v4",
   knowledgeBase: "grain-knowledge-v3",
 } as const;

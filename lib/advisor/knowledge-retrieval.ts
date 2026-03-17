@@ -64,6 +64,7 @@ export interface RetrievedKnowledgeChunk {
   metadata: Record<string, unknown> | null;
   rank: number;
   score: number;
+  headingPriorityBonus: number;
   matchedQueries: string[];
 }
 
@@ -87,8 +88,9 @@ export interface KnowledgeRetrievalResult {
 const BASELINE_LIMIT = 4;
 const BASELINE_TOPICS = ["basis", "storage", "hedging", "deliveries", "marketing"] as const;
 const TIERED_DEFAULT_TOPICS = ["marketing"] as const;
-const TIERED_MAX_LIMIT = 4;
+const TIERED_MAX_LIMIT = 3;
 const TIERED_CANDIDATE_LIMIT = 8;
+const OFF_INTENT_HEADING_PENALTY = 0.18;
 
 const INFERRED_TOPIC_PATTERNS: Array<{ tag: string; pattern: RegExp }> = [
   { tag: "basis", pattern: /\bbasis\b/i },
@@ -177,9 +179,15 @@ function dedupe(values: Array<string | null | undefined>): string[] {
 }
 
 function inferMessageTopicSignals(messageText: string): string[] {
-  return INFERRED_TOPIC_PATTERNS
+  const inferredTopics = INFERRED_TOPIC_PATTERNS
     .filter(({ pattern }) => pattern.test(messageText))
     .map(({ tag }) => tag);
+
+  if (/\bdeferred delivery\b/i.test(messageText)) {
+    return inferredTopics.filter((tag) => tag !== "deliveries");
+  }
+
+  return inferredTopics;
 }
 
 function hasAnyTopics(topicTags: string[], expectedTags: string[]): boolean {
@@ -355,6 +363,42 @@ function buildHeadingPriorityMap(intents: KnowledgeIntent[]): Map<string, number
   return priorityMap;
 }
 
+function buildHeadingIntentMap(): Map<string, KnowledgeIntent[]> {
+  const headingIntentMap = new Map<string, KnowledgeIntent[]>();
+
+  for (const [intent, priorities] of Object.entries(HEADING_PRIORITY_BY_INTENT) as Array<
+    [KnowledgeIntent, Array<{ heading: string; bonus: number }>]
+  >) {
+    for (const priority of priorities) {
+      const key = normalizeText(priority.heading);
+      headingIntentMap.set(key, dedupe([...(headingIntentMap.get(key) ?? []), intent]) as KnowledgeIntent[]);
+    }
+  }
+
+  return headingIntentMap;
+}
+
+const HEADING_INTENT_MAP = buildHeadingIntentMap();
+
+function getOffIntentHeadingPenalty(headingText: string, intents: KnowledgeIntent[]): number {
+  if (intents.length === 0) return 0;
+
+  const headingIntents = HEADING_INTENT_MAP.get(headingText) ?? [];
+  if (headingIntents.length === 0) return 0;
+  if (headingIntents.some((intent) => intents.includes(intent))) return 0;
+
+  return OFF_INTENT_HEADING_PENALTY;
+}
+
+function orderChunksForPrompt(chunks: RetrievedKnowledgeChunk[]): RetrievedKnowledgeChunk[] {
+  return [...chunks].sort(
+    (a, b) =>
+      compareNumbersDesc(a.score, b.score) ||
+      compareNullableNumbersAsc(a.chunkIndex, b.chunkIndex) ||
+      a.chunkId - b.chunkId,
+  );
+}
+
 export function selectTieredKnowledgeChunks(candidates: RetrievedKnowledgeChunk[], limit: number): RetrievedKnowledgeChunk[] {
   if (candidates.length === 0) {
     return [];
@@ -384,7 +428,10 @@ export function selectTieredKnowledgeChunks(candidates: RetrievedKnowledgeChunk[
     }))
     .sort((a, b) => compareNumbersDesc(a.rows[0]?.score ?? 0, b.rows[0]?.score ?? 0) || a.documentId - b.documentId);
 
-  for (const { documentId, rows } of rankedDocs) {
+  const prioritizedDocs = rankedDocs.filter(({ rows }) => (rows[0]?.headingPriorityBonus ?? 0) > 0);
+  const firstPassDocs = prioritizedDocs.length > 0 ? prioritizedDocs : rankedDocs;
+
+  for (const { documentId, rows } of firstPassDocs) {
     if (selected.length >= limit) break;
     const next = rows[0];
     if (!next) continue;
@@ -539,6 +586,7 @@ async function retrieveBaselineKnowledgeContext(
       metadata: row.metadata,
       rank: row.rank,
       score: row.rank,
+      headingPriorityBonus: 0,
       matchedQueries: row.matchedQueries,
     }));
 
@@ -579,6 +627,7 @@ async function retrieveTieredKnowledgeContext(
       const headingText = normalizeText(detail.heading ?? "");
       const headingHintMatches = headingHints.filter((hint) => headingText.includes(hint)).length;
       const headingPriorityBonus = headingPriorityMap.get(headingText) ?? 0;
+      const offIntentHeadingPenalty = getOffIntentHeadingPenalty(headingText, intents);
       const contentTokens = new Set(tokenize(detail.content));
       const overlappingTokens = [...questionTokens].filter((token) => contentTokens.has(token)).length;
       const topicOverlap = detail.topic_tags.filter((tag) => topicTags.includes(tag)).length;
@@ -594,6 +643,7 @@ async function retrieveTieredKnowledgeContext(
         headingHintMatches * 0.03 +
         topicOverlap * 0.015 +
         Math.min(overlappingTokens, 3) * 0.01 +
+        -offIntentHeadingPenalty +
         detail.source_priority / 1000;
 
       return {
@@ -611,6 +661,7 @@ async function retrieveTieredKnowledgeContext(
         metadata: detail.metadata,
         rank: candidate.rank,
         score,
+        headingPriorityBonus,
         matchedQueries: candidate.matchedQueries,
       };
     })
@@ -623,6 +674,7 @@ async function retrieveTieredKnowledgeContext(
     );
 
   const chunks = selectTieredKnowledgeChunks(candidates, TIERED_MAX_LIMIT);
+  const promptChunks = orderChunksForPrompt(chunks);
 
   return {
     mode: "tiered",
@@ -630,7 +682,7 @@ async function retrieveTieredKnowledgeContext(
     topicTags,
     queryPlan,
     sourcePaths: dedupe(chunks.map((chunk) => chunk.sourcePath)),
-    contextText: chunks.length > 0 ? chunks.map(formatChunkForPrompt).join("\n\n") : null,
+    contextText: promptChunks.length > 0 ? promptChunks.map(formatChunkForPrompt).join("\n\n") : null,
     chunks,
   };
 }

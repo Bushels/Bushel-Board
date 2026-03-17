@@ -6,7 +6,22 @@ interface BullBearCardsProps {
   confidence: "high" | "medium" | "low";
   modelUsed?: string;
   confidenceScore?: number;
+  stanceScore?: number | null;
   finalAssessment?: string;
+}
+
+function getStanceLabel(score: number): string {
+  if (score >= 70) return "Strongly Bullish";
+  if (score >= 20) return "Bullish";
+  if (score > -20) return "Neutral";
+  if (score > -70) return "Bearish";
+  return "Strongly Bearish";
+}
+
+function getStanceColor(score: number): string {
+  if (score >= 20) return "#437a22";   // prairie green
+  if (score > -20) return "#8b7355";   // wheat neutral
+  return "#d97706";                     // amber/bearish
 }
 
 const CONFIDENCE_SCORES: Record<string, number> = {
@@ -15,7 +30,7 @@ const CONFIDENCE_SCORES: Record<string, number> = {
   low: 25,
 };
 
-export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, finalAssessment }: BullBearCardsProps) {
+export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, stanceScore, finalAssessment }: BullBearCardsProps) {
   // Strip leading bullets: ASCII dash, Unicode bullet (•), triangular bullet (‣), middle dot (·), em dash (—), asterisk
   const stripBullet = (s: string) => s.replace(/^[\s\-–—•‣·*]+\s*/, '').trim();
   const bullPoints = bullCase.split(/\n/).map(stripBullet).filter(Boolean);
@@ -66,29 +81,62 @@ export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore,
         </div>
       </div>
 
-      {/* Confidence bar */}
-      <div className="px-1 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">
-            Analysis Confidence
-          </span>
-          <span
-            className="text-xs font-semibold"
-            style={{ color: scoreColor }}
-          >
-            {scoreLabel} ({score}%)
-          </span>
-        </div>
-        <div className="h-2.5 w-full rounded-full bg-muted/40 overflow-hidden">
+      {/* Stance spectrum meter or confidence bar fallback */}
+      {stanceScore != null ? (
+        <div className="px-1 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-prairie">
+              Bullish
+            </span>
+            <span className="text-xs text-muted-foreground">Neutral</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+              Bearish
+            </span>
+          </div>
           <div
-            className="h-full rounded-full transition-all duration-700 ease-out"
+            className="relative h-3 w-full rounded-full overflow-hidden"
             style={{
-              width: `${Math.max(0, Math.min(100, score))}%`,
-              backgroundColor: scoreColor,
+              background: "linear-gradient(to right, #437a22, #8b7355 50%, #d97706)",
             }}
-          />
+          >
+            <div
+              className="absolute top-0 h-full w-1 rounded-full bg-foreground shadow-md transition-all duration-700"
+              style={{
+                left: `${Math.max(1, Math.min(99, 50 - stanceScore / 2))}%`,
+                transform: "translateX(-50%)",
+              }}
+            />
+          </div>
+          <div className="flex justify-center">
+            <span
+              className="text-xs font-semibold"
+              style={{ color: getStanceColor(stanceScore) }}
+            >
+              {stanceScore > 0 ? "+" : ""}{stanceScore} — {getStanceLabel(stanceScore)}
+            </span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="px-1 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              Analysis Confidence
+            </span>
+            <span className="text-xs font-semibold" style={{ color: scoreColor }}>
+              {scoreLabel} ({score}%)
+            </span>
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-muted/40 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{
+                width: `${Math.max(0, Math.min(100, score))}%`,
+                backgroundColor: scoreColor,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Final assessment callout */}
       {finalAssessment && (

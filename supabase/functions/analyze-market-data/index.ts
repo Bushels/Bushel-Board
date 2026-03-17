@@ -1,14 +1,14 @@
 /**
  * Supabase Edge Function: analyze-market-data
  *
- * Step 3.5 Flash analytical workhorse in the dual-LLM intelligence pipeline.
+ * Round 1 analytical workhorse in the intelligence pipeline.
  * Runs BEFORE generate-intelligence in the chain:
  *   search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary
  *
  * Queries CGC data, AAFC supply balance, historical averages, farmer sentiment,
- * and community stats. Calls Step 3.5 Flash via OpenRouter to produce structured
+ * and community stats. Calls Grok 4.1 Fast via xAI Responses API to produce structured
  * market analysis (thesis, bull/bear cases, historical context, key signals).
- * Stores results in market_analysis table for Grok to cross-validate.
+ * Stores results in market_analysis table for Round 2 synthesis.
  *
  * Request body (optional):
  *   { "crop_year": "2025-2026", "grain_week": 29, "grains": ["Canola"] }
@@ -29,9 +29,23 @@ import {
 } from "../_shared/market-intelligence-config.ts";
 import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "stepfun/step-3.5-flash:free";
+const XAI_API_URL = "https://api.x.ai/v1/responses";
+const MODEL = "grok-4-1-fast-reasoning";
 const BATCH_SIZE = 1;
+
+interface CotPositioningRpcRow {
+  report_date: string;
+  commodity: string;
+  exchange: string;
+  open_interest: number;
+  managed_money_net: number;
+  managed_money_net_pct: number;
+  wow_net_change: number;
+  commercial_net: number;
+  commercial_net_pct: number;
+  spec_commercial_divergence: boolean;
+  grain_week: number;
+}
 
 Deno.serve(async (req) => {
   const authError = requireInternalRequest(req);
@@ -47,10 +61,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
-    if (!openRouterKey) {
+    const xaiKey = Deno.env.get("XAI_API_KEY");
+    if (!xaiKey) {
       return new Response(
-        JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }),
+        JSON.stringify({ error: "XAI_API_KEY not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -164,12 +178,13 @@ Deno.serve(async (req) => {
         ]);
 
         // 6. CFTC COT positioning (last 4 weeks, bounded to target analysis week)
-        const { data: cotPositioning } = await supabase.rpc("get_cot_positioning", {
+        const { data: cotPositioningData } = await supabase.rpc("get_cot_positioning", {
           p_grain: grainName,
           p_crop_year: cropYear,
           p_weeks_back: 4,
           p_max_grain_week: grainWeek,
         });
+        const cotPositioning = parseCotPositioningRows(cotPositioningData);
 
         // 7. Processor self-sufficiency (Process.Producer vs Other Deliveries)
         const { data: selfSufficiencyData } = await supabase.rpc("get_processor_self_sufficiency", {
@@ -202,23 +217,67 @@ Deno.serve(async (req) => {
           selfSufficiencyData,
         );
 
-        // Call OpenRouter API
-        const response = await fetch(OPENROUTER_URL, {
+        // Call xAI Grok Responses API with structured outputs
+        const response = await fetch(XAI_API_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${openRouterKey}`,
-            "HTTP-Referer": "https://bushelboard.ca",
-            "X-Title": "Bushel Board",
+            "Authorization": `Bearer ${xaiKey}`,
           },
           body: JSON.stringify({
             model: MODEL,
-            messages: [
+            max_output_tokens: 16384,
+            input: [
               { role: "system", content: systemPrompt },
               { role: "user", content: dataPrompt },
             ],
-            response_format: { type: "json_object" },
-            max_tokens: 16384,
+            text: {
+              format: {
+                type: "json_schema",
+                name: "market_analysis",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    initial_thesis: { type: "string" },
+                    bull_case: { type: "string" },
+                    bear_case: { type: "string" },
+                    historical_context: {
+                      type: "object",
+                      properties: {
+                        deliveries_vs_5yr_avg_pct: { type: ["number", "null"] },
+                        exports_vs_5yr_avg_pct: { type: ["number", "null"] },
+                        seasonal_observation: { type: "string" },
+                        notable_patterns: { type: "array", items: { type: "string" } },
+                      },
+                      required: ["deliveries_vs_5yr_avg_pct", "exports_vs_5yr_avg_pct", "seasonal_observation", "notable_patterns"],
+                      additionalProperties: false,
+                    },
+                    data_confidence: { type: "string", enum: ["high", "medium", "low"] },
+                    confidence_score: { type: ["integer", "null"] },
+                    stance_score: { type: ["integer", "null"] },
+                    final_assessment: { type: ["string", "null"] },
+                    key_signals: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          signal: { type: "string", enum: ["bullish", "bearish", "watch"] },
+                          title: { type: "string" },
+                          body: { type: "string" },
+                          confidence: { type: "string", enum: ["high", "medium", "low"] },
+                          source: { type: "string", enum: ["CGC", "AAFC", "Historical", "Community", "CFTC"] },
+                        },
+                        required: ["signal", "title", "body", "confidence", "source"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["initial_thesis", "bull_case", "bear_case", "historical_context", "data_confidence", "confidence_score", "final_assessment", "key_signals"],
+                  additionalProperties: false,
+                },
+              },
+            },
           }),
         });
 
@@ -227,7 +286,7 @@ Deno.serve(async (req) => {
           results.push({
             grain: grainName,
             status: "failed",
-            error: `OpenRouter ${response.status}: ${errText.slice(0, 200)}`,
+            error: `Grok API ${response.status}: ${errText.slice(0, 200)}`,
           });
           continue;
         }
@@ -235,8 +294,13 @@ Deno.serve(async (req) => {
         const aiResponse = await response.json();
         const usage = aiResponse.usage ?? {};
 
-        // OpenRouter chat completions format
-        const content = aiResponse.choices?.[0]?.message?.content ?? "";
+        // Extract text content from xAI Responses API output array
+        const messageOutput = (aiResponse.output ?? []).find(
+          (o: { type: string }) => o.type === "message"
+        );
+        const content = messageOutput?.content?.find(
+          (c: { type: string }) => c.type === "output_text"
+        )?.text ?? "";
 
         let analysis;
         try {
@@ -268,6 +332,9 @@ Deno.serve(async (req) => {
           analysis.confidence_score = typeof analysis.confidence_score === "number"
             ? Math.max(0, Math.min(100, Math.round(analysis.confidence_score)))
             : null;
+          analysis.stance_score = typeof analysis.stance_score === "number"
+            ? Math.max(-100, Math.min(100, Math.round(analysis.stance_score)))
+            : null;
           analysis.final_assessment = typeof analysis.final_assessment === "string"
             ? analysis.final_assessment
             : null;
@@ -288,13 +355,13 @@ Deno.serve(async (req) => {
               data_confidence: analysis.data_confidence ?? "medium",
               key_signals: analysis.key_signals ?? [],
               confidence_score: analysis.confidence_score ?? null,
+              stance_score: analysis.stance_score ?? null,
               final_assessment: analysis.final_assessment ?? null,
               model_used: MODEL,
               llm_metadata: {
-                prompt_tokens: usage.prompt_tokens ?? null,
-                completion_tokens: usage.completion_tokens ?? null,
-                total_tokens: usage.total_tokens ?? null,
-                openrouter_id: aiResponse.id ?? null,
+                request_id: aiResponse.id ?? null,
+                input_tokens: usage.input_tokens ?? null,
+                output_tokens: usage.output_tokens ?? null,
                 prompt_version: MARKET_INTELLIGENCE_VERSIONS.analyzeMarketData,
                 knowledge_version: MARKET_INTELLIGENCE_VERSIONS.knowledgeBase,
                 knowledge_sources: [...new Set([...KNOWLEDGE_SOURCE_PATHS, ...knowledgeContext.sourcePaths])],
@@ -396,6 +463,7 @@ Return a JSON object with these fields:
   - "notable_patterns": string[] — array of standout historical comparison observations
 - "data_confidence": "high" | "medium" | "low" — based on data completeness and consistency
 - "confidence_score": integer 0-100 — numeric confidence for the analysis confidence gauge. Map: high=75-90, medium=45-65, low=15-35. Be precise based on actual data quality.
+- "stance_score": integer -100 to +100 — directional market stance. Strongly bullish = +70 to +100, bullish = +20 to +69, neutral = -19 to +19, bearish = -69 to -20, strongly bearish = -100 to -70. Base on the weight of evidence between bull and bear cases. Consider: delivery pace vs historical, export momentum, spec positioning, basis trends, and farmer sentiment.
 - "final_assessment": string — 1-2 plain-English sentences that a farmer can act on. Frame as what the data suggests, not financial advice. Example: "The numbers suggest holding is reasonable — deliveries are running well below pace and export demand remains strong."
 - "key_signals": array of objects, each with:
   - "signal": "bullish" | "bearish" | "watch"
@@ -415,6 +483,29 @@ Return a JSON object with these fields:
 - Return ONLY the JSON object. No markdown, no explanation outside the JSON.`;
 }
 
+function parseCotPositioningRows(data: unknown): CotPositioningRpcRow[] | null {
+  if (!Array.isArray(data) || data.length === 0) {
+    return null;
+  }
+
+  return data.map((row) => {
+    const record = row as Record<string, unknown>;
+    return {
+      report_date: String(record.report_date ?? ""),
+      commodity: String(record.commodity ?? "Unknown"),
+      exchange: String(record.exchange ?? "Unknown"),
+      open_interest: Number(record.open_interest ?? 0),
+      managed_money_net: Number(record.managed_money_net ?? 0),
+      managed_money_net_pct: Number(record.managed_money_net_pct ?? 0),
+      wow_net_change: Number(record.wow_net_change ?? 0),
+      commercial_net: Number(record.commercial_net ?? 0),
+      commercial_net_pct: Number(record.commercial_net_pct ?? 0),
+      spec_commercial_divergence: Boolean(record.spec_commercial_divergence),
+      grain_week: Number(record.grain_week ?? 0),
+    };
+  });
+}
+
 function buildDataPrompt(
   grain: string,
   cropYear: string,
@@ -428,7 +519,7 @@ function buildDataPrompt(
   stocksHist: Record<string, unknown> | null,
   knowledgeContext: string | null,
   logisticsSnapshot: Record<string, unknown> | null = null,
-  cotData: Array<Record<string, unknown>> | null = null,
+  cotData: CotPositioningRpcRow[] | null = null,
   selfSufficiency: Array<Record<string, unknown>> | null = null,
 ): string {
   const deliveredPct =
@@ -506,7 +597,7 @@ ${
 ${formatLogisticsSection(logisticsSnapshot, grain)}
 
 ### CFTC COT Positioning (Disaggregated, Options+Futures Combined — Tuesday positions, released Friday)
-${formatCotSection(cotData, grain)}
+${formatCotSection(cotData)}
 
 ### Processor Self-Sufficiency (Process worksheet — producer vs non-producer intake)
 ${formatSelfSufficiencySection(selfSufficiency, grainWeek)}
@@ -578,11 +669,8 @@ function formatLogisticsSection(snapshot: Record<string, unknown> | null, grain:
 // --- COT Formatter ---
 
 function formatCotSection(
-  cotData: any,
-  grain: string
+  cotData: CotPositioningRpcRow[] | null
 ): string {
-  return formatCotPromptContext(cotData as CotPositioningResult | null);
-
   if (!cotData || cotData.length === 0) {
     return "No CFTC futures positioning data available for this grain.";
   }

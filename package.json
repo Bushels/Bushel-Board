@@ -14,6 +14,7 @@
     "seed-supply": "npx tsx scripts/seed-supply-disposition.ts",
     "audit-data": "npx tsx scripts/audit-data.ts",
     "benchmark:knowledge": "npx tsx scripts/benchmark-knowledge-retrieval.ts",
+    "benchmark:advisor-followup": "npx tsx scripts/benchmark-advisor-followup.ts",
     "benchmark:coding-models": "npx tsx scripts/benchmark-coding-models.ts",
     "seed-capacity": "npx tsx scripts/seed-processor-capacity.ts",
     "seed-prices": "npx tsx scripts/seed-grain-prices.ts",

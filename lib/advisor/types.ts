@@ -39,10 +39,22 @@ export interface GrainPriceContext {
   price_date: string;
 }
 
+export interface XSignalContext {
+  grain: string;
+  sentiment: string;
+  category: string;
+  post_summary: string;
+  relevance_score: number;
+  post_date: string | null;
+  source: string | null;
+}
+
 export interface ChatContext {
   farmer: FarmerContext;
   knowledgeText: string | null;
+  decisionSupportText: string | null;
   logisticsSnapshot: Record<string, unknown> | null;
   cotSummary: string | null;
   priceContext: GrainPriceContext[];
+  xSignals: XSignalContext[];
 }

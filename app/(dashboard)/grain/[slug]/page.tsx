@@ -27,7 +27,6 @@ import { getGrainBySlug, getGrainOverviewBySlug } from "@/lib/queries/grains";
 import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
 import {
   getCumulativeTimeSeries,
-  getDeliveryTimeSeries,
   getDeliveryChannelBreakdown,
   getGradeDistribution,
   getHistoricalPipelineAvg,
@@ -145,7 +144,6 @@ export default async function GrainDetailPage({ params }: Props) {
 
   const [
     marketCoreResult,
-    deliverySeriesResult,
     pipelineVelocityResult,
     provincialResult,
     wowResult,
@@ -173,13 +171,14 @@ export default async function GrainDetailPage({ params }: Props) {
 
       return { intelligence, grainOverview, marketAnalysis };
     }),
-    safeQuery("Delivery activity", () => getDeliveryTimeSeries(grain.name)),
     safeQuery("Pipeline velocity", () => getCumulativeTimeSeries(grain.name)),
     safeQuery("Provincial deliveries", () => getProvincialDeliveries(grain.name)),
     safeQuery("Week-over-week comparison", () => getWeekOverWeekComparison(grain.name)),
     safeQuery("Storage breakdown", () => getStorageBreakdown(grain.name)),
     safeQuery("User role", () => getUserRole()),
-    safeQuery("COT positioning", () => getCotPositioning(grain.name, CURRENT_CROP_YEAR)),
+    safeQuery("COT positioning", () =>
+      getCotPositioning(grain.name, CURRENT_CROP_YEAR, 8, shippingWeek)
+    ),
     safeQuery("Logistics snapshot", () => getLogisticsSnapshot(CURRENT_CROP_YEAR, shippingWeek)),
     safeQuery("Grade distribution", () => getGradeDistribution(grain.name)),
     safeQuery("Delivery channels", () => getDeliveryChannelBreakdown(grain.name)),
@@ -200,10 +199,6 @@ export default async function GrainDetailPage({ params }: Props) {
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
   const intelligence = marketCore?.intelligence ?? null;
   const marketAnalysis = marketCore?.marketAnalysis ?? null;
-  const latestGrainWeek = getLatestGrainWeek(
-    deliverySeriesResult.error ? [] : deliverySeriesResult.data ?? [],
-    intelligence?.grain_week ?? null
-  );
   // Authenticated users (who passed the crop plan check above) default to "farmer"
   const role = roleResult.error ? "farmer" : (roleResult.data ?? "farmer");
 
@@ -277,9 +272,17 @@ export default async function GrainDetailPage({ params }: Props) {
                 <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                   {grain.name}
                 </h1>
-                {intelligence && (
+                {(intelligence || marketAnalysis) && (
                   <MarketStanceBadge
-                    stance={deriveStanceFromThesis(intelligence.thesis_title ?? "")}
+                    stance={
+                      marketAnalysis?.stance_score != null
+                        ? marketAnalysis.stance_score >= 20
+                          ? "bullish"
+                          : marketAnalysis.stance_score <= -20
+                            ? "bearish"
+                            : "neutral"
+                        : deriveStanceFromThesis(intelligence?.thesis_title ?? "")
+                    }
                     size="lg"
                   />
                 )}
@@ -633,7 +636,6 @@ export default async function GrainDetailPage({ params }: Props) {
                   message="Processor utilization data is temporarily unavailable."
                 >
                   <CrushUtilizationGauge
-                    grainName={grain.name}
                     weeklyProcessingKt={
                       wowResult.error ? 0 :
                       (wowResult.data?.metrics.find(m => m.metric === "Processing")?.thisWeek ?? 0)
@@ -664,6 +666,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 bearCase={marketAnalysis.bear_case}
                 confidence={marketAnalysis.data_confidence}
                 confidenceScore={marketAnalysis.confidence_score ?? undefined}
+                stanceScore={marketAnalysis.stance_score}
                 finalAssessment={marketAnalysis.final_assessment ?? undefined}
               />
             </SectionBoundary>
@@ -824,21 +827,6 @@ function buildNetBalanceData(pipelineData: CumulativeWeekRow[]): NetBalanceWeek[
   }
 
   return result;
-}
-
-function getLatestGrainWeek(
-  deliveries: Array<{ grain_week: number }>,
-  intelligenceWeek: number | null
-): number {
-  if (deliveries.length > 0) {
-    return Math.max(...deliveries.map((delivery) => delivery.grain_week));
-  }
-
-  if (intelligenceWeek) {
-    return intelligenceWeek;
-  }
-
-  return getCurrentGrainWeek();
 }
 
 function GrainLockedView({ grain }: { grain: string }) {

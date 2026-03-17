@@ -34,7 +34,7 @@ import {
 } from "../../../lib/cot-market-structure.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
-const MODEL = "grok-4.20-beta-0309-reasoning";
+const MODEL = "grok-4-1-fast-reasoning";
 
 Deno.serve(async (req) => {
   const authError = requireInternalRequest(req);

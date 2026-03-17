@@ -36,7 +36,7 @@ import {
 } from "./knowledge-lib";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "stepfun/step-3.5-flash:free";
+const DEFAULT_MODEL = "stepfun/step-3.5-flash:free";
 const DEFAULT_VISION_MODEL = "google/gemma-3-27b-it:free";
 const VISION_FALLBACK_MODELS = [
   "google/gemma-3-12b-it:free",
@@ -113,32 +113,100 @@ function truncateWords(text: string, maxWords: number): string {
   return `${words.slice(0, maxWords).join(" ")}...`;
 }
 
-function consolidatePacketDistillations(
+/** Max packets per batch when doing batched LLM merge (keeps prompt under ~60K chars). */
+const MERGE_BATCH_SIZE = 10;
+
+/**
+ * Merge packet distillations via LLM in batches, then merge the batch results.
+ * For small packet counts (<=MERGE_BATCH_SIZE), does a single LLM merge.
+ * For large counts, batches packets first, then merges the batch summaries.
+ */
+async function mergePacketDistillations(
   title: string,
+  sourcePath: string,
   packetDistillations: PacketDistillation[],
-): FinalDistillation {
-  const packetSummaries = packetDistillations
-    .map((packet) => packet.packet_summary?.trim())
-    .filter(Boolean) as string[];
+): Promise<{ final: FinalDistillation; usage: { prompt_tokens: number; completion_tokens: number } }> {
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+
+  if (packetDistillations.length <= MERGE_BATCH_SIZE) {
+    // Single merge — all packets fit in one prompt
+    const { jsonText, usage } = await callStepFinalMerge(title, sourcePath, packetDistillations);
+    totalPromptTokens += usage.prompt_tokens ?? 0;
+    totalCompletionTokens += usage.completion_tokens ?? 0;
+    return { final: JSON.parse(jsonText) as FinalDistillation, usage: { prompt_tokens: totalPromptTokens, completion_tokens: totalCompletionTokens } };
+  }
+
+  // Batched merge: split into batches, merge each, then merge the results
+  console.error(`  Batched merge: ${packetDistillations.length} packets in ${Math.ceil(packetDistillations.length / MERGE_BATCH_SIZE)} batches`);
+  const batchResults: PacketDistillation[] = [];
+  for (let i = 0; i < packetDistillations.length; i += MERGE_BATCH_SIZE) {
+    const batch = packetDistillations.slice(i, i + MERGE_BATCH_SIZE);
+    const batchNum = Math.floor(i / MERGE_BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(packetDistillations.length / MERGE_BATCH_SIZE);
+    console.error(`  Batch ${batchNum}/${totalBatches} (${batch.length} packets)`);
+    const { jsonText, usage } = await callStepFinalMerge(title, sourcePath, batch);
+    totalPromptTokens += usage.prompt_tokens ?? 0;
+    totalCompletionTokens += usage.completion_tokens ?? 0;
+    // Treat the batch merge result as a "super-packet" for the final merge
+    const batchFinal = JSON.parse(jsonText) as FinalDistillation;
+    batchResults.push({
+      packet_summary: batchFinal.executive_summary,
+      farmer_takeaways: batchFinal.farmer_takeaways,
+      market_heuristics: batchFinal.market_heuristics,
+      risk_watchouts: batchFinal.risk_watchouts,
+      grain_tags: batchFinal.grain_focus,
+      topic_tags: batchFinal.topic_tags,
+      region_tags: batchFinal.region_tags,
+      evidence_highlights: batchFinal.evidence_highlights,
+    } as PacketDistillation);
+  }
+
+  // Final merge of all batch results
+  console.error(`  Final merge of ${batchResults.length} batch summaries`);
+  const { jsonText, usage } = await callStepFinalMerge(title, sourcePath, batchResults);
+  totalPromptTokens += usage.prompt_tokens ?? 0;
+  totalCompletionTokens += usage.completion_tokens ?? 0;
+  return { final: JSON.parse(jsonText) as FinalDistillation, usage: { prompt_tokens: totalPromptTokens, completion_tokens: totalCompletionTokens } };
+}
+
+/**
+ * Generate L0/L1/L2 tiered summaries from the final distillation.
+ * L0: ~100 tokens — one-sentence essence for retrieval ranking
+ * L1: ~500 tokens — key takeaways for context loading
+ * L2: full distillation markdown
+ */
+async function generateTieredSummaries(
+  final: FinalDistillation,
+): Promise<{ l0: string; l1: string; usage: { prompt_tokens: number; completion_tokens: number } }> {
+  const l0Prompt = `Summarize this grain knowledge distillation in exactly ONE sentence (under 30 words) that captures the most actionable insight for a prairie farmer. Output JSON: {"l0": "sentence"}
+
+Title: ${final.title}
+Summary: ${final.executive_summary}
+Key takeaways: ${(final.farmer_takeaways ?? []).slice(0, 3).join("; ")}`;
+
+  const l1Prompt = `Summarize this grain knowledge distillation in 3-5 bullet points (under 150 words total) focused on actionable insights for western Canadian grain farmers. Output JSON: {"l1": "bullet points as a single string with newlines"}
+
+Title: ${final.title}
+Summary: ${final.executive_summary}
+Takeaways: ${(final.farmer_takeaways ?? []).join("\n- ")}
+Heuristics: ${(final.market_heuristics ?? []).map(h => `${h.title}: ${h.body}`).join("\n")}`;
+
+  const [l0Result, l1Result] = await Promise.all([
+    callStep(l0Prompt, 200),
+    callStep(l1Prompt, 600),
+  ]);
+
+  const l0 = (JSON.parse(l0Result.jsonText) as { l0: string }).l0 || "";
+  const l1 = (JSON.parse(l1Result.jsonText) as { l1: string }).l1 || "";
 
   return {
-    title,
-    executive_summary: truncateWords(packetSummaries.slice(0, 3).join(" "), 180),
-    farmer_takeaways: dedupe(packetDistillations.flatMap((packet) => packet.farmer_takeaways ?? [])).slice(0, 8),
-    market_heuristics: takeUniqueObjects(
-      packetDistillations.flatMap((packet) => packet.market_heuristics ?? []),
-      (item) => `${item.title}::${item.body}`,
-      8,
-    ),
-    risk_watchouts: dedupe(packetDistillations.flatMap((packet) => packet.risk_watchouts ?? [])).slice(0, 8),
-    grain_focus: dedupe(packetDistillations.flatMap((packet) => packet.grain_tags ?? [])).slice(0, 8),
-    topic_tags: dedupe(packetDistillations.flatMap((packet) => packet.topic_tags ?? [])).slice(0, 12),
-    region_tags: dedupe(packetDistillations.flatMap((packet) => packet.region_tags ?? [])).slice(0, 12),
-    evidence_highlights: takeUniqueObjects(
-      packetDistillations.flatMap((packet) => packet.evidence_highlights ?? []),
-      (item) => `${item.source_locator}::${item.takeaway}`,
-      12,
-    ),
+    l0,
+    l1,
+    usage: {
+      prompt_tokens: (l0Result.usage.prompt_tokens ?? 0) + (l1Result.usage.prompt_tokens ?? 0),
+      completion_tokens: (l0Result.usage.completion_tokens ?? 0) + (l1Result.usage.completion_tokens ?? 0),
+    },
   };
 }
 
@@ -159,6 +227,8 @@ Usage:
   npm run distill-knowledge -- --enable-local-ocr          Run local OCR before classifying weak PDFs (slow)
   npm run distill-knowledge -- --allow-paid-pdf-parser-fallback  Use OpenRouter's paid PDF parser if vision rescue fails
   npm run distill-knowledge -- --skip-low-yield-rescue     Skip PDF rescue and leave weak PDFs excluded
+  npm run distill-knowledge -- --model <id>                 Override distillation model (e.g. google/gemini-2.0-flash-001)
+  npm run distill-knowledge -- --engine gemini              Use Gemini CLI instead of OpenRouter (bypasses rate limits)
   npm run distill-knowledge -- --force                     Regenerate even if source hash has not changed
   npm run distill-knowledge -- --help                      Show this help
 
@@ -186,12 +256,20 @@ const ALLOW_LOW_YIELD = args.includes("--allow-low-yield");
 const RESCUE_LOW_YIELD = !args.includes("--skip-low-yield-rescue");
 const ENABLE_LOCAL_OCR = args.includes("--enable-local-ocr");
 const ALLOW_PAID_PDF_PARSER_FALLBACK = args.includes("--allow-paid-pdf-parser-fallback");
+const engineArgIndex = args.indexOf("--engine");
+const ENGINE = engineArgIndex !== -1 ? args[engineArgIndex + 1]?.toLowerCase() : "openrouter";
+if (ENGINE !== "openrouter" && ENGINE !== "gemini") {
+  console.error("ERROR: --engine must be 'openrouter' or 'gemini'");
+  process.exit(1);
+}
 const dirArgIndex = args.indexOf("--dir");
 const limitArgIndex = args.indexOf("--limit");
 const matchArgIndex = args.indexOf("--match");
+const modelArgIndex = args.indexOf("--model");
 const directoryOverride = dirArgIndex !== -1 ? args[dirArgIndex + 1] : null;
 const documentLimit = limitArgIndex !== -1 ? Number(args[limitArgIndex + 1]) : null;
 const matchFilter = matchArgIndex !== -1 ? args[matchArgIndex + 1]?.toLowerCase() : null;
+const modelOverride = modelArgIndex !== -1 ? args[modelArgIndex + 1] : null;
 
 if (documentLimit !== null && (!Number.isInteger(documentLimit) || documentLimit <= 0)) {
   console.error("ERROR: --limit must be a positive integer");
@@ -202,6 +280,7 @@ loadEnvFile(resolve(__dirname, "../.env.local"));
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const KNOWLEDGE_DIR = directoryOverride ? resolve(directoryOverride) : DEFAULT_RAW_KNOWLEDGE_DIR;
+const MODEL = modelOverride ?? process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL;
 const VISION_MODEL = process.env.OPENROUTER_VISION_MODEL ?? DEFAULT_VISION_MODEL;
 
 if (ENABLE_LOCAL_OCR) {
@@ -336,47 +415,155 @@ function renderPdfPages(filePath: string, outputDir: string, startPage: number, 
   }));
 }
 
-async function callStep(prompt: string, maxTokens: number) {
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://bushelboard.ca",
-      "X-Title": "Bushel Board Knowledge Distiller",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You distill commodity and grain marketing source material for western Canadian prairie farmers. Return only valid JSON with no markdown wrapper. Preserve nuance, do not invent facts, and prefer practical marketing implications over academic trivia.",
-        },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: maxTokens,
-    }),
-  });
+/** Call Gemini CLI as an alternative distillation engine.
+ * Uses a temp file piped via stdin to avoid Windows command-line length limits (~32K chars). */
+async function callStepGemini(
+  prompt: string,
+  _maxTokens: number,
+): Promise<{
+  jsonText: string;
+  usage: { prompt_tokens: number | null; completion_tokens: number | null; total_tokens: number | null };
+}> {
+  const systemInstruction =
+    "You distill commodity and grain marketing source material for western Canadian prairie farmers. Return only valid JSON with no markdown wrapper, no ```json fences. Preserve nuance, do not invent facts, and prefer practical marketing implications over academic trivia.";
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${response.status}: ${errText.slice(0, 300)}`);
+  const fullPrompt = `${systemInstruction}\n\n${prompt}`;
+
+  // Write prompt to temp file to avoid Windows 32K command-line limit
+  const tmpDir = resolve(DEFAULT_KNOWLEDGE_TMP_DIR, "gemini-prompts");
+  mkdirSync(tmpDir, { recursive: true });
+  const tmpFile = resolve(tmpDir, `prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
+  writeFileSync(tmpFile, fullPrompt, "utf8");
+
+  try {
+    // Pipe the temp file to gemini via stdin; -p "" tells Gemini to read stdin
+    const result = spawnSync("bash", ["-c", `cat "${tmpFile.replace(/\\/g, "/")}" | gemini -p ""`], {
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024, // 20 MB
+      timeout: 5 * 60 * 1000, // 5 min timeout per call
+    });
+
+    if (result.error) {
+      throw new Error(`Gemini CLI error: ${result.error.message}`);
+    }
+
+    if (result.status !== 0) {
+      const errMsg = (result.stderr || result.stdout || "unknown error").slice(0, 500);
+      throw new Error(`Gemini CLI exited with code ${result.status}: ${errMsg}`);
+    }
+
+    const raw = (result.stdout || "").trim();
+    if (!raw) {
+      throw new Error("Gemini CLI returned empty response");
+    }
+
+    const jsonText = extractJsonObject(raw);
+    return {
+      jsonText,
+      usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null },
+    };
+  } finally {
+    // Clean up temp file
+    try { rmSync(tmpFile); } catch { /* ignore */ }
+  }
+}
+
+/** Fallback free models to try when the primary model is rate-limited. */
+const FALLBACK_MODELS = [
+  "openrouter/healer-alpha",
+  "stepfun/step-3.5-flash:free",
+];
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 15000;
+
+async function callStep(prompt: string, maxTokens: number, overrideModel?: string) {
+  // Delegate to Gemini CLI when --engine gemini is set
+  if (ENGINE === "gemini") {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const result = await callStepGemini(prompt, maxTokens);
+        // Validate it's parseable JSON
+        JSON.parse(result.jsonText);
+        return result;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`  Gemini attempt ${attempt + 1}/${MAX_RETRIES} failed: ${msg.slice(0, 200)}`);
+        if (attempt < MAX_RETRIES - 1) {
+          console.error(`  Retrying in 5s...`);
+          await new Promise((r) => setTimeout(r, 5000));
+        }
+      }
+    }
+    throw new Error("Gemini CLI failed after all retries");
   }
 
-  const payload = await response.json();
-  const content = payload.choices?.[0]?.message?.content ?? "";
-  const usage = payload.usage ?? {};
+  const modelsToTry = overrideModel
+    ? [overrideModel]
+    : [MODEL, ...FALLBACK_MODELS.filter((m) => m !== MODEL)];
 
-  return {
-    jsonText: extractJsonObject(content),
-    usage: {
-      prompt_tokens: usage.prompt_tokens ?? null,
-      completion_tokens: usage.completion_tokens ?? null,
-      total_tokens: usage.total_tokens ?? null,
-    },
-  };
+  for (const modelId of modelsToTry) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://bushelboard.ca",
+          "X-Title": "Bushel Board Knowledge Distiller",
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You distill commodity and grain marketing source material for western Canadian prairie farmers. Return only valid JSON with no markdown wrapper. Preserve nuance, do not invent facts, and prefer practical marketing implications over academic trivia.",
+            },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: maxTokens,
+        }),
+      });
+
+      if (response.ok) {
+        const payload = await response.json();
+        const content = payload.choices?.[0]?.message?.content ?? "";
+        const usage = payload.usage ?? {};
+        try {
+          return {
+            jsonText: extractJsonObject(content),
+            usage: {
+              prompt_tokens: usage.prompt_tokens ?? null,
+              completion_tokens: usage.completion_tokens ?? null,
+              total_tokens: usage.total_tokens ?? null,
+            },
+          };
+        } catch (jsonError) {
+          // Model returned non-JSON — retry with same model
+          console.error(`  ${modelId} returned non-JSON (attempt ${attempt + 1}/${MAX_RETRIES}), retrying...`);
+          continue;
+        }
+      }
+
+      const errText = await response.text();
+      if (response.status === 429 || response.status === 502 || response.status === 503) {
+        console.error(`  ${response.status} on ${modelId} (attempt ${attempt + 1}/${MAX_RETRIES}), waiting ${RETRY_DELAY_MS / 1000}s...`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+
+      // For non-retryable errors (402, 404), try next model
+      if (response.status === 402 || response.status === 404) {
+        console.error(`  ${modelId} unavailable (${response.status}), trying next model...`);
+        break;
+      }
+
+      throw new Error(`OpenRouter ${response.status}: ${errText.slice(0, 300)}`);
+    }
+  }
+
+  throw new Error(`All models exhausted after retries. Last model tried: ${modelsToTry[modelsToTry.length - 1]}`);
 }
 
 async function callStepFinalMerge(
@@ -711,6 +898,8 @@ function renderMarkdown(options: {
   packetCount: number;
   modelUsed: string;
   warnings: string[];
+  l0Summary?: string;
+  l1Summary?: string;
 }) {
   const { final } = options;
   const lines: string[] = [
@@ -725,6 +914,17 @@ function renderMarkdown(options: {
     `Packet Count: ${options.packetCount}`,
     `Extraction Warnings: ${options.warnings.length > 0 ? options.warnings.join(", ") : "none"}`,
     "",
+  ];
+
+  // L0/L1 tiered summaries (for retrieval ranking and context loading)
+  if (options.l0Summary) {
+    lines.push("## L0 Summary (Retrieval Ranking)", options.l0Summary, "");
+  }
+  if (options.l1Summary) {
+    lines.push("## L1 Summary (Context Loading)", options.l1Summary, "");
+  }
+
+  lines.push(
     "## Executive Summary",
     final.executive_summary,
     "",
@@ -746,7 +946,7 @@ function renderMarkdown(options: {
     "## Evidence Highlights",
     ...final.evidence_highlights.map((item) => `- [${item.source_locator}] ${item.takeaway}`),
     "",
-  ];
+  );
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
 }
@@ -762,10 +962,13 @@ async function distillKnowledge() {
   );
   const selectedFiles = documentLimit ? filteredFiles.slice(0, documentLimit) : filteredFiles;
 
-  if (!DRY_RUN && !OPENROUTER_API_KEY) {
-    console.error("ERROR: OPENROUTER_API_KEY must be set.");
+  if (!DRY_RUN && ENGINE === "openrouter" && !OPENROUTER_API_KEY) {
+    console.error("ERROR: OPENROUTER_API_KEY must be set (or use --engine gemini).");
     process.exit(1);
   }
+
+  console.error(`Engine: ${ENGINE}${ENGINE === "gemini" ? " (Gemini CLI)" : ` / Model: ${MODEL}${modelOverride ? " (--model override)" : ""}`}`);
+  console.error(`Knowledge dir: ${KNOWLEDGE_DIR}`);
 
   mkdirSync(DEFAULT_DISTILLATION_DIR, { recursive: true });
 
@@ -960,7 +1163,10 @@ async function distillKnowledge() {
           finalDistillation = JSON.parse(mergeResponse.jsonText) as FinalDistillation;
         } catch (mergeError) {
           console.error(`  Step merge fallback triggered: ${String(mergeError)}`);
-          finalDistillation = consolidatePacketDistillations(document.title, packetDistillations);
+          const fallbackMerge = await mergePacketDistillations(document.title, document.sourcePath, packetDistillations);
+          finalDistillation = fallbackMerge.final;
+          promptTokens += fallbackMerge.usage.prompt_tokens;
+          completionTokens += fallbackMerge.usage.completion_tokens;
         }
       } catch (visionError) {
         if (!ALLOW_PAID_PDF_PARSER_FALLBACK) {
@@ -990,34 +1196,65 @@ async function distillKnowledge() {
 
       for (const packet of packets) {
         console.error(`  Packet ${packet.packetIndex}/${packets.length}`);
-        const { jsonText, usage } = await callStep(
-          buildPacketPrompt({
-            title: document.title,
-            sourcePath: document.sourcePath,
-            packetIndex: packet.packetIndex,
-            packetCount: packets.length,
-            packetText: packet.text,
-          }),
-          MAX_PACKET_OUTPUT_TOKENS,
-        );
-
-        packetDistillations.push(JSON.parse(jsonText) as PacketDistillation);
-        promptTokens += usage.prompt_tokens ?? 0;
-        completionTokens += usage.completion_tokens ?? 0;
+        let parsed = false;
+        for (let parseAttempt = 0; parseAttempt < 3 && !parsed; parseAttempt++) {
+          const { jsonText, usage } = await callStep(
+            buildPacketPrompt({
+              title: document.title,
+              sourcePath: document.sourcePath,
+              packetIndex: packet.packetIndex,
+              packetCount: packets.length,
+              packetText: packet.text,
+            }),
+            MAX_PACKET_OUTPUT_TOKENS,
+          );
+          promptTokens += usage.prompt_tokens ?? 0;
+          completionTokens += usage.completion_tokens ?? 0;
+          try {
+            packetDistillations.push(JSON.parse(jsonText) as PacketDistillation);
+            parsed = true;
+          } catch (parseError) {
+            console.error(`  Malformed JSON on packet ${packet.packetIndex} (attempt ${parseAttempt + 1}/3), retrying...`);
+          }
+        }
+        if (!parsed) {
+          console.error(`  Skipping packet ${packet.packetIndex} after 3 parse failures`);
+        }
       }
-      finalDistillation = consolidatePacketDistillations(document.title, packetDistillations);
+      console.error(`  Merging ${packetDistillations.length} packet distillations via LLM...`);
+      const mergeResult = await mergePacketDistillations(document.title, document.sourcePath, packetDistillations);
+      finalDistillation = mergeResult.final;
+      promptTokens += mergeResult.usage.prompt_tokens;
+      completionTokens += mergeResult.usage.completion_tokens;
     }
+    // Normalize — dedupe but preserve all items from LLM merge (no arbitrary .slice truncation)
     const normalizedFinal: FinalDistillation = {
       title: finalDistillation.title || document.title,
       executive_summary: finalDistillation.executive_summary || "",
-      farmer_takeaways: dedupe(finalDistillation.farmer_takeaways ?? []).slice(0, 8),
-      market_heuristics: (finalDistillation.market_heuristics ?? []).slice(0, 8),
-      risk_watchouts: dedupe(finalDistillation.risk_watchouts ?? []).slice(0, 8),
-      grain_focus: dedupe(finalDistillation.grain_focus ?? []).slice(0, 8),
-      topic_tags: dedupe(finalDistillation.topic_tags ?? []).slice(0, 12),
-      region_tags: dedupe(finalDistillation.region_tags ?? []).slice(0, 12),
-      evidence_highlights: (finalDistillation.evidence_highlights ?? []).slice(0, 12),
+      farmer_takeaways: dedupe(finalDistillation.farmer_takeaways ?? []),
+      market_heuristics: finalDistillation.market_heuristics ?? [],
+      risk_watchouts: dedupe(finalDistillation.risk_watchouts ?? []),
+      grain_focus: dedupe(finalDistillation.grain_focus ?? []),
+      topic_tags: dedupe(finalDistillation.topic_tags ?? []),
+      region_tags: dedupe(finalDistillation.region_tags ?? []),
+      evidence_highlights: finalDistillation.evidence_highlights ?? [],
     };
+
+    // Generate L0/L1/L2 tiered summaries
+    let l0Summary = "";
+    let l1Summary = "";
+    if (!DRY_RUN) {
+      console.error(`  Generating L0/L1 tiered summaries...`);
+      try {
+        const tiered = await generateTieredSummaries(normalizedFinal);
+        l0Summary = tiered.l0;
+        l1Summary = tiered.l1;
+        promptTokens += tiered.usage.prompt_tokens;
+        completionTokens += tiered.usage.completion_tokens;
+      } catch (tierError) {
+        console.error(`  L0/L1 generation failed (non-fatal): ${String(tierError)}`);
+      }
+    }
 
     writeFileSync(
       markdownPath,
@@ -1029,6 +1266,8 @@ async function distillKnowledge() {
         packetCount: shouldRescueLowYield ? visionPackets.length : packets.length,
         modelUsed: distillationMode === "vision_page_packets" && visionModelUsed ? `${visionModelUsed} + ${MODEL}` : MODEL,
         warnings,
+        l0Summary,
+        l1Summary,
       }),
       "utf-8",
     );
@@ -1047,6 +1286,8 @@ async function distillKnowledge() {
         pdf_rescue_engine: pdfRescueEngine,
         vision_model_used: visionModelUsed,
         cached_vision_packets: cachedVisionPackets,
+        l0_summary: l0Summary || null,
+        l1_summary: l1Summary || null,
         warnings,
         generated_at: new Date().toISOString(),
         output_markdown_path: markdownPath.replaceAll("\\", "/"),

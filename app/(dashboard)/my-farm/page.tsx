@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { getFarmSummary, getGrainIntelligence } from "@/lib/queries/intelligence";
+import { getFarmSummary, getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
+import type { MarketAnalysis } from "@/lib/queries/intelligence";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
 import { getGrainOverview } from "@/lib/queries/grains";
@@ -88,23 +89,27 @@ export default async function MyFarmPage() {
               return { grain: p.grain, vote };
             })()
           : Promise.resolve({ grain: p.grain, vote: null }),
+        getMarketAnalysis(p.grain),
       ]),
     ]);
 
-  // Parse intelligence results and user votes from interleaved array
+  // Parse intelligence results, user votes, and market analysis from interleaved array
   const intelligenceMap: Record<string, Awaited<ReturnType<typeof getGrainIntelligence>>> = {};
   const initialVotes: Record<string, number | null> = {};
+  const marketAnalysisMap: Record<string, MarketAnalysis | null> = {};
 
   for (let i = 0; i < plans.length; i++) {
-    const intel = intelligenceAndVotes[i * 2] as Awaited<
+    const intel = intelligenceAndVotes[i * 3] as Awaited<
       ReturnType<typeof getGrainIntelligence>
     >;
-    const voteResult = intelligenceAndVotes[i * 2 + 1] as {
+    const voteResult = intelligenceAndVotes[i * 3 + 1] as {
       grain: string;
       vote: number | null;
     };
+    const ma = intelligenceAndVotes[i * 3 + 2] as MarketAnalysis | null;
     intelligenceMap[plans[i].grain] = intel;
     initialVotes[voteResult.grain] = voteResult.vote;
+    marketAnalysisMap[plans[i].grain] = ma;
   }
 
   // Build market supply map
@@ -140,7 +145,10 @@ export default async function MyFarmPage() {
 
   for (const plan of plans) {
     const intel = intelligenceMap[plan.grain];
-    const marketStance = deriveStanceFromThesis(intel?.thesis_body);
+    const ma = marketAnalysisMap[plan.grain];
+    const marketStance = ma?.stance_score != null
+      ? (ma.stance_score >= 20 ? "bullish" : ma.stance_score <= -20 ? "bearish" : "neutral")
+      : deriveStanceFromThesis(intel?.thesis_body);
     const startingGrain = Number(plan.starting_grain_kt ?? 0);
     const remainingToSell = Number(plan.volume_left_to_sell_kt ?? 0);
     const contracted = Number(plan.contracted_kt ?? 0);
@@ -158,6 +166,7 @@ export default async function MyFarmPage() {
 
     const rec = deriveRecommendation({
       marketStance,
+      stanceScore: ma?.stance_score ?? null,
       deliveryPacePct,
       contractedPct,
       uncontractedKt: uncontracted,

@@ -1,6 +1,10 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { WoWComparison } from "@/lib/queries/observations";
 
+const POSITIVE_TREND_CLASS = "text-prairie";
+const NEGATIVE_TREND_CLASS = "text-[#d91c1c]";
+const NEUTRAL_TREND_CLASS = "text-muted-foreground";
+
 interface WoWComparisonCardProps {
   data: WoWComparison;
 }
@@ -39,10 +43,10 @@ export function WoWComparisonCard({ data }: WoWComparisonCardProps) {
           const isNeutral = m.changeKt === 0;
 
           const colorClass = isPositive
-            ? "text-prairie"
+            ? POSITIVE_TREND_CLASS
             : isNegative
-              ? "text-amber-500"
-              : "text-muted-foreground";
+              ? NEGATIVE_TREND_CLASS
+              : NEUTRAL_TREND_CLASS;
 
           return (
             <div
