@@ -168,6 +168,7 @@ export async function buildChatContext(
           contract: latest.contract,
           exchange: latest.exchange,
           currency: latest.currency,
+          unit: latest.unit,
           price_date: latest.price_date,
         };
       }),

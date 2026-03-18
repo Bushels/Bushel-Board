@@ -166,6 +166,7 @@ function buildBenchmarkContext(grain: string, knowledgeText: string | null, deci
         contract: "Jul 2026",
         exchange: "ICE",
         currency: "CAD",
+        unit: "CAD/tonne",
         price_date: "2026-03-14",
       },
     ],

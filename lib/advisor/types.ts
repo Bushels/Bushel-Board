@@ -36,6 +36,7 @@ export interface GrainPriceContext {
   contract: string;
   exchange: string;
   currency: string;
+  unit: string;
   price_date: string;
 }
 

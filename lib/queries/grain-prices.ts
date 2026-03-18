@@ -8,6 +8,7 @@ export interface GrainPrice {
   contract: string;
   exchange: string;
   currency: string;
+  unit: string;
 }
 
 export async function getRecentPrices(
@@ -18,7 +19,7 @@ export async function getRecentPrices(
 
   const { data, error } = await supabase
     .from("grain_prices")
-    .select("price_date, settlement_price, change_amount, change_pct, contract, exchange, currency")
+    .select("price_date, settlement_price, change_amount, change_pct, contract, exchange, currency, unit")
     .eq("grain", grainName)
     .order("price_date", { ascending: false })
     .limit(days);
@@ -36,5 +37,6 @@ export async function getRecentPrices(
     contract: String(r.contract),
     exchange: String(r.exchange),
     currency: String(r.currency),
+    unit: String(r.unit),
   }));
 }

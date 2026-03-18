@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-17
+Last updated: 2026-03-18
 
 ## Feature Tracks
 
@@ -38,6 +38,7 @@ Last updated: 2026-03-17
 | 29 | Unified Grok 4.1 Fast Migration | Complete | 2026-03-16 | `supabase/functions/analyze-market-data/index.ts`, `supabase/functions/generate-intelligence/index.ts`, `lib/advisor/openrouter-client.ts`, `app/api/advisor/chat/route.ts`, `lib/advisor/system-prompt.ts` |
 | 30 | Stance Spectrum Meter & Confidence Gauge | Complete | 2026-03-16 | `components/dashboard/bull-bear-cards.tsx`, `components/dashboard/recommendation-card.tsx`, `lib/utils/recommendations.ts`, `supabase/migrations/20260316130000_add_stance_score.sql` |
 | 31 | Pipeline v2: Senior Analyst (single-pass) | Complete | 2026-03-17 | `supabase/functions/analyze-grain-market/`, `lib/shipping-calendar.ts`, `lib/data-brief.ts`, `lib/analyst-prompt.ts` |
+| 32 | Live Grain Futures Prices (Phase A) | Complete | 2026-03-18 | `scripts/import-grain-prices.ts`, `lib/queries/grain-prices.ts`, `supabase/migrations/20260318120000_add_grain_prices_unit.sql` |
 
 ### 2026-03-17 — Pipeline v2: Senior Analyst Single-Pass Architecture (Track 31)
 
