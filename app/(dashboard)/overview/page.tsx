@@ -1,12 +1,15 @@
 import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
 import { MarketSnapshotGrid } from "@/components/dashboard/market-snapshot-grid";
+import { MarketStanceChart } from "@/components/dashboard/market-stance-chart";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { LogisticsBanner } from "@/components/dashboard/logistics-banner";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { getUserRole } from "@/lib/auth/role-guard";
 import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { getMarketOverviewSnapshot } from "@/lib/queries/market-overview";
+import { getMarketStances } from "@/lib/queries/market-stance";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
 import { getLogisticsSnapshotRaw, getAggregateTerminalFlow } from "@/lib/queries/logistics";
 import { getLatestXSignals } from "@/lib/queries/x-signals";
@@ -25,17 +28,39 @@ export default async function OverviewPage() {
   const grainContext = await getUnlockedGrainContext();
   const grainWeek = await getLatestImportedWeek();
 
-  const [marketResult, sentimentResult, signalsResult, userRole, logisticsResult, aggregateFlowResult] = await Promise.all([
+  const [marketResult, sentimentResult, signalsResult, userRole, logisticsResult, aggregateFlowResult, stancesResult] = await Promise.all([
     safeQuery("Market overview snapshot", () => getMarketOverviewSnapshot()),
     safeQuery("Farmer sentiment", () => getSentimentOverview(CURRENT_CROP_YEAR, grainWeek)),
     safeQuery("Market signal tape", () => getLatestXSignals(20)),
     getUserRole(),
     safeQuery("Logistics snapshot", () => getLogisticsSnapshotRaw(CURRENT_CROP_YEAR, grainWeek)),
     safeQuery("Aggregate terminal flow", () => getAggregateTerminalFlow()),
+    safeQuery("AI market stances", () => getMarketStances(grainWeek)),
   ]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-10 px-4 py-6">
+      {/* AI Market Stance — top of page, most actionable at-a-glance view */}
+      {stancesResult.data && stancesResult.data.length > 0 && (
+        <section>
+          <SectionHeader
+            title="AI Market Stance"
+            subtitle="Weekly bullish/bearish scoring across prairie grains with price context"
+          />
+          <div className="mt-4">
+            <GlassCard elevation={2} hover={false}>
+              <div className="p-5">
+                <MarketStanceChart
+                  stances={stancesResult.data}
+                  grainWeek={grainWeek}
+                  updatedAt={stancesResult.data[0]?.cashPrice ? new Date().toISOString() : null}
+                />
+              </div>
+            </GlassCard>
+          </div>
+        </section>
+      )}
+
       <SectionBoundary
         title="Market snapshot unavailable"
         message="The market totals snapshot is temporarily unavailable. Community data is still live."

@@ -1,8 +1,8 @@
 # Agent Debate Rules — Continuous Improvement Reference
 
-**Purpose:** Codified rules derived from moderation of Grok vs Step 3.5 Flash debates. These rules should be injected into agent system prompts or used as a validation checklist post-generation.
+**Purpose:** Codified rules derived from moderation of AI-vs-AI debates. Used as a validation checklist for intelligence generation and manual Claude-Grok debates.
 
-**Last updated:** 2026-03-13 (COT positioning rules added)
+**Last updated:** 2026-03-18 (Price Action rules + Claude-Grok manual debate protocol added)
 
 ---
 
@@ -38,9 +38,11 @@ Don't default to "watch — need 2-3 more weeks to confirm." If 2 out of 3 recen
 ## Thesis Quality Rules
 
 ### Rule 5: Never Publish Contradictory Models Without Resolution
-If Step 3.5 Flash says bearish and Grok says bullish (or vice versa), Grok's job is to RESOLVE the contradiction explicitly. The farmer must never receive two opposite recommendations.
+If Claude says bearish and Grok says bullish (or vice versa), the moderator's job is to RESOLVE the contradiction explicitly using the evidence chain. The farmer must never receive two opposite recommendations.
 
-**Template:** "The round-1 analyst called this bearish based on [X]. However, [Y evidence] suggests the opposite because [Z reasoning]. The corrected thesis is [direction] with [confidence]."
+**Template:** "Claude scored this [X] based on [evidence]. Grok challenged to [Y] because [counter-evidence]. The resolved thesis is [direction] with [confidence] because [decisive factor]."
+
+**Protocol (manual debate):** Claude forms independent thesis first → sends to Grok via xAI API → Grok responds AGREE or CHALLENGE → Claude moderates any disagreements using Rules 1-4 + Basis Signal Matrix → final score published.
 
 ### Rule 6: Always Provide a Timeline
 "Hold patient" is not actionable. "Hold for 2-3 weeks while Vancouver vessel queue (currently 26, avg 20) clears" IS actionable. Every hold/sell/wait recommendation must include:
@@ -81,6 +83,68 @@ COT data reflects Tuesday positions, released Friday. By Friday, the market may 
 
 ---
 
+## Price Action Rules
+
+### Rule 12: Cash Price Is the Farmer's Truth
+Futures prices set direction. Cash prices confirm whether it reaches the farmer. If futures rally but local cash is flat or declining, the thesis MUST acknowledge the disconnect. Never publish a bullish thesis when cash bids are falling.
+
+**Test:** Compare Friday close → Wednesday open for Bunge Moose Jaw (or equivalent elevator) cash prices. If cash moved opposite to futures, flag basis widening.
+
+**Anti-pattern:** "Canola ICE at $726 → bullish." Wrong when Moose Jaw cash is $662 and falling. The $64 basis gap means elevators have enough supply. The farmer's price is $662, not $726.
+
+### Rule 13: Basis Gap Overrides Futures Momentum
+When basis (cash - futures) widens by more than $30/t for oilseeds or $15/bu for grains within one week, it signals local oversupply regardless of futures direction. Apply the Basis Signal Matrix:
+
+| Basis Direction | Futures Direction | Signal | Farmer Action |
+|----------------|-------------------|--------|--------------|
+| Widening | Rising | Local Glut | Hedge futures, sell cash on basis narrowing |
+| Widening | Falling | Strong Bearish | Sell now, avoid storage |
+| Narrowing | Rising | Strong Bullish | Hold, delay sales |
+| Narrowing | Falling | Local Shortage | Sell cash immediately |
+| Positive (inverted) | Any | Urgency | Deliver now |
+
+### Rule 14: Dead-Flat Price = No Demand Pull
+When a grain's cash price shows zero change for 5+ consecutive trading days, the market is telling you demand is fully supplied. Do NOT rate that grain bullish regardless of export pace or YoY metrics. Flat price + good fundamentals = already priced in.
+
+**Test (Week 31 example):** Barley $232.01 unchanged all week despite +78% YoY exports → limited to +15 (not +35).
+
+### Rule 15: Price Verification Is Mandatory Before Publishing
+Every intelligence cycle must verify current prices from at least 2 sources before forming a thesis:
+1. **Futures:** CBOT/ICE/MGEX settlement prices (from grain_prices table or Yahoo Finance)
+2. **Cash:** Saskatchewan elevator bids (Bunge Moose Jaw via CKRM/GX94 radio reports, or Rayglen)
+3. **Compute basis** for every grain with a futures contract
+
+If prices are unavailable or stale (>2 trading days old), flag as low-confidence.
+
+---
+
+## Claude-Grok Manual Debate Protocol
+
+### When to Run
+- After each CGC weekly data import (Thursday)
+- After significant policy events (tariff changes, trade agreements)
+- After Grain Monitor updates (logistics data refresh)
+
+### Procedure
+1. **Claude loads context:** Knowledge chunks, commodity framework, X signals, COT data, current prices (2 sources)
+2. **Claude forms independent thesis:** Score all 10 grains with full evidence chain including price action
+3. **Send to Grok:** Via xAI API (prefer Responses API with x_search/web_search; fallback to Chat Completions)
+4. **Grok responds:** AGREE or CHALLENGE each grain with its own score + evidence
+5. **Claude moderates disagreements:** Apply Rules 1-15, Basis Signal Matrix, and book knowledge frameworks
+6. **Resolution:** Final score = evidence-weighted blend. Document which rules decided the outcome.
+7. **Price accountability:** Record cash + futures prices at time of debate for next-week accuracy check.
+
+### Debate Output Format
+For each grain:
+```
+GRAIN: [Final Score] (Δ [change from prior])
+Claude: [score] | Grok: [score] | Agreed/Resolved
+Price: [cash] / [futures] / Basis: [gap]
+Action: [one sentence]
+```
+
+---
+
 ## Grain-Specific Rules
 
 ### Canola
@@ -108,12 +172,32 @@ COT data reflects Tuesday positions, released Friday. By Friday, the market may 
 
 Before publishing any grain intelligence, verify:
 
-- [ ] **Flow coherence:** If thesis says bearish, are stocks actually BUILDING? If drawing, thesis may be wrong.
-- [ ] **Absorption computed:** Is implied weekly absorption stated somewhere in the analysis?
-- [ ] **Logistics cross-check:** Does thesis cite port/rail/producer car data when relevant?
-- [ ] **Model agreement:** Do Step 3.5 and Grok reach compatible conclusions? If not, is the disagreement resolved explicitly?
-- [ ] **Timeline present:** Does every recommendation include a timeframe and trigger event?
-- [ ] **Grain-specific rules applied:** Are oats, peas, canola, barley treated with their specific context (milling vs crush, containers vs bulk, regional vs export)?
-- [ ] **Week attribution correct:** Are CGC data and farmer sentiment attributed to their correct weeks?
-- [ ] **COT context included:** For grains with CFTC data, is managed money positioning referenced?
-- [ ] **COT lag noted:** Is COT data attributed to its Tuesday snapshot date, not treated as real-time?
+- [ ] **Flow coherence:** If thesis says bearish, are stocks actually BUILDING? If drawing, thesis may be wrong. (Rule 1)
+- [ ] **Absorption computed:** Is implied weekly absorption stated somewhere in the analysis? (Rule 2)
+- [ ] **Logistics cross-check:** Does thesis cite port/rail/producer car data when relevant? (Rule 3)
+- [ ] **Model agreement:** Do Claude and Grok reach compatible conclusions? If not, is the disagreement resolved explicitly? (Rule 5)
+- [ ] **Timeline present:** Does every recommendation include a timeframe and trigger event? (Rule 6)
+- [ ] **Grain-specific rules applied:** Are oats, peas, canola, barley treated with their specific context? (Grain-Specific section)
+- [ ] **Week attribution correct:** Are CGC data and farmer sentiment attributed to their correct weeks? (Rule 11)
+- [ ] **COT context included:** For grains with CFTC data, is managed money positioning referenced? (Rule 9)
+- [ ] **COT lag noted:** Is COT data attributed to its Tuesday snapshot date, not treated as real-time? (Rule 11)
+- [ ] **Cash price verified:** Are current cash prices from ≥2 sources included in the analysis? (Rule 15)
+- [ ] **Basis computed:** Is the cash-futures basis gap stated for every grain with a futures contract? (Rule 13)
+- [ ] **Price-thesis alignment:** If cash is flat/falling, is the thesis NOT bullish without explicit justification? (Rules 12-14)
+
+## Price Accountability Log
+
+Track prices at time of each debate for accuracy checks the following week.
+
+| Date | Grain | Debate Score | Cash Price | Futures | Basis | Next-Week Cash | Accurate? |
+|------|-------|-------------|-----------|---------|-------|---------------|-----------|
+| 2026-03-18 | Wheat | +35 | $276.25 | $5.90 | — | TBD | TBD |
+| 2026-03-18 | Canola | 0 | $662.33 | $726.66 | -$64 | TBD | TBD |
+| 2026-03-18 | Barley | +15 | $232.01 | — | — | TBD | TBD |
+| 2026-03-18 | Oats | -55 | $142.00 | $3.56 | — | TBD | TBD |
+| 2026-03-18 | Peas | +35 | $298.06 | — | — | TBD | TBD |
+| 2026-03-18 | Corn | -40 | $4.54 | $4.54 | — | TBD | TBD |
+| 2026-03-18 | Flaxseed | +50 | $670.54 | — | — | TBD | TBD |
+| 2026-03-18 | Soybeans | -30 | $11.57 | $11.57 | inverted | TBD | TBD |
+| 2026-03-18 | Amber Durum | -40 | $278.59 | — | — | TBD | TBD |
+| 2026-03-18 | Lentils | -50 | $547.50 | — | — | TBD | TBD |
