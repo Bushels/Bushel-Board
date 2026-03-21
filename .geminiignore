@@ -1,0 +1,7 @@
+# Override .gitignore for Knowledge distillation workspace
+!data/Knowledge/tmp/**
+!data/Knowledge/tmp/
+!data/Knowledge/distillations/**
+!data/Knowledge/distillations/
+!tmp-norwood-*.png
+!tmp-norwood-*.pdf

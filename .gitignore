@@ -74,3 +74,16 @@ tmp/
 scripts/__pycache__/
 *.pyc
 .claude/worktrees/
+
+# IDE
+.idea/
+
+# Temp test artifacts
+tmp-norwood-*
+
+# Proprietary knowledge content — distilled from copyrighted books (local only)
+# These files contain the "secret sauce" AI knowledge. Clone requires local copies.
+lib/knowledge/viking-l0.ts
+lib/knowledge/viking-l1.ts
+supabase/functions/_shared/viking-knowledge.ts
+supabase/functions/_shared/commodity-knowledge.ts
