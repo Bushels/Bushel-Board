@@ -23,7 +23,8 @@ Compressed snapshots of what's been delivered, most recent first.
 
 | # | Feature | Last Worked | Snapshot |
 |---|---------|-------------|---------|
-| 33 | Viking Knowledge System | 2026-03-19 | Replaced flat 7K-token static blob (3 books) with tiered L0/L1/L2 architecture (all 8 books, ~2K tokens). L0: always-loaded analyst worldview. L1: 6 topic summaries loaded by intent detection. L2: existing PostgreSQL full-text search. Zero extra LLM calls at query time. |
+| 34 | Grok 4.20 + Parallel Debate | 2026-03-21 | Upgraded to grok-4.20-reasoning. Parallel Grok+Claude analysis with divergence debate (>15 pts). Viking L0/L1 injected into both models. 72 web/X searches, 10 debate rounds, Gemini QC validated. |
+| 33 | Viking Knowledge System | 2026-03-19 | Replaced flat 7K-token static blob (3 books) with tiered L0/L1/L2 architecture (all 8 books, ~2K tokens). L0: always-loaded analyst worldview. L1: 7 topic summaries loaded by intent detection. L2: existing PostgreSQL full-text search. Zero extra LLM calls at query time. |
 | 32 | Live Grain Futures Prices | 2026-03-18 | Yahoo Finance import for Wheat/Corn/Oats/Soybeans. Canola + Spring Wheat unavailable — need Barchart API. |
 | 31 | Pipeline v2: Senior Analyst | 2026-03-17 | Single-pass Grok with native web/x search replaces dual-LLM chain. Pre-computed ratios, shipping calendar, research tiers. 27 tests. |
 | 30 | Stance Spectrum Meter | 2026-03-16 | Gradient bar (bullish-to-bearish) driven by stance_score. Semicircle confidence gauge on recommendations. |
@@ -40,8 +41,8 @@ Compressed snapshots of what's been delivered, most recent first.
 
 ## Current Focus Areas
 
-- **AI Knowledge Quality** — Viking tiered knowledge system live. Next: benchmark Viking vs old RAG for analysis quality + token savings.
-- **AI Model Quality** — Pipeline paused while we refine Grok 4.1 analysis. Evaluating Grok 4.2 ($2.50/M vs $0.20/M input) for potential upgrade.
+- **AI Model & Debate** — Upgraded to Grok 4.20 Reasoning. Parallel Grok+Claude debate architecture live (`scripts/parallel-debate.ts`). Next: two-way rebuttal, LLM consensus judge, structured JSON debate schema.
+- **AI Knowledge Quality** — Viking L0/L1/L2 tiered knowledge system live and injected into both Edge Function and debate script. Bull/Bear 3-of-5 checklist used for score validation.
 - **My Farm Personalization** — Improving delivery tracking, contract management, and per-user summaries.
 - **Signal Quality** — Better filtering of X/Twitter data for genuine market intelligence vs noise.
 - **Farmer Advisor Chat** — Designed but not yet built. Interactive Grok chat with X search.

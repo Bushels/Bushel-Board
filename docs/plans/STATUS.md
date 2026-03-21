@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-18
+Last updated: 2026-03-21
 
 ## Feature Tracks
 
@@ -39,6 +39,8 @@ Last updated: 2026-03-18
 | 30 | Stance Spectrum Meter & Confidence Gauge | Complete | 2026-03-16 | `components/dashboard/bull-bear-cards.tsx`, `components/dashboard/recommendation-card.tsx`, `lib/utils/recommendations.ts`, `supabase/migrations/20260316130000_add_stance_score.sql` |
 | 31 | Pipeline v2: Senior Analyst (single-pass) | Complete | 2026-03-17 | `supabase/functions/analyze-grain-market/`, `lib/shipping-calendar.ts`, `lib/data-brief.ts`, `lib/analyst-prompt.ts` |
 | 32 | Live Grain Futures Prices (Phase A) | Complete | 2026-03-18 | `scripts/import-grain-prices.ts`, `lib/queries/grain-prices.ts`, `supabase/migrations/20260318120000_add_grain_prices_unit.sql` |
+| 33 | Viking Knowledge System (L0/L1/L2) | Complete | 2026-03-19 | `lib/knowledge/viking-l0.ts`, `lib/knowledge/viking-l1.ts`, `lib/knowledge/viking-retrieval.ts`, `supabase/functions/_shared/viking-knowledge.ts` |
+| 34 | Grok 4.20 Upgrade + Parallel Debate Architecture | Complete | 2026-03-21 | `supabase/functions/analyze-grain-market/index.ts`, `scripts/parallel-debate.ts`, `scripts/debate-grok-round2.ts` |
 
 ### 2026-03-17 — Pipeline v2: Senior Analyst Single-Pass Architecture (Track 31)
 
