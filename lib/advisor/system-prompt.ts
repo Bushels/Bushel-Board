@@ -1,6 +1,6 @@
 // lib/advisor/system-prompt.ts
 
-import { COMMODITY_KNOWLEDGE } from "@/lib/advisor/commodity-knowledge-extract";
+import { VIKING_L0 } from "@/lib/knowledge/viking-l0";
 import type { ChatContext } from "./types";
 
 /**
@@ -46,7 +46,7 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
     .join("\n");
 
   const knowledgeSection = ctx.knowledgeText
-    ? `## Retrieved Book Knowledge (from 7 grain marketing books)\n${ctx.knowledgeText}`
+    ? `## Grain Marketing Knowledge (from 8 source books)\n${ctx.knowledgeText}`
     : "No specific book knowledge retrieved for this query.";
   const decisionSupportSection = ctx.decisionSupportText
     ? `## Decision Guardrails\n${ctx.decisionSupportText}`
@@ -87,7 +87,7 @@ ${priceSection}
 
 ${xSignalSection}
 
-${COMMODITY_KNOWLEDGE}
+${VIKING_L0}
 
 ## Real-Time Search
 You have access to x_search. Use it when:
@@ -98,7 +98,7 @@ When you use x_search, weave the findings naturally into your kitchen-table resp
 
 ## How to Respond
 1. ANALYZE: Use only the MOST RELEVANT data to answer the farmer's specific question. Reference specific numbers from the data sections above. If a futures price is provided above, reference it.
-2. APPLY FRAMEWORKS: Apply frameworks (Basis Signal Matrix, Storage Decision Algorithm) ONLY if they appear in the Retrieved Book Knowledge section above. Do not invent or hallucinate frameworks.
+2. APPLY FRAMEWORKS: Apply frameworks (Basis Signal Matrix, Storage Decision Algorithm) ONLY if they appear in the Retrieved Book Knowledge section above. Do not invent or hallucinate frameworks. When book knowledge and your pre-training disagree on a formula or framework, defer to the book knowledge. When they disagree on current market conditions, use your real-time tools (x_search) — books are timeless principles, not live data.
 3. CHECK FLOW COHERENCE: If stocks are DRAWING while deliveries are high, the system IS absorbing supply (bullish, not bearish).
 4. PERSONALIZE: Focus on what's in the farmer's BIN — tonnes remaining, not acres planted. Reference their contracted %, delivery pace, and percentile. Acres only matter for context on scale.
 5. SENTIMENT: When referencing platform sentiment, present it as aggregate data — "the sentiment on the platform is X% holding" — not as what farmers are "thinking."

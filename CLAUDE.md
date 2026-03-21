@@ -1,10 +1,30 @@
 # Bushel Board — Prairie Grain Market Intelligence Dashboard
 
+## TL;DR — Read This First
+
+**What:** A dashboard that helps Canadian prairie farmers (AB, SK, MB) decide *"Should I haul or hold my grain this week?"*
+
+**How it works (5 layers):**
+1. **Data** — Weekly CGC grain statistics auto-imported for 16 grains (deliveries, exports, stocks, terminal flow)
+2. **AI** — Grok 4.1 Fast analyzes each grain: bull/bear thesis, stance score (-100 to +100), actionable recommendations
+3. **Viz** — Supply pipeline, YoY delivery gaps, terminal flow, CFTC positioning, price sparklines
+4. **My Farm** — Per-user AI summaries, delivery tracking, percentile comparisons, contract progress
+5. **Signals** — X/Twitter market chatter scored by AI + farmer relevance votes
+
+**Right now:** Auto-import is paused while we refine the AI model. 32 feature tracks completed (see `README.md` for compressed log). Active focus: AI quality, My Farm personalization, signal filtering.
+
+**Key files to orient yourself:**
+- `README.md` — Human-readable status with feature completion dates
+- `docs/plans/STATUS.md` — Detailed feature tracker (32 tracks)
+- `docs/plans/2026-03-04-bushel-board-mvp-design.md` — Original MVP design doc
+
+---
+
 ## Project Overview
 A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC) weekly data and displays grain statistics for prairie farmers (AB, SK, MB). MVP phase: real data pipeline, grain dashboard, email/password auth.
 
 ## Current Status
-**Phase:** MVP + Intelligence — data pipeline, AI narratives, dashboard all operational
+**Phase:** MVP + Intelligence — data pipeline, AI narratives, dashboard all operational. Auto-import paused (2026-03-17) while AI model quality is refined.
 **Design Doc:** `docs/plans/2026-03-04-bushel-board-mvp-design.md`
 **Implementation Plans:**
 - MVP: `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` (15 tasks)
@@ -235,3 +255,4 @@ All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnost
 - `docs/plans/2026-03-13-cftc-cot-integration-design.md` — CFTC COT integration design doc (implemented)
 - `docs/lessons-learned/issues.md` — Data bugs and root cause analyses
 - `docs/lessons-learned/canola-week31-debate-moderation.md` — Full evidence-based moderation of Canola Week 31 Grok vs Step 3.5 disagreement
+- `docs/reference/viking-knowledge-architecture.md` — Viking L0/L1/L2 tiered knowledge system: how distilled book knowledge reaches Grok
