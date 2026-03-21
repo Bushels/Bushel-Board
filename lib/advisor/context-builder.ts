@@ -11,9 +11,9 @@ import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 
 import {
-  retrieveAdvisorKnowledgeContext,
-  type KnowledgeRetrievalResult,
-} from "./knowledge-retrieval";
+  buildVikingAdvisorContext,
+  type VikingContextResult,
+} from "@/lib/knowledge/viking-retrieval";
 import type { ChatContext, FarmerGrainContext, GrainPriceContext, XSignalContext } from "./types";
 
 const STORAGE_QUESTION_PATTERN = /\b(store|storage|hold|haul|bin|carry)\b/i;
@@ -35,15 +35,14 @@ function formatNaturalList(values: string[]): string {
 
 export function buildStorageDecisionSupport(
   messageText: string,
-  knowledgeContext: KnowledgeRetrievalResult | null,
+  vikingContext: VikingContextResult | null,
 ): string | null {
   if (!STORAGE_QUESTION_PATTERN.test(messageText)) {
     return null;
   }
 
-  const hasStorageAlgorithm = knowledgeContext?.chunks.some(
-    (chunk) => chunk.heading === "Storage Decision Algorithm",
-  );
+  // Viking L1 includes storage algorithm when storage_carry topic is loaded
+  const hasStorageAlgorithm = vikingContext?.loadedTopics.includes("storage_carry") ?? false;
   if (!hasStorageAlgorithm) {
     return null;
   }
@@ -181,12 +180,12 @@ export async function buildChatContext(
   let knowledgeText: string | null = null;
   let decisionSupportText: string | null = null;
   if (targetGrain) {
-    const knowledgeContext = await retrieveAdvisorKnowledgeContext({
+    const vikingContext = await buildVikingAdvisorContext({
       messageText,
       grain: targetGrain,
     });
-    knowledgeText = knowledgeContext.contextText;
-    decisionSupportText = buildStorageDecisionSupport(messageText, knowledgeContext);
+    knowledgeText = vikingContext.contextText;
+    decisionSupportText = buildStorageDecisionSupport(messageText, vikingContext);
   }
 
   // Fetch recent X market signals for the target grain

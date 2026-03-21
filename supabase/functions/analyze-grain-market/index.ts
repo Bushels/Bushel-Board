@@ -15,8 +15,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
-import { COMMODITY_KNOWLEDGE } from "../_shared/commodity-knowledge.ts";
-import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
+import { buildVikingPipelineContext } from "../_shared/viking-knowledge.ts";
 import { buildShippingCalendar } from "../_shared/shipping-calendar.ts";
 import { computeAnalystRatios } from "../_shared/data-brief.ts";
 import {
@@ -25,7 +24,7 @@ import {
 } from "../_shared/market-intelligence-config.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
-const MODEL = "grok-4-1-fast-reasoning";
+const MODEL = "grok-4.20-reasoning";
 const BATCH_SIZE = 1;
 const PIPELINE_VERSION = "analyze-grain-market-v1";
 
@@ -92,8 +91,9 @@ const RESEARCH_PROTOCOL = `## Research Protocol
 
 Base your score on the weight of evidence. Do NOT default to moderate-bearish.`;
 
-function buildSystemPrompt(): string {
-  return [IDENTITY, COMMODITY_KNOWLEDGE, DATA_HYGIENE, RESEARCH_PROTOCOL].join("\n\n");
+function buildSystemPrompt(grain: string): string {
+  const vikingContext = buildVikingPipelineContext(grain);
+  return [IDENTITY, vikingContext, DATA_HYGIENE, RESEARCH_PROTOCOL].join("\n\n");
 }
 
 // -- JSON output schema (xAI structured outputs) --
@@ -296,14 +296,6 @@ Deno.serve(async (req) => {
           supabase.from("processor_capacity").select("annual_capacity_kt").eq("grain", grainName).eq("crop_year", cropYear).maybeSingle().then(r => r.data),
         ]);
 
-        // Retrieve knowledge chunks
-        const knowledgeContext = await fetchKnowledgeContext(supabase, {
-          grain: grainName,
-          task: "analyze",
-          extraTerms: ["delivery pace", "commercial stocks", "exports", "farmer sentiment", "western canada"],
-          limit: 5,
-        });
-
         // Compute analyst ratios
         const latestCot = Array.isArray(cotData) && cotData.length > 0 ? cotData[0] as Record<string, unknown> : null;
         const ratios = computeAnalystRatios({
@@ -325,15 +317,12 @@ Deno.serve(async (req) => {
         // Build data text
         const dataText = buildDataSection(grainName, cropYear, latestDataWeek, yoy, supply, sentiment, delivery, deliveriesHist, exportsHist, stocksHist, logisticsSnapshot, cotData, selfSufficiencyData, grainSignals);
 
-        // Assemble prompts
-        const systemPrompt = buildSystemPrompt();
+        // Assemble prompts (Viking L0+L1 is in system prompt, grain-specific)
+        const systemPrompt = buildSystemPrompt(grainName);
         const userPrompt = [
           shippingCalendar.promptText,
           ratios.promptSection,
           dataText,
-          knowledgeContext.contextText
-            ? `## Retrieved Grain Marketing Knowledge\n${knowledgeContext.contextText}\n\nUse this as deep context for market structure, hedging, basis, and seasonal interpretation. If it conflicts with this week's data, prefer the data and note the tension.`
-            : "No additional retrieved knowledge available. Rely on your commodity market framework and the data brief.",
           `## Research Guidance\nYou are analyzing **${grainName}** (${tier.tier} grain). Use up to ${tier.webSearches} web searches and ${tier.xSearches} X searches to research current conditions. Focus on Canadian prairie context first, then global factors.`,
           `## Task\nProduce a structured JSON market analysis for **${grainName}**, crop year ${cropYear}. Research first, then analyze the data, then conclude.`,
         ].join("\n\n");

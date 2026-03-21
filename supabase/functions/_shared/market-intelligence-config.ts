@@ -1,4 +1,4 @@
-import { COMMODITY_KNOWLEDGE } from "./commodity-knowledge.ts";
+import { VIKING_L0 } from "./viking-knowledge.ts";
 
 export const MARKET_INTELLIGENCE_VERSIONS = {
   searchSignals: "search-signals-v3",
@@ -73,7 +73,7 @@ ${DISTILLED_GRAIN_FRAMEWORK}
 
 ${CGC_DATA_GUARDRAILS}
 
-${COMMODITY_KNOWLEDGE}`;
+${VIKING_L0}`;
 }
 
 export function buildIntelligenceSystemPrompt(): string {

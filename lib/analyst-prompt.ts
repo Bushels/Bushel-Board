@@ -8,7 +8,7 @@
  * The commodity knowledge IS the guardrails.
  */
 
-import { COMMODITY_KNOWLEDGE } from "./commodity-knowledge-text";
+import { buildVikingPipelineContext } from "./knowledge/viking-retrieval";
 
 export interface GrainResearchTier {
   webSearches: number;
@@ -69,8 +69,9 @@ const RESEARCH_PROTOCOL = `## Research Protocol
 
 Base your score on the weight of evidence. Do NOT cluster around -40 to -50 by default.`;
 
-export function buildAnalystSystemPrompt(): string {
-  return [IDENTITY, COMMODITY_KNOWLEDGE, DATA_HYGIENE, RESEARCH_PROTOCOL].join(
+export function buildAnalystSystemPrompt(grain = "Wheat"): string {
+  const vikingContext = buildVikingPipelineContext(grain).contextText;
+  return [IDENTITY, vikingContext, DATA_HYGIENE, RESEARCH_PROTOCOL].join(
     "\n\n"
   );
 }

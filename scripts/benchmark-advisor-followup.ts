@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 import { buildStorageDecisionSupport } from "../lib/advisor/context-builder";
-import { retrieveAdvisorKnowledgeContext, type KnowledgeRetrievalMode } from "../lib/advisor/knowledge-retrieval";
+import { buildVikingAdvisorContext } from "../lib/knowledge/viking-retrieval";
 import { buildAdvisorSystemPrompt } from "../lib/advisor/system-prompt";
 import type { ChatContext } from "../lib/advisor/types";
 
@@ -85,7 +85,7 @@ interface FollowupBenchmarkCase {
 }
 
 interface ModeCaseResult {
-  mode: KnowledgeRetrievalMode;
+  mode: string;
   questionCount: number;
   asksFollowUp: boolean;
   followUpTermHits: string[];
@@ -250,16 +250,15 @@ function scoreCase(caseDef: FollowupBenchmarkCase, response: string, headings: s
   };
 }
 
-async function runMode(caseDef: FollowupBenchmarkCase, mode: KnowledgeRetrievalMode): Promise<ModeCaseResult> {
-  const retrieval = await retrieveAdvisorKnowledgeContext({
+async function runMode(caseDef: FollowupBenchmarkCase, mode: string): Promise<ModeCaseResult> {
+  const retrieval = await buildVikingAdvisorContext({
     messageText: caseDef.question,
     grain: caseDef.grain,
-    mode,
   });
   const decisionSupportText = buildStorageDecisionSupport(caseDef.question, retrieval);
   const ctx = buildBenchmarkContext(caseDef.grain, retrieval.contextText, decisionSupportText);
   const response = await askAdvisor(caseDef.question, ctx);
-  const scored = scoreCase(caseDef, response, retrieval.chunks.map((chunk) => chunk.heading ?? ""));
+  const scored = scoreCase(caseDef, response, retrieval.loadedTopics);
 
   return {
     mode,
@@ -270,7 +269,7 @@ async function runMode(caseDef: FollowupBenchmarkCase, mode: KnowledgeRetrievalM
     mentionsInsufficientKnowledge: scored.mentionsInsufficientKnowledge,
     score: scored.score,
     maxScore: scored.maxScore,
-    retrievedHeadings: retrieval.chunks.map((chunk) => chunk.heading ?? ""),
+    retrievedHeadings: retrieval.loadedTopics,
     response,
   };
 }
@@ -278,7 +277,7 @@ async function runMode(caseDef: FollowupBenchmarkCase, mode: KnowledgeRetrievalM
 async function main() {
   console.error("=== Bushel Board Advisor Follow-Up Benchmark ===\n");
   console.error(`Model: ${modelId}`);
-  console.error("Comparing baseline vs tiered retrieval inside the production advisor prompt...\n");
+  console.error("Running Viking tiered retrieval (L0+L1+L2) inside the production advisor prompt...\n");
 
   const caseResults: CaseResult[] = [];
 
@@ -286,10 +285,7 @@ async function main() {
     console.error(`CASE: ${benchmarkCase.id}`);
     console.error(`Question: ${benchmarkCase.question}\n`);
 
-    const results = await Promise.all([
-      runMode(benchmarkCase, "baseline"),
-      runMode(benchmarkCase, "tiered"),
-    ]);
+    const results = [await runMode(benchmarkCase, "viking")];
 
     for (const result of results) {
       console.error(`[${result.mode}] score ${result.score}/${result.maxScore}`);
