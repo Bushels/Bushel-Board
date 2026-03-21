@@ -25,7 +25,7 @@ import {
 } from "../_shared/market-intelligence-config.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
-const MODEL = "grok-4-1-fast-reasoning";
+const MODEL = "grok-4.20-reasoning";
 const DEFAULT_BATCH_SIZE = 5;
 const POUNDS_PER_METRIC_TONNE = 2204.6226218488;
 const DEFAULT_BUSHEL_WEIGHTS: Record<string, number> = {

@@ -4,7 +4,7 @@ export const XAI_BASE_URL = "https://api.x.ai/v1";
 
 export const CHAT_MODELS = {
   /** Primary advisor model — Grok 4.1 Fast via xAI */
-  primary: "grok-4-1-fast-reasoning",
+  primary: "grok-4.20-reasoning",
 } as const;
 
 /**

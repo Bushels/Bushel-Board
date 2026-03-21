@@ -79,10 +79,10 @@ async function callGrok() {
   // Try Responses API first (has x_search), fall back to Chat Completions
   const endpoints = [
     {
-      name: "Responses API (grok-4-1-fast-reasoning + tools)",
+      name: "Responses API (grok-4.20-reasoning + tools)",
       url: "https://api.x.ai/v1/responses",
       body: {
-        model: "grok-4-1-fast-reasoning",
+        model: "grok-4.20-reasoning",
         instructions: "You are Grok, a grain market analyst. Use x_search and web_search to find REAL evidence before responding. Be specific about what you find.",
         input: ROUND2_PROMPT,
         tools: [{ type: "web_search" }, { type: "x_search" }],
