@@ -82,8 +82,6 @@ scripts/__pycache__/
 tmp-norwood-*
 
 # Proprietary knowledge content — distilled from copyrighted books (local only)
-# These files contain the "secret sauce" AI knowledge. Clone requires local copies.
-lib/knowledge/viking-l0.ts
-lib/knowledge/viking-l1.ts
+# Edge Function copies kept local-only (Deno runtime, not needed for Next.js build)
 supabase/functions/_shared/viking-knowledge.ts
 supabase/functions/_shared/commodity-knowledge.ts
