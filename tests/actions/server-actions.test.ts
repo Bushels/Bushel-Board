@@ -48,7 +48,16 @@ function makeFormData(entries: Record<string, string>): FormData {
   return formData;
 }
 
-function createCropPlanLookup(plan: { id: string } | null) {
+function createCropPlanLookup(
+  plan:
+    | {
+        id: string;
+        volume_left_to_sell_kt?: number;
+        contracted_kt?: number;
+        uncontracted_kt?: number;
+      }
+    | null,
+) {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),

@@ -9,6 +9,7 @@
  */
 
 import { buildVikingPipelineContext } from "./knowledge/viking-retrieval";
+import { buildBushelAgentTeamBrief } from "./bushel-agent-team";
 
 export interface GrainResearchTier {
   webSearches: number;
@@ -71,7 +72,8 @@ Base your score on the weight of evidence. Do NOT cluster around -40 to -50 by d
 
 export function buildAnalystSystemPrompt(grain = "Wheat"): string {
   const vikingContext = buildVikingPipelineContext(grain).contextText;
-  return [IDENTITY, vikingContext, DATA_HYGIENE, RESEARCH_PROTOCOL].join(
+  const agentTeamBrief = buildBushelAgentTeamBrief(grain);
+  return [IDENTITY, agentTeamBrief, vikingContext, DATA_HYGIENE, RESEARCH_PROTOCOL].join(
     "\n\n"
   );
 }
@@ -95,7 +97,9 @@ You are analyzing **${input.grain}** (${input.tier.tier} grain). Use up to ${inp
     : "No additional retrieved knowledge available. Rely on your commodity market framework and the data brief.";
 
   const taskSection = `## Task
-Produce a structured JSON market analysis for **${input.grain}**, crop year ${input.cropYear}. Research first, then analyze the data, then conclude. Your output will be displayed to prairie grain farmers as their weekly market intelligence.`;
+Produce a structured JSON market analysis for **${input.grain}**, crop year ${input.cropYear}. Research first, then analyze the data, then conclude. Your output will be displayed to prairie grain farmers as their weekly market intelligence.
+
+Treat the bull_case and bear_case as the weekly farmer summary of what is happening in the market right now. Each side should explain what is helping the farmer, what is hurting the farmer, and why the recommendation follows from that balance.`;
 
   return [
     input.shippingCalendarText,

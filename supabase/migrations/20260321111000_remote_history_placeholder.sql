@@ -1,0 +1,2 @@
+-- Placeholder to reconcile remote migration history.
+-- This version already exists in the linked remote database.
