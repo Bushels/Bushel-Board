@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 export interface GrainPrice {
   price_date: string;
   settlement_price: number;
+  cad_price: number | null;
   change_amount: number;
   change_pct: number;
   contract: string;
@@ -19,7 +20,7 @@ export async function getRecentPrices(
 
   const { data, error } = await supabase
     .from("grain_prices")
-    .select("price_date, settlement_price, change_amount, change_pct, contract, exchange, currency, unit")
+    .select("price_date, settlement_price, cad_price, change_amount, change_pct, contract, exchange, currency, unit")
     .eq("grain", grainName)
     .order("price_date", { ascending: false })
     .limit(days);
@@ -32,6 +33,7 @@ export async function getRecentPrices(
   return (data ?? []).map((r) => ({
     price_date: String(r.price_date),
     settlement_price: Number(r.settlement_price),
+    cad_price: r.cad_price == null ? null : Number(r.cad_price),
     change_amount: Number(r.change_amount),
     change_pct: Number(r.change_pct),
     contract: String(r.contract),

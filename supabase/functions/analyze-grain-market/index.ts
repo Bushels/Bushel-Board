@@ -22,6 +22,14 @@ import {
   MARKET_INTELLIGENCE_VERSIONS,
   KNOWLEDGE_SOURCE_PATHS,
 } from "../_shared/market-intelligence-config.ts";
+import { buildBushelAgentTeamBrief } from "../_shared/bushel-agent-team.ts";
+import {
+  buildCalibrationPromptSection,
+  buildPriceVerificationPromptSection,
+  summarizeCalibrationOutcome,
+  summarizePriceVerificationOutcome,
+} from "../_shared/market-calibration.ts";
+import { buildWeeklyTrajectoryRow } from "../../../lib/trajectory-mapping.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4.20-reasoning";
@@ -93,7 +101,8 @@ Base your score on the weight of evidence. Do NOT default to moderate-bearish.`;
 
 function buildSystemPrompt(grain: string): string {
   const vikingContext = buildVikingPipelineContext(grain);
-  return [IDENTITY, vikingContext, DATA_HYGIENE, RESEARCH_PROTOCOL].join("\n\n");
+  const agentTeamBrief = buildBushelAgentTeamBrief(grain);
+  return [IDENTITY, agentTeamBrief, vikingContext, DATA_HYGIENE, RESEARCH_PROTOCOL].join("\n\n");
 }
 
 // -- JSON output schema (xAI structured outputs) --
@@ -233,12 +242,20 @@ Deno.serve(async (req) => {
       { data: sentimentData },
       { data: deliveryAnalytics },
       { data: logisticsSnapshot },
+      { data: usdaExportSales },
     ] = await Promise.all([
       supabase.from("v_grain_yoy_comparison").select("*"),
       supabase.from("v_supply_pipeline").select("*").eq("crop_year", cropYear),
       supabase.rpc("get_sentiment_overview", { p_crop_year: cropYear, p_grain_week: latestDataWeek }),
       supabase.rpc("get_delivery_analytics", { p_crop_year: cropYear, p_grain: null }),
       supabase.rpc("get_logistics_snapshot", { p_crop_year: cropYear, p_grain_week: latestDataWeek }),
+      supabase
+        .from("usda_export_sales")
+        .select("commodity, cgc_grain, week_ending, net_sales_mt, exports_mt, outstanding_mt, total_commitments_mt")
+        .eq("market_year", cropYear)
+        .in("commodity", ["ALL WHEAT", "BARLEY", "OATS", "SOYBEANS", "CORN"])
+        .order("commodity", { ascending: true })
+        .order("week_ending", { ascending: false }),
     ]);
 
     // Build lookup maps
@@ -253,11 +270,14 @@ Deno.serve(async (req) => {
     const deliveryByGrain = new Map(
       (deliveryAnalytics ?? []).map((r: Record<string, unknown>) => [r.grain as string, r]),
     );
+    const usdaByCommodity = new Map(
+      (usdaExportSales ?? []).map((r: Record<string, unknown>) => [r.commodity as string, r]),
+    );
 
     // -- Stored X signals (supplementary context from pulse/deep scanning) --
     const { data: storedSignals } = await supabase
       .from("x_market_signals")
-      .select("grain, post_text, relevance_score, category, post_date, source, search_mode")
+      .select("grain, post_summary, relevance_score, sentiment, category, post_date, source, search_mode, post_url")
       .eq("crop_year", cropYear)
       .gte("grain_week", latestDataWeek - 1)
       .order("relevance_score", { ascending: false })
@@ -279,6 +299,7 @@ Deno.serve(async (req) => {
         const sentiment = sentimentByGrain.get(grainName);
         const delivery = deliveryByGrain.get(grainName) as Record<string, unknown> | undefined;
         const grainSignals = signalsByGrain.get(grainName) ?? [];
+        const usdaExport = getLatestUsdaExportSales(grainName, usdaByCommodity);
         const tier = GRAIN_TIERS[grainName] ?? { webSearches: 1, xSearches: 1, tier: "minor" as const };
 
         if (!yoy) {
@@ -287,13 +308,15 @@ Deno.serve(async (req) => {
         }
 
         // Per-grain queries
-        const [deliveriesHist, exportsHist, stocksHist, cotData, selfSufficiencyData, processorCapacity] = await Promise.all([
+        const [deliveriesHist, exportsHist, stocksHist, cotData, selfSufficiencyData, processorCapacity, priorAnalysis, latestPrice] = await Promise.all([
           supabase.rpc("get_historical_average", { p_grain: grainName, p_metric: "Deliveries", p_worksheet: "Primary", p_grain_week: latestDataWeek, p_years_back: 5 }).then(r => r.data),
           supabase.rpc("get_historical_average", { p_grain: grainName, p_metric: "Exports", p_worksheet: "Summary", p_grain_week: latestDataWeek, p_years_back: 5 }).then(r => r.data),
           supabase.rpc("get_historical_average", { p_grain: grainName, p_metric: "Stocks In Store", p_worksheet: "Summary", p_grain_week: latestDataWeek, p_years_back: 5 }).then(r => r.data),
           supabase.rpc("get_cot_positioning", { p_grain: grainName, p_crop_year: cropYear, p_weeks_back: 4, p_max_grain_week: latestDataWeek }).then(r => r.data),
           supabase.rpc("get_processor_self_sufficiency", { p_grain: grainName, p_crop_year: cropYear }).then(r => r.data),
           supabase.from("processor_capacity").select("annual_capacity_kt").eq("grain", grainName).eq("crop_year", cropYear).maybeSingle().then(r => r.data),
+          supabase.from("market_analysis").select("grain_week, stance_score, final_assessment").eq("grain", grainName).eq("crop_year", cropYear).lt("grain_week", latestDataWeek).order("grain_week", { ascending: false }).limit(1).maybeSingle().then(r => r.data),
+          supabase.from("grain_prices").select("price_date, settlement_price, change_amount, change_pct").eq("grain", grainName).order("price_date", { ascending: false }).limit(1).maybeSingle().then(r => r.data),
         ]);
 
         // Compute analyst ratios
@@ -315,7 +338,35 @@ Deno.serve(async (req) => {
         });
 
         // Build data text
-        const dataText = buildDataSection(grainName, cropYear, latestDataWeek, yoy, supply, sentiment, delivery, deliveriesHist, exportsHist, stocksHist, logisticsSnapshot, cotData, selfSufficiencyData, grainSignals);
+        const dataText = buildDataSection(grainName, cropYear, latestDataWeek, yoy, supply, sentiment, delivery, deliveriesHist, exportsHist, stocksHist, logisticsSnapshot, cotData, selfSufficiencyData, grainSignals, usdaExport);
+
+        const calibrationSection = buildCalibrationPromptSection({
+          grain: grainName,
+          latestGrainWeek: latestDataWeek,
+          priorAnalysis: priorAnalysis ? {
+            grainWeek: Number(priorAnalysis.grain_week),
+            stanceScore: typeof priorAnalysis.stance_score === "number" ? priorAnalysis.stance_score : null,
+            finalAssessment: typeof priorAnalysis.final_assessment === "string" ? priorAnalysis.final_assessment : null,
+          } : null,
+          latestPrice: latestPrice ? {
+            priceDate: String(latestPrice.price_date),
+            settlementPrice: Number(latestPrice.settlement_price),
+            changeAmount: latestPrice.change_amount == null ? null : Number(latestPrice.change_amount),
+            changePct: latestPrice.change_pct == null ? null : Number(latestPrice.change_pct),
+          } : null,
+        });
+
+        const priceVerificationSection = buildPriceVerificationPromptSection({
+          grain: grainName,
+          latestGrainWeek: latestDataWeek,
+          analysisDate: new Date().toISOString(),
+          latestPrice: latestPrice ? {
+            priceDate: String(latestPrice.price_date),
+            settlementPrice: Number(latestPrice.settlement_price),
+            changeAmount: latestPrice.change_amount == null ? null : Number(latestPrice.change_amount),
+            changePct: latestPrice.change_pct == null ? null : Number(latestPrice.change_pct),
+          } : null,
+        });
 
         // Assemble prompts (Viking L0+L1 is in system prompt, grain-specific)
         const systemPrompt = buildSystemPrompt(grainName);
@@ -323,8 +374,10 @@ Deno.serve(async (req) => {
           shippingCalendar.promptText,
           ratios.promptSection,
           dataText,
+          calibrationSection,
+          priceVerificationSection,
           `## Research Guidance\nYou are analyzing **${grainName}** (${tier.tier} grain). Use up to ${tier.webSearches} web searches and ${tier.xSearches} X searches to research current conditions. Focus on Canadian prairie context first, then global factors.`,
-          `## Task\nProduce a structured JSON market analysis for **${grainName}**, crop year ${cropYear}. Research first, then analyze the data, then conclude.`,
+          `## Task\nProduce a structured JSON market analysis for **${grainName}**, crop year ${cropYear}. Research first, then analyze the data, then conclude. Treat the bull_case and bear_case as the weekly farmer summary of what is helping and hurting the farmer right now. Before sounding bullish, verify that the latest futures check is fresh and not working the other way. If price verification contradicts a bullish read, lower conviction or move to WATCH unless cash truth and basis clearly override it.`,
         ].join("\n\n");
 
         // Call xAI with search tools
@@ -392,6 +445,56 @@ Deno.serve(async (req) => {
         analysis.research_sources = Array.isArray(analysis.research_sources) ? analysis.research_sources : [];
         analysis.data_vs_web_discrepancies = Array.isArray(analysis.data_vs_web_discrepancies) ? analysis.data_vs_web_discrepancies : [];
 
+        const calibrationOutcome = summarizeCalibrationOutcome({
+          grain: grainName,
+          latestGrainWeek: latestDataWeek,
+          priorAnalysis: priorAnalysis ? {
+            grainWeek: Number(priorAnalysis.grain_week),
+            stanceScore: typeof priorAnalysis.stance_score === "number" ? priorAnalysis.stance_score : null,
+            finalAssessment: typeof priorAnalysis.final_assessment === "string" ? priorAnalysis.final_assessment : null,
+          } : null,
+          currentAnalysis: {
+            grainWeek: latestDataWeek,
+            stanceScore: analysis.stance_score,
+            finalAssessment: analysis.final_assessment,
+          },
+          latestPrice: latestPrice ? {
+            priceDate: String(latestPrice.price_date),
+            settlementPrice: Number(latestPrice.settlement_price),
+            changeAmount: latestPrice.change_amount == null ? null : Number(latestPrice.change_amount),
+            changePct: latestPrice.change_pct == null ? null : Number(latestPrice.change_pct),
+          } : null,
+        });
+
+        const priceVerificationOutcome = summarizePriceVerificationOutcome({
+          grain: grainName,
+          latestGrainWeek: latestDataWeek,
+          analysisDate: new Date().toISOString(),
+          currentAnalysis: {
+            grainWeek: latestDataWeek,
+            stanceScore: analysis.stance_score,
+            finalAssessment: analysis.final_assessment,
+          },
+          latestPrice: latestPrice ? {
+            priceDate: String(latestPrice.price_date),
+            settlementPrice: Number(latestPrice.settlement_price),
+            changeAmount: latestPrice.change_amount == null ? null : Number(latestPrice.change_amount),
+            changePct: latestPrice.change_pct == null ? null : Number(latestPrice.change_pct),
+          } : null,
+        });
+
+        if (priceVerificationOutcome.shouldBlockBullish && typeof analysis.stance_score === "number" && analysis.stance_score > 20) {
+          analysis.stance_score = Math.min(analysis.stance_score, 19);
+          analysis.confidence_score = typeof analysis.confidence_score === "number"
+            ? Math.min(analysis.confidence_score, 55)
+            : 55;
+          analysis.data_confidence = analysis.data_confidence === "high" ? "medium" : analysis.data_confidence;
+          const gateNote = "WATCH — futures are not confirming the bullish read yet.";
+          analysis.final_assessment = typeof analysis.final_assessment === "string" && analysis.final_assessment.trim().length > 0
+            ? `${gateNote} ${analysis.final_assessment}`
+            : gateNote;
+        }
+
         // Upsert market_analysis (backward compatible)
         const { error: upsertError } = await supabase
           .from("market_analysis")
@@ -422,6 +525,8 @@ Deno.serve(async (req) => {
               retrieved_document_ids: knowledgeContext.documentIds,
               research_sources: analysis.research_sources,
               data_vs_web_discrepancies: analysis.data_vs_web_discrepancies,
+              calibration: calibrationOutcome,
+              price_verification: priceVerificationOutcome,
             },
             generated_at: new Date().toISOString(),
           }, { onConflict: "grain,crop_year,grain_week" });
@@ -444,6 +549,31 @@ Deno.serve(async (req) => {
             model_used: MODEL,
             generated_at: new Date().toISOString(),
           }, { onConflict: "grain,crop_year,grain_week" });
+
+        // Also write/update weekly anchor trajectory for score tracking
+        const trajectoryRow = buildWeeklyTrajectoryRow({
+          grain: grainName,
+          cropYear,
+          grainWeek: latestDataWeek,
+          stanceScore: typeof analysis.stance_score === "number" ? analysis.stance_score : 0,
+          confidenceScore: typeof analysis.confidence_score === "number" ? analysis.confidence_score : null,
+          modelSource: MODEL,
+          trigger: "weekly thesis anchor",
+          evidence: typeof analysis.final_assessment === "string" && analysis.final_assessment.trim().length > 0
+            ? analysis.final_assessment
+            : analysis.initial_thesis,
+          dataFreshness: {
+            cgc_week: latestDataWeek,
+            crop_year: cropYear,
+            market_analysis_generated_at: new Date().toISOString(),
+            price_date: latestPrice ? String(latestPrice.price_date) : null,
+            price_verification: priceVerificationOutcome.status,
+          },
+        });
+
+        await supabase
+          .from("score_trajectory")
+          .insert(trajectoryRow);
 
         results.push({ grain: grainName, status: "success" });
         console.log(`[v2] ${grainName}: stance=${analysis.stance_score}, confidence=${analysis.confidence_score}, signals=${analysis.key_signals?.length ?? 0}, sources=${analysis.research_sources?.length ?? 0}`);
@@ -501,6 +631,7 @@ function buildDataSection(
   cotData: unknown,
   selfSufficiency: unknown,
   storedSignals: Array<Record<string, unknown>>,
+  usdaExportSales: Record<string, unknown> | null,
 ): string {
   const sections: string[] = [];
 
@@ -545,11 +676,28 @@ function buildDataSection(
 - P25-P75 range: ${fmtNum(delivery.p25_pace_pct)}%-${fmtNum(delivery.p75_pace_pct)}%`);
   }
 
+  if (usdaExportSales) {
+    const mappingNote = grain === "Canola"
+      ? "Proxy note: using USDA SOYBEANS export sales as the global oilseed demand signal for canola."
+      : grain === "Soybeans"
+        ? "USDA soybean export sales used here as the direct US/global soybean demand signal."
+        : null;
+
+    sections.push(`### USDA Export Sales (global demand signal)
+- Commodity: ${String(usdaExportSales.commodity ?? "N/A")}
+- Week ending: ${String(usdaExportSales.week_ending ?? "N/A")}
+- Net sales: ${fmtNum(usdaExportSales.net_sales_mt)} MT
+- Exports: ${fmtNum(usdaExportSales.exports_mt)} MT
+- Outstanding sales: ${fmtNum(usdaExportSales.outstanding_mt)} MT
+- Total commitments: ${fmtNum(usdaExportSales.total_commitments_mt)} MT${mappingNote ? `
+- ${mappingNote}` : ""}`);
+  }
+
   // Stored X signals as supplementary context
   if (storedSignals.length > 0) {
     const topSignals = storedSignals.slice(0, 5);
     sections.push(`### Recent X/Web Signals (pre-collected)
-${topSignals.map(s => `- [${s.category}] (score: ${s.relevance_score}) ${(s.post_text as string).slice(0, 150)}`).join("\n")}`);
+${topSignals.map(s => `- [${s.category}] (${s.source}/${s.search_mode}, ${s.sentiment ?? "neutral"}, score: ${s.relevance_score}) ${String((s.post_summary ?? "") as string).slice(0, 150)}`).join("\n")}`);
   }
 
   return sections.join("\n\n");
@@ -573,6 +721,25 @@ function fmtChange(val: unknown): string {
   if (val == null) return "N/A";
   const n = Number(val);
   return isNaN(n) ? "N/A" : `${n > 0 ? "+" : ""}${n.toFixed(1)}`;
+}
+
+function getLatestUsdaExportSales(
+  grain: string,
+  usdaByCommodity: Map<string, Record<string, unknown>>,
+): Record<string, unknown> | null {
+  const commodity = grain === "Wheat"
+    ? "ALL WHEAT"
+    : grain === "Barley"
+      ? "BARLEY"
+      : grain === "Oats"
+        ? "OATS"
+        : grain === "Canola" || grain === "Soybeans"
+          ? "SOYBEANS"
+          : grain === "Corn"
+            ? "CORN"
+            : null;
+
+  return commodity ? (usdaByCommodity.get(commodity) ?? null) : null;
 }
 
 function getCurrentCropYear(): string {

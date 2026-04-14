@@ -1,3 +1,4 @@
+import { dedupeCgcRowsForUpsert } from "@/lib/cgc/dedupe";
 import { parseCgcCsv } from "@/lib/cgc/parser";
 import { fetchCurrentCgcCsv } from "@/lib/cgc/source";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -107,8 +108,8 @@ export async function GET(request: Request) {
     // Import ALL rows for the current crop year — not just the current week.
     // CGC revises prior-week data when publishing new weeks (preliminary → final).
     // Filtering to only the current week causes stale data for revised weeks.
-    const cropYearRows = allRows.filter(
-      (row) => row.crop_year === cropYear
+    const cropYearRows = dedupeCgcRowsForUpsert(
+      allRows.filter((row) => row.crop_year === cropYear)
     );
 
     if (cropYearRows.length === 0) {

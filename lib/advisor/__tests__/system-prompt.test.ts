@@ -43,6 +43,7 @@ const mockContext: ChatContext = {
       contract: "Jul 2026",
       exchange: "ICE",
       currency: "CAD",
+      unit: "CAD/tonne",
       price_date: "2026-03-14",
     },
   ],
@@ -79,7 +80,7 @@ describe("buildAdvisorSystemPrompt", () => {
   it("includes commodity knowledge frameworks", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Storage Decision Algorithm");
-    expect(prompt).toContain("Flow Coherence Rule");
+    expect(prompt).toContain("CHECK FLOW COHERENCE");
   });
 
   it("formats small quantities in tonnes not Kt", () => {

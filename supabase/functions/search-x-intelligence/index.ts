@@ -350,8 +350,8 @@ For each relevant post you find, provide:
 - source: "x" if found on X/Twitter, "web" if found via web search
 
 Only include posts with relevance_score >= 60. If no relevant posts found, return an empty array.
-Focus on: Canadian prairie agriculture, elevator bids, crop conditions, export activity, transport/rail, crush/processing capacity.
-Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content.`;
+Focus on: Canadian prairie agriculture, elevator bids, basis, cash movement, crop conditions, export activity, transport/rail, crush/processing capacity, trade policy, farmer selling, and anything that would change a haul-or-hold decision this week.
+Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content, agritourism, field photos with no market relevance, generic agronomy talk, university research or processing innovation stories with no current price/logistics impact, and broad politics unless they directly change grain demand, trade, or transportation.`;
 
   if (mode === "deep") {
     return basePrompt + `

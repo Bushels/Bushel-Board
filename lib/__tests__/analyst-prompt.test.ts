@@ -40,6 +40,13 @@ describe("buildAnalystSystemPrompt", () => {
     expect(prompt).toContain("CONCLUDE WITH CONVICTION");
   });
 
+  it("includes the Bushel Board agent team framing", () => {
+    const prompt = buildAnalystSystemPrompt("Canola");
+    expect(prompt).toContain("Bushel Board Agent Team");
+    expect(prompt).toContain("predictive grain market");
+    expect(prompt).toContain("Crush & Oilseed Agent");
+  });
+
   it("does NOT include old prescriptive rules", () => {
     const prompt = buildAnalystSystemPrompt();
     expect(prompt).not.toContain("CGC_DATA_GUARDRAILS");
@@ -77,4 +84,12 @@ describe("buildAnalystUserPrompt", () => {
     expect(prompt).toContain("4 web searches");
     expect(prompt).toContain("4 X searches");
   });
+
+  it("includes the weekly farmer-summary framing in the task section", () => {
+    const prompt = buildAnalystUserPrompt(mockInput);
+    expect(prompt).toContain("weekly farmer summary");
+    expect(prompt).toContain("what is helping the farmer");
+    expect(prompt).toContain("what is hurting the farmer");
+  });
+
 });
