@@ -3,7 +3,7 @@ import {
   buildCotPositioningResult,
   formatCotPromptContext,
   type CotRawRow,
-} from "../../lib/cot-market-structure.ts";
+} from "../../lib/cot-market-structure";
 
 const wheatRows: CotRawRow[] = [
   {

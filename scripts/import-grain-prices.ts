@@ -1,9 +1,13 @@
 #!/usr/bin/env npx tsx
 /**
- * Yahoo Finance Grain Prices Import Script
+ * Grain Prices Import Script
  *
- * Fetches daily futures settlement prices from Yahoo Finance and upserts
- * them into the grain_prices Supabase table.
+ * Fetches daily futures settlement prices and upserts them into the grain_prices
+ * Supabase table.
+ *
+ * Source strategy:
+ * - Yahoo Finance for CBOT-listed contracts with usable free chart data
+ * - Barchart overview-page scrape fallback for ICE Canola and MGEX Spring Wheat
  *
  * Usage:
  *   npm run import-prices                    # Import last 30 days
@@ -19,15 +23,20 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// ---------------------------------------------------------------------------
-// CLI flags
-// ---------------------------------------------------------------------------
+import {
+  buildLatestRowFromSnapshot,
+  buildRowsForGrain,
+  fetchBarchartSnapshot,
+  fetchYahooChart,
+  type GrainPriceSpec,
+  type PriceRow,
+} from "@/lib/grain-price-sources";
 
 const args = process.argv.slice(2);
 
 if (args.includes("--help") || args.includes("-h")) {
   console.error(`
-Yahoo Finance Grain Prices Import Script
+Grain Prices Import Script
 
 Usage:
   npm run import-prices                    Fetch & upsert last 30 days of prices
@@ -39,11 +48,13 @@ Environment variables (from .env.local):
   NEXT_PUBLIC_SUPABASE_URL      Supabase project URL
   SUPABASE_SERVICE_ROLE_KEY     Service role key (never expose to browser)
 
-Symbols fetched:
-  ZW=F   Wheat (CBOT)         KE=F   HRW Wheat (CBOT)
-  RS=F   Canola (ICE)         MWE=F  Spring Wheat (MGEX)
-  ZC=F   Corn (CBOT)          ZS=F   Soybeans (CBOT)
-  ZO=F   Oats (CBOT)
+Source strategy:
+  Yahoo Finance chart API:
+    ZW=F, KE=F, ZC=F, ZS=F, ZO=F
+
+  Barchart fallback (latest close only):
+    RSK26  Canola (ICE)
+    MWK26  Spring Wheat (MGEX)
 
 Output:
   stdout  JSON summary { dry_run, grains_fetched, grains_skipped, rows_upserted, errors, duration_ms }
@@ -53,21 +64,16 @@ Output:
 }
 
 const DRY_RUN = args.includes("--dry-run");
-
 const daysIndex = args.indexOf("--days");
 const DAYS =
   daysIndex !== -1 && args[daysIndex + 1]
     ? parseInt(args[daysIndex + 1], 10)
     : 30;
 
-if (isNaN(DAYS) || DAYS < 1 || DAYS > 365) {
+if (Number.isNaN(DAYS) || DAYS < 1 || DAYS > 365) {
   console.error("ERROR: --days must be a number between 1 and 365.");
   process.exit(1);
 }
-
-// ---------------------------------------------------------------------------
-// Environment
-// ---------------------------------------------------------------------------
 
 function loadEnvFile(filePath: string) {
   try {
@@ -95,200 +101,99 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error(
-    "ERROR: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set."
+    "ERROR: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.",
   );
   console.error("Check your .env.local file.");
   process.exit(1);
 }
 
-// ---------------------------------------------------------------------------
-// Types & Constants
-// ---------------------------------------------------------------------------
-
-interface PriceRow {
-  grain: string;
-  contract: string;
-  exchange: string;
-  price_date: string;
-  settlement_price: number;
-  change_amount: number;
-  change_pct: number;
-  volume: number | null;
-  open_interest: number | null;
-  currency: string;
-  unit: string;
-  source: string;
-}
-
-interface GrainSymbol {
-  grain: string;
-  symbol: string;
-  exchange: string;
-  currency: string;
-  unit: string;
-  centsToBase: boolean;
-}
-
-const GRAIN_SYMBOLS: GrainSymbol[] = [
-  { grain: "Wheat", symbol: "ZW=F", exchange: "CBOT", currency: "USD", unit: "$/bu", centsToBase: true },
-  { grain: "Canola", symbol: "RS=F", exchange: "ICE", currency: "CAD", unit: "$/tonne", centsToBase: false },
-  { grain: "Corn", symbol: "ZC=F", exchange: "CBOT", currency: "USD", unit: "$/bu", centsToBase: true },
-  { grain: "Oats", symbol: "ZO=F", exchange: "CBOT", currency: "USD", unit: "$/bu", centsToBase: true },
-  { grain: "Soybeans", symbol: "ZS=F", exchange: "CBOT", currency: "USD", unit: "$/bu", centsToBase: true },
-  { grain: "HRW Wheat", symbol: "KE=F", exchange: "CBOT", currency: "USD", unit: "$/bu", centsToBase: true },
-  { grain: "Spring Wheat", symbol: "MWE=F", exchange: "MGEX", currency: "USD", unit: "$/bu", centsToBase: true },
+const GRAIN_SPECS: GrainPriceSpec[] = [
+  {
+    grain: "Wheat",
+    contract: "ZW=F",
+    yahooSymbol: "ZW=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Corn",
+    contract: "ZC=F",
+    yahooSymbol: "ZC=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Oats",
+    contract: "ZO=F",
+    yahooSymbol: "ZO=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Soybeans",
+    contract: "ZS=F",
+    yahooSymbol: "ZS=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "HRW Wheat",
+    contract: "KE=F",
+    yahooSymbol: "KE=F",
+    exchange: "KCBT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Canola",
+    contract: "RSK26",
+    barchartSymbol: "RSK26",
+    exchange: "ICE",
+    currency: "CAD",
+    unit: "$/tonne",
+    centsToBase: false,
+  },
+  {
+    grain: "Spring Wheat",
+    contract: "MWK26",
+    barchartSymbol: "MWK26",
+    exchange: "MGEX",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: false,
+  },
 ];
 
-// ---------------------------------------------------------------------------
-// Yahoo Finance fetch
-// ---------------------------------------------------------------------------
+async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<PriceRow[]> {
+  if (spec.yahooSymbol) {
+    const chart = await fetchYahooChart(spec.yahooSymbol, days);
+    if (!chart) return [];
+    return buildRowsForGrain(spec, chart);
+  }
 
-interface ChartData {
-  timestamps: number[];
-  closes: (number | null)[];
-  volumes: (number | null)[];
+  if (spec.barchartSymbol) {
+    const snapshot = await fetchBarchartSnapshot(spec.barchartSymbol);
+    if (!snapshot) return [];
+    return [
+      buildLatestRowFromSnapshot(
+        spec,
+        snapshot,
+        new Date().toISOString().slice(0, 10),
+      ),
+    ];
+  }
+
+  return [];
 }
-
-async function fetchYahooChart(
-  symbol: string,
-  days: number
-): Promise<ChartData | null> {
-  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${days + 2}d&interval=1d&includePrePost=false`;
-
-  const attempt = async (): Promise<Response> => {
-    return fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; BushelBoard/1.0)",
-      },
-    });
-  };
-
-  let resp: Response;
-  try {
-    resp = await attempt();
-  } catch (err) {
-    console.error(`  Network error fetching ${symbol}: ${err}`);
-    return null;
-  }
-
-  // Handle 404 — symbol not found, graceful skip
-  if (resp.status === 404) {
-    console.error(`  ${symbol}: 404 Not Found — skipping`);
-    return null;
-  }
-
-  // Handle 429 or 500 — retry once after 2 seconds
-  if (resp.status === 429 || resp.status >= 500) {
-    console.error(
-      `  ${symbol}: HTTP ${resp.status} — retrying in 2s...`
-    );
-    await new Promise((r) => setTimeout(r, 2000));
-    try {
-      resp = await attempt();
-    } catch (err) {
-      console.error(`  ${symbol}: retry network error: ${err}`);
-      return null;
-    }
-    if (!resp.ok) {
-      console.error(
-        `  ${symbol}: retry failed with HTTP ${resp.status} — skipping`
-      );
-      return null;
-    }
-  }
-
-  if (!resp.ok) {
-    console.error(`  ${symbol}: HTTP ${resp.status} — skipping`);
-    return null;
-  }
-
-  let body: unknown;
-  try {
-    body = await resp.json();
-  } catch {
-    console.error(`  ${symbol}: failed to parse JSON response`);
-    return null;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chart = (body as any)?.chart;
-  if (!chart?.result?.[0]) {
-    console.error(`  ${symbol}: no chart data in response`);
-    return null;
-  }
-
-  const result = chart.result[0];
-  const timestamps: number[] = result.timestamp ?? [];
-  const quotes = result.indicators?.quote?.[0] ?? {};
-  const closes: (number | null)[] = quotes.close ?? [];
-  const volumes: (number | null)[] = quotes.volume ?? [];
-
-  if (timestamps.length === 0) {
-    console.error(`  ${symbol}: empty timestamp array`);
-    return null;
-  }
-
-  return { timestamps, closes, volumes };
-}
-
-// ---------------------------------------------------------------------------
-// Row builder
-// ---------------------------------------------------------------------------
-
-function buildRowsForGrain(
-  spec: GrainSymbol,
-  chart: ChartData
-): PriceRow[] {
-  const rows: PriceRow[] = [];
-  const { timestamps, closes, volumes } = chart;
-
-  // N+1 lookback: index 0 is the anchor, only upsert from index 1 onwards
-  for (let i = 1; i < timestamps.length; i++) {
-    const rawClose = closes[i];
-    const rawPrev = closes[i - 1];
-
-    // Skip null closes (holidays)
-    if (rawClose == null || rawPrev == null) continue;
-
-    // Cents normalization — CBOT grains come in cents, store in dollars
-    const price = spec.centsToBase ? rawClose / 100 : rawClose;
-    const prev = spec.centsToBase ? rawPrev / 100 : rawPrev;
-
-    const settlement_price = Number(price.toFixed(4));
-    const change_amount = Number((price - prev).toFixed(4));
-
-    // Division by zero guard
-    const change_pct = prev
-      ? Number(((change_amount / prev) * 100).toFixed(3))
-      : 0;
-
-    const volume = volumes[i] != null ? volumes[i] : null;
-    const price_date = new Date(timestamps[i] * 1000)
-      .toISOString()
-      .slice(0, 10);
-
-    rows.push({
-      grain: spec.grain,
-      contract: spec.symbol,
-      exchange: spec.exchange,
-      price_date,
-      settlement_price,
-      change_amount,
-      change_pct,
-      volume,
-      open_interest: null, // Yahoo chart API doesn't return OI
-      currency: spec.currency,
-      unit: spec.unit,
-      source: "yahoo-finance",
-    });
-  }
-
-  return rows;
-}
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 
 async function main() {
   const startTime = Date.now();
@@ -296,40 +201,37 @@ async function main() {
   let grainsSkipped = 0;
   const allRows: PriceRow[] = [];
 
-  console.error(
-    `Importing grain prices from Yahoo Finance (${DAYS}-day lookback)...`
-  );
+  console.error(`Importing grain prices (${DAYS}-day lookback)...`);
 
-  for (const spec of GRAIN_SYMBOLS) {
-    console.error(`Fetching ${spec.grain} (${spec.symbol})...`);
+  for (const spec of GRAIN_SPECS) {
+    const sourceLabel = spec.yahooSymbol
+      ? `Yahoo Finance ${spec.yahooSymbol}`
+      : `Barchart ${spec.barchartSymbol}`;
+    console.error(`Fetching ${spec.grain} (${sourceLabel})...`);
 
-    const chart = await fetchYahooChart(spec.symbol, DAYS);
+    const rows = await fetchRowsForSpec(spec, DAYS);
 
-    if (!chart) {
+    if (rows.length === 0) {
       grainsSkipped++;
       console.error(`  Skipped ${spec.grain}`);
     } else {
-      const rows = buildRowsForGrain(spec, chart);
       allRows.push(...rows);
       grainsFetched++;
-      console.error(
-        `  ${spec.grain}: ${chart.timestamps.length} data points → ${rows.length} rows`
-      );
+      console.error(`  ${spec.grain}: ${rows.length} row(s) from ${rows[0]?.source}`);
     }
 
-    // Rate-limit: 500ms delay between fetches
     await new Promise((r) => setTimeout(r, 500));
   }
 
   console.error(
-    `\nFetch complete: ${grainsFetched} grains fetched, ${grainsSkipped} skipped, ${allRows.length} total rows`
+    `\nFetch complete: ${grainsFetched} grains fetched, ${grainsSkipped} skipped, ${allRows.length} total rows`,
   );
 
   if (DRY_RUN) {
     console.error("\n--- DRY RUN: rows that would be upserted ---");
     for (const row of allRows) {
       console.error(
-        `  ${row.grain} | ${row.price_date} | ${row.settlement_price} ${row.currency} | Δ${row.change_amount} (${row.change_pct}%)`
+        `  ${row.grain} | ${row.contract} | ${row.price_date} | ${row.settlement_price} ${row.currency} | Δ${row.change_amount} (${row.change_pct}%) | ${row.source}`,
       );
     }
     const duration_ms = Date.now() - startTime;
@@ -344,13 +246,12 @@ async function main() {
           duration_ms,
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     return;
   }
 
-  // All symbols failed → exit 1
   if (grainsFetched === 0) {
     console.error("ERROR: All symbols failed to fetch. Exiting.");
     const duration_ms = Date.now() - startTime;
@@ -365,16 +266,13 @@ async function main() {
           duration_ms,
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     process.exit(1);
   }
 
-  // Connect to Supabase
   const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
-
-  // Batch upsert
   const BATCH_SIZE = 50;
   let upserted = 0;
   let errors = 0;
@@ -387,12 +285,41 @@ async function main() {
     });
 
     if (error) {
-      console.error(
-        `Batch ${Math.floor(i / BATCH_SIZE)} error: ${error.message}`
-      );
+      console.error(`Batch ${Math.floor(i / BATCH_SIZE)} error: ${error.message}`);
       errors += batch.length;
     } else {
       upserted += batch.length;
+    }
+  }
+
+  let cadNormalization:
+    | { usd_rows_updated: number; cad_rows_updated: number; missing_fx_rows: number }
+    | null = null;
+
+  if (allRows.length > 0) {
+    const sortedDates = allRows.map((row) => row.price_date).sort();
+    const startDate = sortedDates[0];
+    const endDate = sortedDates[sortedDates.length - 1];
+
+    const { data, error } = await supabase.rpc("recalculate_grain_prices_cad", {
+      p_start_date: startDate,
+      p_end_date: endDate,
+    });
+
+    if (error) {
+      console.error(
+        `CAD normalization warning: ${error.message} (grain prices were still imported)`,
+      );
+    } else {
+      const row = Array.isArray(data) ? data[0] : data;
+      cadNormalization = {
+        usd_rows_updated: Number(row?.usd_rows_updated ?? 0),
+        cad_rows_updated: Number(row?.cad_rows_updated ?? 0),
+        missing_fx_rows: Number(row?.missing_fx_rows ?? 0),
+      };
+      console.error(
+        `CAD normalization: USD updated ${cadNormalization.usd_rows_updated}, CAD passthrough ${cadNormalization.cad_rows_updated}, missing FX ${cadNormalization.missing_fx_rows}`,
+      );
     }
   }
 
@@ -403,13 +330,12 @@ async function main() {
     grains_skipped: grainsSkipped,
     rows_upserted: upserted,
     errors,
+    cad_normalization: cadNormalization,
     duration_ms,
   };
 
   console.log(JSON.stringify(result, null, 2));
-  console.error(
-    `Done. Upserted: ${upserted}, Errors: ${errors}, Time: ${duration_ms}ms`
-  );
+  console.error(`Done. Upserted: ${upserted}, Errors: ${errors}, Time: ${duration_ms}ms`);
 }
 
 main().catch((err) => {
