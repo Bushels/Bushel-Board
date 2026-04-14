@@ -418,7 +418,96 @@ At scale, run 10% of conversations through each alternative model. Measure:
 
 ---
 
-## 7. What's NOT in Scope
+## 7. Elevator/Plant Operator Pricing
+
+### 7.1 Overview
+
+Elevators and crush/milling plants can sign in as operators and post their grain prices and basis. This creates a **two-sided marketplace flywheel**: operators get distribution (prices reach every farmer in their delivery zone), farmers get actionable local pricing without calling around.
+
+### 7.2 New Role: `elevator` / `processor`
+
+| Role | What they do | What they see |
+|------|-------------|---------------|
+| `elevator` | Post grain prices + basis for their delivery point | Own price history, area farmer engagement count |
+| `processor` | Post crush/milling prices + basis | Same + processing capacity context |
+
+Signup collects: company name, facility name, facility type (elevator/crusher/mill), facility postal code.
+
+### 7.3 Three Input Methods
+
+**Method 1: Chat paste** — Operator pastes their price sheet into chat. LLM + on-device Foundation Model parses it into structured entries:
+
+```
+Operator pastes:
+"CWRS 1 $8.20/bu basis -28
+ CWRS 2 $7.95/bu basis -33
+ Canola $14.50/bu basis -18
+ Feed barley $4.80/bu"
+
+Analyst: "Got it — I've recorded 4 prices for Richardson Lethbridge.
+Want me to send these to the T0L, T0K, and T1J areas?"
+```
+
+**Method 2: Photo of screen** — Operator snaps a photo of their pricing screen/board. Apple Vision framework (on-device OCR) extracts text, then LLM parses the structure. Analyst confirms before posting.
+
+**Method 3: Quick-entry form** — Structured form for operators who prefer it: grain dropdown, price field, basis field, grade selection. Select up to 3 target FSA codes for distribution.
+
+### 7.4 Data Model
+
+```sql
+CREATE TABLE elevator_prices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  operator_id uuid REFERENCES auth.users NOT NULL,
+  facility_name text NOT NULL,
+  facility_type text NOT NULL CHECK (facility_type IN ('elevator', 'crusher', 'mill')),
+  grain text NOT NULL,
+  grade text,                        -- 'CWRS 1', '#1 Canola', etc.
+  price_per_bushel numeric,
+  price_per_tonne numeric,
+  basis numeric,
+  basis_reference text,              -- 'ICE Canola', 'CBOT Wheat'
+  posted_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,   -- 3 days for prices, 7 for basis
+  source_method text DEFAULT 'chat', -- 'chat', 'photo', 'form'
+  target_fsa_codes text[] NOT NULL,  -- max 3 elements
+  CONSTRAINT max_three_fsa CHECK (array_length(target_fsa_codes, 1) <= 3)
+);
+
+CREATE INDEX idx_elevator_prices_area ON elevator_prices
+  USING GIN (target_fsa_codes) WHERE expires_at > now();
+```
+
+### 7.5 How Farmers Access Elevator Prices
+
+When a farmer asks about pricing, the analyst checks `elevator_prices` for their FSA:
+
+> **Farmer:** "What are elevators quoting on canola around here?"
+>
+> **Analyst:** "Richardson in Lethbridge posted -18 basis on #1 Canola yesterday — $14.50/bu. Cargill south of you is at -22. Richardson's tighter basis is worth the look."
+
+Farmers see: facility name, price, basis, freshness. Never operator identity.
+
+### 7.6 Two-Sided Flywheel
+
+```
+Elevators post prices (source of truth)
+         ↓
+Farmers see local pricing in chat
+         ↓
+Farmers engage more (data is valuable)
+         ↓
+Farmers share conditions, delivery plans
+         ↓
+Elevators see area farmer engagement metrics
+         ↓
+More elevators join to reach farmers
+         ↓
+Better predictions → more trust → repeat
+```
+
+---
+
+## 8. What's NOT in Scope (v1)
 
 | Feature | Why excluded | When to revisit |
 |---------|-------------|-----------------|
@@ -431,7 +520,7 @@ At scale, run 10% of conversations through each alternative model. Measure:
 
 ---
 
-## 8. Success Metrics
+## 9. Success Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -442,10 +531,13 @@ At scale, run 10% of conversations through each alternative model. Measure:
 | Conversation depth | >3 turns average | chat_messages count per thread |
 | Data extraction accuracy | >90% successful tool calls | Edge Function logs |
 | App Store rating | ≥4.5 stars | App Store Connect |
+| Elevator operators onboarded | 10+ within 2 months | `profiles` WHERE role IN ('elevator','processor') |
+| Elevator price freshness | >80% of prices <3 days old | `elevator_prices` WHERE expires_at > now() |
+| Farmer price queries | >30% of conversations reference elevator prices | Tool call logs |
 
 ---
 
-## 9. Implementation Phases
+## 10. Implementation Phases
 
 ### Phase 1: Core Chat iOS App (Weeks 1-3)
 - Xcode project setup with SwiftUI
@@ -460,19 +552,28 @@ At scale, run 10% of conversations through each alternative model. Measure:
 - Area stance modifier RPC
 - Cold start / onboarding flow
 
-### Phase 3: Apple Intelligence (Weeks 5-7)
+### Phase 3: Elevator/Processor Pricing (Weeks 5-6)
+- `elevator_prices` migration + RLS
+- Operator signup flow (elevator/crusher/mill role)
+- Chat-paste price parsing (LLM tool-calling)
+- Photo-to-price pipeline (Vision OCR + Foundation Model)
+- Quick-entry form fallback
+- FSA targeting (max 3 areas per post)
+- Farmer-side: analyst queries elevator_prices when asked about local pricing
+
+### Phase 4: Apple Intelligence (Weeks 6-8)
 - On-device Foundation Models for entity extraction
 - Siri App Intents (grain query, delivery logging)
 - WidgetKit (small, medium, lock screen)
 - Live Activities for price alerts
 
-### Phase 4: Apple Watch + Polish (Weeks 7-9)
+### Phase 5: Apple Watch + Polish (Weeks 8-10)
 - watchOS companion app
 - Complications, haptic alerts, Siri relay
 - Push notification infrastructure
 - App Store submission prep
 
-### Phase 5: Launch + Iterate (Week 9+)
+### Phase 6: Launch + Iterate (Week 10+)
 - TestFlight beta with 10-20 farmers
 - Iterate on analyst persona based on conversation logs
 - A/B test LLM models
