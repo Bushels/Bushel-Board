@@ -4,7 +4,11 @@
 
 **Goal:** Build a native iOS chat-first grain market intelligence app that collects hyper-local data through conversation and delivers area-adjusted bullish/bearish predictions to Canadian prairie farmers.
 
-**Architecture:** Swift 6 + SwiftUI iOS app communicating with existing Supabase backend via `supabase-swift` SDK. New `chat-completion` Edge Function handles LLM streaming with Grok 4.20. Local market intelligence stored in new tables, aggregated by postal FSA code for area predictions. Apple Intelligence for on-device entity extraction, Siri, Widgets, Live Activities, and Apple Watch companion.
+**Architecture:** Swift 6 + SwiftUI iOS app communicating with existing Supabase backend via `supabase-swift` SDK. New `chat-completion` Edge Function handles LLM streaming with Grok 4.20. Structured chat cards (not markdown) for all substantive replies with trust footers and source attribution. Local market intelligence stored in new tables, aggregated by postal FSA code for area predictions. Apple Intelligence as enhancement (not requirement). Watch complications light scope.
+
+**Design principle:** Ship a fast, trusted, habit-forming iPhone chat utility — not an AI platform on a phone. Optimize for speed to first answer (<10s), trust in every reply, and low-friction re-entry from widgets/notifications.
+
+**Revised after product review (2026-04-13).** Key changes from initial plan: trust UI mandatory in Phase 1, typed chat cards replace markdown, 2-tab navigation (not 4), shorter answers, Phase 3 split into 3A/3B, watch scope reduced, data quality checks added to Phase 2.
 
 **Tech Stack:** Swift 6, SwiftUI, Xcode 16+, supabase-swift, Apple Foundation Models, WidgetKit, ActivityKit, WatchKit, Supabase Edge Functions (Deno), PostgreSQL
 
@@ -499,38 +503,76 @@ git commit -m "feat: initialize Xcode project skeleton for iOS app (Track 36)"
 
 ---
 
-### Task 1.2: Chat UI — Messages-Like Interface
+### Task 1.2: Chat UI — Typed Cards, Not Markdown
 
 **Agent:** ios-dev + ux-agent
 **Files:**
 - Create: `BushelBoard/BushelBoard/Features/Chat/ChatView.swift`
-- Create: `BushelBoard/BushelBoard/Features/Chat/MessageBubble.swift`
 - Create: `BushelBoard/BushelBoard/Features/Chat/ChatViewModel.swift`
-- Create: `BushelBoard/BushelBoard/Features/Chat/ChatInputBar.swift`
-- Create: `BushelBoard/BushelBoard/Features/Chat/QuickActionChip.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/MessageBubble.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Cards/MarketSummaryCard.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Cards/RecommendationCard.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Cards/TrustFooter.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Cards/SourceBadge.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Cards/QuickActionsBar.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Cards/WhyThisReadSheet.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Composer/ChatComposer.swift`
+- Create: `BushelBoard/BushelBoard/Features/Chat/Composer/QuickChip.swift`
 
 **Implementation:**
-- `ChatView`: ScrollView with LazyVStack of MessageBubble views
-- `MessageBubble`: right-aligned (user, wheat-100 bg), left-aligned (analyst, white bg with canola accent)
-- `ChatInputBar`: multi-line TextField with Send button, 2000 char limit
-- `QuickActionChip`: horizontal ScrollView of tappable grain chips, populated from crop plans
-- `ChatViewModel`: @Observable class managing thread state, message array, loading phases
-- Dynamic greeting: time-of-day + market move + memory nudge
-- Streaming text display: characters appear progressively (SSE parsing)
-- Auto-scroll to bottom on new messages
-- Pull-to-refresh to reload thread
+
+**Typed message content model** (the LLM returns structured JSON, iOS renders as cards):
+```swift
+enum MessageContent {
+    case plainText(String)
+    case marketSummary(MarketSummaryData)
+    case recommendation(RecommendationData)
+    case statusLine(String)  // "Checking wheat in your area..."
+}
+
+struct MarketSummaryData {
+    let grain: String
+    let stanceBadge: String        // "Bullish +20"
+    let takeaway: String           // one-line summary
+    let reasons: [ReasonBullet]    // { text, sourceTag }
+    let recommendation: String
+    let followUpAsk: String?       // nil if no ask this turn
+    let trustFooter: TrustFooterData
+}
+
+struct TrustFooterData {
+    let cgcFreshness: String       // "5 days old"
+    let futuresFreshness: String   // "today"
+    let localReportCount: Int
+    let localReportFreshness: String  // "last 2 days"
+    let confidence: ConfidenceLevel   // .earlyRead, .solidRead, .strongRead
+}
+```
+
+**Composer** (product center):
+- Text field + mic button + photo button + send button
+- Quick chips above keyboard: populated from crop plan grains + ["Haul or hold?", "My area", "Basis check"]
+- Long-press chip to save custom prompt
+
+**2-tab navigation:**
+- Tab 1: Chat (primary, default)
+- Tab 2: Me (profile, alerts, settings, delivery history)
+- Grain detail, My Farm, elevator comparison open as **sheets from chat**
 
 **Design tokens:**
 - User bubble: `Color.wheat50` with `Color.wheat900` text
-- Analyst bubble: `Color.white` with `.shadow(color: .black.opacity(0.04), radius: 4)`
-- Input bar: sticky bottom, safe area aware
-- Quick chips: `Color.canola.opacity(0.1)` background, `Color.canola` text
+- Analyst card: `Color.white` with shadow, canola accent on stance badge
+- Trust footer: `Color.wheat100` background, smaller font
+- Source badges: small pill with icon + label, muted colors
+- Composer: sticky bottom, safe area aware, wheat-50 bg
 
 **Verification:**
 - Chat view renders on iPhone 15 simulator
-- Messages scroll correctly, keyboard avoids input bar
+- MarketSummaryCard renders with stance badge, bullets, trust footer
+- Trust footer shows confidence level and data freshness
 - Quick chips populate from user's crop plan grains
-- Analyst messages stream in progressively (even with placeholder data)
+- Tapping "Why this read?" opens bottom sheet
+- 2-tab nav works, grain detail opens as sheet from tapped grain name
 
 ---
 
@@ -619,28 +661,31 @@ class OpenAIAdapter implements LLMAdapter { /* GPT-4o */ }
 
 ---
 
-### Task 1.5: Navigation Shell — Tab Bar + Grain Detail
+### Task 1.5: Navigation Shell — 2-Tab + Sheets
 
 **Agent:** ios-dev + ux-agent
 **Files:**
-- Create: `BushelBoard/BushelBoard/App/ContentView.swift` (TabView)
-- Create: `BushelBoard/BushelBoard/Features/GrainDetail/GrainDetailView.swift`
-- Create: `BushelBoard/BushelBoard/Features/MyFarm/MyFarmView.swift`
-- Create: `BushelBoard/BushelBoard/Features/Settings/SettingsView.swift`
+- Create: `BushelBoard/BushelBoard/App/ContentView.swift` (TabView — 2 tabs only)
+- Create: `BushelBoard/BushelBoard/Features/GrainDetail/GrainDetailSheet.swift`
+- Create: `BushelBoard/BushelBoard/Features/Me/MeView.swift`
+- Create: `BushelBoard/BushelBoard/Features/Me/AlertsView.swift`
+- Create: `BushelBoard/BushelBoard/Features/MyFarm/MyFarmSheet.swift`
 
 **Implementation:**
-- `TabView` with 4 tabs: Chat (primary), Grains, My Farm, Settings
+- `TabView` with **2 tabs only**: Chat (primary) + Me
 - Chat tab: `ChatView` (default selected)
-- Grains tab: list of grains from crop plan → detail view with stance, charts, signals
-- My Farm tab: crop plans, delivery log, percentile comparisons
-- Settings: profile, notification preferences, data privacy
+- Me tab: profile, alert preferences, delivery history, crop plans, settings
+- **Sheets from chat:** GrainDetailSheet, MyFarmSheet, ElevatorComparisonSheet — opened by tapping elements in analyst replies
+- Deep links: tapping grain name in reply → GrainDetailSheet. Tapping "Compare elevators" → ElevatorComparisonSheet
+- Push notification deep-links: tap notification → opens chat with pre-filled prompt
 
-**Deep links from chat:** When analyst mentions a grain, tappable text navigates to grain detail.
+**No 4-tab dashboard.** Grain detail and My Farm are drill-ins, not permanent tabs.
 
 **Verification:**
-- Tab navigation works, state preserved when switching tabs
-- Chat is default tab on app launch
-- Grain detail loads real data from Supabase
+- 2-tab navigation works, Chat is default
+- Tapping grain name in analyst reply opens detail sheet
+- Push notification opens chat with correct pre-filled prompt
+- State preserved when switching tabs
 
 ---
 
@@ -750,7 +795,34 @@ GRANT EXECUTE ON FUNCTION get_area_stance_modifier TO authenticated;
 
 ---
 
-### Task 2.4: Phase 2 Gate
+### Task 2.4: Data Quality Checks
+
+**Agent:** db-architect
+**Files:**
+- Modify: `supabase/functions/_shared/chat-tools.ts` — add validation before INSERT
+
+**Implementation:**
+Before storing any local_market_intel record, validate:
+- **Bounds validation:** basis must be between -$200 and +$50; price must be positive and <$50/bu
+- **Stale suppression:** if user reports same data_type + grain + elevator within 24h, update don't duplicate
+- **Outlier detection:** if reported basis is >3 standard deviations from FSA mean, flag as `confidence: 'outlier'` and exclude from area aggregation
+- **Elevator name normalization:** "Richardson" / "Richardson International" / "richardson" → canonical form via lookup table
+- **Duplicate handling:** UPSERT on (user_id, grain, data_type, elevator_name) within 24h window
+
+### Task 2.5: Recommendation Memory
+
+**Agent:** chat-architect
+**Files:**
+- Create: `supabase/functions/_shared/recommendation-tracker.ts`
+- Modify: `supabase/functions/chat-completion/index.ts`
+
+**Implementation:**
+- Store last recommendation per user per grain in farmer_memory: `{ key: "last_rec_wheat", value: "hold", grain: "Wheat" }`
+- When new conversation about same grain, query last recommendation + its date
+- If recommendation changed, format "what changed since last time" section
+- Pass to LLM as context: "Last wheat check (4 days ago) you said hold. Basis has since improved $7."
+
+### Task 2.6: Phase 2 Gate
 
 **Agents:** data-audit, security-auditor
 **Skills:** pre-commit-validator, data-integrity-rules
@@ -763,13 +835,19 @@ GRANT EXECUTE ON FUNCTION get_area_stance_modifier TO authenticated;
 - [ ] Cold start handles gracefully (0 reports)
 - [ ] Privacy: user A cannot see user B's raw local_market_intel
 - [ ] Decay: expired records excluded from area aggregation
+- [ ] **Data quality: outlier detection catches unreasonable values**
+- [ ] **Data quality: duplicate reports within 24h are merged, not doubled**
+- [ ] **Recommendation memory: "what changed" shows when recommendation flips**
+- [ ] **1-2 widgets deployed and updating on home screen**
 
 ---
 
-## Phase 3: Elevator/Processor Pricing (Weeks 5-6)
+## Phase 3A: Basic Operator Pricing (Weeks 5-6)
 
 **Agents:** db-architect, chat-architect, ios-dev, auth-engineer
 **Skills:** elevator-pricing (new), pre-commit-validator
+
+**Scope control:** Chat-paste + form only. Photo OCR deferred to Phase 3B (v1.5).
 
 ### Task 3.1: Database — elevator_prices Table + Operator Role
 
@@ -807,23 +885,7 @@ GRANT EXECUTE ON FUNCTION get_area_stance_modifier TO authenticated;
 
 ---
 
-### Task 3.3: Photo-to-Price Pipeline
-
-**Agent:** ios-dev
-**Files:**
-- Create: `BushelBoard/BushelBoard/Features/Elevator/PricePhotoCapture.swift`
-- Create: `BushelBoard/BushelBoard/Intelligence/VisionPriceExtractor.swift`
-
-**Implementation:**
-- Camera capture + photo picker
-- Apple Vision framework: `VNRecognizeTextRequest` for OCR
-- Foundation Model (on-device): parse OCR text into structured PriceEntry array
-- Fallback: send OCR text to cloud LLM for parsing if Foundation Model unavailable
-- Confirmation UI before posting
-
----
-
-### Task 3.4: Farmer-Side Elevator Price Access
+### Task 3.3: Farmer-Side Elevator Price Access (with trust labels)
 
 **Agent:** chat-architect
 **Files:**
@@ -838,16 +900,42 @@ GRANT EXECUTE ON FUNCTION get_area_stance_modifier TO authenticated;
 
 ---
 
-### Task 3.5: Phase 3 Gate
+### Task 3.4: Phase 3A Gate
 
 **Checklist:**
 - [ ] Operator signup creates correct profile with facility data
 - [ ] Chat-paste correctly parses 5+ grain prices from pasted text
-- [ ] Photo OCR extracts prices from test image of price board
-- [ ] Prices visible to farmers in correct FSAs
-- [ ] Expired prices hidden
+- [ ] Quick-entry form saves prices correctly
+- [ ] Prices visible to farmers in correct FSAs with **"posted by [facility]" label**
+- [ ] **Freshness timestamp visible** on every posted price
+- [ ] **Expired prices hidden** with aggressive 3-day default
 - [ ] 3-FSA limit enforced
 - [ ] Security: operators can only modify own prices
+- [ ] **"Posted price" vs "reported by farmer" clearly distinguished in analyst replies**
+
+---
+
+## Phase 3B: Advanced Operator (v1.5 — After Farmer Retention Validated)
+
+**Deferred until product-market fit proven with farmer-side usage.**
+
+### Task 3B.1: Photo-to-Price Pipeline
+
+**Agent:** ios-dev
+**Files:**
+- Create: `BushelBoard/BushelBoard/Features/Elevator/PricePhotoCapture.swift`
+- Create: `BushelBoard/BushelBoard/Intelligence/VisionPriceExtractor.swift`
+
+**Implementation:**
+- Camera capture + photo picker
+- Apple Vision: `VNRecognizeTextRequest` for OCR
+- Foundation Model: parse OCR text into structured PriceEntry array
+- **Operator confirmation step before posting** (OCR misreads are a trust risk)
+- Fallback: send OCR text to cloud LLM if Foundation Model unavailable
+
+### Task 3B.2: Operator Analytics
+- Area farmer engagement metrics (how many farmers queried their prices)
+- Price history dashboard for operators
 
 ---
 
@@ -1068,7 +1156,25 @@ Content covers: Foundation Models patterns, App Intents registration, WidgetKit 
 - Adjust system prompt based on farmer feedback
 - A/B test response styles (more/less casual, longer/shorter)
 
-### Task 6.3: LLM A/B Testing
+### Task 6.3: Recommendation Outcome Tracking
+
+**Agent:** db-architect + chat-architect
+**Implementation:**
+Track whether recommendations led to action:
+- When app said "haul," did the farmer log a delivery within 7 days?
+- When app said "hold," did basis move as predicted?
+- Did the farmer come back after following the call?
+
+**Measurement queries:**
+```sql
+-- Correlation: "haul" recommendation → delivery logged within 7 days
+-- Correlation: predicted basis direction → actual basis movement
+-- User return rate after acting on a recommendation
+```
+
+This closes the learning loop and validates whether the analyst is actually helping.
+
+### Task 6.4: LLM A/B Testing
 
 **Agent:** chat-architect
 - Route 10% of conversations through GPT-4o, Claude, Gemini

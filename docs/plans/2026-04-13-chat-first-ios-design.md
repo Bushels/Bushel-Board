@@ -1,9 +1,10 @@
 # Chat-First Predictive Pricing — iOS App Design
 
 **Date:** 2026-04-13
-**Status:** Approved
+**Status:** Approved (Revised 2026-04-13 after product review)
 **Author:** Kyle + Claude (brainstorming session)
 **Track:** 36 — Chat-First iOS Pivot
+**Product positioning:** Your grain analyst in your pocket. Ask one question, get a local market read, and decide whether to haul or hold.
 
 ---
 
@@ -11,9 +12,11 @@
 
 Bushel Board pivots from a dashboard-first web app to a **chat-first predictive pricing app** for iPhone. Farmers interact with a conversational "Grain Analyst" that provides hyper-local market predictions, naturally collects local market data through dialogue, and gets smarter with every conversation.
 
-**Core loop:** Farmer asks about local market → Analyst responds with phased "thinking aloud" → naturally collects local data (elevator prices, basis, crop conditions) → uses data + existing CGC/CFTC/USDA pipeline to give area-adjusted bullish/bearish predictions → flywheel improves predictions for all farmers in that area.
+**Core loop:** Farmer asks about local market → Analyst checks and answers fast (structured cards, not text walls) → naturally collects one local data point per session → uses data + existing CGC/CFTC/USDA pipeline to give area-adjusted bullish/bearish predictions → flywheel improves predictions for all farmers in that area.
 
-**Platform:** Native iOS (Swift 6 + SwiftUI) with Apple Watch companion. Apple Intelligence integration (on-device Foundation Models, Siri, Widgets, Live Activities). Backend stays on Supabase. LLM-agnostic architecture with Grok 4.20-reasoning as primary model.
+**Platform:** Native iOS (Swift 6 + SwiftUI). Apple Intelligence as enhancement (not requirement). Widgets + push notifications as primary re-entry points. Watch complications (light). Backend stays on Supabase. LLM-agnostic architecture with Grok 4.20-reasoning as primary model.
+
+**Design principle:** Ship a fast, trusted, habit-forming iPhone chat utility — not an AI platform that happens to be on a phone. Optimize for: (1) speed to first answer, (2) trust in every reply, (3) low-friction re-entry, (4) one-thumb use in the yard/truck/tractor, (5) clear separation between market read and data collection.
 
 **Separate from:** USA/Hermes expansion (feat/us-thesis-lane-hardening branch).
 
@@ -78,12 +81,21 @@ The iOS app calls a **new Supabase Edge Function** (`chat-completion`) directly 
 
 ### Navigation Model
 
-| Route (iOS) | What | Priority |
-|-------------|------|----------|
-| Chat (root) | Full-screen conversation | Primary |
-| Grain Detail | Dashboard view per grain | Secondary — linked from chat |
-| My Farm | Crop plans, deliveries | Secondary — linked from chat |
-| Overview | Market overview | Tertiary — power users |
+**2-tab shell** — chat IS the app, everything else opens from chat:
+
+| Tab | What | Always visible |
+|-----|------|----------------|
+| **Chat** | Full-screen conversation (root) | Yes — primary tab |
+| **Me** | Profile, alerts, settings, delivery history | Yes — secondary tab |
+
+| Linked view | Opens as | Triggered by |
+|-------------|----------|-------------|
+| Grain Detail | Sheet from chat | Tapping grain name in analyst reply |
+| My Farm | Sheet from Me tab | Tapping "My crops" in Me tab |
+| Elevator comparison | Sheet from chat | Tapping "compare elevators" action |
+| "Why this recommendation?" | Bottom sheet | Tapping trust footer |
+
+No hamburger menu. No dashboard overview. Grain detail, My Farm, and comparisons are **sheets and drill-ins from chat**, not standalone tabs. This keeps the app feeling like Messages, not enterprise software.
 
 ---
 
@@ -143,14 +155,16 @@ Triggered by push notification from Supabase Edge Function when:
 
 Live Activities last up to 12 hours, perfect for market-day tracking.
 
-### 2.5 Apple Watch
+### 2.5 Apple Watch (Light — v1 scope-controlled)
 
-| Feature | Implementation |
-|---------|----------------|
-| Complication | Grain stance badge on watch face (updates hourly) |
-| Haptic alert | Tap when basis crosses user-set threshold |
-| Siri relay | Same App Intents work on watch |
-| Glance view | Top 3 grains + stance + sparkline |
+**v1 (keep light):**
+- One complication: grain stance badge on watch face (low effort, high visibility)
+- Haptic alerts on basis threshold cross
+
+**v2 (if validated):**
+- Siri relay, glance view, full companion app
+
+**Rationale:** Widgets + push notifications likely create more re-entry value sooner than a polished watch companion. If schedule tightens, watch is the first cut.
 
 ---
 
@@ -253,18 +267,84 @@ Adjacent FSA blending: If neighboring FSAs have data, borrow with 50% decay weig
 
 ## 4. The Conversation Flow
 
-### 4.1 Phased Response ("Thinking Aloud")
+### 4.1 Fast Progressive Disclosure (Not "Thinking Aloud")
 
-Every analyst response streams in 4 phases to build credibility:
+Do NOT show the analyst "thinking." Show the analyst "checking and answering." Users want responsiveness, not theater.
 
-| Phase | Timing | Purpose | Example |
-|-------|--------|---------|---------|
-| 1. Acknowledgment | Instant (<1s) | Show you heard them | "Good question — let me pull up what I'm seeing..." |
-| 2. Data scan | 1-2s | Show you're checking data | "Nationally we've got wheat at +5. Your area's running hotter though..." |
-| 3. Analysis | 2-4s | Walk through reasoning | "Terminal receipts are lagging, elevators competing harder, specs still long..." |
-| 4. Recommendation + ask | Final | Actionable + 1 follow-up | "At -28 basis, worth a look. What are conditions like in your area?" |
+**Status line** (instant, <1s): One-line indicator while loading:
+- "Checking wheat in your area"
+- "Pulling local bids"
+- "Looking at basis trends"
 
-Implementation: System prompt instructs the LLM to structure responses this way. Streaming SSE handles the pacing naturally.
+**Answer** (streamed, 2-5s): Concise structured reply rendered as a **chat card**, not a text wall:
+
+```
+┌─────────────────────────────────────────┐
+│ 🌾 Wheat  ·  Bullish +20 in your area  │  ← stance badge
+├─────────────────────────────────────────┤
+│ Wheat looks firmer than the national    │  ← 1-line takeaway
+│ read this week.                         │
+│                                         │
+│ • Basis improved ~$8-12 near you        │  ← 2-3 reason bullets
+│ • Elevator competition up               │  [local reports]
+│ • Futures still supportive              │  [national market]
+│                                         │
+│ My take: if you can get -30 or better,  │  ← recommendation
+│ haul some this week.                    │
+│                                         │
+│ What's Richardson bidding today?        │  ← one ask (max)
+├─────────────────────────────────────────┤
+│ 📊 CGC: 5d · Futures: today · Local:   │  ← trust footer
+│    4 reports, last 2d · Solid read      │
+│                     [Why this read? ▾]  │  ← expandable
+└─────────────────────────────────────────┘
+```
+
+**Typed message content models** (not markdown rendering):
+- `plainText` — simple conversational messages
+- `marketSummaryCard` — stance badge + takeaway + bullets + recommendation
+- `recommendationCard` — specific action with confidence
+- `trustFooter` — data sources, freshness, confidence level
+- `quickActions` — tappable buttons (Log basis, Compare elevators, Set alert)
+- `sourceTag` — inline badges: [your history], [local reports], [posted pricing], [national market]
+
+### 4.1a Trust UI (Required in Every Substantive Reply)
+
+Every analyst reply that gives advice MUST include a **trust footer**:
+
+| Field | Example | Source |
+|-------|---------|--------|
+| CGC freshness | "5 days old" | `cgc_imports.imported_at` |
+| Futures freshness | "today" or "1 day old" | `grain_prices.date` |
+| Local report count | "4 reports in your area" | COUNT from `local_market_intel` WHERE FSA |
+| Local report freshness | "last 2 days" | MAX(`reported_at`) from `local_market_intel` |
+| Elevator pricing | "Richardson posted yesterday" | `elevator_prices.posted_at` |
+| Confidence level | "Early read" / "Solid read" / "Strong read" | Based on report count + freshness |
+
+**Confidence levels:**
+- **Early read** — <3 local reports, or data >7 days old. "I don't have much local color yet."
+- **Solid read** — 3-7 local reports, data <5 days old. Standard output.
+- **Strong read** — 8+ local reports, data <3 days old, multiple elevators. High conviction.
+
+**"Why this read?" expandable sheet:**
+Tapping the trust footer opens a bottom sheet showing:
+- Latest futures move (price + direction)
+- Basis change (narrowing/widening + amount)
+- Local area report count and age
+- What would change the call (e.g., "If basis widens past -$40, hold instead")
+
+### 4.1b Source Attribution Tags
+
+Every insight in the reply should be tagged with its source:
+
+| Tag | Meaning | Visual |
+|-----|---------|--------|
+| `[your history]` | From farmer_memory or past conversations | Personal icon |
+| `[local reports]` | From other farmers in the FSA | Community icon |
+| `[posted pricing]` | From elevator/processor operator | Building icon |
+| `[national market]` | From CGC, futures, COT, USDA | Globe icon |
+
+Tags appear as small inline badges next to the relevant bullet. The farmer must always know whether the app is citing their data, crowd data, operator data, or national data.
 
 ### 4.2 Tool-Calling for Data Extraction
 
@@ -283,40 +363,81 @@ The LLM has structured tools it invokes mid-conversation:
 System prompt rules:
 - Answer the farmer's question FULLY first
 - Max 1 follow-up ask per response, framed as helpful not transactional
+- **Quality threshold: only ask if the answer would *materially change* a future recommendation for this farmer or their area. If you're just curious, don't ask.**
 - Priority: basis > elevator prices > crop conditions > yield estimates
 - Skip ask if farmer already shared data this turn
 - Skip if asked in last 2 turns
 - Never ask for data already in `farmer_memory`
+- If the farmer's question was simple and fully answered, no ask needed — not every reply needs one
 
-### 4.4 Example Conversation
+### 4.4 Example Conversation (Mobile-Optimized)
 
-**Farmer:** "What's it looking like for grain in my local area? Should I be hauling my wheat or saving it?"
+**Farmer:** "Should I be hauling my wheat or saving it?"
 
-**Behind the scenes:**
-1. On-device Foundation Model: `{ grains: ["wheat"], intent: .storageDecision }`
-2. Edge Function loads: profile, crop plans, farmer_memory, national stance (+5), area intel (T0L), Viking L0+L1, prices, COT, logistics, X signals
+**Status line:** "Checking wheat in your area..."
 
-**Analyst (streamed):**
-> "Hey Kyle — good timing on that question."
+**Analyst reply (rendered as MarketSummaryCard):**
+
+> **🌾 Wheat · Bullish +20 in your area**
 >
-> "So nationally we've got wheat at Bullish +5 this week. But your area's been running hotter. Let me dig into why..."
+> Wheat looks firmer than the national read this week.
+> - Basis improved ~$8-12 near you `[local reports]`
+> - Elevator competition up from 2 weeks ago `[local reports]`
+> - Futures still supportive, specs building longs `[national market]`
 >
-> "Terminal receipts out of Thunder Bay are behind last year's pace — country elevators are competing harder for grain. Three farmers near you reported basis narrowing by $8-12 over the past two weeks. The specs haven't given up on this rally yet either — managed money still building longs."
+> My take: if you can get -30 or better, haul some this week.
 >
-> "For your neighborhood, I'd put wheat closer to +20. If your elevator is offering better than -$30 basis on #1 CWRS, that's worth looking at this week. Speaking of which — what's your local elevator quoting on wheat these days?"
+> What's Richardson bidding today?
+>
+> *📊 CGC: 5d · Futures: today · Local: 4 reports, 2d · Solid read*
+> *[Why this read? ▾]*
 
-**Farmer:** "Richardson is at -28 on the one hard, and Cargill is -32"
+**Farmer:** "Richardson is at -28 and Cargill is -32"
 
-**Behind the scenes:** LLM calls `save_local_intel` twice + updates `farmer_memory`
+**Behind the scenes:** LLM calls `save_local_intel` (×2) + `update_farmer_memory`
 
-**Analyst:**
-> "Ok lemme think about this for a sec..."
+**Analyst reply (rendered as RecommendationCard):**
+
+> **Richardson -28 is better than your area's recent range** `[your history]`
 >
-> "-28 at Richardson is actually better than what most of the T0L area has been seeing. Two weeks ago the reports I had were in the -35 to -40 range. That's a $7-12 narrowing."
+> Two weeks ago reports were -35 to -40. That's a $7-12 narrowing. `[local reports]`
 >
-> "At -28 basis with futures where they are, you're looking at solid numbers. If you've got grain you were thinking of moving anyway, Richardson this week wouldn't be a bad call."
+> At -28 basis, Richardson this week is worth hauling to.
 >
-> "If you don't mind me asking — what are crops looking like in your area? I'm trying to build a picture of what supply looks like around Lethbridge."
+> `[Log my basis]` `[Compare elevators]` `[Set alert]`
+>
+> *📊 Basis: just now · Area trend: 4 reports · Strong read*
+
+**Total response: ~60 words per reply.** Fast to read, easy to act on, trust is visible.
+
+### 4.5 Composer Design
+
+The bottom composer is the product center:
+
+```
+┌─────────────────────────────────────────────┐
+│ [Wheat] [Canola] [My area] [Haul or hold?]  │  ← quick chips
+├─────────────────────────────────────────────┤
+│ Ask your grain analyst...    [🎤] [📷] [▶]  │  ← text + mic + photo + send
+└─────────────────────────────────────────────┘
+```
+
+- **Quick chips:** populated from crop plan grains + common actions
+- **Mic button:** voice input (speech-to-text → sent as message)
+- **Photo button:** for operators (price board photo) or farmers (field condition photo)
+- **Saved prompts / routines:** long-press a chip to save custom prompts like "Morning check" or "What changed since yesterday?"
+
+### 4.6 Recommendation Memory
+
+When the analyst's recommendation changes from the last conversation about the same grain, the reply should automatically explain what changed:
+
+> **What changed since your last wheat check (4 days ago):**
+> - Basis improved $7 `[local reports]`
+> - Local report count increased from 2 to 5 `[local reports]`
+> - Futures stalled but holding `[national market]`
+> - Last call: hold → This call: haul some
+
+This makes the assistant feel intelligent, not just conversational.
 
 ---
 
@@ -365,17 +486,30 @@ Farmer describes their operation → LLM creates crop plans via tool calls → g
 Dynamic greeting based on:
 - Time of day
 - Most relevant overnight market move
-- Memory of last conversation topic
+- **Recommendation memory** — "Last time you asked about wheat, I said hold. Here's what changed..."
 - Days since last visit (gentle re-engagement)
 
 ```
-"Morning, Kyle. Canola futures jumped 2% overnight — 
-the bulls are loud this morning. Want me to break it down?"
+"Morning, Kyle. Canola basis is working your way today. 
+Want a quick read?"
 
-[🌻 Canola update] [🌾 Wheat check] [📊 My area]
+[🌻 Canola update] [🌾 Wheat check] [Haul or hold?]
 ```
 
-Quick-action chips populated from crop plan grains + "my area" context.
+Quick-action chips populated from crop plan grains + common actions. Include saved prompts/routines if the farmer has customized them.
+
+### 5.4 Push Notifications as Conversation Starters
+
+Notifications should be **conversational questions**, not just alerts. Tap deep-links into pre-filled chat prompt:
+
+| Notification | Deep-link action |
+|-------------|-----------------|
+| "Canola basis is working your way today. Want a quick read?" | Opens chat with "Give me a canola read" |
+| "Wheat in T0L looks firmer this morning. Open chat?" | Opens chat with "What's wheat looking like in my area?" |
+| "Richardson just posted a tighter canola bid. Worth a look?" | Opens chat with "What are elevators quoting on canola?" |
+| "Your weekly grain summary is ready." | Opens chat with "What's my summary this week?" |
+
+**Never just alert — always invite a conversation.**
 
 ---
 
@@ -524,57 +658,81 @@ Better predictions → more trust → repeat
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Weekly active chatters | 50+ farmers within 3 months | Supabase: distinct user_id in chat_messages per week |
-| Local data points contributed | 5+ per active farmer per month | `local_market_intel` count per user |
+| **Time to first answer** | <10 seconds | Edge Function latency logs |
+| **Weekly sessions per user** | >3 check-ins per week | chat_threads count per user per week |
+| Weekly active chatters | 50+ farmers within 3 months | Distinct user_id in chat_messages per week |
+| Local data points contributed | 3+ per active farmer per month | `local_market_intel` count per user |
 | Area coverage | 20+ FSAs with ≥3 reports | Aggregate query on local_market_intel |
 | Return rate | >60% weekly return | Users with ≥2 chat sessions per week |
-| Conversation depth | >3 turns average | chat_messages count per thread |
+| **Widget/notification re-entry** | >40% of sessions start from widget or push | Deep-link attribution |
 | Data extraction accuracy | >90% successful tool calls | Edge Function logs |
+| **Recommendation follow-through** | >20% of "haul" recommendations followed by delivery log within 7 days | Correlation: recommendation → crop_plan_deliveries |
 | App Store rating | ≥4.5 stars | App Store Connect |
 | Elevator operators onboarded | 10+ within 2 months | `profiles` WHERE role IN ('elevator','processor') |
 | Elevator price freshness | >80% of prices <3 days old | `elevator_prices` WHERE expires_at > now() |
-| Farmer price queries | >30% of conversations reference elevator prices | Tool call logs |
 
 ---
 
-## 10. Implementation Phases
+## 10. Implementation Phases (Revised After Product Review)
 
-### Phase 1: Core Chat iOS App (Weeks 1-3)
-- Xcode project setup with SwiftUI
-- Supabase Swift SDK integration (auth, REST, realtime)
-- Chat UI (Messages-like, streaming SSE)
-- Port context-builder + system prompt to Edge Function
-- Basic navigation (chat → grain detail → my farm)
+### Phase 0: Foundation (2-3 days)
+- Merge PR #4 if CI fixed (USDA tables benefit chat context)
+- Xcode project skeleton
+- Chat-completion Edge Function contract defined
+- Auth/security standards set
+- Lean agent/skill scaffolding (only what's needed for Phase 1)
 
-### Phase 2: Local Intelligence Flywheel (Weeks 3-5)
+### Phase 1: Core Chat + Trust UI (Weeks 1-3) — PRODUCT-DEFINING
+- Sign in with Apple + email auth
+- **Chat UI with structured cards** (MarketSummaryCard, RecommendationCard, not markdown)
+- **Trust footer on every substantive reply** (freshness, report count, confidence)
+- **Source attribution tags** ([your history], [local reports], [posted pricing], [national market])
+- Quick prompt chips in composer (text + mic + photo + send)
+- Chat-completion Edge Function with SSE streaming
+- 2-tab navigation (Chat + Me), grain detail as sheets from chat
+- Push notification deep-links into pre-filled chat
+- **Latency target: <10s to first answer**
+
+### Phase 2: Local Intelligence Flywheel (Weeks 3-5) — THE MOAT
 - `local_market_intel` + `farmer_memory` migrations
-- Tool-calling integration (save_local_intel, update_farmer_memory, get_area_stance)
-- Area stance modifier RPC
+- Tool-calling: save_local_intel, update_farmer_memory, get_area_stance
+- Area stance modifier RPC with privacy thresholds
+- **Data quality checks:** outlier detection, stale suppression, duplicate handling, elevator name normalization
 - Cold start / onboarding flow
+- **Recommendation memory:** "Here's what changed since your last check"
+- 1-2 WidgetKit widgets (stance badge, top grains)
 
-### Phase 3: Elevator/Processor Pricing (Weeks 5-6)
-- `elevator_prices` migration + RLS
-- Operator signup flow (elevator/crusher/mill role)
-- Chat-paste price parsing (LLM tool-calling)
+### Phase 3A: Basic Operator Pricing (Weeks 5-6)
+- `elevator_prices` migration + operator role
+- Operator signup (company, facility, postal code)
+- Chat-paste price parsing only (LLM tool-calling)
+- Simple quick-entry form fallback
+- Farmer-side: analyst queries posted prices with freshness + "posted by facility" labels
+- **Visible freshness timestamp, confidence status, expiration handling**
+
+### Phase 3B: Advanced Operator (v1.5 — after validation)
 - Photo-to-price pipeline (Vision OCR + Foundation Model)
-- Quick-entry form fallback
-- FSA targeting (max 3 areas per post)
-- Farmer-side: analyst queries elevator_prices when asked about local pricing
+- Richer operator workflow
+- Operator analytics (area farmer engagement)
 
-### Phase 4: Apple Intelligence (Weeks 6-8)
-- On-device Foundation Models for entity extraction
-- Siri App Intents (grain query, delivery logging)
-- WidgetKit (small, medium, lock screen)
-- Live Activities for price alerts
+### Phase 4: Apple Intelligence + Re-entry (Weeks 6-8)
+**Priority order (widgets and notifications before fancy AI):**
+1. Additional WidgetKit widgets + lock screen
+2. Push notification infrastructure (conversational starters, not just alerts)
+3. Siri App Intent for grain query
+4. On-device Foundation Model entity extraction (enhancement, not requirement)
+5. Live Activities for price alerts
 
-### Phase 5: Apple Watch + Polish (Weeks 8-10)
-- watchOS companion app
-- Complications, haptic alerts, Siri relay
-- Push notification infrastructure
-- App Store submission prep
+### Phase 5: Watch + App Store (Weeks 8-10) — Scope-controlled
+- One watch complication (grain stance badge) + haptic alerts
+- Full watchOS companion only if time permits
+- App Store submission prep (screenshots, privacy labels, review notes)
+- TestFlight internal build
 
 ### Phase 6: Launch + Iterate (Week 10+)
 - TestFlight beta with 10-20 farmers
-- Iterate on analyst persona based on conversation logs
-- A/B test LLM models
+- Persona iteration based on conversation logs
+- **Recommendation outcome tracking** (did farmer haul after "haul" call? Did basis move as predicted?)
+- LLM A/B testing at 1,000 users
 - Scale area coverage
+- Saved prompts / routines feature
