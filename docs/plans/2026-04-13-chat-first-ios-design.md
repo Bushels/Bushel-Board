@@ -1,22 +1,29 @@
-# Chat-First Predictive Pricing — iOS App Design
+# Bushels — Chat-First Farming Intelligence App (iOS)
 
 **Date:** 2026-04-13
-**Status:** Approved (Revised 2026-04-13 after product review)
+**Status:** Approved (Revised 2026-04-14 — rebrand, Bushy persona, gamified exchange)
 **Author:** Kyle + Claude (brainstorming session)
 **Track:** 36 — Chat-First iOS Pivot
-**Product positioning:** Your grain analyst in your pocket. Ask one question, get a local market read, and decide whether to haul or hold.
+**App name:** Bushels (iOS chat app). Web dashboard remains "Bushel Board."
+**Chat agent name:** Bushy
+**Product positioning:** Your farming buddy in your pocket. Ask anything about your crops, local markets, or what the neighbors are up to — and help build the local picture while you're at it.
 
 ---
 
 ## Executive Summary
 
-Bushel Board pivots from a dashboard-first web app to a **chat-first predictive pricing app** for iPhone. Farmers interact with a conversational "Grain Analyst" that provides hyper-local market predictions, naturally collects local market data through dialogue, and gets smarter with every conversation.
+**Bushels** is a native iOS chat app where Canadian prairie farmers talk to **Bushy**, a conversational farming intelligence agent. Bushy records everything a farmer shares — grain prices, fertilizer costs, seeding progress, crop conditions, delivery plans — and uses it to continuously improve predictions for everyone in their area. The original Bushel Board bull/bear thesis engine powers the grain marketing intelligence, but Bushels expands far beyond marketing into the full farming season.
 
-**Core loop:** Farmer asks about local market → Analyst checks and answers fast (structured cards, not text walls) → naturally collects one local data point per session → uses data + existing CGC/CFTC/USDA pipeline to give area-adjusted bullish/bearish predictions → flywheel improves predictions for all farmers in that area.
+**Core loop:** Farmer asks about local market / inputs / neighbors → Bushy answers fast with comparative data → gamifies data exchange ("tell me yours and I'll tell you theirs") → verifies data quality with playful prompts → uses data + CGC/CFTC/USDA pipeline to sharpen area predictions → flywheel makes the app smarter for every farmer in the area.
 
 **Platform:** Native iOS (Swift 6 + SwiftUI). Apple Intelligence as enhancement (not requirement). Widgets + push notifications as primary re-entry points. Watch complications (light). Backend stays on Supabase. LLM-agnostic architecture with Grok 4.20-reasoning as primary model.
 
-**Design principle:** Ship a fast, trusted, habit-forming iPhone chat utility — not an AI platform that happens to be on a phone. Optimize for: (1) speed to first answer, (2) trust in every reply, (3) low-friction re-entry, (4) one-thumb use in the yard/truck/tractor, (5) clear separation between market read and data collection.
+**Design principles:**
+1. **Speed to first answer** — fast, trusted, habit-forming
+2. **One-thumb use** — works in the yard, truck, or tractor cab
+3. **Gamified exchange** — sharing data earns comparison data, not just a thank you
+4. **Privacy as a feature** — explicitly tell farmers what is shared (area aggregates) and what is never shared (names, farms, exact locations)
+5. **Continuous learning** — every conversation makes Bushy smarter about that area
 
 **Separate from:** USA/Hermes expansion (feat/us-thesis-lane-hardening branch).
 
@@ -358,25 +365,87 @@ The LLM has structured tools it invokes mid-conversation:
 | `search_market` | Real-time price/news verification | X/web search (Grok native) |
 | `create_crop_plan` | New farmer describes their operation | `crop_plans` |
 
-### 4.3 Natural Ask Pattern
+### 4.3 Gamified Data Exchange ("Tell Me Yours, I'll Tell You Theirs")
+
+Bushy doesn't just ask for data — he creates a game where the farmer's reward for sharing is finding out how they compare to neighbors. This is the primary data collection mechanism.
+
+**The Exchange Pattern:**
+
+```
+Farmer: "Has anyone mentioned what they paid for fertilizer?"
+
+Bushy: "A few people have, yeah. Tell me what you paid 
+       and I'll tell you if they paid more or less than you."
+
+Farmer: "$680/tonne for urea"
+
+  ┌───────────────────────────────────────┐
+  │  ✓ This is what I actually paid       │  ← logs it
+  │  😄 I'm just kidding around           │  ← doesn't log
+  └───────────────────────────────────────┘
+
+[Farmer taps "This is what I actually paid"]
+
+Bushy: "You paid about 25% less than your neighbors did. 
+       Nice. When did you buy yours?"
+
+Farmer: "Back in January"
+
+Bushy: "Yea, that was a way better time to buy. Your neighbor 
+       bought about 2 months after that — prices had already 
+       climbed by then."
+       
+       [📊 See fertilizer price trends ▾]
+```
+
+**Rules for the exchange:**
+- **Never give all comparison data upfront** — tease with partial info to keep them engaged
+- **Each answer unlocks more** — progressive reveal keeps the conversation flowing
+- **Verification prompts validate data quality** — the "just kidding" option adds humor while preventing garbage data
+- Bushy can be **playfully persistent**: "Cmon, just tell me what you paid" — but never more than once
+- The exchange should feel like **friendly competition**, not a survey
+- **Every verified data point gets logged** to `local_market_intel` with `confidence: 'verified'`
+
+**Verification prompt types:**
+
+| Scenario | Options shown | Data action |
+|----------|--------------|-------------|
+| Farmer shares a price | "This is what I actually paid" / "I'm just kidding around" | Log if verified |
+| Farmer shares acreage | "That's my real number" / "Ballpark guess" | Log both, mark confidence |
+| Farmer shares yield | "Actual weigh-up" / "Rough estimate" | Log both, mark confidence |
+| Farmer shares conditions | No verification needed | Log directly (subjective by nature) |
+
+### 4.4 Privacy Transparency
+
+Bushy explicitly tells farmers about data sharing during onboarding and periodically in conversation:
+
+> "Just so you know — I share relevant info in chats to help everyone make better decisions, but I never share anything personal. No names, no farm names, no exact locations. Just area-level stuff like 'someone near you' or 'a few of your neighbors.' That way everyone benefits but nobody's business gets out there."
+
+**What Bushy shares:** Area averages, anonymous comparisons ("25% less than neighbors"), trend data, aggregate counts
+**What Bushy never shares:** Farm names, farmer names, exact locations, individual data points attributed to anyone, delivery destinations, specific acreage
+
+**Periodic reminders:** Every ~10th conversation, Bushy briefly reinforces: "Remember, I keep everything anonymous — nobody knows this came from you."
+
+### 4.5 Natural Ask Pattern
 
 System prompt rules:
 - Answer the farmer's question FULLY first
-- Max 1 follow-up ask per response, framed as helpful not transactional
-- **Quality threshold: only ask if the answer would *materially change* a future recommendation for this farmer or their area. If you're just curious, don't ask.**
-- Priority: basis > elevator prices > crop conditions > yield estimates
+- **Prefer the gamified exchange over a flat ask** — "tell me yours and I'll tell you theirs" beats "what are you paying for urea?"
+- Max 1 follow-up per response
+- **Quality threshold: only ask if the answer would *materially change* a future recommendation. If you're just curious, don't ask.**
+- Priority: basis > elevator prices > input prices > crop conditions > yield estimates
 - Skip ask if farmer already shared data this turn
 - Skip if asked in last 2 turns
 - Never ask for data already in `farmer_memory`
-- If the farmer's question was simple and fully answered, no ask needed — not every reply needs one
+- Not every reply needs an ask
 
-### 4.4 Example Conversation (Mobile-Optimized)
+### 4.6 Example Conversation — Grain Marketing (Mobile-Optimized)
 
 **Farmer:** "Should I be hauling my wheat or saving it?"
 
 **Status line:** "Checking wheat in your area..."
 
-**Analyst reply (rendered as MarketSummaryCard):**
+**Bushy reply (rendered as MarketSummaryCard):**
 
 > **🌾 Wheat · Bullish +20 in your area**
 >
@@ -396,7 +465,7 @@ System prompt rules:
 
 **Behind the scenes:** LLM calls `save_local_intel` (×2) + `update_farmer_memory`
 
-**Analyst reply (rendered as RecommendationCard):**
+**Bushy reply (rendered as RecommendationCard):**
 
 > **Richardson -28 is better than your area's recent range** `[your history]`
 >
@@ -418,7 +487,7 @@ The bottom composer is the product center:
 ┌─────────────────────────────────────────────┐
 │ [Wheat] [Canola] [My area] [Haul or hold?]  │  ← quick chips
 ├─────────────────────────────────────────────┤
-│ Ask your grain analyst...    [🎤] [📷] [▶]  │  ← text + mic + photo + send
+│ Ask Bushy...                 [🎤] [📷] [▶]  │  ← text + mic + photo + send
 └─────────────────────────────────────────────┘
 ```
 
@@ -427,9 +496,9 @@ The bottom composer is the product center:
 - **Photo button:** for operators (price board photo) or farmers (field condition photo)
 - **Saved prompts / routines:** long-press a chip to save custom prompts like "Morning check" or "What changed since yesterday?"
 
-### 4.6 Recommendation Memory
+### 4.8 Recommendation Memory
 
-When the analyst's recommendation changes from the last conversation about the same grain, the reply should automatically explain what changed:
+When Bushy's recommendation changes from the last conversation about the same grain, the reply should automatically explain what changed:
 
 > **What changed since your last wheat check (4 days ago):**
 > - Basis improved $7 `[local reports]`
@@ -448,12 +517,13 @@ This makes the assistant feel intelligent, not just conversational.
 ```
 ┌─────────────────────────────────────────────┐
 │                                             │
-│          🌾 Bushel Board                    │
+│          🌾 Bushels                         │
 │                                             │
-│    Your grain analyst for the prairies.     │
+│    Your farming buddy for the prairies.     │
 │                                             │
-│    "Should I haul or hold this week?"       │
-│    Let's figure it out together.            │
+│    "What are the neighbors paying for       │
+│     fertilizer? Should I haul my wheat?"    │
+│    Ask Bushy.                               │
 │                                             │
 │    ┌───────────────────────────────────┐    │
 │    │      Get Started (Apple ID)      │    │
@@ -473,13 +543,15 @@ Sign in with Apple is the primary path — one tap, zero friction.
 
 After signup (collects postal code + role), farmer lands directly in chat:
 
-> **Analyst:** "Hey! Welcome to Bushel Board. I'm your grain analyst — I keep tabs on 16 grains across the prairies using CGC data, futures markets, CFTC positioning, and what other farmers are seeing on the ground."
+> **Bushy:** "Hey! I'm Bushy — your farming buddy. I keep tabs on grain markets, input prices, and what's happening around the prairies. I also learn from what other farmers share to make everyone's picture sharper."
+>
+> "Quick thing — I share useful info in chats to help everyone, but I never share anything personal. No names, no farm names, no exact spots. Just area-level stuff. That way everyone benefits but nobody's business gets out there."
 >
 > "I see you're farming near [town from postal]. What are you growing this year?"
 
-Farmer describes their operation → LLM creates crop plans via tool calls → gives national-level analysis → positions the cold start as a feature:
+Farmer describes their operation → Bushy creates crop plans via tool calls → gives national-level analysis → positions the cold start as a feature:
 
-> "Your area is pretty fresh on my radar — you'd actually be one of the first farmers helping me build the local picture here. If you know what your elevator is quoting on canola basis, that'd be gold."
+> "Your area is pretty fresh on my radar — you'd actually be one of the first to help me build the local picture here. Tell me what your elevator is quoting on canola basis and I'll tell you how it stacks up."
 
 ### 5.3 Returning Users
 
@@ -552,12 +624,12 @@ When farmers share data, the analyst repackages it anonymously for neighbors. **
 
 > **Farmer:** "How close are people in my area to being done seeding?"
 >
-> **Analyst:** "From what I'm hearing around T0L, most folks are about 60-70% done. One guy says he's 80% but between you and me I think he might be getting a little ahead of himself. Rain in the forecast Thursday might slow everyone down a bit."
+> **Bushy:** "From what I'm hearing around T0L, most folks are about 60-70% done. One guy says he's 80% but between you and me I think he might be getting a little ahead of himself. Rain in the forecast Thursday might slow everyone down a bit."
 > *📊 Based on 6 area reports, last 3 days · Solid read*
 
 > **Farmer:** "What are people paying for urea around here?"
 >
-> **Analyst:** "Couple of your neighbors reported $680-720/tonne for urea this week. That's up from what I was hearing a month ago. ABC Ag in Lethbridge might be worth a call — they had competitive bulk pricing last I heard."
+> **Bushy:** "Couple of your neighbors reported $680-720/tonne for urea this week. That's up from what I was hearing a month ago. ABC Ag in Lethbridge might be worth a call — they had competitive bulk pricing last I heard."
 > *📊 3 reports, last week · Early read*
 > `[Log my price]` `[Compare suppliers]`
 
@@ -709,7 +781,7 @@ When a farmer asks about pricing, the analyst checks `elevator_prices` for their
 
 > **Farmer:** "What are elevators quoting on canola around here?"
 >
-> **Analyst:** "Richardson in Lethbridge posted -18 basis on #1 Canola yesterday — $14.50/bu. Cargill south of you is at -22. Richardson's tighter basis is worth the look."
+> **Bushy:** "Richardson in Lethbridge posted -18 basis on #1 Canola yesterday — $14.50/bu. Cargill south of you is at -22. Richardson's tighter basis is worth the look."
 
 Farmers see: facility name, price, basis, freshness. Never operator identity.
 
