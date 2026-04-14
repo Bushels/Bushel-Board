@@ -513,7 +513,99 @@ Notifications should be **conversational questions**, not just alerts. Tap deep-
 
 ---
 
-## 6. LLM Architecture — Model-Agnostic Design
+## 6. Seasonal Intelligence & Community Layer
+
+### 6.1 Seasonal Context Shifting
+
+The analyst adapts to the farming calendar. What it asks about and what data it collects shifts throughout the year:
+
+| Season | Months | Farmer asks about | Analyst collects | Provider relevance |
+|--------|--------|-------------------|------------------|--------------------|
+| **Pre-seeding** | Mar-Apr | Fertilizer/seed/chemical prices, acres planned, weather outlook | Input prices, planned acreage, moisture conditions | Seed, fertilizer, chemical companies |
+| **Seeding** | Apr-Jun | Seeding progress, input costs, weather, pest pressure | Acres done, seeding completion %, spray timing | Same + custom applicators |
+| **Growing** | Jun-Aug | Crop conditions, weather, disease/pest, yield estimates | Stand quality, moisture, heat stress, expected yield | Crop insurance, agronomists |
+| **Harvest** | Aug-Oct | Yield results, quality, grain prices, storage decisions | Actual yields, grade quality, harvest completion % | Equipment, trucking |
+| **Marketing** | Oct-Mar | Basis, elevator prices, haul-or-hold, delivery timing | Basis reports, elevator bids, delivery plans | Elevators, processors, exporters |
+
+**System prompt includes seasonal context:** The Edge Function checks the current date and adjusts the analyst's focus, questions, and data collection priorities. In April, the analyst asks about seeding plans. In October, it asks about basis.
+
+### 6.2 Expanded Data Types for `local_market_intel`
+
+```sql
+-- v1 data types (grain marketing):
+'basis', 'elevator_price', 'crop_condition', 'yield_estimate', 'quality'
+
+-- v1.5 seasonal expansion:
+'seeding_progress',    -- "80% done" (value_numeric = 80, grain = 'Canola')
+'input_price',         -- fertilizer/seed/chemical (value_numeric = $/unit, value_text = product name)
+'weather_observation', -- "dry, need rain" (value_text only)
+'harvest_progress',    -- "50% combined" (value_numeric = 50)
+'pest_report',         -- "flea beetle pressure" (value_text, grain-scoped)
+'acres_planned',       -- "500 acres canola" (value_numeric = 500)
+```
+
+### 6.3 Community Intelligence with Personality
+
+When farmers share data, the analyst repackages it anonymously for neighbors. **Never expose names or farms.** The personality should be witty and relatable — a friend at the coffee shop, not a corporate dashboard.
+
+**Example interactions:**
+
+> **Farmer:** "How close are people in my area to being done seeding?"
+>
+> **Analyst:** "From what I'm hearing around T0L, most folks are about 60-70% done. One guy says he's 80% but between you and me I think he might be getting a little ahead of himself. Rain in the forecast Thursday might slow everyone down a bit."
+> *📊 Based on 6 area reports, last 3 days · Solid read*
+
+> **Farmer:** "What are people paying for urea around here?"
+>
+> **Analyst:** "Couple of your neighbors reported $680-720/tonne for urea this week. That's up from what I was hearing a month ago. ABC Ag in Lethbridge might be worth a call — they had competitive bulk pricing last I heard."
+> *📊 3 reports, last week · Early read*
+> `[Log my price]` `[Compare suppliers]`
+
+**Rules:**
+- Never say "farmer X" or "John's farm" — always "someone near you", "a few of your neighbors", "one guy"
+- Add personality: humor, skepticism, regional color
+- When data is thin (<3 reports), be honest: "I don't have much to go on yet"
+- Area aggregates use same privacy thresholds as grain marketing (≥3 reports)
+
+### 6.4 Input Provider Marketplace (Monetization)
+
+Alongside elevator/processor operators, **input providers** (seed, fertilizer, chemical companies) can participate:
+
+| Provider type | What they post | What they see | Monetization |
+|---------------|---------------|---------------|-------------|
+| Seed company | Varieties, pricing, availability | Area demand signals, crop plan trends | Sponsored placement in relevant conversations |
+| Fertilizer dealer | Product pricing, bulk deals | Area application timing, demand volume | Sponsored mention when farmers ask about inputs |
+| Chemical company | Product pricing, programs | Area pest/disease reports, spray timing | Sponsored mention when farmers ask about spraying |
+| Elevator/processor | Grain prices, basis | Area supply, delivery timing | Free (v1) — distribution is the value |
+
+**Transparency rule:** Sponsored mentions must be clearly tagged `[sponsored]`. The analyst never pretends a paid placement is organic advice. Example:
+
+> "If you're shopping for canola seed, InVigor has a program this spring. `[sponsored]` But honestly, talk to your local rep about what works in your soil type."
+
+**Provider data model:**
+```sql
+CREATE TABLE provider_listings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_id uuid REFERENCES auth.users NOT NULL,
+  provider_type text NOT NULL CHECK (provider_type IN ('seed', 'fertilizer', 'chemical', 'equipment', 'service')),
+  product_name text NOT NULL,
+  product_category text,        -- 'canola seed', 'urea', 'glyphosate'
+  price_per_unit numeric,
+  unit text,                    -- 'tonne', 'acre', 'jug'
+  description text,
+  target_fsa_codes text[],      -- max 5 for providers
+  posted_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  is_sponsored boolean DEFAULT false,
+  CONSTRAINT max_five_fsa CHECK (array_length(target_fsa_codes, 1) <= 5)
+);
+```
+
+**v1 scope:** Input provider marketplace is designed but not built. Focus on farmer-side chat + elevator pricing first. Provider monetization is Phase 7+.
+
+---
+
+## 7. LLM Architecture
 
 ### 6.1 Abstraction Layer
 
@@ -552,7 +644,7 @@ At scale, run 10% of conversations through each alternative model. Measure:
 
 ---
 
-## 7. Elevator/Plant Operator Pricing
+## 8. Elevator/Plant Operator Pricing
 
 ### 7.1 Overview
 
@@ -641,7 +733,7 @@ Better predictions → more trust → repeat
 
 ---
 
-## 8. What's NOT in Scope (v1)
+## 9. What's NOT in Scope (v1)
 
 | Feature | Why excluded | When to revisit |
 |---------|-------------|-----------------|
@@ -654,7 +746,7 @@ Better predictions → more trust → repeat
 
 ---
 
-## 9. Success Metrics
+## 10. Success Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -673,7 +765,7 @@ Better predictions → more trust → repeat
 
 ---
 
-## 10. Implementation Phases (Revised After Product Review)
+## 11. Implementation Phases (Revised After Product Review)
 
 ### Phase 0: Foundation (2-3 days)
 - Merge PR #4 if CI fixed (USDA tables benefit chat context)
