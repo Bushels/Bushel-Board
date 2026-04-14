@@ -1,6 +1,6 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-type PostAuthDestination = "/my-farm" | "/overview";
+type PostAuthDestination = "/chat" | "/my-farm" | "/overview";
 
 function getRoleFromMetadata(user: User | null): string | null {
   if (!user) {
@@ -15,24 +15,9 @@ export async function getPostAuthDestination(
   supabase: SupabaseClient,
   user: User | null
 ): Promise<PostAuthDestination> {
-  const metadataRole = getRoleFromMetadata(user);
-  if (metadataRole === "farmer") {
-    return "/my-farm";
-  }
-
-  if (metadataRole === "observer") {
-    return "/overview";
-  }
-
+  // Chat-first: all authenticated users land on Bushy chat
   if (!user) {
     return "/overview";
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  return profile?.role === "farmer" ? "/my-farm" : "/overview";
+  return "/chat";
 }

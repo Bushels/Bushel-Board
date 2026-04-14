@@ -57,7 +57,7 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
             className="w-80 border-l border-white/45 bg-background/92 px-0 backdrop-blur-2xl dark:border-white/10 dark:bg-wheat-900/92"
           >
             <SheetHeader className="border-b border-border/50 px-5 pb-4">
-              <SheetTitle className="font-display text-canola">Bushel Board</SheetTitle>
+              <SheetTitle className="font-display text-canola">Bushels</SheetTitle>
               <p className="text-xs text-muted-foreground">
                 Your market shell, crop unlocks, and farm setup in one place.
               </p>
@@ -65,15 +65,15 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
 
             <nav className="flex flex-col gap-1 px-4 pt-4">
               <Link
-                href="/overview"
+                href="/chat"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",
-                  pathname.startsWith("/overview")
+                  pathname === "/chat"
                     ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
                     : "hover:bg-white/55 dark:hover:bg-white/7"
                 )}
               >
-                Overview
+                Bushy
               </Link>
               <Link
                 href="/my-farm"
@@ -87,15 +87,15 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                 My Farm
               </Link>
               <Link
-                href="/advisor"
+                href="/overview"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",
-                  pathname.startsWith("/advisor")
+                  pathname.startsWith("/overview")
                     ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
                     : "hover:bg-white/55 dark:hover:bg-white/7"
                 )}
               >
-                Advisor
+                Overview
               </Link>
               <Link
                 href="/us"
