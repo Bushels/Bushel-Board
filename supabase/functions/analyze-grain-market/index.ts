@@ -591,12 +591,13 @@ Deno.serve(async (req) => {
     if (runId) {
       const grainStatus = results.some((r: { status: string }) => r.status === "failed") ? "failed" : "completed";
       const errorMsg = results.find((r: { status: string; error?: string }) => r.status === "failed")?.error ?? null;
-      await supabase.rpc("update_pipeline_grain_status", {
+      const { error: pipelineErr } = await supabase.rpc("update_pipeline_grain_status", {
         p_run_id: runId,
         p_grain: grainNames[0],  // BATCH_SIZE=1, always one grain
         p_status: grainStatus,
         p_error: errorMsg,
-      }).catch((err: Error) => console.error("Pipeline status update failed:", err));
+      });
+      if (pipelineErr) console.error("Pipeline status update failed:", pipelineErr.message);
     }
 
     return new Response(
