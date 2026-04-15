@@ -3,6 +3,7 @@
 import {
   AreaChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,7 +23,6 @@ interface DeliveryBreakdownChartProps {
 const CHANNELS = [
   { key: "primary_elevators_kt", label: "Primary Elevators", color: "#2e6b9e" },
   { key: "processors_kt", label: "Processors", color: "#437a22" },
-  { key: "producer_cars_kt", label: "Producer Cars", color: "#c17f24" },
 ] as const
 
 export function DeliveryBreakdownChart({
@@ -40,6 +40,9 @@ export function DeliveryBreakdownChart({
         <p className="text-xs text-muted-foreground mb-4">
           Where {grainName} deliveries are going each week
         </p>
+        <p className="text-xs text-muted-foreground/80 mb-4 -mt-2">
+          Producer cars are shown as car counts on a separate axis, not stacked with Kt deliveries.
+        </p>
 
         {/* Legend */}
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-4">
@@ -52,6 +55,13 @@ export function DeliveryBreakdownChart({
               <span className="text-muted-foreground">{ch.label}</span>
             </div>
           ))}
+          <div className="flex items-center gap-1.5 text-xs">
+            <span
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: "#c17f24" }}
+            />
+            <span className="text-muted-foreground">Producer Cars (count)</span>
+          </div>
         </div>
 
         <ResponsiveContainer width="100%" height={280}>
@@ -69,6 +79,15 @@ export function DeliveryBreakdownChart({
               tickLine={false}
               axisLine={false}
               width={48}
+              tickFormatter={(value: number) => fmtKt(value)}
+            />
+            <YAxis
+              yAxisId="cars"
+              orientation="right"
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={40}
             />
             <Tooltip
               content={({ active, payload, label }) => {
@@ -76,7 +95,7 @@ export function DeliveryBreakdownChart({
 
                 const elevators = Number(payload.find((p) => p.dataKey === "primary_elevators_kt")?.value ?? 0)
                 const processors = Number(payload.find((p) => p.dataKey === "processors_kt")?.value ?? 0)
-                const cars = Number(payload.find((p) => p.dataKey === "producer_cars_kt")?.value ?? 0)
+                const cars = Number(payload.find((p) => p.dataKey === "producer_cars_count")?.value ?? 0)
                 const totalKt = elevators + processors
 
                 return (
@@ -104,6 +123,15 @@ export function DeliveryBreakdownChart({
                 fillOpacity={0.6}
               />
             ))}
+            <Line
+              yAxisId="cars"
+              type="monotone"
+              dataKey="producer_cars_count"
+              stroke="#c17f24"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>

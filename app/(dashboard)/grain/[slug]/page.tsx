@@ -750,7 +750,7 @@ function buildKeyMetrics(
       label: "Processing",
       metricKey: "processing",
       currentWeekKt: processing.thisWeek,
-      cropYearKt: 0,
+      cropYearKt: null,
       wowChangePct: processing.changePct,
       insight: processingInsight,
       color: "#437a22",
@@ -762,7 +762,7 @@ function buildKeyMetrics(
       label: "Exports",
       metricKey: "exports",
       currentWeekKt: exports.thisWeek,
-      cropYearKt: 0,
+      cropYearKt: null,
       wowChangePct: exports.changePct,
       insight: exports.changePct > 10
         ? "Export surge — international demand strengthening"
@@ -778,7 +778,7 @@ function buildKeyMetrics(
       label: "Stocks",
       metricKey: "stocks",
       currentWeekKt: stocks.thisWeek,
-      cropYearKt: 0,
+      cropYearKt: null,
       wowChangePct: stocks.changePct,
       insight: stocks.changePct > 0
         ? "Inventory building — more coming in than going out"

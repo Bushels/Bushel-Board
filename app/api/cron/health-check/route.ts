@@ -1,4 +1,5 @@
 import { fetchCurrentCgcCsv } from "@/lib/cgc/source";
+import { authorizeCronRequest } from "@/lib/cron/route-guards";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,10 +17,8 @@ function numberFromUnknown(value: unknown): number {
  * Schedule (vercel.json): 0 6 * * *
  */
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authError = authorizeCronRequest(request);
+  if (authError) return authError;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const internalSecret = process.env.BUSHEL_INTERNAL_FUNCTION_SECRET;

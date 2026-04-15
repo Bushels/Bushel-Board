@@ -42,18 +42,22 @@ export async function consumeRateLimit(
   if (error) {
     console.error(`consume_rate_limit failed for ${config.actionKey}:`, error.message);
     return {
-      allowed: true,
-      remaining: config.limit,
-      retryAfterSeconds: 0,
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: 60,
+      error:
+        "Rate-limit protection is temporarily unavailable. Please try again in about a minute.",
     };
   }
 
   const row = Array.isArray(data) ? (data[0] as ConsumeRateLimitRow | undefined) : undefined;
   if (!row) {
     return {
-      allowed: true,
-      remaining: config.limit,
-      retryAfterSeconds: 0,
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: 60,
+      error:
+        "Rate-limit protection is temporarily unavailable. Please try again in about a minute.",
     };
   }
 

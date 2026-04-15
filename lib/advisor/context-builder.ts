@@ -33,16 +33,49 @@ function formatNaturalList(values: string[]): string {
   return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
 }
 
+type LegacyKnowledgeContext = {
+  topicTags?: string[];
+  chunks?: Array<{
+    heading?: string | null;
+    topicTags?: string[];
+  }>;
+};
+
+function hasStorageDecisionFramework(
+  context: VikingContextResult | LegacyKnowledgeContext | null
+): boolean {
+  if (!context) return false;
+
+  if (
+    "loadedTopics" in context &&
+    Array.isArray(context.loadedTopics) &&
+    context.loadedTopics.includes("storage_carry")
+  ) {
+    return true;
+  }
+
+  const chunks = "chunks" in context && Array.isArray(context.chunks)
+    ? context.chunks
+    : [];
+  const headings = chunks.map((chunk) => chunk.heading ?? "");
+  const hasStorageHeading = headings.some((heading) =>
+    /storage decision algorithm/i.test(heading)
+  );
+  if (hasStorageHeading) return true;
+
+  return false;
+}
+
 export function buildStorageDecisionSupport(
   messageText: string,
-  vikingContext: VikingContextResult | null,
+  vikingContext: VikingContextResult | LegacyKnowledgeContext | null,
 ): string | null {
   if (!STORAGE_QUESTION_PATTERN.test(messageText)) {
     return null;
   }
 
   // Viking L1 includes storage algorithm when storage_carry topic is loaded
-  const hasStorageAlgorithm = vikingContext?.loadedTopics.includes("storage_carry") ?? false;
+  const hasStorageAlgorithm = hasStorageDecisionFramework(vikingContext);
   if (!hasStorageAlgorithm) {
     return null;
   }

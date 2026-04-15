@@ -80,7 +80,7 @@ describe("buildAdvisorSystemPrompt", () => {
   it("includes commodity knowledge frameworks", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Storage Decision Algorithm");
-    expect(prompt).toContain("CHECK FLOW COHERENCE");
+    expect(prompt).toContain("FLOW COHERENCE");
   });
 
   it("formats small quantities in tonnes not Kt", () => {

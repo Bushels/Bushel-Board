@@ -8,10 +8,10 @@
  * Two modes:
  *   - pulse (3x/day): Quick X-only scan, 2 queries/grain, no chain trigger.
  *   - deep  (weekly):  Comprehensive X + web search, 6-8 queries/grain,
- *                       chains to analyze-market-data on last batch.
+ *                       chains to analyze-grain-market on last batch.
  *
  * Pipeline position:
- *   import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence
+ *   import-cgc-weekly -> validate-import -> search-x-intelligence -> analyze-grain-market -> generate-farm-summary
  *
  * Request body:
  *   {
@@ -81,9 +81,20 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const mode: ScanMode = body.mode === "pulse" ? "pulse" : "deep";
     const cropYear: string = body.crop_year || getCurrentCropYear();
-    const grainWeek: number = body.grain_week || getCurrentGrainWeek();
+    const requestedWeek: number | undefined = body.grain_week;
     const morningPulse: boolean = body.morning_pulse === true;
     const targetGrains: string[] | undefined = body.grains;
+
+    const { data: latestWeekData } = await supabase
+      .from("cgc_observations")
+      .select("grain_week")
+      .eq("crop_year", cropYear)
+      .order("grain_week", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const grainWeek: number =
+      requestedWeek || Number(latestWeekData?.grain_week) || getCurrentGrainWeek();
 
     const batchSize = mode === "pulse" ? PULSE_BATCH_SIZE : DEEP_BATCH_SIZE;
 
@@ -290,17 +301,17 @@ Deno.serve(async (req) => {
         console.error("Next batch trigger failed:", err);
       }
     } else if (mode === "deep") {
-      // Deep mode last batch — chain to analyze-market-data (Step 3.5 Flash round 1)
-      // Pipeline: search-x-intelligence → analyze-market-data → generate-intelligence → generate-farm-summary
-      console.log("All grains searched [deep] — triggering analyze-market-data");
+      // Deep mode last batch — chain to the v2 senior-analyst pipeline.
+      // Pipeline: search-x-intelligence → analyze-grain-market → generate-farm-summary
+      console.log("All grains searched [deep] — triggering analyze-grain-market");
       try {
-        await enqueueInternalFunction(supabase, "analyze-market-data", {
+        await enqueueInternalFunction(supabase, "analyze-grain-market", {
           crop_year: cropYear,
           grain_week: grainWeek,
         });
-        console.log("Triggered analyze-market-data");
+        console.log("Triggered analyze-grain-market");
       } catch (err) {
-        console.error("analyze-market-data chain-trigger failed (non-blocking):", err);
+        console.error("analyze-grain-market chain-trigger failed (non-blocking):", err);
       }
     } else {
       // Pulse mode last batch — no chain trigger
@@ -350,8 +361,8 @@ For each relevant post you find, provide:
 - source: "x" if found on X/Twitter, "web" if found via web search
 
 Only include posts with relevance_score >= 60. If no relevant posts found, return an empty array.
-Focus on: Canadian prairie agriculture, elevator bids, basis, cash movement, crop conditions, export activity, transport/rail, crush/processing capacity, trade policy, farmer selling, and anything that would change a haul-or-hold decision this week.
-Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content, agritourism, field photos with no market relevance, generic agronomy talk, university research or processing innovation stories with no current price/logistics impact, and broad politics unless they directly change grain demand, trade, or transportation.`;
+Focus on: Canadian prairie agriculture, elevator bids, crop conditions, export activity, transport/rail, crush/processing capacity.
+Exclude: US-only markets, global commodity speculation unrelated to Canada, spam/promotional content.`;
 
   if (mode === "deep") {
     return basePrompt + `

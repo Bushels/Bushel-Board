@@ -85,3 +85,5 @@ tmp-norwood-*
 # Edge Function copies kept local-only (Deno runtime, not needed for Next.js build)
 supabase/functions/_shared/viking-knowledge.ts
 supabase/functions/_shared/commodity-knowledge.ts
+.claude/settings.local.json
+.agents/

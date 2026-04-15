@@ -99,7 +99,9 @@ export function BushyChat({ initialPrompt }: BushyChatProps) {
               <MessageBubble
                 key={msg.id}
                 message={msg}
+                threadId={threadId}
                 onVerify={(confirmed) => handleVerify(confirmed, msg.id)}
+                onSendMessage={sendMessage}
               />
             ))}
           </div>

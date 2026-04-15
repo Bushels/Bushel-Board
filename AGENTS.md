@@ -87,18 +87,19 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
 ## Intelligence Pipeline
-- **Canonical production chain (7 stages):** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `search-x-intelligence` → `analyze-market-data` → `generate-intelligence` → `generate-farm-summary` → `validate-site-health`
-- **Legacy fallback:** `import-cgc-weekly` remains internal-only for recovery/testing, not public ingress
-- **Batch processing:** `search-x-intelligence` and `generate-intelligence` process 4 grains per invocation then self-trigger for the next batch. `generate-farm-summary` processes 50 users per batch.
+- **Automation status:** Public cron-triggered import/scan routes are intentionally paused during Advisor validation to avoid accidental pipeline runs.
+- **Target v2 production chain when automation is re-enabled:** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `search-x-intelligence` → `analyze-grain-market` → `generate-farm-summary`
+- **Legacy fallback:** `import-cgc-weekly`, `analyze-market-data`, and `generate-intelligence` remain in-repo as deprecated fallback/recovery paths, not the target production chain
+- **Batch processing:** `search-x-intelligence` runs 2 grains per pulse batch and 1 grain per deep batch, `analyze-grain-market` processes 1 grain per invocation, and `generate-farm-summary` processes 50 users per batch.
 - **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
 - **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal)
 - **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
 - **Views:** `v_country_producer_deliveries` (canonical country-level producer-delivery formula), `v_grain_yoy_comparison` (YoY metrics built from that delivery view + terminal receipts/exports/stocks), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (blended relevance: 60% Grok AI + 40% farmer consensus when votes >= 3)
-- **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role)
+- **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_market_overview_snapshot(p_crop_year, p_grain_week)` (canonical all-grain overview totals server-side), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role)
 - **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
 - **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
-- **Auth for chain triggers:** Vercel cron is the only public ingress. Internal-only Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
+- **Auth for chain triggers:** Public cron routes still require `CRON_SECRET`, but mutating cron routes are intentionally paused during Advisor validation. Internal-only Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
 ## Pipeline Monitoring
 - Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)
@@ -110,6 +111,7 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca
 - Farm summaries: `SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;`
 - pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
 - Delivery audit (country producer deliveries): `SELECT grain, total_kt FROM v_country_producer_deliveries WHERE crop_year='2025-2026' AND grain_week=30 AND period='Current Week' ORDER BY grain;`
+- Overview snapshot RPC: `SELECT * FROM get_market_overview_snapshot('2025-2026', 30);`
 - Terminal Receipts check: `SELECT grain, ktonnes FROM cgc_observations WHERE worksheet='Terminal Receipts' AND metric='Receipts' AND period='Current Week' AND grain_week=30 AND crop_year='2025-2026';`
 - Signal feedback: `SELECT grain, grain_week, COUNT(*) FROM signal_feedback GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
 - Blended scores: `SELECT signal_id, grain, blended_relevance, total_votes, farmer_relevance_pct FROM v_signal_relevance_scores ORDER BY blended_relevance DESC LIMIT 10;`

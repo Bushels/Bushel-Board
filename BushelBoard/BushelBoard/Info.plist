@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- URL Scheme for deep links from widgets, push notifications, and Siri -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.bushels.bushelboard</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>bushels</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Siri usage description (required for App Intents) -->
+	<key>NSSiriUsageDescription</key>
+	<string>Bushels uses Siri to check grain markets and log deliveries by voice.</string>
+
+	<!-- Background modes for remote notifications -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+</dict>
+</plist>

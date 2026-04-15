@@ -13,7 +13,7 @@ export interface KeyMetric {
   label: string
   metricKey: MetricType
   currentWeekKt: number
-  cropYearKt: number
+  cropYearKt: number | null
   wowChangePct: number
   insight: string
   color: string
@@ -88,7 +88,7 @@ export function KeyMetricsCards({ metrics, grain, role, userVotes, aggregates, o
 
           {/* Row 3: CY total */}
           <p className="mt-0.5 text-xs text-muted-foreground">
-            CY: {fmtKt(m.cropYearKt)}
+            {m.cropYearKt === null ? "CY total not available" : `CY: ${fmtKt(m.cropYearKt)}`}
           </p>
 
           {/* Row 4: Insight */}

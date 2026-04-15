@@ -635,7 +635,7 @@ export interface DeliveryChannelWeek {
   grain_week: number;
   primary_elevators_kt: number;
   processors_kt: number;
-  producer_cars_kt: number;
+  producer_cars_count: number;
 }
 
 /**
@@ -732,8 +732,8 @@ export async function getDeliveryChannelBreakdown(
         grain_week: wk,
         primary_elevators_kt: primaryByWeek.get(wk) ?? 0,
         processors_kt: processByWeek.get(wk) ?? 0,
-        producer_cars_kt: carsByWeek.get(wk) ?? 0,
-      }));
+      producer_cars_count: carsByWeek.get(wk) ?? 0,
+    }));
 
     return result;
   } catch (err) {

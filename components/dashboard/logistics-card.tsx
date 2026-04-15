@@ -126,8 +126,8 @@ export function LogisticsCard({
   })
 
   const octStatus = statusColor(oct, {
-    green: (v) => v <= 3,
-    amber: (v) => v <= 5,
+    green: (v) => v < 10,
+    amber: (v) => v <= 20,
   })
 
   // Find matching grain in producer cars
@@ -178,11 +178,15 @@ export function LogisticsCard({
         </KpiTile>
         <KpiTile
           icon={<Clock className="h-4 w-4" />}
-          value={oct !== null ? `${fmtOne.format(oct)} days` : "--"}
+          value={oct !== null ? `${fmtOne.format(oct)}%` : "--"}
           label="Out-of-Car Time"
           status={octStatus}
           grainWeek={grainWeek}
-        />
+        >
+          {oct !== null && (
+            <p className="text-[0.55rem] text-muted-foreground/70 mt-0.5">% of cars waiting</p>
+          )}
+        </KpiTile>
         <KpiTile
           icon={<Package className="h-4 w-4" />}
           value={throughput !== null ? `${fmtOne.format(throughput)} Kt` : "--"}

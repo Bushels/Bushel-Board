@@ -4,13 +4,16 @@ import { MarketSummaryCard } from "./cards/market-summary-card";
 import { RecommendationCard } from "./cards/recommendation-card";
 import { VerificationPrompt } from "./cards/verification-prompt";
 import { TrustFooter } from "./cards/trust-footer";
+import { InlineFeedback } from "./cards/inline-feedback";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  threadId?: string | null;
   onVerify?: (confirmed: boolean) => void;
+  onSendMessage?: (text: string) => void;
 }
 
-export function MessageBubble({ message, onVerify }: MessageBubbleProps) {
+export function MessageBubble({ message, threadId, onVerify, onSendMessage }: MessageBubbleProps) {
   // Status line — loading indicator
   if (message.role === "status") {
     return (
@@ -41,6 +44,7 @@ export function MessageBubble({ message, onVerify }: MessageBubbleProps) {
         return (
           <div className="max-w-[95%]">
             <MarketSummaryCard data={cardData.data} />
+            <InlineFeedback threadId={threadId ?? null} onSendMessage={onSendMessage} />
           </div>
         );
 
@@ -48,6 +52,7 @@ export function MessageBubble({ message, onVerify }: MessageBubbleProps) {
         return (
           <div className="max-w-[95%]">
             <RecommendationCard data={cardData.data} />
+            <InlineFeedback threadId={threadId ?? null} onSendMessage={onSendMessage} />
           </div>
         );
 

@@ -85,6 +85,7 @@ export interface AnalystPromptInput {
   ratiosText: string;
   dataText: string;
   knowledgeText: string | null;
+  usMarketContextText: string | null;
   tier: GrainResearchTier;
 }
 
@@ -101,12 +102,18 @@ Produce a structured JSON market analysis for **${input.grain}**, crop year ${in
 
 Treat the bull_case and bear_case as the weekly farmer summary of what is happening in the market right now. Each side should explain what is helping the farmer, what is hurting the farmer, and why the recommendation follows from that balance.`;
 
-  return [
+  const sections = [
     input.shippingCalendarText,
     input.ratiosText,
     input.dataText,
-    knowledgeSection,
-    researchGuidance,
-    taskSection,
-  ].join("\n\n");
+  ];
+
+  // Inject US market context after Canadian data, before knowledge
+  if (input.usMarketContextText) {
+    sections.push(input.usMarketContextText);
+  }
+
+  sections.push(knowledgeSection, researchGuidance, taskSection);
+
+  return sections.join("\n\n");
 }
