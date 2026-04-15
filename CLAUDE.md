@@ -6,12 +6,12 @@
 
 **How it works (5 layers):**
 1. **Data** — Weekly CGC grain statistics auto-imported for 16 grains (deliveries, exports, stocks, terminal flow)
-2. **AI** — Grok 4.1 Fast analyzes each grain: bull/bear thesis, stance score (-100 to +100), actionable recommendations
+2. **AI** — Claude agent swarm (6 scouts + 3 specialists + desk chief) analyzes each grain: bull/bear thesis, stance score (-100 to +100), actionable recommendations. Grok retained as fallback.
 3. **Viz** — Supply pipeline, YoY delivery gaps, terminal flow, CFTC positioning, price sparklines
 4. **My Farm** — Per-user AI summaries, delivery tracking, percentile comparisons, contract progress
 5. **Signals** — X/Twitter market chatter scored by AI + farmer relevance votes
 
-**Right now:** Auto-import is paused while we refine the AI model. 32 feature tracks completed (see `README.md` for compressed log). Active focus: AI quality, My Farm personalization, signal filtering.
+**Right now:** Auto-import is paused while we refine the AI model. 41 feature tracks completed (see `README.md` for compressed log). Active focus: AI quality (Claude Agent Desk swarm), chat alpha, iOS app.
 
 **Key files to orient yourself:**
 - `README.md` — Human-readable status with feature completion dates
@@ -173,7 +173,9 @@ Every piece of work must satisfy before being marked complete:
 - **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
 - **Commodity knowledge (Viking):** Replaced legacy 7K-token static blob with Viking tiered system: L0 (`lib/knowledge/viking-l0.ts`, ~420 tokens, 8 core principles from 8 books) + L1 (`lib/knowledge/viking-l1.ts`, ~800 tokens/topic, 7 cross-book topic summaries loaded by intent detection). Edge Function uses `supabase/functions/_shared/viking-knowledge.ts` (Deno-compatible copy). Legacy `commodity-knowledge.ts` retained for reference only.
 - **Logistics RPC:** `get_logistics_snapshot(p_crop_year, p_grain_week)` — returns Grain Monitor + Producer Car data as structured JSON. Used by both `analyze-market-data` and `generate-intelligence` Edge Functions.
-- **Agent debate rules:** `docs/reference/agent-debate-rules.md` — 11 codified rules for continuous improvement of Grok pipeline outputs (flow coherence, thesis quality, grain-specific rules, COT positioning rules 9-11, validation checklist)
+- **Agent debate rules:** `docs/reference/agent-debate-rules.md` — 15 codified rules for continuous improvement of pipeline outputs (flow coherence, thesis quality, grain-specific rules, COT positioning rules 9-11, price action rules 12-15, validation checklist)
+- **Claude Agent Desk (Track 41):** Friday swarm replaces single-pass Grok analysis. Architecture: 6 Haiku scout agents (supply, demand, basis, sentiment, logistics, macro) extract data in parallel → 3 Sonnet specialist agents (export-analyst, domestic-analyst, risk-analyst) synthesize independent theses with Viking L0/L1/L2 → Opus desk chief resolves divergence (<=15pt weighted avg, >15pt internal debate). Agent definitions in `.claude/agents/{supply,demand,basis,sentiment,logistics,macro}-scout.md` and `.claude/agents/{export,domestic,risk}-analyst.md`. Swarm prompt: `docs/reference/grain-desk-swarm-prompt.md`. Scheduled: `grain-desk-weekly` (Fri 6:47 PM ET). Grok pipeline (`analyze-grain-market`) retained as fallback. xAI `web_search`/`x_search` via `scripts/xai-search.ts` for macro-scout only.
+- **Daily data collectors (Track 41):** 6 scheduled tasks feed Supabase throughout the week: `collect-crop-progress` (Mon), `collect-grain-monitor` (Wed), `collect-export-sales` (Thu AM), `collect-cgc` (Thu PM), `collect-cftc-cot` (Fri PM), `collect-wasde` (Fri monthly). Configs: `docs/reference/collector-task-configs.md`.
 - **X API v2 (planned data source):** Direct X/Twitter API v2 access for farming signal collection — replaces Grok's `x_search` for pipeline scanning, also available as a real-time tool for Bushy chat. Credentials stored in Vercel env vars: `XAPI_CONSUMER_KEY`, `XAPI_SECRET_KEY`, `XAPI_BEARER_TOKEN`. Two modes planned: (1) background scheduled collection into `x_market_signals`, (2) real-time search during Bushy conversations. Decouples tweet discovery from LLM reasoning to reduce Grok token usage.
 - **Auth for chain triggers:** Vercel cron is the only public ingress. Internal-only Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
 
