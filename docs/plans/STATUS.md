@@ -46,6 +46,7 @@ Last updated: 2026-04-14
 | 37 | Web Alpha — Bushy Chat | Complete | 2026-04-14 | `app/(dashboard)/chat/page.tsx`, `components/bushy/`, `supabase/functions/_shared/chat-tools.ts`, `supabase/functions/_shared/chat-context-builder.ts` |
 | 38 | Operational Feedback Loop | Design Only | 2026-04-14 | Design doc committed, not yet implemented |
 | 39 | Unified Pricing Board | Complete | 2026-04-14 | `supabase/migrations/20260418100100_unified_pricing_board.sql`, `supabase/functions/_shared/chat-tools.ts`, `components/auth/signup-form.tsx` |
+| 42 | Hermes Chat Agent — Tiered Memory | 2026-04-15 | Design + skeleton: 6 tables, classification engine, supersession engine, X API v2 client, compression engine, Hermes server, Vercel proxy, 4 RPCs |
 
 ### 2026-04-14 — Unified Pricing Board (Track 39)
 
