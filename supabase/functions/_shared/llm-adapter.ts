@@ -128,6 +128,12 @@ export class GrokAdapter implements LLMAdapter {
         if (!line.startsWith("data: ")) continue;
         const data = line.slice(6).trim();
         if (data === "[DONE]") {
+          // Flush the last accumulated tool call before processing
+          if (accumulatedToolCall?.id) {
+            pendingToolCalls.push(accumulatedToolCall as ToolCall);
+            accumulatedToolCall = null;
+          }
+
           // Process any pending tool calls
           for (const tc of pendingToolCalls) {
             const result = await params.onToolCall(tc);
@@ -196,11 +202,6 @@ export class GrokAdapter implements LLMAdapter {
           // Skip malformed JSON lines
         }
       }
-    }
-
-    // Flush any remaining accumulated tool call
-    if (accumulatedToolCall?.id) {
-      pendingToolCalls.push(accumulatedToolCall as ToolCall);
     }
 
     return { totalTokens, model: this.model };

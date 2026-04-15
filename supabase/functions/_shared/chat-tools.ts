@@ -953,13 +953,14 @@ async function getAreaPrices(
   }
 
   // Log queries to price_query_log for demand analytics
+  // Deduplicate: one row per (operator, farmer, grain, day) to prevent inflation
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const logEntries = data.map((p: any) => ({
     operator_id: p.operator_id,
     farmer_id: ctx.userId,
     grain: p.grain,
     fsa_code: ctx.fsaCode,
   }));
-  // Deduplicate by operator_id + grain
   const seen = new Set<string>();
   const uniqueEntries = logEntries.filter((e: { operator_id: string; grain: string }) => {
     const key = `${e.operator_id}:${e.grain}`;
@@ -967,8 +968,21 @@ async function getAreaPrices(
     seen.add(key);
     return true;
   });
+  // Check for existing rows today to avoid duplicate counts
   if (uniqueEntries.length > 0) {
-    await supabase.from("price_query_log").insert(uniqueEntries);
+    for (const entry of uniqueEntries) {
+      const { count } = await supabase
+        .from("price_query_log")
+        .select("id", { count: "exact", head: true })
+        .eq("operator_id", entry.operator_id)
+        .eq("farmer_id", entry.farmer_id)
+        .eq("grain", entry.grain)
+        .gte("queried_at", `${today}T00:00:00Z`);
+
+      if ((count ?? 0) === 0) {
+        await supabase.from("price_query_log").insert(entry);
+      }
+    }
   }
 
   // Format results with source tags

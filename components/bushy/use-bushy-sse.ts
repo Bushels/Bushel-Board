@@ -43,13 +43,33 @@ function parseSSELine(
   return {};
 }
 
+/**
+ * Map SSE payloads from the Edge Function to typed events.
+ *
+ * Server contract (chat-completion/index.ts):
+ *   { type: "delta",               text: "..." }
+ *   { type: "tool_call",           name: "..." }
+ *   { type: "tool_result",         name: "...", result: "..." }
+ *   { type: "verification_prompt", data: { prompt, grain, ... } }
+ *   { type: "trust_footer",        cgcFreshness, ..., confidence }
+ *   { type: "done",                thread_id: "...", model, tokens }
+ *   { type: "error",               error: "..." }
+ */
 function toSSEEvent(
   eventType: string,
   parsed: Record<string, unknown>
 ): SSEEvent {
-  switch (eventType) {
+  // Edge Function embeds type in JSON payload (no separate event: line).
+  // Resolve the actual type from the payload first.
+  const resolvedType = (parsed.type as string) ?? eventType;
+
+  switch (resolvedType) {
     case "delta":
-      return { type: "delta", content: (parsed.content as string) ?? "" };
+      // Server sends { text }, not { content }
+      return {
+        type: "delta",
+        content: (parsed.text as string) ?? (parsed.content as string) ?? "",
+      };
 
     case "tool_call":
       return { type: "tool_call", name: (parsed.name as string) ?? "" };
@@ -62,9 +82,10 @@ function toSSEEvent(
       };
 
     case "verification_prompt":
+      // Server sends { data: { prompt, grain, dataType, ... } }
       return {
         type: "verification_prompt",
-        data: parsed as unknown as ServerVerificationPrompt,
+        data: (parsed.data ?? parsed) as unknown as ServerVerificationPrompt,
       };
 
     case "trust_footer":
@@ -76,35 +97,23 @@ function toSSEEvent(
     case "done":
       return {
         type: "done",
-        threadId: parsed.thread_id as string | undefined,
+        threadId: (parsed.thread_id as string) ?? (parsed.threadId as string),
         cardData: parsed as Record<string, unknown>,
       };
 
     case "error":
+      // Server sends { error }, not { message }
       return {
         type: "error",
-        message: (parsed.message as string) ?? "Unknown error",
+        message:
+          (parsed.error as string) ??
+          (parsed.message as string) ??
+          "Unknown error",
       };
 
-    default: {
-      // Edge Function embeds type in JSON payload (no separate event: line)
-      const payloadType = parsed.type as string | undefined;
-      if (payloadType && payloadType !== eventType) {
-        return toSSEEvent(payloadType, parsed);
-      }
-      // Fallback: infer from payload fields
-      if (parsed.content !== undefined) {
-        return { type: "delta", content: parsed.content as string };
-      }
-      if (parsed.thread_id !== undefined || parsed.threadId !== undefined) {
-        return {
-          type: "done",
-          threadId:
-            (parsed.thread_id as string) ?? (parsed.threadId as string),
-        };
-      }
+    default:
+      // Unknown event type — render as raw text so nothing is silently lost
       return { type: "delta", content: JSON.stringify(parsed) };
-    }
   }
 }
 

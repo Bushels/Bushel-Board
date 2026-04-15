@@ -104,7 +104,20 @@ Deno.serve(async (req) => {
   const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   let threadId = body.thread_id;
 
-  if (!threadId) {
+  if (threadId) {
+    // Verify thread belongs to this user before using it
+    const { data: threadOwner, error: ownerError } = await serviceClient
+      .from("chat_threads")
+      .select("id")
+      .eq("id", threadId)
+      .eq("user_id", userId)
+      .single();
+
+    if (ownerError || !threadOwner) {
+      console.warn(`Thread ownership check failed: user=${userId} thread=${threadId}`);
+      return jsonResponse({ error: "Thread not found" }, 404);
+    }
+  } else {
     // Create new thread
     const { data: thread, error: threadError } = await serviceClient
       .from("chat_threads")
@@ -166,13 +179,15 @@ Deno.serve(async (req) => {
 
   const isFirstConversation = (threadCount ?? 0) <= 1; // 1 = the thread we just created
 
-  // ─── Load Conversation History ───────────────────
-  const { data: history } = await serviceClient
+  // ─── Load Conversation History (newest 20, then reverse to chronological) ──
+  const { data: historyDesc } = await serviceClient
     .from("chat_messages")
     .select("role, content")
     .eq("thread_id", threadId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(20);
+
+  const history = (historyDesc ?? []).reverse();
 
   const messages = (history ?? []).map((m: { role: string; content: string }) => ({
     role: m.role as "user" | "assistant",

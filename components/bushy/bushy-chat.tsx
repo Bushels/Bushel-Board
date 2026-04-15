@@ -69,12 +69,29 @@ export function BushyChat({ initialPrompt }: BushyChatProps) {
   }, [initialPrompt, sendMessage]);
 
   const handleVerify = useCallback(
-    (confirmed: boolean, messageId: string) => {
+    async (confirmed: boolean, messageId: string) => {
       // Find the verification prompt data
       const msg = messages.find((m) => m.id === messageId);
       if (!msg?.cardData || msg.cardData.type !== "verification_prompt") return;
 
       const vp = msg.cardData.data;
+      const newConfidence = confirmed ? "verified" : "reported";
+
+      // Update stored intel confidence directly via Supabase (bypass LLM round-trip)
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from("local_market_intel")
+          .update({ confidence: newConfidence })
+          .eq("user_id", user.id)
+          .eq("grain", vp.grain)
+          .eq("data_type", vp.dataType)
+          .order("reported_at", { ascending: false })
+          .limit(1);
+      }
+
+      // Also send as chat message so Bushy acknowledges it conversationally
       const verificationText = confirmed
         ? `[VERIFIED] ${vp.dataType} for ${vp.grain}: ${vp.inferredValue}`
         : `[SKIPPED] ${vp.dataType} for ${vp.grain}`;
