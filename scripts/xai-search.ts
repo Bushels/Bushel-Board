@@ -74,22 +74,6 @@ if (!apiKey) {
 }
 
 // ── xAI Responses API call ───────────────────────────────────────────
-interface XaiMessage {
-  role: string;
-  content: string;
-}
-
-interface XaiResponse {
-  id: string;
-  choices: Array<{
-    message: XaiMessage;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
 
 async function xaiSearch(
   searchQuery: string,
@@ -116,7 +100,6 @@ async function xaiSearch(
         { role: "system", content: systemPrompt },
         { role: "user", content: searchQuery },
       ],
-      temperature: 0.3,
     }),
   });
 
@@ -137,8 +120,10 @@ async function xaiSearch(
 
   const data = await response.json();
 
-  // Extract the text output from the Responses API format
+  // Extract the text output and citations from the Responses API format
   let outputText = "";
+  const citations: Array<{ url: string; title?: string }> = [];
+
   if (data.output && Array.isArray(data.output)) {
     for (const item of data.output) {
       if (item.type === "message" && item.content) {
@@ -151,11 +136,19 @@ async function xaiSearch(
     }
   }
 
+  // Extract citations if present (Responses API includes them at top level)
+  if (data.citations && Array.isArray(data.citations)) {
+    for (const cite of data.citations) {
+      citations.push({ url: cite.url, title: cite.title });
+    }
+  }
+
   const result = {
     query: searchQuery,
     search_type: searchType,
     model: "grok-3-mini-fast",
     output: outputText,
+    citations: citations.length > 0 ? citations : undefined,
     usage: data.usage ?? null,
   };
 
