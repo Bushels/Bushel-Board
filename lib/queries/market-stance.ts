@@ -44,7 +44,7 @@ export async function getMarketStances(
   // Get current week stances
   const { data: currentStances, error: currentErr } = await supabase
     .from("market_analysis")
-    .select("grain, grain_week, stance_score, data_confidence, generated_at")
+    .select("grain, grain_week, stance_score, data_confidence, generated_at, initial_thesis")
     .eq("grain_week", grainWeek)
     .in(
       "grain",
@@ -116,6 +116,7 @@ export async function getMarketStances(
       confidence: (current?.data_confidence as "high" | "medium" | "low") ?? "low",
       cashPrice,
       priceChange: priceData?.change ?? null,
+      thesisSummary: current?.initial_thesis ?? null,
     };
   });
 }

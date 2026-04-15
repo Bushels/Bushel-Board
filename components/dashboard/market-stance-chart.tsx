@@ -12,6 +12,7 @@ export interface GrainStanceData {
   confidence: "high" | "medium" | "low";
   cashPrice?: string | null; // e.g. "$276.25"
   priceChange?: string | null; // e.g. "+$6.36" or "-$6.60"
+  thesisSummary?: string | null; // one-line explainer from market_analysis.thesis_title
 }
 
 interface MarketStanceChartProps {
@@ -103,6 +104,12 @@ export function MarketStanceChart({
         </div>
       </div>
 
+      {/* Analyzed by badge */}
+      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+        <Brain className="h-3 w-3" />
+        Analyzed by 16 Agriculture Trained AI Agents · Week {grainWeek}
+      </p>
+
       {/* Grain rows */}
       <div className="space-y-1.5">
         {sorted.map((grain, i) => {
@@ -113,82 +120,89 @@ export function MarketStanceChart({
           const isBearish = grain.score < 0;
 
           const row = (
-            <div
-              key={grain.slug}
-              className="group grid items-center gap-2"
-              style={{
-                gridTemplateColumns: "100px 28px 1fr 56px 52px",
-              }}
-            >
-              {/* Grain name + confidence dot */}
-              <div className="flex items-center gap-1.5 min-w-0">
-                <ConfidenceDot level={grain.confidence} />
-                <span className="text-sm font-medium truncate">
-                  {grain.grain}
-                </span>
-              </div>
-
-              {/* Score number */}
-              <span
-                className={cn(
-                  "text-xs font-bold tabular-nums text-right",
-                  getStanceColor(grain.score)
-                )}
+            <div key={grain.slug}>
+              <div
+                className="group grid items-center gap-2"
+                style={{
+                  gridTemplateColumns: "100px 28px 1fr 56px 52px",
+                }}
               >
-                {grain.score > 0 ? "+" : ""}
-                {grain.score}
-              </span>
-
-              {/* Diverging bar */}
-              <div className="relative flex h-5 items-center rounded-sm bg-muted/20 overflow-hidden">
-                {/* Zero line */}
-                <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-border/60" />
-
-                {/* Bearish half (fills right-to-left from center) */}
-                <div className="flex h-full w-1/2 justify-end">
-                  {isBearish && (
-                    <div
-                      className="h-full rounded-l-sm bg-amber-600/75 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
-                      style={{ width: `${absScore}%` }}
-                    />
-                  )}
-                </div>
-
-                {/* Bullish half (fills left-to-right from center) */}
-                <div className="flex h-full w-1/2 justify-start">
-                  {isBullish && (
-                    <div
-                      className="h-full rounded-r-sm bg-prairie/85 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
-                      style={{ width: `${absScore}%` }}
-                    />
-                  )}
-                </div>
-
-                {/* Prior score marker (thin line) */}
-                {grain.priorScore !== null && grain.priorScore !== grain.score && (
-                  <div
-                    className="absolute top-0 z-20 h-full w-0.5 bg-foreground/25 rounded-full"
-                    style={{
-                      left: `${50 + grain.priorScore / 2}%`,
-                    }}
-                    title={`Prior: ${grain.priorScore > 0 ? "+" : ""}${grain.priorScore}`}
-                  />
-                )}
-              </div>
-
-              {/* Cash price */}
-              <div className="text-right min-w-0">
-                {grain.cashPrice ? (
-                  <span className="text-[11px] text-muted-foreground tabular-nums truncate">
-                    {grain.cashPrice}
+                {/* Grain name + confidence dot */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ConfidenceDot level={grain.confidence} />
+                  <span className="text-sm font-medium truncate">
+                    {grain.grain}
                   </span>
-                ) : (
-                  <span className="text-[11px] text-muted-foreground/40">—</span>
-                )}
-              </div>
+                </div>
 
-              {/* Delta from prior */}
-              <div className="flex justify-end">{getDeltaIcon(delta)}</div>
+                {/* Score number */}
+                <span
+                  className={cn(
+                    "text-xs font-bold tabular-nums text-right",
+                    getStanceColor(grain.score)
+                  )}
+                >
+                  {grain.score > 0 ? "+" : ""}
+                  {grain.score}
+                </span>
+
+                {/* Diverging bar */}
+                <div className="relative flex h-5 items-center rounded-sm bg-muted/20 overflow-hidden">
+                  {/* Zero line */}
+                  <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-border/60" />
+
+                  {/* Bearish half (fills right-to-left from center) */}
+                  <div className="flex h-full w-1/2 justify-end">
+                    {isBearish && (
+                      <div
+                        className="h-full rounded-l-sm bg-amber-600/75 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                        style={{ width: `${absScore}%` }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Bullish half (fills left-to-right from center) */}
+                  <div className="flex h-full w-1/2 justify-start">
+                    {isBullish && (
+                      <div
+                        className="h-full rounded-r-sm bg-prairie/85 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                        style={{ width: `${absScore}%` }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Prior score marker (thin line) */}
+                  {grain.priorScore !== null && grain.priorScore !== grain.score && (
+                    <div
+                      className="absolute top-0 z-20 h-full w-0.5 bg-foreground/25 rounded-full"
+                      style={{
+                        left: `${50 + grain.priorScore / 2}%`,
+                      }}
+                      title={`Prior: ${grain.priorScore > 0 ? "+" : ""}${grain.priorScore}`}
+                    />
+                  )}
+                </div>
+
+                {/* Cash price */}
+                <div className="text-right min-w-0">
+                  {grain.cashPrice ? (
+                    <span className="text-[11px] text-muted-foreground tabular-nums truncate">
+                      {grain.cashPrice}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground/40">—</span>
+                  )}
+                </div>
+
+                {/* Delta from prior */}
+                <div className="flex justify-end">{getDeltaIcon(delta)}</div>
+              </div>
+              {/* Thesis explainer (one-line below the bar) */}
+              {grain.thesisSummary && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground/70 pl-[18px]">
+                  {grain.thesisSummary}
+                </p>
+              )}
             </div>
           );
 

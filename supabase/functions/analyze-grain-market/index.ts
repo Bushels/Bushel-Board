@@ -206,6 +206,7 @@ Deno.serve(async (req) => {
     const cropYear: string = body.crop_year || getCurrentCropYear();
     const requestedWeek: number | undefined = body.grain_week;
     const targetGrains: string[] | undefined = body.grains;
+    const runId: string | undefined = body.run_id;
 
     // Compute the dynamic shipping calendar
     const currentCalendarWeek = getCurrentGrainWeek();
@@ -586,21 +587,16 @@ Deno.serve(async (req) => {
     const succeeded = results.filter(r => r.status === "success").length;
     const failed = results.filter(r => r.status === "failed").length;
 
-    // Self-trigger for remaining grains
-    if (remainingGrains.length > 0) {
-      console.log(`[v2] ${remainingGrains.length} grains remaining — triggering next batch`);
-      await enqueueInternalFunction(supabase, "analyze-grain-market", {
-        crop_year: cropYear,
-        grain_week: latestDataWeek,
-        grains: remainingGrains,
-      }).catch(err => console.error("Next batch trigger failed:", err));
-    } else {
-      // Chain to generate-farm-summary
-      console.log("[v2] All grains analyzed — triggering generate-farm-summary");
-      await enqueueInternalFunction(supabase, "generate-farm-summary", {
-        crop_year: cropYear,
-        grain_week: latestDataWeek,
-      }).catch(err => console.error("generate-farm-summary trigger failed:", err));
+    // Report completion to pipeline_runs (if orchestrated)
+    if (runId) {
+      const grainStatus = results.some((r: { status: string }) => r.status === "failed") ? "failed" : "completed";
+      const errorMsg = results.find((r: { status: string; error?: string }) => r.status === "failed")?.error ?? null;
+      await supabase.rpc("update_pipeline_grain_status", {
+        p_run_id: runId,
+        p_grain: grainNames[0],  // BATCH_SIZE=1, always one grain
+        p_status: grainStatus,
+        p_error: errorMsg,
+      }).catch((err: Error) => console.error("Pipeline status update failed:", err));
     }
 
     return new Response(
