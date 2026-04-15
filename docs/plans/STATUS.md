@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-04-14
+Last updated: 2026-04-15
 
 ## Feature Tracks
 
@@ -46,7 +46,21 @@ Last updated: 2026-04-14
 | 37 | Web Alpha — Bushy Chat | Complete | 2026-04-14 | `app/(dashboard)/chat/page.tsx`, `components/bushy/`, `supabase/functions/_shared/chat-tools.ts`, `supabase/functions/_shared/chat-context-builder.ts` |
 | 38 | Operational Feedback Loop | Design Only | 2026-04-14 | Design doc committed, not yet implemented |
 | 39 | Unified Pricing Board | Complete | 2026-04-14 | `supabase/migrations/20260418100100_unified_pricing_board.sql`, `supabase/functions/_shared/chat-tools.ts`, `components/auth/signup-form.tsx` |
+| 40 | Parallel Pipeline Orchestrator | Design Only | 2026-04-15 | `docs/plans/2026-04-15-parallel-pipeline-orchestrator-design.md` |
+| 41 | Claude Agent Desk | Complete | 2026-04-15 | `.claude/agents/{supply,demand,basis,sentiment,logistics,macro}-scout.md`, `.claude/agents/{export,domestic,risk}-analyst.md`, `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md`, `scripts/xai-search.ts` |
 | 42 | Hermes Chat Agent — Tiered Memory | 2026-04-15 | Design + skeleton: 6 tables, classification engine, supersession engine, X API v2 client, compression engine, Hermes server, Vercel proxy, 4 RPCs |
+
+### 2026-04-15 — Claude Agent Desk (Track 41)
+
+**What was delivered:**
+- 6 scout agent definitions: supply-scout, demand-scout, basis-scout, sentiment-scout, logistics-scout, macro-scout (5 Haiku + 1 Sonnet)
+- 3 specialist agent definitions: export-analyst, domestic-analyst, risk-analyst (all Sonnet)
+- Friday swarm orchestration prompt (`grain-desk-weekly` scheduled task, Fri 6:47 PM ET): 7-phase desk chief that dispatches scouts in parallel, compiles briefs, dispatches specialists, resolves divergence using all 15 debate rules + Viking L0/L1/L2, writes to `market_analysis`
+- 6 daily data collector scheduled tasks: crop-progress (Mon), grain-monitor (Wed), export-sales (Thu AM), cgc (Thu PM), cftc-cot (Fri PM), wasde (Fri monthly)
+- xAI search helper script (`scripts/xai-search.ts`) for macro-scout web_search/x_search via grok-3-mini-fast
+- Reference docs: `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md`
+- Integration verified: build passes, 214 tests pass, all RPCs return data for Wheat Week 35
+- Grok pipeline (`analyze-grain-market`) retained as fallback
 
 ### 2026-04-14 — Unified Pricing Board (Track 39)
 

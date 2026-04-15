@@ -16,7 +16,7 @@ Helping prairie farmers (AB, SK, MB) answer: *"Should I haul or hold my grain th
 | Layer | What It Does | Status |
 |-------|-------------|--------|
 | **Data Pipeline** | Auto-imports weekly CGC grain statistics (deliveries, exports, stocks) for 16 Canadian grains | Built. Auto-import paused while we refine the AI model. |
-| **AI Analysis** | Grok 4.20 Reasoning analyzes each grain — bull/bear thesis, stance score, actionable recommendations | Built. Tuning quality (debate rules, commodity knowledge injection). |
+| **AI Analysis** | Claude agent swarm (6 scouts + 3 specialists + desk chief) with Viking knowledge + 15 debate rules. Grok fallback. | Built. First Friday swarm run pending. |
 | **Visualizations** | Supply pipeline, YoY delivery gaps, terminal flow, CFTC positioning, price sparklines | Built. Ongoing polish. |
 | **My Farm** | Personalized summaries, delivery tracking, percentile comparisons, contract progress | Built. Actively improving. |
 | **Social Signals** | Aggregates X/Twitter market chatter, scored by AI + farmer votes for relevance | Built. Signal quality filtering needs work. |
@@ -28,6 +28,7 @@ Compressed snapshots of what's been delivered, most recent first.
 
 | # | Feature | Last Worked | Snapshot |
 |---|---------|-------------|---------|
+| 41 | Claude Agent Desk | 2026-04-15 | Friday swarm: 6 scouts (Haiku) + 3 specialists (Sonnet) + desk chief (Opus). Divergence resolution via 15 debate rules + Viking L0/L1/L2. 6 daily collectors feed Supabase. Grok retained as fallback. |
 | 39 | Unified Pricing Board | 2026-04-14 | Single posted_prices table. Operators post daily prices via chat. Farmers query conversationally. Demand analytics feedback loop. |
 | 38 | Operational Feedback Loop | 2026-04-14 | Design doc. feedback_log with user_role for farmer vs operator filtering. |
 | 37 | Web Alpha — Bushy Chat | 2026-04-14 | Full chat at /chat. SSE streaming, 10 tools, trust footer, verification prompts, source tags. |
@@ -51,10 +52,10 @@ Compressed snapshots of what's been delivered, most recent first.
 
 ## Current Focus Areas
 
+- **Claude Agent Desk** — Friday swarm live: 6 scouts + 3 specialists + desk chief. First automated run this Friday. Replaces single-pass Grok.
 - **Chat Alpha** — Bushy chat live at /chat. Testing end-to-end conversation quality.
-- **Unified Pricing Board** — Operators post daily prices, farmers query conversationally. Implementation plan ready (Track 39).
+- **Unified Pricing Board** — Operators post daily prices, farmers query conversationally (Track 39).
 - **iOS App** — Bushels iOS app designed, Xcode skeleton built. Pending Mac transition for development.
-- **AI Model Quality** — Grok 4.20 with Viking knowledge system. Parallel debate architecture.
 
 ## Session Work Log
 
