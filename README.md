@@ -1,21 +1,26 @@
-# Bushel Board
+# Bushel Board + Bushels
 
 **Prairie grain market intelligence for Canadian farmers.**
 
-Bushel Board helps farmers in Alberta, Saskatchewan, and Manitoba make better grain marketing decisions by combining official Canadian Grain Commission data with AI-powered market analysis and community sentiment.
+Two apps, one backend:
+
+- **Bushels** — a chat-first iOS app (and web app at `/chat`) where farmers talk to Bushy, a conversational grain analyst. Ask about your grain, local prices, or anything farming.
+- **Bushel Board** — the web dashboard for grain market intelligence. Supply pipelines, AI analysis, community sentiment, and delivery tracking.
+
+Both share the same Supabase backend (PostgreSQL, Auth, Edge Functions).
 
 ## What We're Building
 
-A dashboard that answers: *"Should I haul or hold my grain this week?"*
+Helping prairie farmers (AB, SK, MB) answer: *"Should I haul or hold my grain this week?"*
 
 | Layer | What It Does | Status |
 |-------|-------------|--------|
 | **Data Pipeline** | Auto-imports weekly CGC grain statistics (deliveries, exports, stocks) for 16 Canadian grains | Built. Auto-import paused while we refine the AI model. |
-| **AI Analysis** | Grok 4.1 Fast analyzes each grain — bull/bear thesis, stance score, actionable recommendations | Built. Tuning quality (debate rules, commodity knowledge injection). |
+| **AI Analysis** | Grok 4.20 Reasoning analyzes each grain — bull/bear thesis, stance score, actionable recommendations | Built. Tuning quality (debate rules, commodity knowledge injection). |
 | **Visualizations** | Supply pipeline, YoY delivery gaps, terminal flow, CFTC positioning, price sparklines | Built. Ongoing polish. |
 | **My Farm** | Personalized summaries, delivery tracking, percentile comparisons, contract progress | Built. Actively improving. |
 | **Social Signals** | Aggregates X/Twitter market chatter, scored by AI + farmer votes for relevance | Built. Signal quality filtering needs work. |
-| **Farmer Advisor** | Chat with Grok about your grain position with real-time X search | Designed, not yet implemented. |
+| **Bushy Chat** | Chat with Bushy about your grain, local prices, or anything farming. Available at /chat (web) and iOS app. | Built. Alpha testing. |
 
 ## Feature Completion Log
 
@@ -23,6 +28,11 @@ Compressed snapshots of what's been delivered, most recent first.
 
 | # | Feature | Last Worked | Snapshot |
 |---|---------|-------------|---------|
+| 39 | Unified Pricing Board | 2026-04-14 | Single posted_prices table. Operators post daily prices via chat. Farmers query conversationally. Demand analytics feedback loop. |
+| 38 | Operational Feedback Loop | 2026-04-14 | Design doc. feedback_log with user_role for farmer vs operator filtering. |
+| 37 | Web Alpha — Bushy Chat | 2026-04-14 | Full chat at /chat. SSE streaming, 10 tools, trust footer, verification prompts, source tags. |
+| 36 | Chat-First iOS Pivot | 2026-04-14 | Bushels iOS app design + skeleton. Bushy persona. Chat-architect agent. LLM adapter. |
+| 35 | US Thesis Lane + Hermes | 2026-04-11 | USDA export sales/WASDE/crop progress tables. Score trajectory. Hermes pipeline design. |
 | 34 | Grok 4.20 + Parallel Debate | 2026-03-21 | Upgraded to grok-4.20-reasoning. Parallel Grok+Claude analysis with divergence debate (>15 pts). Viking L0/L1 injected into both models. 72 web/X searches, 10 debate rounds, Gemini QC validated. |
 | 33 | Viking Knowledge System | 2026-03-19 | Replaced flat 7K-token static blob (3 books) with tiered L0/L1/L2 architecture (all 8 books, ~2K tokens). L0: always-loaded analyst worldview. L1: 7 topic summaries loaded by intent detection. L2: existing PostgreSQL full-text search. Zero extra LLM calls at query time. |
 | 32 | Live Grain Futures Prices | 2026-03-18 | Yahoo Finance import for Wheat/Corn/Oats/Soybeans. Canola + Spring Wheat unavailable — need Barchart API. |
@@ -41,11 +51,10 @@ Compressed snapshots of what's been delivered, most recent first.
 
 ## Current Focus Areas
 
-- **AI Model & Debate** — Upgraded to Grok 4.20 Reasoning. Parallel Grok+Claude debate architecture live (`scripts/parallel-debate.ts`). Next: two-way rebuttal, LLM consensus judge, structured JSON debate schema.
-- **AI Knowledge Quality** — Viking L0/L1/L2 tiered knowledge system live and injected into both Edge Function and debate script. Bull/Bear 3-of-5 checklist used for score validation.
-- **My Farm Personalization** — Improving delivery tracking, contract management, and per-user summaries.
-- **Signal Quality** — Better filtering of X/Twitter data for genuine market intelligence vs noise.
-- **Farmer Advisor Chat** — Designed but not yet built. Interactive Grok chat with X search.
+- **Chat Alpha** — Bushy chat live at /chat. Testing end-to-end conversation quality.
+- **Unified Pricing Board** — Operators post daily prices, farmers query conversationally. Implementation plan ready (Track 39).
+- **iOS App** — Bushels iOS app designed, Xcode skeleton built. Pending Mac transition for development.
+- **AI Model Quality** — Grok 4.20 with Viking knowledge system. Parallel debate architecture.
 
 ## Session Work Log
 
@@ -71,7 +80,7 @@ Compressed snapshots of what was done in each working session, most recent first
 - **UI:** shadcn/ui + Tailwind CSS (custom wheat palette)
 - **Charts:** Recharts
 - **Fonts:** DM Sans (body) + Fraunces (display)
-- **AI:** Grok 4.1 Fast Reasoning via xAI Responses API
+- **AI:** Grok 4.20 Reasoning via xAI Responses API
 
 ## Getting Started
 
@@ -159,4 +168,4 @@ docs/
 Private — not yet licensed for distribution.
 
 ---
-*Last updated: 2026-03-19*
+*Last updated: 2026-04-14*

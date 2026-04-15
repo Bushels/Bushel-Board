@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-03-21
+Last updated: 2026-04-14
 
 ## Feature Tracks
 
@@ -41,6 +41,47 @@ Last updated: 2026-03-21
 | 32 | Live Grain Futures Prices (Phase A) | Complete | 2026-03-18 | `scripts/import-grain-prices.ts`, `lib/queries/grain-prices.ts`, `supabase/migrations/20260318120000_add_grain_prices_unit.sql` |
 | 33 | Viking Knowledge System (L0/L1/L2) | Complete | 2026-03-19 | `lib/knowledge/viking-l0.ts`, `lib/knowledge/viking-l1.ts`, `lib/knowledge/viking-retrieval.ts`, `supabase/functions/_shared/viking-knowledge.ts` |
 | 34 | Grok 4.20 Upgrade + Parallel Debate Architecture | Complete | 2026-03-21 | `supabase/functions/analyze-grain-market/index.ts`, `scripts/parallel-debate.ts`, `scripts/debate-grok-round2.ts` |
+| 35 | Hermes Pipeline Design + US Thesis Lane | Complete | 2026-04-11 | `docs/hermes/SOUL.md`, `supabase/migrations/20260412100*`, `lib/us-market-context.ts`, `docs/plans/2026-03-28-hermes-pipeline-design.md` |
+| 36 | Chat-First iOS Pivot + Bushy Persona | Complete | 2026-04-14 | `docs/plans/2026-04-13-chat-first-ios-design.md`, `BushelBoard/`, `.claude/agents/chat-architect.md`, `supabase/functions/chat-completion/` |
+| 37 | Web Alpha — Bushy Chat | Complete | 2026-04-14 | `app/(dashboard)/chat/page.tsx`, `components/bushy/`, `supabase/functions/_shared/chat-tools.ts`, `supabase/functions/_shared/chat-context-builder.ts` |
+| 38 | Operational Feedback Loop | Design Only | 2026-04-14 | Design doc committed, not yet implemented |
+| 39 | Unified Pricing Board | Complete | 2026-04-14 | `supabase/migrations/20260418100100_unified_pricing_board.sql`, `supabase/functions/_shared/chat-tools.ts`, `components/auth/signup-form.tsx` |
+
+### 2026-04-14 — Unified Pricing Board (Track 39)
+
+**What was delivered:**
+- Unified `posted_prices` table replacing separate `elevator_prices` + `provider_listings` (both had 0 rows — clean swap)
+- `operator_products` table for operator product catalogs, seeded at signup
+- `price_query_log` table for demand analytics — logs every farmer price query for operator feedback
+- `get_area_prices` RPC (farmer price lookup), `get_operator_analytics` RPC (demand trends), `get_operator_reach` RPC (farmer count in FSA)
+- 5 unified chat tools: `post_daily_prices`, `get_area_prices`, `manage_products`, `get_demand_analytics`, `update_facility_status`
+- Signup form supports all operator types (elevator/crusher/mill/terminal/seed/fertilizer/chemical) with product line capture
+- `facility_status` on profiles for operational notes ("Taking canola until Wed")
+- `user_role` on `feedback_log` for filtering farmer vs operator feedback
+- 24h price expiry drives daily posting rhythm
+- Design doc: `docs/plans/2026-04-14-unified-pricing-board-design.md`
+
+### 2026-04-14 — Web Alpha: Bushy Chat (Track 37)
+
+**What was delivered:**
+- Full Bushy chat at `/chat` route with auth guard
+- SSE streaming from Supabase `chat-completion` Edge Function
+- 10 chat tools: save_local_intel, update_farmer_memory, get_area_stance, search_market, create_crop_plan, post_daily_prices, get_area_prices, manage_products, get_demand_analytics, save_feedback
+- Context builder with parallel data loading (farmer profile, crop plans, national stances, area intel, posted prices)
+- Trust footer with data freshness (CGC, futures, local reports, posted prices)
+- Quick chips for conversation starters
+- Verification prompts for farmer-reported data (basis, prices, yields)
+- Source tags: [posted pricing], [local reports], [sponsored], [national market], [your history]
+
+### 2026-04-14 — Chat-First iOS Pivot + Bushy Persona (Track 36)
+
+**What was delivered:**
+- Complete iOS design doc: Swift/SwiftUI chat app with Apple Intelligence, Siri intents, widgets
+- Xcode project skeleton with chat UI, auth, SSE client
+- Bushy persona: grain analyst buddy, prairie farmer vocabulary, conversational tone
+- chat-architect agent definition for prompt engineering and tool design
+- LLM adapter layer for model-agnostic architecture (Grok primary, swappable)
+- Rebrand: iOS app is "Bushels", agent is "Bushy", gamified data exchange
 
 ### 2026-03-17 — Pipeline v2: Senior Analyst Single-Pass Architecture (Track 31)
 
