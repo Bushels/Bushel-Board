@@ -25,7 +25,7 @@ export interface TrustFooterData {
   futuresFreshness: string;
   localReportCount: number;
   localReportFreshness: string;
-  elevatorPricing?: string;
+  postedPrices?: string;
   confidence: ConfidenceLevel;
 }
 

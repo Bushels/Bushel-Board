@@ -73,9 +73,9 @@ export function TrustFooter({ data }: TrustFooterProps) {
                 : ""}
             </p>
           )}
-          {data.elevatorPricing && (
+          {data.postedPrices && (
             <p>
-              <strong>Elevator pricing:</strong> {data.elevatorPricing}
+              <strong>Posted prices:</strong> {data.postedPrices}
             </p>
           )}
           <p className="italic">
