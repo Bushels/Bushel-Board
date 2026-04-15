@@ -1,0 +1,22 @@
+{
+  "name": "bushel-board-hermes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "start": "node --import tsx server.ts",
+    "build": "tsc",
+    "health": "curl -s http://localhost:3002/health | jq ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

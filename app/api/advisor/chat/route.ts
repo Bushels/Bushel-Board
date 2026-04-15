@@ -11,6 +11,9 @@ export const maxDuration = 45; // Responses API with x_search may take longer
 
 const XAI_RESPONSES_URL = "https://api.x.ai/v1/responses";
 
+const HERMES_URL = process.env.HERMES_URL; // e.g., "http://hermes-vm-ip:3002"
+const INTERNAL_SECRET = process.env.BUSHEL_INTERNAL_FUNCTION_SECRET;
+
 export async function POST(request: Request) {
   const startTime = Date.now();
 
@@ -46,6 +49,48 @@ export async function POST(request: Request) {
       { error: "Message too long (max 2000 characters)" },
       { status: 400 }
     );
+  }
+
+  // 2b. Hermes proxy — when HERMES_URL is set, forward to persistent agent
+  if (HERMES_URL) {
+    const supabaseForProxy = await createClient();
+    const { data: profile } = await supabaseForProxy
+      .from("profiles")
+      .select("postal_code, role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const hermesResponse = await fetch(`${HERMES_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-bushel-internal-secret": INTERNAL_SECRET!,
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        threadId,
+        message,
+        grain,
+        fsaCode: profile?.postal_code?.substring(0, 3) || "",
+        role: profile?.role || role,
+      }),
+    });
+
+    if (!hermesResponse.ok) {
+      // Fall back to existing behavior on Hermes error
+      console.error(
+        `[Hermes proxy] Error ${hermesResponse.status}, falling back to direct LLM`
+      );
+    } else {
+      // Forward SSE stream from Hermes to client
+      return new Response(hermesResponse.body, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
   }
 
   const xaiKey = process.env.XAI_API_KEY;
