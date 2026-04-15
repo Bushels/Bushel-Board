@@ -31,9 +31,10 @@ CREATE INDEX idx_patterns_active
   ON public.knowledge_patterns (fsa_code, category, grain)
   WHERE status = 'active';
 
--- Pattern type lookup
+-- Pattern type lookup (active only — no need to index invalidated/archived)
 CREATE INDEX idx_patterns_type
-  ON public.knowledge_patterns (pattern_type, status, detected_at DESC);
+  ON public.knowledge_patterns (pattern_type, status, detected_at DESC)
+  WHERE status = 'active';
 
 -- RLS: service role full access only
 ALTER TABLE public.knowledge_patterns ENABLE ROW LEVEL SECURITY;
