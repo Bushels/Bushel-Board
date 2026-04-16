@@ -2,15 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { US_OVERVIEW_MARKETS, toUsMarketSlug } from "@/lib/constants/us-markets";
 import type { BulletPoint, GrainStanceData } from "@/components/dashboard/market-stance-chart";
 
-interface RawSignal {
-  signal?: string;
-  title?: string;
-  body?: string;
-  source?: string;
-}
-
 export function normalizeUsKeySignals(
-  signals: RawSignal[] | null | undefined,
+  signals: unknown,
 ): { bullPoints: BulletPoint[]; bearPoints: BulletPoint[] } {
   const bullPoints: BulletPoint[] = [];
   const bearPoints: BulletPoint[] = [];
@@ -18,13 +11,20 @@ export function normalizeUsKeySignals(
 
   for (const entry of signals) {
     if (!entry || typeof entry !== "object") continue;
-    const title = typeof entry.title === "string" ? entry.title.trim() : "";
-    const body = typeof entry.body === "string" ? entry.body.trim() : "";
+    const title = typeof (entry as { title?: unknown }).title === "string"
+      ? (entry as { title: string }).title.trim()
+      : "";
+    const body = typeof (entry as { body?: unknown }).body === "string"
+      ? (entry as { body: string }).body.trim()
+      : "";
     if (!title || !body) continue;
 
+    const signal = typeof (entry as { signal?: unknown }).signal === "string"
+      ? (entry as { signal: string }).signal
+      : "";
     const bullet: BulletPoint = { fact: title, reasoning: body };
-    if (entry.signal === "bullish") bullPoints.push(bullet);
-    else if (entry.signal === "bearish") bearPoints.push(bullet);
+    if (signal === "bullish") bullPoints.push(bullet);
+    else if (signal === "bearish") bearPoints.push(bullet);
   }
 
   return { bullPoints, bearPoints };
@@ -56,25 +56,28 @@ export async function getUsMarketStancesForOverview(
     return true;
   });
 
-  // Prior score from second-most-recent entry per market (simple approach: not stored as weekly anchor on this table)
-  // For MVP: priorScore = null. Trajectory lives in us_score_trajectory and is out of scope for this task.
+  // TODO: wire up us_score_trajectory for US priorScore. MVP = null.
 
-  // Latest prices keyed by futures grain
+  // Latest prices filtered to grains we actually render, deduped latest-per-grain
+  const futuresGrains = US_OVERVIEW_MARKETS.map((m) => m.futuresGrain);
   const { data: prices } = await supabase
     .from("grain_prices")
-    .select("grain, settlement_price")
-    .order("price_date", { ascending: false })
-    .limit(30);
+    .select("grain, settlement_price, price_date")
+    .in("grain", futuresGrains)
+    .order("price_date", { ascending: false });
 
-  const priceMap = new Map(
-    (prices ?? []).map((p) => [p.grain, `$${Number(p.settlement_price).toFixed(2)}`]),
-  );
+  const priceMap = new Map<string, string>();
+  for (const p of prices ?? []) {
+    if (priceMap.has(p.grain)) continue;
+    if (p.settlement_price == null) continue;
+    priceMap.set(p.grain, `$${Number(p.settlement_price).toFixed(2)}`);
+  }
 
   return US_OVERVIEW_MARKETS.flatMap((market) => {
     const row = latest.find((r) => r.market_name === market.name);
     if (!row) return []; // omit markets with no analysis yet (e.g. US Barley today)
 
-    const { bullPoints, bearPoints } = normalizeUsKeySignals(row.key_signals as RawSignal[] | null);
+    const { bullPoints, bearPoints } = normalizeUsKeySignals(row.key_signals);
 
     return [
       {
