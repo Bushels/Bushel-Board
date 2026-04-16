@@ -5,7 +5,7 @@
 Both Overview and grain detail pages use a **3-section layout** with `SectionHeader` and `space-y-10` between sections. Every data-dependent section is wrapped in `SectionBoundary` for error isolation.
 
 **Overview page:** Prairie Snapshot → Community Pulse → Market Intelligence
-**Grain detail page:** Market Intelligence → Supply & Movement → Community Pulse
+**Grain detail page:** Market Thesis → Ask Bushy → My Farm
 
 ## Key Components
 
@@ -25,6 +25,8 @@ Both Overview and grain detail pages use a **3-section layout** with `SectionHea
 | `crush-utilization-gauge.tsx` | Semicircle SVG gauge: annualized processing vs capacity | Grain detail |
 | `price-sparkline.tsx` | Compact SVG price sparkline with latest settlement + daily change | Grain detail |
 | `delivery-gap-chart.tsx` | YoY cumulative delivery gap with dual Y-axes: left for deliveries, right for gap line + fill | Grain detail (Canola only) |
+| `grain-bushy-chat.tsx` | Grain-scoped Bushy Chat wrapper (400px fixed height, grain context) | Grain detail |
+| `grain-farm-progress.tsx` | 3-tile delivery/contract progress + recommendation + pace badge | Grain detail |
 
 ## Deleted Components — Do Not Recreate
 
@@ -39,6 +41,17 @@ These were removed in the UX Layout & Hierarchy Redesign (Track #16, 2026-03-11)
 - `flow-donut-chart.tsx` — "Where Grain Went" donut. Replaced by delivery breakdown chart in Wave 2.
 - `intelligence-kpis.tsx` — KPI cards. Replaced by key-metrics-cards in Wave 2.
 - `cot-positioning-card.tsx` — Trader-focused COT chart. Replaced by farmer-friendly `farmer-cot-card.tsx` in Wave 3 (2026-03-14).
+- `key-metrics-cards.tsx` — KPI grid replaced by thesis reasoning + chat. Retained for Bushy Chat queries. (Track #43, 2026-04-15)
+- `net-balance-chart.tsx` — Net balance chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `delivery-breakdown-chart.tsx` — Delivery channels chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `terminal-flow-chart.tsx` — Terminal net flow chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `gamified-grain-chart.tsx` — Pipeline velocity chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `logistics-card.tsx` — Port/rail KPI tiles. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `province-map.tsx` — Provincial delivery map. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `storage-breakdown.tsx` — Grain storage breakdown. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `farmer-cot-card.tsx` — COT positioning card. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `crush-utilization-gauge.tsx` — Crush gauge. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
+- `wow-comparison.tsx` — WoW detail card. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
 
 ## Patterns
 

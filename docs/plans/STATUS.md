@@ -49,6 +49,7 @@ Last updated: 2026-04-15
 | 40 | Parallel Pipeline Orchestrator | Design Only | 2026-04-15 | `docs/plans/2026-04-15-parallel-pipeline-orchestrator-design.md` |
 | 41 | Claude Agent Desk | Complete | 2026-04-15 | `.claude/agents/{supply,demand,basis,sentiment,logistics,macro}-scout.md`, `.claude/agents/{export,domestic,risk}-analyst.md`, `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md`, `scripts/xai-search.ts` |
 | 42 | Hermes Chat Agent — Tiered Memory | 2026-04-15 | Design + skeleton: 6 tables, classification engine, supersession engine, X API v2 client, compression engine, Hermes server, Vercel proxy, 4 RPCs |
+| 43 | Grain Detail Simplification | 2026-04-15 | Strip grain detail page to 3 sections: Market Thesis (two-column reasoning), Ask Bushy (embedded chat), My Farm (progress + recommendation). Fix stale week display. |
 
 ### 2026-04-15 — Claude Agent Desk (Track 41)
 
