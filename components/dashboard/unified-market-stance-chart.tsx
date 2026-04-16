@@ -3,7 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Brain, ChevronDown, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { GrainStanceData } from "./market-stance-chart";
 
@@ -54,11 +54,13 @@ function BulletColumn({
   points,
   tone,
   emptyLabel,
+  emptyHint,
 }: {
   title: string;
   points: { fact: string; reasoning: string }[];
   tone: "bull" | "bear";
   emptyLabel: string;
+  emptyHint?: string | null;
 }) {
   const isBull = tone === "bull";
   const cardClass = isBull
@@ -74,7 +76,12 @@ function BulletColumn({
         <p className={cn("text-xs font-semibold uppercase tracking-wider", toneClass)}>{title}</p>
       </div>
       {points.length === 0 ? (
-        <p className="text-xs italic text-muted-foreground/70">{emptyLabel}</p>
+        <div className="space-y-1">
+          <p className="text-xs italic text-muted-foreground/70">{emptyLabel}</p>
+          {emptyHint && (
+            <p className="text-[11px] leading-snug text-muted-foreground/60">{emptyHint}</p>
+          )}
+        </div>
       ) : (
         <ul className="space-y-0">
           {points.map((p, i) => (
@@ -111,6 +118,33 @@ function StanceRow({
   const isBullish = row.score > 0;
   const isBearish = row.score < 0;
   const rowKey = `${row.region}:${row.slug}`;
+
+  // Delta-aware empty-state messaging. When our AI swarm drops the stance
+  // meaningfully but omits structured bear_reasoning (a known pipeline gap),
+  // say so honestly instead of displaying a flat "no bear case" message.
+  const bearEmpty =
+    row.bearPoints.length === 0
+      ? delta <= -10
+        ? {
+            label: `Stance softened ${delta} WoW, but no specific bearish drivers were captured this week.`,
+            hint: "Check the deliveries, basis, or terminal cards on the grain page — a soft signal is there even if the AI didn't name it.",
+          }
+        : delta < 0
+          ? {
+              label: "No standalone bear case this week — stance is slightly softer but drivers remain mostly bullish.",
+              hint: null,
+            }
+          : { label: "No bear case recorded this week.", hint: null }
+      : null;
+  const bullEmpty =
+    row.bullPoints.length === 0
+      ? delta >= 10
+        ? {
+            label: `Stance firmed +${delta} WoW, but no specific bullish drivers were captured this week.`,
+            hint: "Check the deliveries, basis, or terminal cards on the grain page — a supportive signal is there even if the AI didn't name it.",
+          }
+        : { label: "No bull case recorded this week.", hint: null }
+      : null;
   const panelId = `stance-panel-${rowKey}`;
   const buttonId = `stance-button-${rowKey}`;
 
@@ -192,13 +226,15 @@ function StanceRow({
                   title="Bull case"
                   points={row.bullPoints}
                   tone="bull"
-                  emptyLabel="No bull case recorded this week."
+                  emptyLabel={bullEmpty?.label ?? "No bull case recorded this week."}
+                  emptyHint={bullEmpty?.hint ?? null}
                 />
                 <BulletColumn
                   title="Bear case"
                   points={row.bearPoints}
                   tone="bear"
-                  emptyLabel="No bear case recorded this week."
+                  emptyLabel={bearEmpty?.label ?? "No bear case recorded this week."}
+                  emptyHint={bearEmpty?.hint ?? null}
                 />
               </div>
               {row.thesisSummary && (
@@ -234,15 +270,18 @@ export function UnifiedMarketStanceChart({
   const prefersReducedMotion = useReducedMotion();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
-  const sortedCa = useMemo(() => [...caRows].sort((a, b) => b.score - a.score), [caRows]);
-  const sortedUs = useMemo(() => [...usRows].sort((a, b) => b.score - a.score), [usRows]);
+  // Rows preserve upstream insertion order (popularity in the CA query,
+  // CBOT importance in the US markets constant) — we intentionally do NOT
+  // re-sort by stance score here.
 
-  const renderGroup = (label: string, rows: GrainStanceData[]) => {
+  const renderGroup = (label: string, explainer: string, rows: GrainStanceData[]) => {
     if (rows.length === 0) return null;
     return (
       <div>
-        <div className="flex items-center gap-2 pt-3 pb-1">
+        <div className="flex items-baseline gap-2 pt-3 pb-1">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+          <span className="text-[10px] text-muted-foreground/60">·</span>
+          <span className="text-[11px] text-muted-foreground/70 leading-tight">{explainer}</span>
         </div>
         <div className="space-y-0.5">
           {rows.map((row, i) => {
@@ -294,9 +333,21 @@ export function UnifiedMarketStanceChart({
         <Brain className="h-3 w-3" />
         Analyzed by 16 Agriculture Trained AI Agents
       </p>
+      <p className="text-[11px] text-muted-foreground/60 leading-snug">
+        CA and US stances can differ for the same grain — they're scored from different
+        data (CGC vs USDA) and serve different markets (prairie cash vs CBOT futures).
+      </p>
 
-      {renderGroup(`🇨🇦 Canadian grains · Wk ${caGrainWeek}`, sortedCa)}
-      {renderGroup(`🇺🇸 US markets · MY ${usMarketYear}`, sortedUs)}
+      {renderGroup(
+        `🇨🇦 Canadian grains · Wk ${caGrainWeek}`,
+        "CGC deliveries, terminals, basis & farmer sentiment",
+        caRows,
+      )}
+      {renderGroup(
+        `🇺🇸 US markets · MY ${usMarketYear}`,
+        "USDA export sales, WASDE S&D, CBOT futures & COT",
+        usRows,
+      )}
 
       {updatedAt && (
         <p className="text-[10px] text-muted-foreground/60 text-right">

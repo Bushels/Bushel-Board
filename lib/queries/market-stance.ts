@@ -1,17 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
 import type { BulletPoint, GrainStanceData } from "@/components/dashboard/market-stance-chart";
 
+// Ordered by prairie-acreage popularity — grains farmers are most likely
+// to click appear first. Order is preserved downstream (chart does not
+// re-sort by score), so this list is the source of truth for row order.
 const OVERVIEW_GRAINS = [
   { grain: "Wheat", slug: "wheat" },
   { grain: "Canola", slug: "canola" },
   { grain: "Barley", slug: "barley" },
-  { grain: "Oats", slug: "oats" },
+  { grain: "Amber Durum", slug: "amber-durum" },
   { grain: "Peas", slug: "peas" },
-  { grain: "Corn", slug: "corn" },
+  { grain: "Oats", slug: "oats" },
+  { grain: "Lentils", slug: "lentils" },
   { grain: "Flaxseed", slug: "flaxseed" },
   { grain: "Soybeans", slug: "soybeans" },
-  { grain: "Amber Durum", slug: "amber-durum" },
-  { grain: "Lentils", slug: "lentils" },
+  { grain: "Corn", slug: "corn" },
 ] as const;
 
 const CASH_PRICE_MAP: Record<string, string> = {

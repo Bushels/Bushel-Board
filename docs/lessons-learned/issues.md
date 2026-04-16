@@ -1,5 +1,21 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-16 — Missing bear_reasoning when stance drops (swarm-prompt gap)
+
+**Symptom:** The Overview unified stance chart showed Barley with a -25 WoW stance drop but an empty Bear Case panel. A farmer legitimately asked "why is there no bear case when it is down 25 over the previous week?" — the answer was that our AI produced a directional score without producing structured reasoning to back it up.
+
+**Root cause:** The Friday Claude Agent Desk swarm (Track 41) outputs `stance_score` and `bull_reasoning` / `bear_reasoning` JSONB arrays into `market_analysis`. The swarm prompt does not enforce the invariant that a negative WoW stance move must be accompanied by at least one entry in `bear_reasoning`. When the three specialist analysts all ended up leaning bullish long-term, the bear case got dropped even though the short-term stance tightened.
+
+**Fix (short-term, UI):** `components/dashboard/unified-market-stance-chart.tsx` now renders a delta-aware empty state. When `bearPoints.length === 0 && delta <= -10`, the panel says "Stance softened N WoW, but no specific bearish drivers were captured this week" with a hint to check the grain's delivery/basis/terminal cards. This preserves honesty — we acknowledge the softening rather than silently omitting it.
+
+**Fix (long-term, pipeline):** Add a rule to `docs/reference/grain-desk-swarm-prompt.md` and the desk-chief prompt: if `stance_score` drops >=10 WoW, `bear_reasoning` MUST contain >=1 driver (and vice versa for bullish moves >=10). The validator pass in `supabase/functions/analyze-grain-market` should reject outputs that violate this and re-prompt once before accepting.
+
+**Also addressed in this commit:**
+- Overview CA grains now ordered by prairie-acreage popularity (Wheat → Canola → Barley → Amber Durum → Peas → Oats → Lentils → Flaxseed → Soybeans → Corn) rather than by stance score. Most-clicked grains appear first.
+- Added explainers under each section header and a top note explaining that CA/US stances diverge legitimately (different data streams: CGC vs USDA; different markets: prairie cash vs CBOT futures). Addresses the "why does Oats differ between CA and US?" farmer question.
+
+**Tags:** #ai-pipeline #swarm #bear-reasoning #ux #overview #followup
+
 ## 2026-04-16 — Components orphaned by Overview bull/bear unification
 
 **Symptom:** The Overview page was rewritten to render a single `UnifiedMarketStanceChart` grouped by region (CA + US). The CGC snapshot grid, Logistics Banner, Community Pulse, and the original single-region MarketStanceChart were removed from the page.
