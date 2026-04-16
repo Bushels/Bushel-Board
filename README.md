@@ -28,6 +28,7 @@ Compressed snapshots of what's been delivered, most recent first.
 
 | # | Feature | Last Worked | Snapshot |
 |---|---------|-------------|---------|
+| 44 | Overview Bull/Bear Unification | 2026-04-16 | Single `UnifiedMarketStanceChart` on /overview groups CA + US markets with expand-on-click accordion rows revealing two-column bull/bear bullets. CGC snapshot grid, Logistics Banner, and Community Pulse removed from the page. New `getUsMarketStancesForOverview` query + defensive JSONB parsers on both sides. |
 | 41 | Claude Agent Desk | 2026-04-15 | Friday swarm: 6 scouts (Haiku) + 3 specialists (Sonnet) + desk chief (Opus). Divergence resolution via 15 debate rules + Viking L0/L1/L2. 6 daily collectors feed Supabase. Grok retained as fallback. |
 | 39 | Unified Pricing Board | 2026-04-14 | Single posted_prices table. Operators post daily prices via chat. Farmers query conversationally. Demand analytics feedback loop. |
 | 38 | Operational Feedback Loop | 2026-04-14 | Design doc. feedback_log with user_role for farmer vs operator filtering. |

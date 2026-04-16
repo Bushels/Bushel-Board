@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-04-15
+Last updated: 2026-04-16
 
 ## Feature Tracks
 
@@ -50,6 +50,28 @@ Last updated: 2026-04-15
 | 41 | Claude Agent Desk | Complete | 2026-04-15 | `.claude/agents/{supply,demand,basis,sentiment,logistics,macro}-scout.md`, `.claude/agents/{export,domestic,risk}-analyst.md`, `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md`, `scripts/xai-search.ts` |
 | 42 | Hermes Chat Agent — Tiered Memory | 2026-04-15 | Design + skeleton: 6 tables, classification engine, supersession engine, X API v2 client, compression engine, Hermes server, Vercel proxy, 4 RPCs |
 | 43 | Grain Detail Simplification | 2026-04-15 | Strip grain detail page to 3 sections: Market Thesis (two-column reasoning), Ask Bushy (embedded chat), My Farm (progress + recommendation). Fix stale week display. |
+| 44 | Overview Bull/Bear Unification | 2026-04-16 | Single `UnifiedMarketStanceChart` grouped by region (CA 10 grains + US 4 markets), accordion rows expand to two-column bull/bear bullet panels with recommendation + detail link. CGC snapshot grid, Logistics Banner, and Community Pulse removed from Overview. `lib/queries/us-market-stance.ts`, `lib/queries/market-stance.ts` extended with `bullPoints`/`bearPoints`/`region`/`detailHref`. |
+
+### 2026-04-16 — Overview Bull/Bear Unification (Track 44)
+
+**What was delivered:**
+- New `components/dashboard/unified-market-stance-chart.tsx` — single chart grouped by region (🇨🇦 CA + 🇺🇸 US) with expand-on-click accordion rows revealing a two-column bull/bear bullet panel plus recommendation + detail link.
+- New `lib/queries/us-market-stance.ts` with `getUsMarketStancesForOverview(marketYear)` and pure `normalizeUsKeySignals(unknown)` helper that splits `us_market_analysis.key_signals` into `bullPoints`/`bearPoints`. Markets with no analysis yet are omitted (flatMap pattern) rather than rendered as stubs.
+- Extended `lib/queries/market-stance.ts` CA query: SELECT adds `bull_reasoning`, `bear_reasoning` JSONB, output shape now carries `region: "CA"`, `bullPoints`, `bearPoints`, `detailHref`. Defensive `coerceBullets(unknown)` parser.
+- Extended shared types in `components/dashboard/market-stance-chart.tsx`: new `BulletPoint` interface, `region`, `bullPoints`, `bearPoints`, `recommendation?`, `detailHref` on `GrainStanceData`.
+- `app/(dashboard)/overview/page.tsx` shrunk from 167 → 53 lines. The CGC market snapshot grid, Logistics Banner, and Community Pulse (sentiment banner + signal strip) are removed from this page.
+- Unit test `tests/lib/us-market-stance-normalize.test.ts` — 3 cases (split bull/bear, null/empty, malformed entries).
+
+**Orphans noted:** `MarketSnapshotGrid`, `LogisticsBanner`, `SignalStripWithVoting`, `MarketStanceChart` (the React component; its type exports are still live), and queries `getMarketOverviewSnapshot`, `getLogisticsSnapshotRaw`, `getAggregateTerminalFlow`, `getLatestXSignals` — documented in `docs/lessons-learned/issues.md` for a separate cleanup PR after one-week soak. `SentimentBanner` is still imported by My Farm so it stays.
+
+**Data notes:**
+- Only 4 of 5 US markets currently have analysis (Barley missing at time of ship). `flatMap` approach means the US group shows just the rows that have data.
+- US `priorScore` is `null` for now — the `us_market_analysis` table doesn't store a weekly stance anchor; trajectory lives in `us_score_trajectory` and is out of scope. TODO left in the query.
+- US prices query explicitly filters `.in("grain", futuresGrains)` and dedupes latest-per-grain rather than relying on `.limit(N)`, so a busy CA price table can never starve the US group.
+
+**Defensive parsing:** Both CA and US normalizers take `unknown` JSONB and do structural narrowing with `typeof === "string"` guards, matching the project convention for untrusted DB shapes.
+
+**Plans:** `docs/plans/2026-04-16-overview-bullbear-unification-design.md`, `docs/plans/2026-04-16-overview-bullbear-unification-implementation.md`.
 
 ### 2026-04-15 — Claude Agent Desk (Track 41)
 
