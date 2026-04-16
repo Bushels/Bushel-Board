@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
-import { Brain, Minus, TrendingDown, TrendingUp, ChevronDown } from "lucide-react";
-import { useMemo } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Brain, ChevronDown, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { GrainStanceData } from "./market-stance-chart";
 
@@ -48,60 +49,161 @@ function getDeltaIcon(delta: number) {
   );
 }
 
-function StanceRow({ row }: { row: GrainStanceData }) {
+function BulletColumn({
+  title,
+  points,
+  tone,
+  emptyLabel,
+}: {
+  title: string;
+  points: { fact: string; reasoning: string }[];
+  tone: "bull" | "bear";
+  emptyLabel: string;
+}) {
+  const toneClass = tone === "bull" ? "text-prairie" : "text-amber-600";
+  return (
+    <div className="space-y-2">
+      <p className={cn("text-xs font-semibold uppercase tracking-wider", toneClass)}>{title}</p>
+      {points.length === 0 ? (
+        <p className="text-xs text-muted-foreground/60 italic">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-2">
+          {points.map((p, i) => (
+            <li key={i} className="space-y-0.5">
+              <p className="text-sm font-medium">{p.fact}</p>
+              <p className="text-xs text-muted-foreground">{p.reasoning}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function StanceRow({
+  row,
+  isOpen,
+  onToggle,
+}: {
+  row: GrainStanceData;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
   const delta = row.priorScore !== null ? row.score - row.priorScore : 0;
   const absScore = Math.abs(row.score);
   const isBullish = row.score > 0;
   const isBearish = row.score < 0;
+  const rowKey = `${row.region}:${row.slug}`;
+  const panelId = `stance-panel-${rowKey}`;
+  const buttonId = `stance-button-${rowKey}`;
 
   return (
-    <div
-      className="group grid items-center gap-2 py-1.5"
-      style={{ gridTemplateColumns: "100px 28px 1fr 56px 52px 16px" }}
-    >
-      <div className="flex items-center gap-1.5 min-w-0">
-        <ConfidenceDot level={row.confidence} />
-        <span className="text-sm font-medium truncate">{row.grain}</span>
-      </div>
-      <span className={cn("text-xs font-bold tabular-nums text-right", getStanceColor(row.score))}>
-        {row.score > 0 ? "+" : ""}
-        {row.score}
-      </span>
-      <div className="relative flex h-5 items-center rounded-sm bg-muted/20 overflow-hidden">
-        <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-border/60" />
-        <div className="flex h-full w-1/2 justify-end">
-          {isBearish && (
+    <div>
+      <button
+        id={buttonId}
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="grid w-full items-center gap-2 py-1.5 text-left hover:bg-muted/10 rounded-sm px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-canola"
+        style={{ gridTemplateColumns: "100px 28px 1fr 56px 52px 16px" }}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <ConfidenceDot level={row.confidence} />
+          <span className="text-sm font-medium truncate">{row.grain}</span>
+        </div>
+        <span className={cn("text-xs font-bold tabular-nums text-right", getStanceColor(row.score))}>
+          {row.score > 0 ? "+" : ""}
+          {row.score}
+        </span>
+        <div className="relative flex h-5 items-center rounded-sm bg-muted/20 overflow-hidden">
+          <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-border/60" />
+          <div className="flex h-full w-1/2 justify-end">
+            {isBearish && (
+              <div
+                className="h-full rounded-l-sm bg-amber-600/75"
+                style={{ width: `${absScore}%` }}
+              />
+            )}
+          </div>
+          <div className="flex h-full w-1/2 justify-start">
+            {isBullish && (
+              <div
+                className="h-full rounded-r-sm bg-prairie/85"
+                style={{ width: `${absScore}%` }}
+              />
+            )}
+          </div>
+          {row.priorScore !== null && row.priorScore !== row.score && (
             <div
-              className="h-full rounded-l-sm bg-amber-600/75 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ width: `${absScore}%` }}
+              className="absolute top-0 z-20 h-full w-0.5 bg-foreground/25 rounded-full"
+              style={{ left: `${50 + row.priorScore / 2}%` }}
+              title={`Prior: ${row.priorScore > 0 ? "+" : ""}${row.priorScore}`}
             />
           )}
         </div>
-        <div className="flex h-full w-1/2 justify-start">
-          {isBullish && (
-            <div
-              className="h-full rounded-r-sm bg-prairie/85 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ width: `${absScore}%` }}
-            />
+        <div className="text-right min-w-0">
+          {row.cashPrice ? (
+            <span className="text-[11px] text-muted-foreground tabular-nums truncate">{row.cashPrice}</span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/40">—</span>
           )}
         </div>
-        {row.priorScore !== null && row.priorScore !== row.score && (
-          <div
-            className="absolute top-0 z-20 h-full w-0.5 bg-foreground/25 rounded-full"
-            style={{ left: `${50 + row.priorScore / 2}%` }}
-            title={`Prior: ${row.priorScore > 0 ? "+" : ""}${row.priorScore}`}
-          />
+        <div className="flex justify-end">{getDeltaIcon(delta)}</div>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted-foreground/60 transition-transform",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            id={panelId}
+            role="region"
+            aria-labelledby={buttonId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] as const }}
+            className="overflow-hidden"
+          >
+            <div className="pt-3 pb-4 px-1 space-y-3">
+              <div className="grid gap-4 md:grid-cols-2">
+                <BulletColumn
+                  title="Bull case"
+                  points={row.bullPoints}
+                  tone="bull"
+                  emptyLabel="No bull case recorded this week."
+                />
+                <BulletColumn
+                  title="Bear case"
+                  points={row.bearPoints}
+                  tone="bear"
+                  emptyLabel="No bear case recorded this week."
+                />
+              </div>
+              {row.thesisSummary && (
+                <p className="text-sm leading-6 text-muted-foreground">{row.thesisSummary}</p>
+              )}
+              {row.recommendation && (
+                <p className="text-xs">
+                  <span className="font-semibold uppercase tracking-wider text-muted-foreground">Call: </span>
+                  <span className="font-medium">{row.recommendation.replace(/_/g, " ")}</span>
+                </p>
+              )}
+              <Link
+                href={row.detailHref}
+                className="inline-flex text-xs font-medium text-canola hover:underline"
+              >
+                Open {row.region === "US" ? "full US thesis" : "grain page"} →
+              </Link>
+            </div>
+          </motion.div>
         )}
-      </div>
-      <div className="text-right min-w-0">
-        {row.cashPrice ? (
-          <span className="text-[11px] text-muted-foreground tabular-nums truncate">{row.cashPrice}</span>
-        ) : (
-          <span className="text-[11px] text-muted-foreground/40">—</span>
-        )}
-      </div>
-      <div className="flex justify-end">{getDeltaIcon(delta)}</div>
-      <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+      </AnimatePresence>
     </div>
   );
 }
@@ -114,6 +216,7 @@ export function UnifiedMarketStanceChart({
   updatedAt,
 }: UnifiedMarketStanceChartProps) {
   const prefersReducedMotion = useReducedMotion();
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const sortedCa = useMemo(() => [...caRows].sort((a, b) => b.score - a.score), [caRows]);
   const sortedUs = useMemo(() => [...usRows].sort((a, b) => b.score - a.score), [usRows]);
@@ -127,11 +230,18 @@ export function UnifiedMarketStanceChart({
         </div>
         <div className="space-y-0.5">
           {rows.map((row, i) => {
-            const content = <StanceRow key={`${row.region}:${row.slug}`} row={row} />;
-            if (prefersReducedMotion) return content;
+            const key = `${row.region}:${row.slug}`;
+            const content = (
+              <StanceRow
+                row={row}
+                isOpen={expandedKey === key}
+                onToggle={() => setExpandedKey((prev) => (prev === key ? null : key))}
+              />
+            );
+            if (prefersReducedMotion) return <div key={key}>{content}</div>;
             return (
               <motion.div
-                key={`${row.region}:${row.slug}`}
+                key={key}
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 30, delay: i * 0.04 }}
