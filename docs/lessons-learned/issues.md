@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-16 — Components orphaned by Overview bull/bear unification
+
+**Symptom:** The Overview page was rewritten to render a single `UnifiedMarketStanceChart` grouped by region (CA + US). The CGC snapshot grid, Logistics Banner, Community Pulse, and the original single-region MarketStanceChart were removed from the page.
+
+**Orphaned symbols (zero callers as of this commit):**
+- Components: `MarketSnapshotGrid`, `LogisticsBanner`, `SignalStripWithVoting`, `MarketStanceChart` (the React component — its `BulletPoint` / `GrainStanceData` type exports are still imported by `UnifiedMarketStanceChart`, so the file stays).
+- Queries: `getMarketOverviewSnapshot`, `getLogisticsSnapshotRaw`, `getAggregateTerminalFlow`, `getLatestXSignals`.
+
+**Deliberately kept:** `SentimentBanner` (still imported by `app/(dashboard)/my-farm/page.tsx`).
+
+**Decision:** NOT deleted in this PR. Removing them is a follow-up: want to confirm there are no in-flight branches that re-add these before removing, and want to make sure the underlying RPCs / tables behind the queries aren't relied on elsewhere (e.g. `get_aggregate_terminal_flow` may be reused for a future chart). File a separate cleanup PR after this deploys and sits for a week.
+
+**Tags:** #overview #dead-code #followup #ui
+
 ## 2026-03-17 — LLM Attention Anchoring on First Number in Prompt
 
 **Symptom:** The Advisor told a farmer "10,000 tonnes still sitting in your bins" when the farmer actually had 5,000 MT remaining (started with 10,000 MT, delivered 5,000 MT). The data injected into the prompt was correct — both numbers were present.
