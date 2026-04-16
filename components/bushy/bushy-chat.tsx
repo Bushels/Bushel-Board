@@ -11,12 +11,15 @@ import { getCurrentCropYear } from "@/lib/utils/crop-year";
 interface BushyChatProps {
   /** Auto-send this prompt on mount (for deep-link support) */
   initialPrompt?: string;
+  /** When set, scopes chat to a specific grain (used on grain detail pages) */
+  grainContext?: { grain: string; grainWeek: number };
 }
 
 const DEFAULT_CHIPS = ["Haul or hold?", "My area", "Basis check"];
+const GRAIN_CHIPS = ["Show me exports", "Compare to last year", "Terminal flow", "What would you do?"];
 
-export function BushyChat({ initialPrompt }: BushyChatProps) {
-  const { messages, isLoading, sendMessage, threadId } = useBushySSE();
+export function BushyChat({ initialPrompt, grainContext }: BushyChatProps) {
+  const { messages, isLoading, sendMessage, threadId } = useBushySSE(grainContext);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [chips, setChips] = useState<string[]>(DEFAULT_CHIPS);
   const initialSent = useRef(false);
@@ -28,8 +31,14 @@ export function BushyChat({ initialPrompt }: BushyChatProps) {
     }
   }, [messages]);
 
-  // Load quick chips from crop_plans (Task 5 logic)
+  // Load quick chips — grain-scoped pages get grain-specific chips,
+  // standalone chat loads from crop_plans
   useEffect(() => {
+    if (grainContext) {
+      setChips(GRAIN_CHIPS);
+      return;
+    }
+
     async function loadChips() {
       try {
         const supabase = createClient();
@@ -58,7 +67,7 @@ export function BushyChat({ initialPrompt }: BushyChatProps) {
       }
     }
     loadChips();
-  }, []);
+  }, [grainContext]);
 
   // Auto-send initial prompt (deep-link)
   useEffect(() => {

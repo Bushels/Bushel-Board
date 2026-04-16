@@ -256,7 +256,7 @@ export interface UseBushySSEReturn {
   threadId: string | null;
 }
 
-export function useBushySSE(): UseBushySSEReturn {
+export function useBushySSE(grainContext?: { grain: string; grainWeek: number }): UseBushySSEReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const threadIdRef = useRef<string | null>(null);
@@ -308,6 +308,7 @@ export function useBushySSE(): UseBushySSEReturn {
           body: JSON.stringify({
             message: text,
             thread_id: threadIdRef.current,
+            ...(grainContext && { grainContext }),
           }),
         }
       );
