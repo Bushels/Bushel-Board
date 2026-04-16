@@ -1,5 +1,10 @@
 import { TrendingUp, TrendingDown } from "lucide-react";
 
+interface ReasoningRow {
+  fact: string;
+  reasoning: string;
+}
+
 interface BullBearCardsProps {
   bullCase: string;
   bearCase: string;
@@ -8,6 +13,9 @@ interface BullBearCardsProps {
   confidenceScore?: number;
   stanceScore?: number | null;
   finalAssessment?: string;
+  // Structured reasoning for two-column layout
+  bullReasoning?: Array<ReasoningRow> | null;
+  bearReasoning?: Array<ReasoningRow> | null;
 }
 
 function getStanceLabel(score: number): string {
@@ -30,11 +38,62 @@ const CONFIDENCE_SCORES: Record<string, number> = {
   low: 25,
 };
 
-export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, stanceScore, finalAssessment }: BullBearCardsProps) {
+function ReasoningTable({
+  rows,
+  variant,
+}: {
+  rows: Array<ReasoningRow>;
+  variant: "bull" | "bear";
+}) {
+  const accentBorder =
+    variant === "bull" ? "border-prairie/30" : "border-red-500/30";
+
+  return (
+    <div className="mt-2">
+      {/* Header row */}
+      <div className="hidden sm:grid grid-cols-2 gap-4 mb-2">
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          What&rsquo;s Happening
+        </span>
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Why It Matters
+        </span>
+      </div>
+
+      {/* Data rows */}
+      <div className="space-y-0">
+        {rows.map((row, i) => (
+          <div
+            key={`${variant}-row-${i}`}
+            className={`grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-4 py-2.5 ${
+              i < rows.length - 1 ? "border-b border-border/50" : ""
+            }`}
+          >
+            {/* Fact */}
+            <div className="text-sm font-medium text-foreground leading-snug">
+              {row.fact}
+            </div>
+            {/* Reasoning — mobile gets left accent border */}
+            <div
+              className={`text-sm text-muted-foreground leading-snug sm:border-l-0 sm:pl-0 sm:mt-0 border-l-2 ${accentBorder} pl-3 mt-1`}
+            >
+              {row.reasoning}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, stanceScore, finalAssessment, bullReasoning, bearReasoning }: BullBearCardsProps) {
   // Strip leading bullets: ASCII dash, Unicode bullet (•), triangular bullet (‣), middle dot (·), em dash (—), asterisk
   const stripBullet = (s: string) => s.replace(/^[\s\-–—•‣·*]+\s*/, '').trim();
   const bullPoints = bullCase.split(/\n/).map(stripBullet).filter(Boolean);
   const bearPoints = bearCase.split(/\n/).map(stripBullet).filter(Boolean);
+
+  const hasBullReasoning = bullReasoning && bullReasoning.length > 0;
+  const hasBearReasoning = bearReasoning && bearReasoning.length > 0;
 
   // Use confidenceScore if provided, otherwise derive from confidence label
   const score = confidenceScore ?? CONFIDENCE_SCORES[confidence] ?? 50;
@@ -54,13 +113,17 @@ export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore,
               Bull Case
             </span>
           </div>
-          <ul className="space-y-1.5">
-            {bullPoints.map((point, i) => (
-              <li key={`bull-${i}`} className="text-sm text-muted-foreground leading-snug">
-                • {point}
-              </li>
-            ))}
-          </ul>
+          {hasBullReasoning ? (
+            <ReasoningTable rows={bullReasoning} variant="bull" />
+          ) : (
+            <ul className="space-y-1.5">
+              {bullPoints.map((point, i) => (
+                <li key={`bull-${i}`} className="text-sm text-muted-foreground leading-snug">
+                  • {point}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Bear Case */}
@@ -71,13 +134,17 @@ export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore,
               Bear Case
             </span>
           </div>
-          <ul className="space-y-1.5">
-            {bearPoints.map((point, i) => (
-              <li key={`bear-${i}`} className="text-sm text-muted-foreground leading-snug">
-                • {point}
-              </li>
-            ))}
-          </ul>
+          {hasBearReasoning ? (
+            <ReasoningTable rows={bearReasoning} variant="bear" />
+          ) : (
+            <ul className="space-y-1.5">
+              {bearPoints.map((point, i) => (
+                <li key={`bear-${i}`} className="text-sm text-muted-foreground leading-snug">
+                  • {point}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
