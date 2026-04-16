@@ -115,6 +115,8 @@ export interface MarketAnalysis {
   model_used: string;
   confidence_score: number | null;
   stance_score: number | null;
+  bull_reasoning: Array<{ fact: string; reasoning: string }> | null;
+  bear_reasoning: Array<{ fact: string; reasoning: string }> | null;
   final_assessment: string | null;
   generated_at: string;
 }
