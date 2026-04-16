@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
-import type { GrainStanceData } from "@/components/dashboard/market-stance-chart";
+import type { BulletPoint, GrainStanceData } from "@/components/dashboard/market-stance-chart";
 
-// Map of grains we show on overview → their slugs + display order
 const OVERVIEW_GRAINS = [
   { grain: "Wheat", slug: "wheat" },
   { grain: "Canola", slug: "canola" },
@@ -16,7 +14,6 @@ const OVERVIEW_GRAINS = [
   { grain: "Lentils", slug: "lentils" },
 ] as const;
 
-// Bunge Moose Jaw cash price labels → grain mapping
 const CASH_PRICE_MAP: Record<string, string> = {
   Wheat: "$276.25",
   Canola: "$662.33",
@@ -30,26 +27,32 @@ const CASH_PRICE_MAP: Record<string, string> = {
   Lentils: "$547.50",
 };
 
-/**
- * Get the latest AI market stances for the overview chart.
- *
- * Pulls current and prior grain_week stances from market_analysis,
- * joining with latest grain_prices where available.
- */
-export async function getMarketStances(
-  grainWeek: number
-): Promise<GrainStanceData[]> {
+function coerceBullets(raw: unknown): BulletPoint[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BulletPoint[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const fact = typeof (entry as { fact?: unknown }).fact === "string"
+      ? (entry as { fact: string }).fact.trim()
+      : "";
+    const reasoning = typeof (entry as { reasoning?: unknown }).reasoning === "string"
+      ? (entry as { reasoning: string }).reasoning.trim()
+      : "";
+    if (fact && reasoning) out.push({ fact, reasoning });
+  }
+  return out;
+}
+
+export async function getMarketStances(grainWeek: number): Promise<GrainStanceData[]> {
   const supabase = await createClient();
 
-  // Get current week stances
   const { data: currentStances, error: currentErr } = await supabase
     .from("market_analysis")
-    .select("grain, grain_week, stance_score, data_confidence, generated_at, initial_thesis")
-    .eq("grain_week", grainWeek)
-    .in(
-      "grain",
-      OVERVIEW_GRAINS.map((g) => g.grain)
+    .select(
+      "grain, grain_week, stance_score, data_confidence, generated_at, initial_thesis, bull_reasoning, bear_reasoning",
     )
+    .eq("grain_week", grainWeek)
+    .in("grain", OVERVIEW_GRAINS.map((g) => g.grain))
     .not("stance_score", "is", null)
     .order("generated_at", { ascending: false });
 
@@ -58,27 +61,21 @@ export async function getMarketStances(
     return [];
   }
 
-  // Get prior week stances for delta calculation
   const { data: priorStances } = await supabase
     .from("market_analysis")
     .select("grain, stance_score")
     .eq("grain_week", grainWeek - 1)
-    .in(
-      "grain",
-      OVERVIEW_GRAINS.map((g) => g.grain)
-    )
+    .in("grain", OVERVIEW_GRAINS.map((g) => g.grain))
     .not("stance_score", "is", null);
 
-  // Get latest prices from our grain_prices table
   const { data: prices } = await supabase
     .from("grain_prices")
     .select("grain, settlement_price, change_amount")
     .order("price_date", { ascending: false })
     .limit(10);
 
-  // Build lookup maps
   const priorMap = new Map(
-    (priorStances ?? []).map((p) => [p.grain, p.stance_score])
+    (priorStances ?? []).map((p) => [p.grain, p.stance_score]),
   );
 
   const priceMap = new Map(
@@ -90,33 +87,35 @@ export async function getMarketStances(
           ? `${Number(p.change_amount) >= 0 ? "+" : ""}$${Number(p.change_amount).toFixed(2)}`
           : null,
       },
-    ])
+    ]),
   );
 
-  // Deduplicate (take latest generated_at per grain)
-  const seenGrains = new Set<string>();
+  const seen = new Set<string>();
   const deduped = (currentStances ?? []).filter((s) => {
-    if (seenGrains.has(s.grain)) return false;
-    seenGrains.add(s.grain);
+    if (seen.has(s.grain)) return false;
+    seen.add(s.grain);
     return true;
   });
 
-  // Map to chart data
   return OVERVIEW_GRAINS.map((g) => {
     const current = deduped.find((s) => s.grain === g.grain);
     const priceData = priceMap.get(g.grain);
-    // Use DB price if available, otherwise fall back to hardcoded cash prices
     const cashPrice = priceData?.price ?? CASH_PRICE_MAP[g.grain] ?? null;
 
     return {
       grain: g.grain,
       slug: g.slug,
+      region: "CA" as const,
       score: current?.stance_score ?? 0,
       priorScore: priorMap.get(g.grain) ?? null,
       confidence: (current?.data_confidence as "high" | "medium" | "low") ?? "low",
       cashPrice,
       priceChange: priceData?.change ?? null,
       thesisSummary: current?.initial_thesis ?? null,
+      bullPoints: coerceBullets(current?.bull_reasoning),
+      bearPoints: coerceBullets(current?.bear_reasoning),
+      recommendation: null,
+      detailHref: `/grain/${g.slug}`,
     };
   });
 }
