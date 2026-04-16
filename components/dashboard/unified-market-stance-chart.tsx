@@ -60,18 +60,35 @@ function BulletColumn({
   tone: "bull" | "bear";
   emptyLabel: string;
 }) {
-  const toneClass = tone === "bull" ? "text-prairie" : "text-amber-600";
+  const isBull = tone === "bull";
+  const cardClass = isBull
+    ? "rounded-lg border border-prairie/25 bg-prairie/5 p-3 sm:p-4"
+    : "rounded-lg border border-amber-600/25 bg-amber-600/5 p-3 sm:p-4";
+  const toneClass = isBull ? "text-prairie" : "text-amber-600";
+  const Icon = isBull ? TrendingUp : TrendingDown;
+
   return (
-    <div className="space-y-2">
-      <p className={cn("text-xs font-semibold uppercase tracking-wider", toneClass)}>{title}</p>
+    <div className={cardClass}>
+      <div className="mb-2.5 flex items-center gap-1.5">
+        <Icon className={cn("h-4 w-4", toneClass)} />
+        <p className={cn("text-xs font-semibold uppercase tracking-wider", toneClass)}>{title}</p>
+      </div>
       {points.length === 0 ? (
-        <p className="text-xs text-muted-foreground/60 italic">{emptyLabel}</p>
+        <p className="text-xs italic text-muted-foreground/70">{emptyLabel}</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-0">
           {points.map((p, i) => (
-            <li key={i} className="space-y-0.5">
-              <p className="text-sm font-medium">{p.fact}</p>
-              <p className="text-xs text-muted-foreground">{p.reasoning}</p>
+            <li
+              key={i}
+              className={cn(
+                "space-y-0.5 py-2",
+                i > 0 && "border-t border-border/40",
+                i === 0 && "pt-0",
+                i === points.length - 1 && "pb-0",
+              )}
+            >
+              <p className="text-sm font-medium leading-snug">{p.fact}</p>
+              <p className="text-xs leading-snug text-muted-foreground">{p.reasoning}</p>
             </li>
           ))}
         </ul>
@@ -105,8 +122,7 @@ function StanceRow({
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={onToggle}
-        className="grid w-full items-center gap-2 py-1.5 text-left hover:bg-muted/10 rounded-sm px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-canola"
-        style={{ gridTemplateColumns: "100px 28px 1fr 56px 52px 16px" }}
+        className="grid w-full items-center gap-2 rounded-sm py-1.5 text-left -mx-1 px-1 hover:bg-muted/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-canola grid-cols-[84px_32px_1fr_44px_16px] sm:grid-cols-[100px_28px_1fr_56px_52px_16px]"
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <ConfidenceDot level={row.confidence} />
@@ -142,7 +158,7 @@ function StanceRow({
             />
           )}
         </div>
-        <div className="text-right min-w-0">
+        <div className="hidden text-right min-w-0 sm:block">
           {row.cashPrice ? (
             <span className="text-[11px] text-muted-foreground tabular-nums truncate">{row.cashPrice}</span>
           ) : (
@@ -170,8 +186,8 @@ function StanceRow({
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] as const }}
             className="overflow-hidden"
           >
-            <div className="pt-3 pb-4 px-1 space-y-3">
-              <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3 px-0 pt-3 pb-4 sm:px-1">
+              <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
                 <BulletColumn
                   title="Bull case"
                   points={row.bullPoints}
