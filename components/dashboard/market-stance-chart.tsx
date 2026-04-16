@@ -4,15 +4,25 @@ import { motion, useReducedMotion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export interface BulletPoint {
+  fact: string;
+  reasoning: string;
+}
+
 export interface GrainStanceData {
   grain: string;
   slug: string;
+  region: "CA" | "US";
   score: number; // -100 to +100
   priorScore: number | null;
   confidence: "high" | "medium" | "low";
-  cashPrice?: string | null; // e.g. "$276.25"
-  priceChange?: string | null; // e.g. "+$6.36" or "-$6.60"
-  thesisSummary?: string | null; // one-line explainer from market_analysis.thesis_title
+  cashPrice?: string | null;
+  priceChange?: string | null;
+  thesisSummary?: string | null;
+  bullPoints: BulletPoint[];
+  bearPoints: BulletPoint[];
+  recommendation?: string | null;
+  detailHref: string;
 }
 
 interface MarketStanceChartProps {
