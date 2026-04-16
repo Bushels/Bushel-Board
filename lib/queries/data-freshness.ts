@@ -27,3 +27,38 @@ export async function getLatestImportedWeek(): Promise<number> {
     return getCurrentGrainWeek();
   }
 }
+
+/**
+ * Get the best week number to display — MAX across market_analysis and cgc_imports.
+ * Prevents showing stale week when analysis is current but CGC import lagged.
+ * Falls back to getCurrentGrainWeek() if both queries fail.
+ */
+export async function getDisplayWeek(): Promise<number> {
+  try {
+    const supabase = await createClient();
+    const [importResult, analysisResult] = await Promise.all([
+      supabase
+        .from("cgc_imports")
+        .select("grain_week")
+        .eq("crop_year", CURRENT_CROP_YEAR)
+        .order("grain_week", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("market_analysis")
+        .select("grain_week")
+        .eq("crop_year", CURRENT_CROP_YEAR)
+        .order("grain_week", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const importWeek = importResult.data ? Number(importResult.data.grain_week) : 0;
+    const analysisWeek = analysisResult.data ? Number(analysisResult.data.grain_week) : 0;
+    const best = Math.max(importWeek, analysisWeek);
+
+    return best > 0 ? best : getCurrentGrainWeek();
+  } catch {
+    return getCurrentGrainWeek();
+  }
+}
