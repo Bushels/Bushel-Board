@@ -1,0 +1,188 @@
+"use client";
+
+import { motion, useReducedMotion } from "framer-motion";
+import { Brain, Minus, TrendingDown, TrendingUp, ChevronDown } from "lucide-react";
+import { useMemo } from "react";
+import { cn } from "@/lib/utils";
+import type { GrainStanceData } from "./market-stance-chart";
+
+interface UnifiedMarketStanceChartProps {
+  caRows: GrainStanceData[];
+  caGrainWeek: number;
+  usRows: GrainStanceData[];
+  usMarketYear: number;
+  updatedAt?: string | null;
+}
+
+function getStanceColor(score: number) {
+  if (score >= 20) return "text-prairie";
+  if (score > -20) return "text-muted-foreground";
+  return "text-amber-600";
+}
+
+function ConfidenceDot({ level }: { level: "high" | "medium" | "low" }) {
+  const colors = { high: "bg-prairie", medium: "bg-canola", low: "bg-muted-foreground/40" };
+  return <span className={cn("inline-block h-1.5 w-1.5 rounded-full", colors[level])} title={`${level} confidence`} />;
+}
+
+function getDeltaIcon(delta: number) {
+  if (delta > 0)
+    return (
+      <span className="inline-flex items-center gap-0.5 text-prairie">
+        <TrendingUp className="h-3 w-3" />
+        <span className="text-[11px] font-semibold tabular-nums">+{delta}</span>
+      </span>
+    );
+  if (delta < 0)
+    return (
+      <span className="inline-flex items-center gap-0.5 text-amber-600">
+        <TrendingDown className="h-3 w-3" />
+        <span className="text-[11px] font-semibold tabular-nums">{delta}</span>
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+      <Minus className="h-3 w-3" />
+      <span className="text-[11px] font-semibold tabular-nums">0</span>
+    </span>
+  );
+}
+
+function StanceRow({ row }: { row: GrainStanceData }) {
+  const delta = row.priorScore !== null ? row.score - row.priorScore : 0;
+  const absScore = Math.abs(row.score);
+  const isBullish = row.score > 0;
+  const isBearish = row.score < 0;
+
+  return (
+    <div
+      className="group grid items-center gap-2 py-1.5"
+      style={{ gridTemplateColumns: "100px 28px 1fr 56px 52px 16px" }}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <ConfidenceDot level={row.confidence} />
+        <span className="text-sm font-medium truncate">{row.grain}</span>
+      </div>
+      <span className={cn("text-xs font-bold tabular-nums text-right", getStanceColor(row.score))}>
+        {row.score > 0 ? "+" : ""}
+        {row.score}
+      </span>
+      <div className="relative flex h-5 items-center rounded-sm bg-muted/20 overflow-hidden">
+        <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-border/60" />
+        <div className="flex h-full w-1/2 justify-end">
+          {isBearish && (
+            <div
+              className="h-full rounded-l-sm bg-amber-600/75 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              style={{ width: `${absScore}%` }}
+            />
+          )}
+        </div>
+        <div className="flex h-full w-1/2 justify-start">
+          {isBullish && (
+            <div
+              className="h-full rounded-r-sm bg-prairie/85 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              style={{ width: `${absScore}%` }}
+            />
+          )}
+        </div>
+        {row.priorScore !== null && row.priorScore !== row.score && (
+          <div
+            className="absolute top-0 z-20 h-full w-0.5 bg-foreground/25 rounded-full"
+            style={{ left: `${50 + row.priorScore / 2}%` }}
+            title={`Prior: ${row.priorScore > 0 ? "+" : ""}${row.priorScore}`}
+          />
+        )}
+      </div>
+      <div className="text-right min-w-0">
+        {row.cashPrice ? (
+          <span className="text-[11px] text-muted-foreground tabular-nums truncate">{row.cashPrice}</span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground/40">—</span>
+        )}
+      </div>
+      <div className="flex justify-end">{getDeltaIcon(delta)}</div>
+      <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+    </div>
+  );
+}
+
+export function UnifiedMarketStanceChart({
+  caRows,
+  caGrainWeek,
+  usRows,
+  usMarketYear,
+  updatedAt,
+}: UnifiedMarketStanceChartProps) {
+  const prefersReducedMotion = useReducedMotion();
+
+  const sortedCa = useMemo(() => [...caRows].sort((a, b) => b.score - a.score), [caRows]);
+  const sortedUs = useMemo(() => [...usRows].sort((a, b) => b.score - a.score), [usRows]);
+
+  const renderGroup = (label: string, rows: GrainStanceData[]) => {
+    if (rows.length === 0) return null;
+    return (
+      <div>
+        <div className="flex items-center gap-2 pt-3 pb-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+        </div>
+        <div className="space-y-0.5">
+          {rows.map((row, i) => {
+            const content = <StanceRow key={`${row.region}:${row.slug}`} row={row} />;
+            if (prefersReducedMotion) return content;
+            return (
+              <motion.div
+                key={`${row.region}:${row.slug}`}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30, delay: i * 0.04 }}
+              >
+                {content}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Brain className="h-4 w-4 text-canola" />
+          <span className="text-xs font-medium text-muted-foreground">AI Stance · Week {caGrainWeek}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-4 rounded-sm bg-amber-600/80" />
+            Bearish
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-4 rounded-sm bg-prairie" />
+            Bullish
+          </span>
+        </div>
+      </div>
+
+      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+        <Brain className="h-3 w-3" />
+        Analyzed by 16 Agriculture Trained AI Agents
+      </p>
+
+      {renderGroup(`🇨🇦 Canadian grains · Wk ${caGrainWeek}`, sortedCa)}
+      {renderGroup(`🇺🇸 US markets · MY ${usMarketYear}`, sortedUs)}
+
+      {updatedAt && (
+        <p className="text-[10px] text-muted-foreground/60 text-right">
+          Updated{" "}
+          {new Date(updatedAt).toLocaleDateString("en-CA", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
