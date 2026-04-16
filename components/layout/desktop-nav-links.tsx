@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GrainDropdown } from "@/components/layout/grain-dropdown";
 import type { GrainDef } from "@/lib/constants/grains";
 import { cn } from "@/lib/utils";
 
@@ -34,12 +33,8 @@ export function DesktopNavLinks({
       <Link href="/my-farm" className={navLinkClasses(pathname.startsWith("/my-farm"))}>
         My Farm
       </Link>
-      <GrainDropdown allGrains={allGrains} unlockedGrains={unlockedGrains} />
       <Link href="/overview" className={navLinkClasses(pathname.startsWith("/overview"))}>
         Overview
-      </Link>
-      <Link href="/us" className={navLinkClasses(pathname.startsWith("/us"))}>
-        US Markets
       </Link>
     </nav>
   );
