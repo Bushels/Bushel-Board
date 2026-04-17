@@ -18,6 +18,7 @@
     "benchmark:coding-models": "npx tsx scripts/benchmark-coding-models.ts",
     "seed-capacity": "npx tsx scripts/seed-processor-capacity.ts",
     "seed-prices": "npx tsx scripts/seed-grain-prices.ts",
+    "seed-weather-stations": "npx tsx scripts/seed-weather-stations.ts",
     "import-prices": "npx tsx scripts/import-grain-prices.ts",
     "import-fx": "python3 scripts/import-fx-rates.py",
     "import-usda": "python3 scripts/import-usda-export-sales.py",
