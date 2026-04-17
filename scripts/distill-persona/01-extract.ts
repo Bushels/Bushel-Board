@@ -128,12 +128,12 @@ async function extractPdf(filePath: string): Promise<string> {
 async function extractEpub(filePath: string): Promise<string> {
   // epub2's EPub is a CJS class that uses EventEmitter + callback chapter API.
   // We wrap both the parse lifecycle and per-chapter retrieval in promises.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- epub2 CJS
-  const EPub = require("epub2") as new (
-    filename: string,
-    imageroot?: string,
-    linkroot?: string,
-  ) => {
+  //
+  // The module exports both a `.default` and a `.EPub` named export, both
+  // pointing at the same constructor. Require the module as `unknown` and
+  // narrow to the named export — `require("epub2")` itself is the namespace
+  // object, not the constructor.
+  type EPubInstance = {
     flow: Array<{ id: string; title?: string }>;
     on(event: "end", handler: () => void): void;
     on(event: "error", handler: (err: Error) => void): void;
@@ -143,6 +143,18 @@ async function extractEpub(filePath: string): Promise<string> {
       callback: (error: Error | null, text?: string) => void,
     ): void;
   };
+  type EPubConstructor = new (
+    filename: string,
+    imageroot?: string,
+    linkroot?: string,
+  ) => EPubInstance;
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- epub2 CJS
+  const mod = require("epub2") as {
+    EPub: EPubConstructor;
+    default: EPubConstructor;
+  };
+  const EPub = mod.EPub ?? mod.default;
 
   const epub = new EPub(filePath);
 

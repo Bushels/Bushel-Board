@@ -11,6 +11,7 @@
     "set-ai-exclusion": "npx tsx scripts/set-ai-exclusion.ts",
     "ingest-knowledge": "npx tsx scripts/ingest-knowledge.ts",
     "distill-knowledge": "npx tsx scripts/distill-knowledge.ts",
+    "distill-persona": "npx tsx scripts/distill-persona.ts",
     "seed-supply": "npx tsx scripts/seed-supply-disposition.ts",
     "audit-data": "npx tsx scripts/audit-data.ts",
     "benchmark:knowledge": "npx tsx scripts/benchmark-knowledge-retrieval.ts",
