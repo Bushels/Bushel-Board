@@ -1,0 +1,72 @@
+{
+  "properties": {
+    "updated": "2026-04-17T18:00:00+00:00",
+    "periods": [
+      {
+        "number": 1,
+        "name": "This Afternoon",
+        "startTime": "2026-04-17T14:00:00-06:00",
+        "endTime": "2026-04-17T18:00:00-06:00",
+        "isDaytime": true,
+        "temperature": 62,
+        "temperatureUnit": "F",
+        "windSpeed": "15 mph",
+        "windDirection": "SW",
+        "shortForecast": "Mostly Sunny",
+        "probabilityOfPrecipitation": {"value": 10}
+      },
+      {
+        "number": 2,
+        "name": "Tonight",
+        "startTime": "2026-04-17T18:00:00-06:00",
+        "endTime": "2026-04-18T06:00:00-06:00",
+        "isDaytime": false,
+        "temperature": 41,
+        "temperatureUnit": "F",
+        "windSpeed": "10 to 15 mph",
+        "windDirection": "W",
+        "shortForecast": "Partly Cloudy",
+        "probabilityOfPrecipitation": {"value": 20}
+      },
+      {
+        "number": 3,
+        "name": "Saturday",
+        "startTime": "2026-04-18T06:00:00-06:00",
+        "endTime": "2026-04-18T18:00:00-06:00",
+        "isDaytime": true,
+        "temperature": 58,
+        "temperatureUnit": "F",
+        "windSpeed": "20 mph",
+        "windDirection": "NW",
+        "shortForecast": "Rain Likely",
+        "probabilityOfPrecipitation": {"value": 70}
+      },
+      {
+        "number": 4,
+        "name": "Saturday Night",
+        "startTime": "2026-04-18T18:00:00-06:00",
+        "endTime": "2026-04-19T06:00:00-06:00",
+        "isDaytime": false,
+        "temperature": 35,
+        "temperatureUnit": "F",
+        "windSpeed": "10 mph",
+        "windDirection": "N",
+        "shortForecast": "Scattered Showers",
+        "probabilityOfPrecipitation": {"value": 40}
+      },
+      {
+        "number": 5,
+        "name": "Sunday",
+        "startTime": "2026-04-19T06:00:00-06:00",
+        "endTime": "2026-04-19T18:00:00-06:00",
+        "isDaytime": true,
+        "temperature": 65,
+        "temperatureUnit": "F",
+        "windSpeed": "5 mph",
+        "windDirection": "N",
+        "shortForecast": "Sunny",
+        "probabilityOfPrecipitation": {"value": 0}
+      }
+    ]
+  }
+}

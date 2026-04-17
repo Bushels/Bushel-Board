@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "gridId": "TFX",
+    "gridX": 78,
+    "gridY": 110,
+    "forecast": "https://api.weather.gov/gridpoints/TFX/78,110/forecast",
+    "forecastHourly": "https://api.weather.gov/gridpoints/TFX/78,110/forecast/hourly",
+    "relativeLocation": {
+      "properties": {
+        "city": "Great Falls",
+        "state": "MT"
+      }
+    }
+  }
+}
