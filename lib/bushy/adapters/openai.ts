@@ -34,6 +34,12 @@ type WireMessage = {
 export class OpenAIAdapter implements LLMAdapter {
   readonly provider: string = "openai";
   protected client: OpenAI;
+  /**
+   * Set by streamOneRound when a chunk carries usage.cost (OpenRouter).
+   * Substituted for the pricing-table cost at end of streamCompletion.
+   * Null means "use MODEL_PRICING" — the default for OpenAI proper.
+   */
+  protected providerReportedCost: number | null = null;
 
   constructor(public readonly modelId: string, opts?: {
     apiKey?: string;
@@ -57,6 +63,10 @@ export class OpenAIAdapter implements LLMAdapter {
     params: StreamCompletionParams,
   ): Promise<TurnResult> {
     const start = Date.now();
+    // Reset per-call state so repeated uses of the same adapter instance
+    // don't leak cost overrides across turns.
+    this.providerReportedCost = null;
+
     const acc = {
       promptTokens: 0,
       completionTokens: 0,
@@ -126,16 +136,20 @@ export class OpenAIAdapter implements LLMAdapter {
       },
     });
 
+    const pricingTableCost = calculateCost(this.modelId, {
+      promptTokens: acc.promptTokens,
+      completionTokens: acc.completionTokens,
+      cachedTokens: acc.cachedTokens,
+    });
+
     return {
       modelId: this.modelId,
       promptTokens: acc.promptTokens,
       completionTokens: acc.completionTokens,
       cachedTokens: acc.cachedTokens,
-      costUsd: calculateCost(this.modelId, {
-        promptTokens: acc.promptTokens,
-        completionTokens: acc.completionTokens,
-        cachedTokens: acc.cachedTokens,
-      }),
+      // OpenRouter reports provider-billed cost per stream via usage.cost;
+      // substitute that when present so audit rows match actual billing.
+      costUsd: this.providerReportedCost ?? pricingTableCost,
       latencyMs: Date.now() - start,
       toolCallCount: acc.toolCallCount,
       finishReason,
@@ -220,6 +234,8 @@ export class OpenAIAdapter implements LLMAdapter {
           prompt_tokens?: number;
           completion_tokens?: number;
           prompt_tokens_details?: { cached_tokens?: number };
+          // OpenRouter-only: provider-billed USD cost for this round.
+          cost?: number;
         };
       };
 
@@ -258,6 +274,13 @@ export class OpenAIAdapter implements LLMAdapter {
         roundUsage.cached_tokens =
           chunk.usage.prompt_tokens_details?.cached_tokens ??
           roundUsage.cached_tokens;
+        // OpenRouter: accumulate provider cost across rounds. OpenAI
+        // proper omits this field, so the adapter falls back to
+        // MODEL_PRICING naturally.
+        if (typeof chunk.usage.cost === "number" && chunk.usage.cost >= 0) {
+          this.providerReportedCost =
+            (this.providerReportedCost ?? 0) + chunk.usage.cost;
+        }
       }
     }
 
