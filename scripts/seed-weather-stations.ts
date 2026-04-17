@@ -61,7 +61,14 @@ function loadEnvFile(filePath: string) {
       const eqIndex = trimmed.indexOf("=");
       if (eqIndex === -1) continue;
       const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
+      let value = trimmed.slice(eqIndex + 1).trim();
+      // Strip matched wrapping quotes (Vercel CLI exports quoted values).
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
       if (!process.env[key]) {
         process.env[key] = value;
       }
