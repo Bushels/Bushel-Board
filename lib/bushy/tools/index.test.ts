@@ -13,11 +13,12 @@ beforeEach(() => {
 });
 
 describe("buildToolRegistry", () => {
-  it("includes all 7 WS3 native tools in a stable order", async () => {
+  it("includes all 8 native tools (WS3 + WS4 weather) in a stable order", async () => {
     const registry = await buildToolRegistry();
     const names = registry.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        "get_weather",
         "query_area_intelligence",
         "query_market_thesis",
         "query_posted_prices",

@@ -30,9 +30,9 @@ import {
   queryAreaIntelligenceTool,
 } from "./data";
 import { searchXTool } from "./x-api";
+import { getWeatherTool } from "./weather";
 import { toToolDefinition } from "./types";
 import type { BushyTool, ToolContext, ToolResult } from "./types";
-// import { getWeatherTool } from './weather';  // WS4 Task 4.4 adds this
 // import { loadMcpTools } from './mcp-bridge'; // Phase 2 (post-launch)
 // import { MCP_SERVERS } from './mcp-config';
 
@@ -44,6 +44,7 @@ const NATIVE_TOOLS: BushyTool[] = [
   queryPostedPricesTool,
   queryAreaIntelligenceTool,
   searchXTool,
+  getWeatherTool,
 ];
 
 let _registry: BushyTool[] | null = null;
