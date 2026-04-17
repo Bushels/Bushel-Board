@@ -52,6 +52,12 @@ export interface ToolContext {
   fsaCode: string | null;
   /** chat_threads.id the turn belongs to. */
   threadId: string;
+  /**
+   * chat_messages.id of the user turn that triggered this tool call.
+   * Required for the NOT-NULL FK on chat_extractions.message_id. Harness
+   * populates from the message it just inserted on turn entry.
+   */
+  messageId: string;
   /** chat_turns_audit.turn_id so tool calls can link back to the turn. */
   turnId: string;
   /** Service-role Supabase client. The harness passes this down — do NOT instantiate. */
