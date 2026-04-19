@@ -291,3 +291,302 @@
 4. Yellow vs Brown flax spread
 
 ---
+
+## 🌾 Wheat (WHT)
+
+**Compression Index Class:** n/a (Global substitution caps CWRS; tracks US wheat)
+**Coiled Spring Fit:** WEAK
+**Typical Stance Range:** -30 to +35
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | ~15% of global wheat trade                       |
+| Futures              | MGEX Spring Wheat (CWRS proxy), CBOT (loose)     |
+| Key buyers           | Indonesia, China, Japan, Peru, Algeria           |
+| Domestic use         | Milling, feed                                    |
+| Primary export ports | Vancouver, Thunder Bay, Prince Rupert            |
+
+### Grain-Specific Rules
+- **R-CA-WHT-01 · CWRS is price-taker on global wheat.** Russian, Ukrainian, Australian, and US wheat set ceiling. Use US Wheat card (R-US-WHT-*) for directional signal.
+- **R-CA-WHT-02 · Protein premium matters.** CWRS 13.5% vs 11.5% spreads into millers' cost. Watch MGEX spring wheat / KCBT HRW spread.
+- **R-CA-WHT-03 · Indonesia-Pakistan feed wheat window.** Seasonal Nov-Feb arbitrage opportunity for feed wheat blend.
+- **R-CA-WHT-04 · No Compression Index.** Global substitution caps Canadian-specific spring compression.
+
+### Thesis-Killers
+1. Russian wheat export quota increase.
+2. Australian bumper harvest (Dec-Jan).
+3. US HRW/HRS condition surprise (USDA NASS crop progress).
+
+### Debate Tiebreakers
+1. MGEX/KCBT spring-HRW spread
+2. Indonesia import license issuance
+3. Producer Car allocation trajectory
+4. Terminal receipts vs 1yr avg (aggregate wheat)
+
+---
+
+## 🌾 Barley (BAR)
+
+**Compression Index Class:** n/a (regional feed market; low export share)
+**Coiled Spring Fit:** WEAK
+**Typical Stance Range:** -25 to +25
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | ~10% of global barley trade                      |
+| Futures              | None (weak proxy: CBOT Corn for feed barley)     |
+| Key buyers           | China, Japan, Mexico, Saudi Arabia               |
+| Domestic use         | ~70% feed (Alberta feedlots), ~15% malt          |
+| Primary export port  | Vancouver                                        |
+
+### Grain-Specific Rules
+- **R-CA-BAR-01 · Feed vs Malt split.** Alberta feedlot activity drives feed; global brewers drive malt. Do not aggregate.
+- **R-CA-BAR-02 · Low producer car allocation is normal.** Regional, feed-driven. Not a bearish signal.
+- **R-CA-BAR-03 · China feed barley swings.** China re-entered post-2023 tariff thaw. Watch China USDA export sales for directional.
+- **R-CA-BAR-04 · Corn substitution ceiling.** When US Corn < C$200/t delivered Alberta, barley demand caps.
+- **R-CA-BAR-05 · No Compression Index.** Regional feed dynamics prevent country-wide spring formation.
+
+### Thesis-Killers
+1. US corn price collapse.
+2. Alberta feedlot placement slump.
+3. Saudi grain reserve release.
+
+### Debate Tiebreakers
+1. Alberta feedlot activity vs 1yr avg
+2. China USDA export sales trajectory
+3. Corn-barley spread in Alberta
+4. Malt barley premium vs feed
+
+---
+
+## 🌽 Corn (COR)
+
+**Compression Index Class:** n/a (CBOT-dominated; Canadian volumes too small)
+**Coiled Spring Fit:** WEAK
+**Typical Stance Range:** -20 to +20
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | <2% of global corn trade                         |
+| Futures              | CBOT Corn (directly applicable)                  |
+| Primary production   | Ontario, Quebec, Manitoba (small prairie share)  |
+| Domestic use         | Feed (Ontario), ethanol, minor processing        |
+
+### Grain-Specific Rules
+- **R-CA-COR-01 · Canadian corn is price-taker on CBOT.** Use US Corn card (R-US-COR-*) for directional thesis; Canadian layer only addresses basis.
+- **R-CA-COR-02 · Ontario basis is the actionable variable.** Check Ontario corn basis vs CBOT for local signal.
+- **R-CA-COR-03 · Import corn from US.** When CBOT low, Prairie feeders import US corn — Alberta/Saskatchewan basis tells the story.
+- **R-CA-COR-04 · No Compression Index.** CBOT dominates.
+
+### Thesis-Killers
+1. CBOT Corn breakdown (any direction).
+2. US ethanol policy shift.
+3. Ontario basis widening >$20/t vs CBOT.
+
+### Debate Tiebreakers
+1. CBOT Corn trajectory
+2. Ontario cash basis
+3. Prairie feedlot corn imports (Alberta delivered price)
+
+---
+
+## 🌱 Soybeans (SOY)
+
+**Compression Index Class:** n/a (CBOT-dominated; Canadian volumes modest)
+**Coiled Spring Fit:** WEAK
+**Typical Stance Range:** -25 to +25
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | ~2% of global soybean trade                      |
+| Futures              | CBOT Soybeans (directly applicable)              |
+| Primary production   | Ontario, Quebec, Manitoba (growing)              |
+| Domestic crush       | ADM Windsor, Bunge Hamilton (Ontario-centric)    |
+
+### Grain-Specific Rules
+- **R-CA-SOY-01 · Canadian soy is price-taker on CBOT.** Use US Soybeans card (R-US-SOY-*) for directional thesis.
+- **R-CA-SOY-02 · Ontario soy is food-grade.** IP (identity-preserved) premium market for Japan/EU. Separate signal from commodity CBOT.
+- **R-CA-SOY-03 · Manitoba soy is GMO commodity.** Follows CBOT directly.
+- **R-CA-SOY-04 · No Compression Index.** CBOT dominates.
+
+### Thesis-Killers
+1. CBOT Soybeans breakdown (any direction).
+2. China trade policy shift.
+3. Japanese IP non-GMO tender volume drop.
+
+### Debate Tiebreakers
+1. CBOT Soybean trajectory
+2. IP premium (Ontario) vs commodity (Manitoba)
+3. Canadian soy export sales (USDA FAS weekly)
+
+---
+
+## 🌾 Oats (OAT)
+
+**Compression Index Class:** n/a (90% producer cars US-bound; CBOT oats OI too thin for reliable COT)
+**Coiled Spring Fit:** N/A (US-dependent demand, not a Canadian spring)
+**Typical Stance Range:** -50 to +25
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | ~70% of global oat trade                         |
+| Futures              | CBOT Oats (thin OI — directional only, no reliable COT) |
+| Key buyer            | US (Quaker, General Mills — milling)             |
+| Domestic use         | ~15% milling, minor feed                         |
+| Primary export path  | Producer Cars direct to US (90%)                 |
+
+### Grain-Specific Rules
+- **R-CA-OAT-01 · 90%+ of producer car oat shipments go to US.** "Collapsing exports" and high US-bound producer cars are contradictory — one of them is wrong.
+- **R-CA-OAT-02 · Oats are a MILLING grain.** Never reference "crush" — use "processing" or "milling."
+- **R-CA-OAT-03 · Rail is the binding constraint.** Oats claim 30-40% of weekly producer car allocation despite being a minor grain. High allocation = strong demand.
+- **R-CA-OAT-04 · CBOT oats COT is unreliable.** Open interest too thin (<5k contracts typical). Ignore COT signals.
+- **R-CA-OAT-05 · No Compression Index.** US-dependent demand precludes Canadian spring formation.
+- **R-CA-OAT-06 · Quaker contract cycle.** Annual contract negotiations (Sep-Oct) create discrete demand steps, not continuous compression.
+
+### Thesis-Killers
+1. Quaker/General Mills contract cycle drop.
+2. US millers substituting to imported European oats.
+3. CN/CP producer car allocation squeeze.
+
+### Debate Tiebreakers
+1. US-bound producer car allocation trajectory
+2. CBOT Oats front-month vs prior 4wk
+3. US miller inventory (Quaker SEC filings)
+4. Quaker contract cycle phase
+
+---
+
+## 🌱 Chick Peas (CHK)
+
+**Compression Index Class:** n/a (Australia Dec-Feb harvest provides reliable competing supply)
+**Coiled Spring Fit:** N/A
+**Typical Stance Range:** -20 to +25
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | ~10% of global chickpea trade                    |
+| Futures              | None                                             |
+| Key buyers           | India, Pakistan, Bangladesh, UAE                 |
+| Primary export path  | Containerized                                    |
+
+### Grain-Specific Rules
+- **R-CA-CHK-01 · Australia is the Nov-Feb offset.** Australian harvest (Nov-Feb) releases ~1.5Mt into the same markets. Compression cannot form during this window.
+- **R-CA-CHK-02 · India tariff walk-cycle.** Indian chickpea tariff (currently 44%) — follows a 2-3 yr cycle of hike/walk-back.
+- **R-CA-CHK-03 · Desi vs Kabuli split.** Desi (small, dark) vs Kabuli (large, white) have different end-markets. Do not aggregate.
+- **R-CA-CHK-04 · No Compression Index.** Australia offset breaks spring formation.
+
+### Thesis-Killers
+1. Australian harvest surplus (>1.8Mt).
+2. India tariff cut.
+3. Turkish/Mexican Kabuli entering EU market.
+
+### Debate Tiebreakers
+1. Australian harvest progress (ABARES reports)
+2. India tariff status
+3. Kabuli vs Desi premium
+
+---
+
+## 🌾 Rye (RYE)
+
+**Compression Index Class:** n/a (thin market, irregular demand)
+**Coiled Spring Fit:** N/A
+**Typical Stance Range:** -15 to +20
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | <5% of global rye trade                          |
+| Futures              | None                                             |
+| Key buyers           | US (distilling — Kentucky, Indiana), EU          |
+| Domestic use         | Distilling (Alberta Premium), minor bread        |
+
+### Grain-Specific Rules
+- **R-CA-RYE-01 · US distilling is the swing buyer.** Bourbon/rye whiskey demand cycles drive weekly price.
+- **R-CA-RYE-02 · No futures, no COT.** Basis-only market.
+- **R-CA-RYE-03 · Ergot discount sensitivity.** Weather-sensitive quality discounts.
+- **R-CA-RYE-04 · No Compression Index.** Market too thin.
+
+### Thesis-Killers
+1. US distiller inventory build (TTB data).
+2. European rye surplus.
+3. Ergot outbreak (quality crash).
+
+### Debate Tiebreakers
+1. US distiller demand signal
+2. Canadian farm-held stocks (StatsCan)
+3. Alberta Premium procurement
+
+---
+
+## 🌻 Sunflower (SUN)
+
+**Compression Index Class:** n/a (niche market; world flow dominated by Black Sea)
+**Coiled Spring Fit:** N/A
+**Typical Stance Range:** -15 to +20
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | <2% of global sunflower trade                    |
+| Futures              | None                                             |
+| Key buyers           | US (confection), EU                              |
+| Domestic production  | Manitoba-concentrated                            |
+| Primary use          | Confection (in-shell, dehulled), limited crush   |
+
+### Grain-Specific Rules
+- **R-CA-SUN-01 · Black Sea (Ukraine, Russia, Argentina) sets world price.** Canada is price-taker.
+- **R-CA-SUN-02 · Confection vs Oil types.** Confection (NuSun, black oil) vs oil-type. Different end-markets.
+- **R-CA-SUN-03 · US confection demand seasonality.** Peaks May-Oct (outdoor/baseball season).
+- **R-CA-SUN-04 · No Compression Index.** Niche market.
+
+### Thesis-Killers
+1. Ukrainian export corridor reopening fully.
+2. Argentine crop surprise (Feb-May).
+3. US confection retail softness.
+
+### Debate Tiebreakers
+1. US confection demand trajectory
+2. Black Sea export pace
+3. Confection/oil-type spread
+
+---
+
+## 🫘 Beans (BEA)
+
+**Compression Index Class:** n/a (niche market; Ontario/Manitoba specialty)
+**Coiled Spring Fit:** N/A
+**Typical Stance Range:** -15 to +20
+
+### Market Structure Fingerprint
+| Dimension            | Value                                            |
+|----------------------|--------------------------------------------------|
+| Canada world share   | ~5% of global dry bean trade                     |
+| Futures              | None                                             |
+| Key buyers           | US (repackers), UK, Italy, Algeria               |
+| Primary production   | Ontario, Manitoba                                |
+| Varieties            | Navy, Pinto, Black, Cranberry, Kidney            |
+
+### Grain-Specific Rules
+- **R-CA-BEA-01 · Navy bean demand is UK-seasonal.** UK Heinz baked beans procurement cycle.
+- **R-CA-BEA-02 · Variety matters.** Navy, Pinto, Black, etc. each have different primary buyers. Do not aggregate.
+- **R-CA-BEA-03 · US dry bean competition.** Michigan/North Dakota compete directly in same markets.
+- **R-CA-BEA-04 · No Compression Index.** Niche, variety-split market.
+
+### Thesis-Killers
+1. US dry bean bumper crop (Michigan/ND).
+2. UK Heinz procurement shift (to US).
+3. Algeria bean tender cancellation.
+
+### Debate Tiebreakers
+1. Variety-specific (Navy, Pinto, Black)
+2. US dry bean stocks vs 1yr avg
+3. UK repacker procurement trajectory
+
+---
