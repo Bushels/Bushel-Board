@@ -31,13 +31,15 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protected routes: redirect unauthenticated users to /login
-  // Public routes: /, /login, /callback
+  // Public routes: /, /login, /signup, /reset-password, /callback,
+  // and /api/trial-notify (public trial signup notification endpoint).
   if (
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/signup") &&
     !request.nextUrl.pathname.startsWith("/reset-password") &&
     !request.nextUrl.pathname.startsWith("/callback") &&
+    !request.nextUrl.pathname.startsWith("/api/trial-notify") &&
     request.nextUrl.pathname !== "/"
   ) {
     const url = request.nextUrl.clone();

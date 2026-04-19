@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCommunityStats } from "@/lib/queries/community";
 import { LandingPage } from "@/components/landing/landing-page";
+import { getEnrolledAcres } from "@/components/landing/trial-actions";
 import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,7 +19,10 @@ export default async function RootPage() {
     // If auth resolution fails, fall back to the public landing page.
   }
 
-  const communityStats = await getCommunityStats();
+  const [communityStats, initialTrialAcres] = await Promise.all([
+    getCommunityStats(),
+    getEnrolledAcres(),
+  ]);
 
-  return <LandingPage communityStats={communityStats} />;
+  return <LandingPage communityStats={communityStats} initialTrialAcres={initialTrialAcres} />;
 }

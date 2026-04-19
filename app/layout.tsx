@@ -1,5 +1,15 @@
 import type { Metadata } from "next";
-import { DM_Sans, Fraunces, Geist_Mono } from "next/font/google";
+import {
+  Caveat,
+  Cutive_Mono,
+  DM_Sans,
+  Fraunces,
+  Geist_Mono,
+  Kalam,
+  Permanent_Marker,
+  Special_Elite,
+} from "next/font/google";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -18,6 +28,42 @@ const fraunces = Fraunces({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Trial desk aesthetic fonts — scoped via CSS vars to `.trial-desk`.
+const permanentMarker = Permanent_Marker({
+  variable: "--font-permanent-marker",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const kalam = Kalam({
+  variable: "--font-kalam",
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const specialElite = Special_Elite({
+  variable: "--font-special-elite",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const cutiveMono = Cutive_Mono({
+  variable: "--font-cutive-mono",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -40,8 +86,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${dmSans.variable} ${fraunces.variable} ${geistMono.variable} antialiased`}
+        className={`${dmSans.variable} ${fraunces.variable} ${geistMono.variable} ${permanentMarker.variable} ${kalam.variable} ${caveat.variable} ${specialElite.variable} ${cutiveMono.variable} antialiased`}
       >
+        <GoogleAnalytics />
         {children}
       </body>
     </html>

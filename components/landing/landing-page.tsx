@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BarChart3, ChevronDown, ClipboardList, Database } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { CommunityStatsDisplay } from "@/components/dashboard/community-stats";
 import { PrairieScene } from "@/components/ui/prairie-scene";
+import { TrialDeskSection } from "@/components/landing/trial-desk-section";
 import type { CommunityStats } from "@/lib/queries/community";
 
 interface LandingPageProps {
   communityStats: CommunityStats | null;
+  initialTrialAcres: number;
 }
 
-export function LandingPage({ communityStats }: LandingPageProps) {
+export function LandingPage({ communityStats, initialTrialAcres }: LandingPageProps) {
   return (
     <div className="relative min-h-screen overflow-hidden font-sans">
       <PrairieScene />
@@ -132,65 +134,12 @@ export function LandingPage({ communityStats }: LandingPageProps) {
         </motion.div>
       </main>
 
-      <section className="relative z-10 mx-auto max-w-5xl bg-wheat-50 px-4 py-16 pb-32 dark:bg-wheat-900">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:gap-8">
-          <FeatureBlock
-            icon={<Database className="h-7 w-7 text-canola" />}
-            title="Start With One Crop"
-            description="Add a crop and acres in under a minute to unlock that grain page without pretending the app already knows your farm."
-            delay={0.2}
-          />
-          <FeatureBlock
-            icon={<ClipboardList className="h-7 w-7 text-canola" />}
-            title="Unlock Sharper AI"
-            description="Crop plans, tonnes, deliveries, and signal feedback make the weekly thesis more specific to your operation instead of generic market noise."
-            delay={0.3}
-          />
-          <FeatureBlock
-            icon={<BarChart3 className="h-7 w-7 text-canola" />}
-            title="See What Matters This Week"
-            description="Watch prairie flow data, feedback-ranked X signals, and your own pace together so the next decision is clearer before the next elevator call."
-            delay={0.4}
-          />
-        </div>
-      </section>
+      <TrialDeskSection initialAcres={initialTrialAcres} />
 
-      <footer className="relative z-10 bg-wheat-50 py-12 text-center text-sm text-wheat-400 dark:bg-wheat-900">
+      <footer className="relative z-10 py-8 text-center text-sm text-white/60">
         <p>&copy; {new Date().getFullYear()} Bushel Board.</p>
       </footer>
     </div>
-  );
-}
-
-function FeatureBlock({
-  icon,
-  title,
-  description,
-  delay,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  delay: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.6, delay, ease: "easeOut" }}
-      className="space-y-5 rounded-[2rem] border border-wheat-100 bg-white p-8 text-left shadow-sm transition-all duration-300 hover:shadow-xl dark:border-wheat-700 dark:bg-wheat-800"
-    >
-      <div className="inline-flex rounded-xl border border-wheat-100 bg-wheat-50 p-4 dark:border-wheat-600 dark:bg-wheat-700">
-        {icon}
-      </div>
-      <h3 className="font-display text-xl font-bold text-wheat-900 dark:text-wheat-100">
-        {title}
-      </h3>
-      <p className="text-base leading-relaxed text-wheat-500 dark:text-wheat-300">
-        {description}
-      </p>
-    </motion.div>
   );
 }
 

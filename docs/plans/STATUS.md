@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-04-16
+Last updated: 2026-04-18
 
 ## Feature Tracks
 
@@ -51,6 +51,24 @@ Last updated: 2026-04-16
 | 42 | Hermes Chat Agent — Tiered Memory | 2026-04-15 | Design + skeleton: 6 tables, classification engine, supersession engine, X API v2 client, compression engine, Hermes server, Vercel proxy, 4 RPCs |
 | 43 | Grain Detail Simplification | 2026-04-15 | Strip grain detail page to 3 sections: Market Thesis (two-column reasoning), Ask Bushy (embedded chat), My Farm (progress + recommendation). Fix stale week display. |
 | 44 | Overview Bull/Bear Unification | 2026-04-16 | Single `UnifiedMarketStanceChart` grouped by region (CA 10 grains + US 4 markets), accordion rows expand to two-column bull/bear bullet panels with recommendation + detail link. CGC snapshot grid, Logistics Banner, and Community Pulse removed from Overview. `lib/queries/us-market-stance.ts`, `lib/queries/market-stance.ts` extended with `bullPoints`/`bearPoints`/`region`/`detailHref`. |
+| 45 | Bio Trial Signup (landing-page lead capture + email notification) | Complete | 2026-04-18 | `components/landing/trial-desk-section.tsx`, `components/landing/trial-form.tsx`, `components/landing/trial-client.ts`, `components/landing/trial-odometer.tsx`, `components/landing/trial-desk.css`, `components/landing/trial-actions.ts` (SSR only), `app/api/trial-notify/route.ts`, `lib/supabase/middleware.ts` (route exemption), Supabase RPCs `public.submit_bio_trial_signup` / `public.get_bio_trial_acres`. **Reference:** `docs/reference/bio-trial-signup.md`. |
+
+### 2026-04-18 — Bio Trial Signup (Track 45)
+
+**What was delivered:**
+- Landing-page trial section (`<TrialDeskSection>`) with agronomist-desk aesthetic — hero, sticky-note benefits, clipboard signup form, brass odometer showing running enrolled-acres total.
+- Client-side Supabase RPC wrappers (`components/landing/trial-client.ts`) — deliberately bypass Next.js server actions so submit-to-APPROVED latency stays under ~500 ms (server actions triggered RSC revalidation of the dynamic landing route).
+- Fire-and-forget notification email pipeline: browser POSTs to `/api/trial-notify` (Node runtime), which Zod-validates and ships a kraft-paper-styled HTML + plain-text email via the Resend SDK. Email failures never affect the user's APPROVED state.
+- Middleware exemption for `/api/trial-notify` in `lib/supabase/middleware.ts` so the unauthenticated public landing page can hit the notification endpoint without a 307 to `/login`.
+- End-to-end verified 2026-04-18: odometer rolled 003000 → 003025, row persisted with `status: new`, Resend delivery confirmed.
+
+**Critical invariants** (full list in the reference doc): don't re-introduce a server action for the submit path; keep the notification POST fire-and-forget; keep `/api/trial-notify` on the middleware exemption list; Resend is in sandbox mode so `TRIAL_NOTIFY_TO` must be the Resend account owner until a domain is verified.
+
+**Plans:** `docs/plans/2026-04-18-bio-trial-integration-design.md` (phases 1–3 shipped; 4–7 still ahead).
+**Reference:** `docs/reference/bio-trial-signup.md`.
+**Consolidated status + Mermaid flow diagram + next steps:** `docs/handovers/2026-04-18-bio-trial-feature-status.md` (2026-04-18 evening).
+
+**2026-04-18 evening update:** Work on the trial was moved to its own long-lived branch `feature/bio-trial-integration` (seasonal feature — merge into master when a trial season opens). A standalone SixRing vendor console was shipped on the `bio_trial/` static site this session (`vendor.html` + `vendor.js`) — it covers Phase 4's functional scope but lives outside the Bushel Board app. Phase 4 proper (porting that console to `/admin`) is still ahead, along with Phase 5 (chat gating), Phase 6 (delivery → magic-link invite), and the new Phase 7 (Trial tab with chat-extracted trial events). A RPC-naming reconcile is needed — two sets of vendor RPCs exist in the DB right now; only one should survive.
 
 ### 2026-04-16 — Overview Bull/Bear Unification (Track 44)
 

@@ -2,6 +2,14 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "bio_trial static",
+      "cwd": "../bio_trial",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npx", "--yes", "serve", "-l", "5174", "."],
+      "port": 5174,
+      "autoPort": true
+    },
+    {
       "name": "Next.js dev",
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "npm", "run", "dev"],
