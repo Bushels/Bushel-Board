@@ -1053,10 +1053,12 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 
 **Exception:** The Out-of-Car Time sheet (5C-5) has **weekly** granularity — each grain week gets its own column. This is the only weekly metric in the Excel.
 
-**Fix:** The import script (`scripts/import-grain-monitor.mjs`) handles both granularities:
+**Original workaround:** The import script (`scripts/import-grain-monitor.mjs`) handled both granularities:
 - Weekly OCT data: imported directly with correct grain week numbers (weeks 1-26 for current crop year)
 - Monthly stock/terminal data: mapped to approximate grain week midpoints (AUG→wk3, SEP→wk7, etc.)
 - Manual weekly entries (from PDF reports) are preserved and never overwritten by auto-import
+
+**Update 2026-04-20:** `scripts/import-grain-monitor-weekly.ts` is now the canonical weekly importer. It reads the Quorum weekly PDF (`GMPGOCWeek{YYYY}{WW}.pdf`), writes the real `report_date`, fills the full weekly logistics row, and surfaces lag versus the latest imported CGC week. `scripts/import-grain-monitor.mjs` remains only as the monthly Excel fallback/backfill helper and should not be treated as the weekly source of truth.
 
 **Data sources:**
 - Weekly PDF reports: `grainmonitor.ca/Downloads/WeeklyReports/GMPGOCWeek{YYYYWW}.pdf` (rich but requires PDF parsing)

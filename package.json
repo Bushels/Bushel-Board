@@ -21,6 +21,7 @@
     "seed-prices": "npx tsx scripts/seed-grain-prices.ts",
     "seed-weather-stations": "npx tsx scripts/seed-weather-stations.ts",
     "import-prices": "npx tsx scripts/import-grain-prices.ts",
+    "import-grain-monitor:weekly": "npx tsx scripts/import-grain-monitor-weekly.ts",
     "import-fx": "python3 scripts/import-fx-rates.py",
     "import-usda": "python3 scripts/import-usda-export-sales.py",
     "import-usda-crop-progress": "python3 scripts/import-usda-crop-progress.py",

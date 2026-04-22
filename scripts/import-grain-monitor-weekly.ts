@@ -1,0 +1,1306 @@
+#!/usr/bin/env node
+
+import { createClient } from "@supabase/supabase-js";
+import { spawnSync } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
+
+const GRAIN_MONITOR_BASE_URL = "https://grainmonitor.ca/";
+const WEEKLY_REPORTS_PATH = "Downloads/WeeklyReports";
+const CURRENT_REPORT_URL = new URL("current_report.html", GRAIN_MONITOR_BASE_URL).toString();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PDF_PARSE_MODULE_URL = pathToFileURL(
+  join(__dirname, "..", "node_modules", "pdf-parse", "dist", "pdf-parse", "esm", "index.js"),
+).href;
+
+const HEARTBEAT_CLI = join(__dirname, "write-collector-heartbeat.py");
+const TRAJECTORY_SCAN_TYPE = "collector_grain_monitor";
+const TRAJECTORY_TRIGGER = "Government Grain Monitor weekly refresh";
+const CAD_GRAINS_CANONICAL = [
+  "Amber Durum",
+  "Barley",
+  "Beans",
+  "Canaryseed",
+  "Canola",
+  "Chick Peas",
+  "Corn",
+  "Flaxseed",
+  "Lentils",
+  "Mustard Seed",
+  "Oats",
+  "Peas",
+  "Rye",
+  "Soybeans",
+  "Sunflower",
+  "Wheat",
+] as const;
+
+let SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+let SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+loadLocalEnvFile();
+SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const REQUIRED_WEEKLY_FIELDS = [
+  "country_stocks_kt",
+  "country_capacity_pct",
+  "terminal_stocks_kt",
+  "terminal_capacity_pct",
+  "country_stocks_mb_kt",
+  "country_stocks_sk_kt",
+  "country_stocks_ab_kt",
+  "terminal_stocks_vancouver_kt",
+  "terminal_stocks_prince_rupert_kt",
+  "terminal_stocks_thunder_bay_kt",
+  "terminal_stocks_churchill_kt",
+  "country_deliveries_kt",
+  "country_deliveries_yoy_pct",
+  "vancouver_unloads_cars",
+  "prince_rupert_unloads_cars",
+  "thunder_bay_unloads_cars",
+  "churchill_unloads_cars",
+  "total_unloads_cars",
+  "four_week_avg_unloads",
+  "var_to_four_week_avg_pct",
+  "ytd_unloads_cars",
+  "out_of_car_time_pct",
+  "out_of_car_time_vancouver_pct",
+  "out_of_car_time_prince_rupert_pct",
+  "ytd_shipments_vancouver_kt",
+  "ytd_shipments_prince_rupert_kt",
+  "ytd_shipments_thunder_bay_kt",
+  "ytd_shipments_total_kt",
+  "ytd_shipments_yoy_pct",
+  "ytd_shipments_vs_3yr_avg_pct",
+  "vessels_vancouver",
+  "vessels_prince_rupert",
+  "vessels_cleared_vancouver",
+  "vessels_cleared_prince_rupert",
+  "vessels_inbound_next_week",
+  "vessel_avg_one_year_vancouver",
+  "vessel_avg_one_year_prince_rupert",
+  "weather_notes",
+  "source_notes",
+] as const;
+
+type NullableNumber = number | null;
+
+type GrainMonitorSnapshotRow = {
+  crop_year: string;
+  grain_week: number;
+  report_date: string;
+  country_stocks_kt: NullableNumber;
+  country_capacity_pct: NullableNumber;
+  terminal_stocks_kt: NullableNumber;
+  terminal_capacity_pct: NullableNumber;
+  country_stocks_mb_kt: NullableNumber;
+  country_stocks_sk_kt: NullableNumber;
+  country_stocks_ab_kt: NullableNumber;
+  terminal_stocks_vancouver_kt: NullableNumber;
+  terminal_stocks_prince_rupert_kt: NullableNumber;
+  terminal_stocks_thunder_bay_kt: NullableNumber;
+  terminal_stocks_churchill_kt: NullableNumber;
+  country_deliveries_kt: NullableNumber;
+  country_deliveries_yoy_pct: NullableNumber;
+  vancouver_unloads_cars: number | null;
+  prince_rupert_unloads_cars: number | null;
+  thunder_bay_unloads_cars: number | null;
+  churchill_unloads_cars: number | null;
+  total_unloads_cars: number | null;
+  four_week_avg_unloads: number | null;
+  var_to_four_week_avg_pct: NullableNumber;
+  ytd_unloads_cars: number | null;
+  out_of_car_time_pct: NullableNumber;
+  out_of_car_time_vancouver_pct: NullableNumber;
+  out_of_car_time_prince_rupert_pct: NullableNumber;
+  ytd_shipments_vancouver_kt: NullableNumber;
+  ytd_shipments_prince_rupert_kt: NullableNumber;
+  ytd_shipments_thunder_bay_kt: NullableNumber;
+  ytd_shipments_total_kt: NullableNumber;
+  ytd_shipments_yoy_pct: NullableNumber;
+  ytd_shipments_vs_3yr_avg_pct: NullableNumber;
+  vessels_vancouver: number | null;
+  vessels_prince_rupert: number | null;
+  vessels_cleared_vancouver: number | null;
+  vessels_cleared_prince_rupert: number | null;
+  vessels_inbound_next_week: number | null;
+  vessel_avg_one_year_vancouver: number | null;
+  vessel_avg_one_year_prince_rupert: number | null;
+  weather_notes: string | null;
+  source_notes: string;
+};
+
+type CliOptions = {
+  cropYear?: string;
+  grainWeek?: number;
+  pdfUrl?: string;
+  dryRun: boolean;
+  help: boolean;
+};
+
+type DiscoveryResult = {
+  url: string;
+  filename: string;
+  strategy: "explicit-url" | "direct-pattern" | "current-report";
+  attemptedUrls: string[];
+  discoveredCropYear?: string;
+  discoveredGrainWeek?: number;
+};
+
+type WeeklyReportMetadata = {
+  canonicalCropYear: string;
+  reportCropYear: string;
+  grainWeek: number;
+  reportDate: string;
+  coveredPeriod: string;
+  coveredPeriodStart: string;
+  coveredPeriodEnd: string;
+  vesselAsOfDate: string | null;
+  vesselWeek: number | null;
+  inboundPeriod: string | null;
+  inboundWeek: number | null;
+};
+
+type ParseResult = {
+  metadata: WeeklyReportMetadata;
+  row: Omit<GrainMonitorSnapshotRow, "crop_year" | "source_notes">;
+  missingFields: string[];
+  weatherBullet: string | null;
+  vesselTimingNote: string | null;
+};
+
+type PdfParserInstance = {
+  getText(options: { partial: number[] }): Promise<{ text: string }>;
+  destroy(): Promise<void>;
+};
+
+type PdfParseConstructor = new (options: { data: ArrayBuffer }) => PdfParserInstance;
+
+function loadLocalEnvFile() {
+  const envPath = join(__dirname, "..", ".env.local");
+  if (!existsSync(envPath)) {
+    return;
+  }
+
+  const envContents = readFileSync(envPath, "utf8");
+  for (const line of envContents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex < 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+    if (!key || process.env[key]) {
+      continue;
+    }
+
+    process.env[key] = rawValue.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+  }
+}
+
+function printHelp() {
+  process.stdout.write(
+    [
+      "Usage: npx tsx scripts/import-grain-monitor-weekly.ts [options]",
+      "",
+      "Primary weekly Grain Monitor importer.",
+      "Discovers the latest Quorum weekly PDF, parses deterministic logistics metrics,",
+      "and upserts one canonical row into grain_monitor_snapshots.",
+      "",
+      "Options:",
+      "  --crop-year 2025-2026   Target crop year (default: current crop year)",
+      "  --grain-week 35         Target a specific Grain Monitor week",
+      "  --pdf-url <pdf-url>     Import a specific weekly PDF URL",
+      "  --url <pdf-url>         Legacy alias for --pdf-url",
+      "  --dry-run               Parse and validate without writing to Supabase",
+      "  --help                  Show this help",
+      "",
+      "Examples:",
+      "  npx tsx scripts/import-grain-monitor-weekly.ts --dry-run",
+      "  npx tsx scripts/import-grain-monitor-weekly.ts --pdf-url https://grainmonitor.ca/Downloads/WeeklyReports/GMPGOCWeek202535.pdf",
+      "  npx tsx scripts/import-grain-monitor-weekly.ts --crop-year 2025-2026 --grain-week 35",
+    ].join("\n"),
+  );
+}
+
+function logDiagnostic(message: string, details?: Record<string, unknown>) {
+  if (details && Object.keys(details).length > 0) {
+    console.error(`[grain-monitor-weekly] ${message} ${JSON.stringify(details)}`);
+    return;
+  }
+
+  console.error(`[grain-monitor-weekly] ${message}`);
+}
+
+function parseArgs(argv: string[]): CliOptions {
+  const options: CliOptions = {
+    dryRun: false,
+    help: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+
+    switch (arg) {
+      case "--crop-year":
+        options.cropYear = argv[index + 1];
+        index += 1;
+        break;
+      case "--grain-week":
+        options.grainWeek = Number.parseInt(argv[index + 1] ?? "", 10);
+        index += 1;
+        break;
+      case "--pdf-url":
+      case "--url":
+        options.pdfUrl = argv[index + 1];
+        index += 1;
+        break;
+      case "--dry-run":
+        options.dryRun = true;
+        break;
+      case "--help":
+        options.help = true;
+        break;
+      default:
+        throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if (options.cropYear) {
+    options.cropYear = normalizeCropYearInput(options.cropYear);
+  }
+
+  if (options.grainWeek != null) {
+    if (!Number.isInteger(options.grainWeek) || options.grainWeek < 1 || options.grainWeek > 53) {
+      throw new Error("--grain-week must be an integer between 1 and 53");
+    }
+  }
+
+  if (options.pdfUrl && options.grainWeek != null) {
+    throw new Error("Use either --pdf-url/--url or --grain-week, not both");
+  }
+
+  return options;
+}
+
+function normalizeCropYearInput(input: string): string {
+  const trimmed = input.trim();
+  const longMatch = trimmed.match(/^(\d{4})-(\d{4})$/);
+  if (longMatch) {
+    const startYear = Number.parseInt(longMatch[1], 10);
+    const endYear = Number.parseInt(longMatch[2], 10);
+    if (endYear !== startYear + 1) {
+      throw new Error(`Invalid crop year: ${input}`);
+    }
+    return `${startYear}-${endYear}`;
+  }
+
+  const shortMatch = trimmed.match(/^(\d{4})-(\d{2})$/);
+  if (shortMatch) {
+    const startYear = Number.parseInt(shortMatch[1], 10);
+    const endSuffix = Number.parseInt(shortMatch[2], 10);
+    const expectedSuffix = (startYear + 1) % 100;
+    if (endSuffix !== expectedSuffix) {
+      throw new Error(`Invalid crop year: ${input}`);
+    }
+    return `${startYear}-${startYear + 1}`;
+  }
+
+  throw new Error(`Invalid crop year format: ${input}`);
+}
+
+function getCurrentCropYear(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  if (month >= 7) {
+    return `${year}-${year + 1}`;
+  }
+  return `${year - 1}-${year}`;
+}
+
+function getReportCropYear(cropYear: string): string {
+  const [startYear] = cropYear.split("-");
+  const endYearSuffix = cropYear.slice(-2);
+  return `${startYear}-${endYearSuffix}`;
+}
+
+function getCapacityLabelCropYear(cropYear: string): string {
+  const [startYear, endYear] = cropYear.split("-");
+  return `${startYear.slice(-2)}-${endYear.slice(-2)}`;
+}
+
+function getStartYear(cropYear: string): number {
+  return Number.parseInt(cropYear.slice(0, 4), 10);
+}
+
+function buildWeeklyPdfUrl(cropYear: string, grainWeek: number): string {
+  const startYear = getStartYear(cropYear);
+  return new URL(
+    `${WEEKLY_REPORTS_PATH}/GMPGOCWeek${startYear}${String(grainWeek).padStart(2, "0")}.pdf`,
+    GRAIN_MONITOR_BASE_URL,
+  ).toString();
+}
+
+function getApproximateGrainWeek(cropYear: string, now = new Date()): number {
+  const startYear = getStartYear(cropYear);
+  const cropStart = Date.UTC(startYear, 7, 1);
+  const currentDate = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.floor((currentDate - cropStart) / 86_400_000);
+  return Math.max(1, Math.min(53, Math.floor(diffDays / 7) + 1));
+}
+
+function buildCandidateWeeks(cropYear: string, explicitWeek?: number): number[] {
+  if (explicitWeek != null) {
+    return [explicitWeek];
+  }
+
+  const currentCropYear = getCurrentCropYear();
+  if (cropYear !== currentCropYear) {
+    return Array.from({ length: 53 }, (_, index) => 53 - index);
+  }
+
+  const approxWeek = getApproximateGrainWeek(cropYear);
+  const candidates = new Set<number>();
+  for (let week = approxWeek + 1; week >= Math.max(1, approxWeek - 10); week -= 1) {
+    if (week >= 1 && week <= 53) {
+      candidates.add(week);
+    }
+  }
+
+  return [...candidates];
+}
+
+async function urlExists(url: string): Promise<boolean> {
+  try {
+    const headResponse = await fetch(url, { method: "HEAD" });
+    if (headResponse.ok) {
+      return true;
+    }
+
+    if (![403, 405].includes(headResponse.status)) {
+      return false;
+    }
+
+    const rangeResponse = await fetch(url, {
+      headers: {
+        Range: "bytes=0-16",
+      },
+    });
+    return rangeResponse.ok;
+  } catch {
+    return false;
+  }
+}
+
+function parseFilenameDetails(filename: string): { cropYear: string; grainWeek: number } | null {
+  const match = filename.match(/GMPGOCWeek(\d{4})(\d{2})\.pdf$/i);
+  if (!match) {
+    return null;
+  }
+
+  const startYear = Number.parseInt(match[1], 10);
+  const grainWeek = Number.parseInt(match[2], 10);
+  return {
+    cropYear: `${startYear}-${startYear + 1}`,
+    grainWeek,
+  };
+}
+
+async function discoverWeeklyReport(options: CliOptions, cropYear: string): Promise<DiscoveryResult> {
+  if (options.pdfUrl) {
+    const filename = new URL(options.pdfUrl).pathname.split("/").pop();
+    if (!filename) {
+      throw new Error(`Could not determine filename from URL: ${options.pdfUrl}`);
+    }
+
+    return {
+      url: options.pdfUrl,
+      filename,
+      strategy: "explicit-url",
+      attemptedUrls: [options.pdfUrl],
+      discoveredCropYear: parseFilenameDetails(filename)?.cropYear,
+      discoveredGrainWeek: parseFilenameDetails(filename)?.grainWeek,
+    };
+  }
+
+  const attemptedUrls: string[] = [];
+  for (const grainWeek of buildCandidateWeeks(cropYear, options.grainWeek)) {
+    const url = buildWeeklyPdfUrl(cropYear, grainWeek);
+    attemptedUrls.push(url);
+    if (await urlExists(url)) {
+      return {
+        url,
+        filename: url.split("/").pop() ?? `GMPGOCWeek${getStartYear(cropYear)}${String(grainWeek).padStart(2, "0")}.pdf`,
+        strategy: "direct-pattern",
+        attemptedUrls,
+        discoveredCropYear: cropYear,
+        discoveredGrainWeek: grainWeek,
+      };
+    }
+  }
+
+  if (options.grainWeek != null) {
+    throw new Error(
+      `Weekly PDF not found for crop year ${cropYear}, grain week ${options.grainWeek}. Tried ${attemptedUrls.length} direct URL(s).`,
+    );
+  }
+
+  const currentReportResponse = await fetch(CURRENT_REPORT_URL);
+  if (!currentReportResponse.ok) {
+    throw new Error(`Could not fetch current report page: HTTP ${currentReportResponse.status}`);
+  }
+
+  const currentReportHtml = await currentReportResponse.text();
+  const linkMatches = [
+    ...currentReportHtml.matchAll(/Downloads\/WeeklyReports\/(GMPGOCWeek\d{6}\.pdf)/gi),
+  ].map((match) => match[1]);
+
+  if (linkMatches.length === 0) {
+    throw new Error(
+      `Could not discover a weekly PDF from ${CURRENT_REPORT_URL}; direct URL attempts also failed.`,
+    );
+  }
+
+  const matchingLink = linkMatches.find((filename) => {
+    const details = parseFilenameDetails(filename);
+    return details?.cropYear === cropYear;
+  }) ?? linkMatches[0];
+
+  const discoveredUrl = new URL(`${WEEKLY_REPORTS_PATH}/${matchingLink}`, GRAIN_MONITOR_BASE_URL).toString();
+  const details = parseFilenameDetails(matchingLink);
+
+  return {
+    url: discoveredUrl,
+    filename: matchingLink,
+    strategy: "current-report",
+    attemptedUrls,
+    discoveredCropYear: details?.cropYear,
+    discoveredGrainWeek: details?.grainWeek,
+  };
+}
+
+async function fetchPdfData(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch PDF ${url}: HTTP ${response.status}`);
+  }
+  return await response.arrayBuffer();
+}
+
+async function loadPdfParseConstructor(): Promise<PdfParseConstructor> {
+  const module = (await import(PDF_PARSE_MODULE_URL)) as { PDFParse: PdfParseConstructor };
+  return module.PDFParse;
+}
+
+async function getPageTexts(pdfData: ArrayBuffer, pages: number[]): Promise<Record<number, string>> {
+  const PDFParse = await loadPdfParseConstructor();
+  const parser = new PDFParse({ data: pdfData });
+  try {
+    const pageTexts: Record<number, string> = {};
+    for (const page of pages) {
+      const text = await parser.getText({ partial: [page] });
+      pageTexts[page] = text.text;
+    }
+
+    return pageTexts;
+  } finally {
+    await parser.destroy();
+  }
+}
+
+function normalizeText(text: string): string {
+  return text
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/\u00a0/g, " ")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n+/g, "\n")
+    .trim();
+}
+
+function flattenText(text: string): string {
+  return normalizeText(text)
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseLongDate(dateText: string): string {
+  const match = dateText.match(/^([A-Za-z]+) (\d{1,2}), (\d{4})$/);
+  if (!match) {
+    throw new Error(`Could not parse date: ${dateText}`);
+  }
+
+  const monthMap: Record<string, number> = {
+    january: 0,
+    jan: 0,
+    february: 1,
+    feb: 1,
+    march: 2,
+    mar: 2,
+    april: 3,
+    apr: 3,
+    may: 4,
+    june: 5,
+    jun: 5,
+    july: 6,
+    jul: 6,
+    august: 7,
+    aug: 7,
+    september: 8,
+    sep: 8,
+    sept: 8,
+    october: 9,
+    oct: 9,
+    november: 10,
+    nov: 10,
+    december: 11,
+    dec: 11,
+  };
+  const monthIndex = monthMap[match[1].toLowerCase()];
+  if (monthIndex == null) {
+    throw new Error(`Could not parse date month: ${dateText}`);
+  }
+
+  const day = Number.parseInt(match[2], 10);
+  const year = Number.parseInt(match[3], 10);
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function parseCoveredPeriod(periodText: string): { start: string; end: string } {
+  const [startText, endText] = periodText.split(" to ");
+  if (!startText || !endText) {
+    throw new Error(`Could not parse covered period: ${periodText}`);
+  }
+  return {
+    start: parseLongDate(startText.trim()),
+    end: parseLongDate(endText.trim()),
+  };
+}
+
+function parseNumericToken(
+  token: string,
+  options: { integer?: boolean; dashAsZero?: boolean } = {},
+): number | null {
+  const normalized = token.trim();
+  if (!normalized || /^n\/a$/i.test(normalized)) {
+    return null;
+  }
+
+  if ((normalized === "-" || normalized === "--") && options.dashAsZero) {
+    return 0;
+  }
+
+  const cleaned = normalized.replace(/,/g, "").replace(/%$/, "");
+  if (!cleaned) {
+    return null;
+  }
+
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return options.integer ? Math.round(value) : value;
+}
+
+function getOccurrenceIndex(haystack: string, pattern: string | RegExp, occurrence: number): number {
+  if (typeof pattern === "string") {
+    let searchFrom = 0;
+    let index = -1;
+    for (let i = 0; i < occurrence; i += 1) {
+      index = haystack.indexOf(pattern, searchFrom);
+      if (index < 0) {
+        return -1;
+      }
+      searchFrom = index + pattern.length;
+    }
+    return index;
+  }
+
+  const globalPattern = pattern.global ? pattern : new RegExp(pattern.source, `${pattern.flags}g`);
+  let match: RegExpExecArray | null = null;
+  for (let i = 0; i < occurrence; i += 1) {
+    match = globalPattern.exec(haystack);
+    if (!match) {
+      return -1;
+    }
+  }
+  return match?.index ?? -1;
+}
+
+function getMatchLength(haystack: string, pattern: string | RegExp, startIndex: number): number {
+  if (typeof pattern === "string") {
+    return pattern.length;
+  }
+
+  const slice = haystack.slice(startIndex);
+  const match = slice.match(pattern);
+  if (!match || match.index !== 0) {
+    throw new Error(`Pattern did not match at expected position: ${pattern}`);
+  }
+  return match[0].length;
+}
+
+function takeTokensAfter(
+  haystack: string,
+  pattern: string | RegExp,
+  count: number,
+  occurrence = 1,
+): string[] {
+  const startIndex = getOccurrenceIndex(haystack, pattern, occurrence);
+  if (startIndex < 0) {
+    throw new Error(`Could not find pattern: ${String(pattern)} (occurrence ${occurrence})`);
+  }
+
+  const matchLength = getMatchLength(haystack, pattern, startIndex);
+  return haystack
+    .slice(startIndex + matchLength)
+    .trim()
+    .split(/\s+/)
+    .slice(0, count);
+}
+
+function extractBullets(pageText: string): string[] {
+  return [...pageText.matchAll(/\u2022\s*([\s\S]*?)(?=(?:\n\u2022\s)|(?:\n\d+\. )|(?:-- \d+ of \d+ --)|$)/g)]
+    .map((match) => normalizeText(match[1]).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function parsePageMetadata(page1Text: string): WeeklyReportMetadata {
+  const flatPage1 = flattenText(page1Text);
+  const metadataMatch = flatPage1.match(
+    /Weekly Performance Update ([A-Za-z]+ \d{1,2}, \d{4}) For Grain Week (\d+) (\d{4}-\d{2}) CY ([A-Za-z]+ \d{1,2}, \d{4} to [A-Za-z]+ \d{1,2}, \d{4})/i,
+  );
+  if (!metadataMatch) {
+    throw new Error("Could not parse weekly report metadata from page 1");
+  }
+
+  const reportDate = parseLongDate(metadataMatch[1]);
+  const grainWeek = Number.parseInt(metadataMatch[2], 10);
+  const canonicalCropYear = normalizeCropYearInput(metadataMatch[3]);
+  const coveredPeriod = metadataMatch[4];
+  const { start, end } = parseCoveredPeriod(coveredPeriod);
+
+  const vesselAsOfMatch = flatPage1.match(/5\. Vessels as at ([A-Za-z]+ \d{1,2}, \d{4})/i);
+  const vesselWeekMatch = flatPage1.match(/Vancouver vessel lineup for Week (\d+)/i);
+  const inboundMatch = flatPage1.match(
+    /Vessels Inbound ([A-Za-z]+ \d{1,2}, \d{4} to [A-Za-z]+ \d{1,2}, \d{4}) \(Week (\d+)\)/i,
+  );
+
+  return {
+    canonicalCropYear,
+    reportCropYear: metadataMatch[3],
+    grainWeek,
+    reportDate,
+    coveredPeriod,
+    coveredPeriodStart: start,
+    coveredPeriodEnd: end,
+    vesselAsOfDate: vesselAsOfMatch ? parseLongDate(vesselAsOfMatch[1]) : null,
+    vesselWeek: vesselWeekMatch ? Number.parseInt(vesselWeekMatch[1], 10) : null,
+    inboundPeriod: inboundMatch?.[1] ?? null,
+    inboundWeek: inboundMatch ? Number.parseInt(inboundMatch[2], 10) : null,
+  };
+}
+
+function parseStocks(page2Text: string, metadata: WeeklyReportMetadata) {
+  const page2Flat = flattenText(page2Text);
+  const reportCropYear = metadata.reportCropYear;
+  const capacityCropYear = getCapacityLabelCropYear(metadata.canonicalCropYear);
+
+  const countryStocksTokens = takeTokensAfter(
+    page2Flat,
+    new RegExp(`MB SK AB BC Total ${escapeRegExp(reportCropYear)}`, "i"),
+    5,
+  );
+  const countryCapacityTokens = takeTokensAfter(
+    page2Flat,
+    new RegExp(`${escapeRegExp(capacityCropYear)} % of Wkg Cap`, "i"),
+    5,
+    1,
+  );
+
+  const terminalStocksTokens = takeTokensAfter(
+    page2Flat,
+    new RegExp(`VC PR West Coast CH TB Total ${escapeRegExp(reportCropYear)}`, "i"),
+    6,
+  );
+  const terminalCapacityTokens = takeTokensAfter(
+    page2Flat,
+    new RegExp(`${escapeRegExp(capacityCropYear)} % of Wkg Cap`, "i"),
+    6,
+    2,
+  );
+
+  return {
+    country_stocks_mb_kt: parseNumericToken(countryStocksTokens[0]),
+    country_stocks_sk_kt: parseNumericToken(countryStocksTokens[1]),
+    country_stocks_ab_kt: parseNumericToken(countryStocksTokens[2]),
+    country_stocks_kt: parseNumericToken(countryStocksTokens[4]),
+    country_capacity_pct: parseNumericToken(countryCapacityTokens[4]),
+    terminal_stocks_vancouver_kt: parseNumericToken(terminalStocksTokens[0], { dashAsZero: true }),
+    terminal_stocks_prince_rupert_kt: parseNumericToken(terminalStocksTokens[1], { dashAsZero: true }),
+    terminal_stocks_churchill_kt: parseNumericToken(terminalStocksTokens[3], { dashAsZero: true }),
+    terminal_stocks_thunder_bay_kt: parseNumericToken(terminalStocksTokens[4], { dashAsZero: true }),
+    terminal_stocks_kt: parseNumericToken(terminalStocksTokens[5], { dashAsZero: true }),
+    terminal_capacity_pct: parseNumericToken(terminalCapacityTokens[5]),
+  };
+}
+
+function parseCountryDeliveriesAndPortPerformance(page1Text: string, page3Text: string) {
+  const page1Flat = flattenText(page1Text);
+  const page3Flat = flattenText(page3Text);
+
+  const deliveryTokens = takeTokensAfter(page3Flat, /MB SK AB BC Total 2025-\d{2}/i, 5);
+  const deliveryYoyTokens = takeTokensAfter(page3Flat, /Var % to Last Year/i, 5, 1);
+
+  const unloadTokens = takeTokensAfter(
+    page3Flat,
+    /Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
+    6,
+  );
+  const fourWeekAverageTokens = takeTokensAfter(page3Flat, /4-Wk Avg\./i, 6, 1);
+  const varToFourWeekAverageTokens = takeTokensAfter(page3Flat, /Var % to 4-Wk Avg\./i, 6, 1);
+  const ytdUnloadTokens = takeTokensAfter(
+    page3Flat,
+    /YTD Unloads \(cars\) Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
+    6,
+  );
+
+  const octBulletMatch = page1Flat.match(
+    /The total average terminal out-of-car time \(OCT\).*?to ([\d.]+)% from ([\d.]+)% the previous week\. The OCT for Week \d+ was ([\d.]+)% at Vancouver, ([\d.]+)% at Prince Rupert, and ([\d.]+)% at Thunder Bay\./i,
+  );
+
+  if (!octBulletMatch) {
+    throw new Error("Could not parse OCT metrics from page 1 summary bullets");
+  }
+
+  return {
+    country_deliveries_kt: parseNumericToken(deliveryTokens[4]),
+    country_deliveries_yoy_pct: parseNumericToken(deliveryYoyTokens[4]),
+    vancouver_unloads_cars: parseNumericToken(unloadTokens[0], { integer: true, dashAsZero: true }),
+    prince_rupert_unloads_cars: parseNumericToken(unloadTokens[1], { integer: true, dashAsZero: true }),
+    thunder_bay_unloads_cars: parseNumericToken(unloadTokens[3], { integer: true, dashAsZero: true }),
+    churchill_unloads_cars: parseNumericToken(unloadTokens[4], { integer: true, dashAsZero: true }),
+    total_unloads_cars: parseNumericToken(unloadTokens[5], { integer: true, dashAsZero: true }),
+    four_week_avg_unloads: parseNumericToken(fourWeekAverageTokens[5], { integer: true, dashAsZero: true }),
+    var_to_four_week_avg_pct: parseNumericToken(varToFourWeekAverageTokens[5]),
+    ytd_unloads_cars: parseNumericToken(ytdUnloadTokens[5], { integer: true, dashAsZero: true }),
+    out_of_car_time_pct: parseNumericToken(octBulletMatch[1]),
+    out_of_car_time_vancouver_pct: parseNumericToken(octBulletMatch[3]),
+    out_of_car_time_prince_rupert_pct: parseNumericToken(octBulletMatch[4]),
+  };
+}
+
+function parseShipments(page5Text: string) {
+  const page5Flat = flattenText(page5Text);
+
+  const shipmentTokens = takeTokensAfter(
+    page5Flat,
+    /Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
+    6,
+  );
+  const shipmentYoyTokens = takeTokensAfter(page5Flat, /Var % to Last Year/i, 6, 2);
+  const shipmentThreeYearTokens = takeTokensAfter(page5Flat, /Var % to 3-Yr Avg\.?/i, 6, 2);
+
+  return {
+    ytd_shipments_vancouver_kt: parseNumericToken(shipmentTokens[0], { dashAsZero: true }),
+    ytd_shipments_prince_rupert_kt: parseNumericToken(shipmentTokens[1], { dashAsZero: true }),
+    ytd_shipments_thunder_bay_kt: parseNumericToken(shipmentTokens[3], { dashAsZero: true }),
+    ytd_shipments_total_kt: parseNumericToken(shipmentTokens[5], { dashAsZero: true }),
+    ytd_shipments_yoy_pct: parseNumericToken(shipmentYoyTokens[5]),
+    ytd_shipments_vs_3yr_avg_pct: parseNumericToken(shipmentThreeYearTokens[5]),
+  };
+}
+
+function parseVesselsAndWeather(page1Text: string, page5Text: string) {
+  const page1Flat = flattenText(page1Text);
+  const page5Flat = flattenText(page5Text);
+  const bullets = extractBullets(page1Text);
+
+  const vancouverLineupBullet = bullets.find((bullet) => bullet.startsWith("Vancouver vessel lineup"));
+  const princeRupertLineupBullet = bullets.find((bullet) => bullet.startsWith("Prince Rupert vessel lineup"));
+  const clearedBullet = bullets.find((bullet) => bullet.startsWith("Vessels cleared from Vancouver"));
+  const weatherBullet = bullets.find((bullet) => bullet.startsWith("Temperatures across the prairies")) ?? null;
+
+  if (!vancouverLineupBullet || !princeRupertLineupBullet || !clearedBullet) {
+    throw new Error("Could not parse vessel bullets from page 1 summary");
+  }
+
+  const vancouverLineupMatch = vancouverLineupBullet.match(
+    /Vancouver vessel lineup for Week (\d+) .*? to (\d+) vessels \(The current one-year average at Vancouver is (\d+) vessels\)/i,
+  );
+  const princeRupertLineupMatch = princeRupertLineupBullet.match(
+    /Prince Rupert vessel lineup for Week (\d+) .*? to (\d+) vessels \(The current one-year average at Prince Rupert is (\d+) vessels\)/i,
+  );
+  const clearedMatch = clearedBullet.match(
+    /Vessels cleared from Vancouver (?:was|were) (\d+) and from Prince Rupert (?:was|were) (\d+) in Week (\d+)/i,
+  );
+  const inboundMatch = page1Flat.match(
+    /Vessels Inbound [A-Za-z]+ \d{1,2}, \d{4} to [A-Za-z]+ \d{1,2}, \d{4} \(Week \d+\) (\d+) (\d+)/i,
+  );
+
+  if (!vancouverLineupMatch || !princeRupertLineupMatch || !clearedMatch || !inboundMatch) {
+    throw new Error("Could not parse vessel lineup, cleared, or inbound metrics");
+  }
+
+  const vesselTimingNoteMatch = page5Flat.match(
+    /Note: The 'Time in Port' measure for 5-A and 5-C is calculated as how long each vessel in the lineup has been in port as at Sunday 23:59 of that grain week\. The 'Avg Time in Port \(TIP\)' measure for 5-B and 5-D is the average number of days that all vessels which cleared that week were in port\./i,
+  );
+
+  return {
+    vessels_vancouver: parseNumericToken(vancouverLineupMatch[2], { integer: true }),
+    vessels_prince_rupert: parseNumericToken(princeRupertLineupMatch[2], { integer: true }),
+    vessels_cleared_vancouver: parseNumericToken(clearedMatch[1], { integer: true }),
+    vessels_cleared_prince_rupert: parseNumericToken(clearedMatch[2], { integer: true }),
+    vessels_inbound_next_week:
+      (parseNumericToken(inboundMatch[1], { integer: true, dashAsZero: true }) ?? 0) +
+      (parseNumericToken(inboundMatch[2], { integer: true, dashAsZero: true }) ?? 0),
+    vessel_avg_one_year_vancouver: parseNumericToken(vancouverLineupMatch[3], { integer: true }),
+    vessel_avg_one_year_prince_rupert: parseNumericToken(princeRupertLineupMatch[3], { integer: true }),
+    weather_notes: weatherBullet,
+    vesselTimingNote: vesselTimingNoteMatch ? normalizeText(vesselTimingNoteMatch[0]).replace(/\s+/g, " ").trim() : null,
+  };
+}
+
+export function parseWeeklyReportFromPages(pageTexts: Record<number, string>): ParseResult {
+  const page1Text = normalizeText(pageTexts[1] ?? "");
+  const page2Text = normalizeText(pageTexts[2] ?? "");
+  const page3Text = normalizeText(pageTexts[3] ?? "");
+  const page5Text = normalizeText(pageTexts[5] ?? "");
+
+  if (!page1Text || !page2Text || !page3Text || !page5Text) {
+    throw new Error("Missing one or more required PDF pages for parsing (expected pages 1, 2, 3, and 5)");
+  }
+
+  const metadata = parsePageMetadata(page1Text);
+  const stocks = parseStocks(page2Text, metadata);
+  const deliveriesAndPerformance = parseCountryDeliveriesAndPortPerformance(page1Text, page3Text);
+  const shipments = parseShipments(page5Text);
+  const vesselsAndWeather = parseVesselsAndWeather(page1Text, page5Text);
+
+  const row = {
+    grain_week: metadata.grainWeek,
+    report_date: metadata.reportDate,
+    ...stocks,
+    ...deliveriesAndPerformance,
+    ...shipments,
+    vessels_vancouver: vesselsAndWeather.vessels_vancouver,
+    vessels_prince_rupert: vesselsAndWeather.vessels_prince_rupert,
+    vessels_cleared_vancouver: vesselsAndWeather.vessels_cleared_vancouver,
+    vessels_cleared_prince_rupert: vesselsAndWeather.vessels_cleared_prince_rupert,
+    vessels_inbound_next_week: vesselsAndWeather.vessels_inbound_next_week,
+    vessel_avg_one_year_vancouver: vesselsAndWeather.vessel_avg_one_year_vancouver,
+    vessel_avg_one_year_prince_rupert: vesselsAndWeather.vessel_avg_one_year_prince_rupert,
+    weather_notes: vesselsAndWeather.weather_notes,
+  };
+
+  const missingFields = REQUIRED_WEEKLY_FIELDS
+    .filter((field) => field !== "source_notes")
+    .filter((field) => row[field as keyof typeof row] == null);
+
+  return {
+    metadata,
+    row,
+    missingFields,
+    weatherBullet: vesselsAndWeather.weather_notes,
+    vesselTimingNote: vesselsAndWeather.vesselTimingNote,
+  };
+}
+
+function formatLagNote(grainMonitorWeek: number, latestCgcWeek: number | null): string | null {
+  if (latestCgcWeek == null) {
+    return null;
+  }
+
+  const delta = latestCgcWeek - grainMonitorWeek;
+  if (delta === 0) {
+    return `CGC lag check: latest imported CGC week ${latestCgcWeek}; Grain Monitor week ${grainMonitorWeek} is aligned`;
+  }
+
+  if (delta > 0) {
+    return `CGC lag check: latest imported CGC week ${latestCgcWeek}; Grain Monitor week ${grainMonitorWeek} lags by ${delta} week${delta === 1 ? "" : "s"}`;
+  }
+
+  const lead = Math.abs(delta);
+  return `CGC lag check: latest imported CGC week ${latestCgcWeek}; Grain Monitor week ${grainMonitorWeek} leads by ${lead} week${lead === 1 ? "" : "s"}`;
+}
+
+function buildSourceNotes(input: {
+  filename: string;
+  strategy: DiscoveryResult["strategy"];
+  metadata: WeeklyReportMetadata;
+  vesselTimingNote: string | null;
+  latestCgcWeek: number | null;
+  missingFields: string[];
+}): string {
+  const parts = [
+    "Quorum Corporation Weekly Performance Update",
+    `grain week ${input.metadata.grainWeek}`,
+    `crop year ${input.metadata.canonicalCropYear}`,
+    `report date ${input.metadata.reportDate}`,
+    `period covered ${input.metadata.coveredPeriodStart} to ${input.metadata.coveredPeriodEnd}`,
+    `source PDF ${input.filename}`,
+    `discovery ${input.strategy}`,
+  ];
+
+  if (input.metadata.vesselWeek != null) {
+    parts.push(
+      `vessel lineup and cleared metrics reference Week ${input.metadata.vesselWeek}${
+        input.metadata.vesselAsOfDate ? ` as at ${input.metadata.vesselAsOfDate}` : ""
+      }`,
+    );
+  }
+
+  if (input.metadata.inboundWeek != null && input.metadata.inboundPeriod) {
+    parts.push(`inbound vessels cover ${input.metadata.inboundPeriod} (Week ${input.metadata.inboundWeek})`);
+  }
+
+  const lagNote = formatLagNote(input.metadata.grainWeek, input.latestCgcWeek);
+  if (lagNote) {
+    parts.push(lagNote);
+  }
+
+  if (input.vesselTimingNote) {
+    parts.push(`vessel timing note: ${input.vesselTimingNote}`);
+  }
+
+  if (input.missingFields.length > 0) {
+    parts.push(`parser gaps: ${input.missingFields.join(", ")}`);
+  }
+
+  return parts.join("; ");
+}
+
+async function getLatestWeeks(cropYear: string) {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return {
+      latestImportedGrainMonitorWeek: null as number | null,
+      latestCgcWeek: null as number | null,
+    };
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const [{ data: grainMonitorRows, error: grainMonitorError }, { data: cgcRows, error: cgcError }] =
+    await Promise.all([
+      supabase
+        .from("grain_monitor_snapshots")
+        .select("grain_week")
+        .eq("crop_year", cropYear)
+        .order("grain_week", { ascending: false })
+        .limit(1),
+      supabase
+        .from("cgc_observations")
+        .select("grain_week")
+        .eq("crop_year", cropYear)
+        .order("grain_week", { ascending: false })
+        .limit(1),
+    ]);
+
+  if (grainMonitorError) {
+    throw new Error(`Could not query grain_monitor_snapshots: ${grainMonitorError.message}`);
+  }
+
+  if (cgcError) {
+    throw new Error(`Could not query cgc_observations: ${cgcError.message}`);
+  }
+
+  return {
+    latestImportedGrainMonitorWeek: grainMonitorRows?.[0]?.grain_week ?? null,
+    latestCgcWeek: cgcRows?.[0]?.grain_week ?? null,
+  };
+}
+
+async function upsertSnapshot(row: GrainMonitorSnapshotRow) {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const { error } = await supabase
+    .from("grain_monitor_snapshots")
+    .upsert(row, { onConflict: "crop_year,grain_week" });
+
+  if (error) {
+    throw new Error(`Upsert failed: ${error.message}`);
+  }
+
+  const { data: verifyRows, error: verifyError } = await supabase
+    .from("grain_monitor_snapshots")
+    .select(
+      "crop_year, grain_week, report_date, country_stocks_kt, total_unloads_cars, out_of_car_time_pct, ytd_shipments_total_kt, vessels_vancouver, source_notes, created_at",
+    )
+    .eq("crop_year", row.crop_year)
+    .eq("grain_week", row.grain_week)
+    .limit(1);
+
+  if (verifyError) {
+    throw new Error(`Verification query failed: ${verifyError.message}`);
+  }
+
+  return verifyRows?.[0] ?? null;
+}
+
+export async function runImport(options: CliOptions) {
+  const targetCropYear = options.cropYear ?? getCurrentCropYear();
+  const discovery = await discoverWeeklyReport(options, targetCropYear);
+
+  logDiagnostic("weekly report discovered", {
+    url: discovery.url,
+    strategy: discovery.strategy,
+    discovered_crop_year: discovery.discoveredCropYear,
+    discovered_grain_week: discovery.discoveredGrainWeek,
+  });
+
+  const pdfData = await fetchPdfData(discovery.url);
+  const pageTexts = await getPageTexts(pdfData, [1, 2, 3, 5]);
+  const parseResult = parseWeeklyReportFromPages(pageTexts);
+
+  if (options.cropYear && parseResult.metadata.canonicalCropYear !== targetCropYear) {
+    throw new Error(
+      `Discovered PDF crop year ${parseResult.metadata.canonicalCropYear} does not match requested crop year ${targetCropYear}`,
+    );
+  }
+
+  if (options.grainWeek != null && parseResult.metadata.grainWeek !== options.grainWeek) {
+    throw new Error(
+      `Discovered PDF grain week ${parseResult.metadata.grainWeek} does not match requested grain week ${options.grainWeek}`,
+    );
+  }
+
+  const latestWeeks = await getLatestWeeks(parseResult.metadata.canonicalCropYear);
+  const sourceNotes = buildSourceNotes({
+    filename: discovery.filename,
+    strategy: discovery.strategy,
+    metadata: parseResult.metadata,
+    vesselTimingNote: parseResult.vesselTimingNote,
+    latestCgcWeek: latestWeeks.latestCgcWeek,
+    missingFields: parseResult.missingFields,
+  });
+
+  const row: GrainMonitorSnapshotRow = {
+    crop_year: parseResult.metadata.canonicalCropYear,
+    ...parseResult.row,
+    source_notes: sourceNotes,
+  };
+
+  const verification = options.dryRun ? null : await upsertSnapshot(row);
+
+  const heartbeatPreview = deriveGrainMonitorSignal(row);
+  let trajectory: Record<string, unknown> = {
+    preview: {
+      severity: heartbeatPreview.severity,
+      signal_note: heartbeatPreview.signalNote,
+      source_week_ending: heartbeatPreview.sourceWeekEnding,
+      grains: CAD_GRAINS_CANONICAL.length,
+    },
+  };
+  const warnings: string[] = [];
+  if (!options.dryRun) {
+    try {
+      trajectory = { ...trajectory, ...writeAllHeartbeats(row) };
+    } catch (exc) {
+      warnings.push(`heartbeat_write_failed: ${(exc as Error).message}`.slice(0, 500));
+    }
+  }
+
+  return {
+    action: options.dryRun ? "dry_run" : "upserted",
+    report: {
+      crop_year: row.crop_year,
+      grain_week: row.grain_week,
+      report_date: row.report_date,
+      report_crop_year: parseResult.metadata.reportCropYear,
+      covered_period: parseResult.metadata.coveredPeriod,
+      covered_period_start: parseResult.metadata.coveredPeriodStart,
+      covered_period_end: parseResult.metadata.coveredPeriodEnd,
+      pdf_url: discovery.url,
+      pdf_filename: discovery.filename,
+      discovery_strategy: discovery.strategy,
+      attempted_urls: discovery.attemptedUrls,
+      latest_imported_grain_monitor_week: latestWeeks.latestImportedGrainMonitorWeek,
+      latest_cgc_week: latestWeeks.latestCgcWeek,
+      lag_vs_latest_cgc_week:
+        latestWeeks.latestCgcWeek == null ? null : latestWeeks.latestCgcWeek - row.grain_week,
+      missing_fields: parseResult.missingFields,
+      weather_notes: row.weather_notes,
+      row,
+      verification,
+      trajectory,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    },
+  };
+}
+
+type HeartbeatSeverity = "critical" | "elevated" | "normal" | "unknown";
+
+type HeartbeatPreview = {
+  severity: HeartbeatSeverity;
+  signalNote: string;
+  sourceWeekEnding: string;
+};
+
+function deriveGrainMonitorSignal(row: GrainMonitorSnapshotRow): HeartbeatPreview {
+  const oct = row.out_of_car_time_pct;
+  const vessels = row.vessels_vancouver;
+  const deliveriesYoy = row.country_deliveries_yoy_pct;
+
+  const rank: Record<HeartbeatSeverity, number> = {
+    unknown: -1,
+    normal: 0,
+    elevated: 1,
+    critical: 2,
+  };
+  let severity: HeartbeatSeverity = "normal";
+  const escalate = (next: HeartbeatSeverity) => {
+    if (rank[next] > rank[severity]) severity = next;
+  };
+  const notes: string[] = [];
+
+  if (oct != null) {
+    notes.push(`OCT ${oct.toFixed(1)}%`);
+    if (oct >= 30) escalate("critical");
+    else if (oct >= 20) escalate("elevated");
+  }
+  if (vessels != null) {
+    notes.push(`${vessels} vessels YVR`);
+    if (vessels >= 30) escalate("critical");
+    else if (vessels >= 20) escalate("elevated");
+  }
+  if (deliveriesYoy != null) {
+    notes.push(`deliveries ${deliveriesYoy >= 0 ? "+" : ""}${deliveriesYoy.toFixed(1)}% YoY`);
+  }
+
+  const signalNote =
+    notes.length > 0
+      ? `Grain Monitor week ${row.grain_week}: ${notes.join(", ")}`
+      : `Grain Monitor week ${row.grain_week} refreshed`;
+
+  return {
+    severity,
+    signalNote,
+    sourceWeekEnding: row.report_date,
+  };
+}
+
+function invokeHeartbeat(
+  grain: string,
+  preview: HeartbeatPreview,
+  row: GrainMonitorSnapshotRow,
+): { grain: string; ok: boolean; stderr?: string } {
+  const evidence = {
+    collector: "import-grain-monitor-weekly",
+    grain_week: row.grain_week,
+    report_date: row.report_date,
+    out_of_car_time_pct: row.out_of_car_time_pct,
+    vessels_vancouver: row.vessels_vancouver,
+    country_deliveries_yoy_pct: row.country_deliveries_yoy_pct,
+  };
+  const result = spawnSync(
+    "python",
+    [
+      HEARTBEAT_CLI,
+      "--side",
+      "cad",
+      "--market",
+      grain,
+      "--scan-type",
+      TRAJECTORY_SCAN_TYPE,
+      "--trigger",
+      TRAJECTORY_TRIGGER,
+      "--severity",
+      preview.severity,
+      "--signal-note",
+      preview.signalNote,
+      "--source-week-ending",
+      preview.sourceWeekEnding,
+      "--grain-week",
+      String(row.grain_week),
+      "--evidence-json",
+      JSON.stringify(evidence),
+      "--quiet",
+    ],
+    { encoding: "utf8", timeout: 60_000 },
+  );
+  const ok = result.status === 0;
+  return {
+    grain,
+    ok,
+    stderr: ok ? undefined : (result.stderr || String(result.error || "")).slice(0, 500),
+  };
+}
+
+function writeAllHeartbeats(row: GrainMonitorSnapshotRow): {
+  written: number;
+  total: number;
+  severity: HeartbeatSeverity;
+  signal_note: string;
+  results: { grain: string; ok: boolean; stderr?: string }[];
+} {
+  const preview = deriveGrainMonitorSignal(row);
+  const results = CAD_GRAINS_CANONICAL.map((grain) => invokeHeartbeat(grain, preview, row));
+  const written = results.filter((r) => r.ok).length;
+  return {
+    written,
+    total: results.length,
+    severity: preview.severity,
+    signal_note: preview.signalNote,
+    results,
+  };
+}
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help) {
+    printHelp();
+    return;
+  }
+
+  if (!options.dryRun && (!SUPABASE_URL || !SERVICE_ROLE_KEY)) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  const result = await runImport(options);
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+}
+
+const isDirectRun =
+  typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    process.stderr.write(
+      `${JSON.stringify(
+        {
+          error: message,
+          stack,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    process.exit(1);
+  });
+}
