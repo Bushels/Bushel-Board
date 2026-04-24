@@ -19,6 +19,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { requireV1Enabled } from "../_shared/v1-gate.ts";
 import {
   buildFarmSummarySystemPrompt,
   buildDataContextPreamble,
@@ -28,6 +29,9 @@ const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4.20-reasoning";
 const DEFAULT_BATCH_SIZE = 5;
 const POUNDS_PER_METRIC_TONNE = 2204.6226218488;
+// Keys MUST match the 16 canonical DB grain names in cgc_observations / market_analysis.
+// Verified 2026-04-17: "Sunflower" (not "Sunflower Seed"), "Canaryseed" (one word),
+// "Chick Peas" (two words), "Amber Durum" (not "Durum"), "Beans" (not "Edible Beans").
 const DEFAULT_BUSHEL_WEIGHTS: Record<string, number> = {
   Wheat: 60,
   "Amber Durum": 60,
@@ -44,7 +48,6 @@ const DEFAULT_BUSHEL_WEIGHTS: Record<string, number> = {
   Canaryseed: 50,
   "Chick Peas": 60,
   Sunflower: 30,
-  "Sunflower Seed": 30,
   Beans: 60,
 };
 
@@ -88,6 +91,9 @@ Deno.serve(async (req) => {
   if (authError) {
     return authError;
   }
+
+  const v1Blocked = requireV1Enabled("generate-farm-summary");
+  if (v1Blocked) return v1Blocked;
 
   const startTime = Date.now();
 

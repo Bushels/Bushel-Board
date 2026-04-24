@@ -20,24 +20,30 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel serverless max — we need ~90-120s
 
-// -- All 16 Canadian grains in the pipeline --
+// -- Canonical 16 Canadian grains. Must match the DB exactly; wrong
+// spellings silently drop grains from Supabase lookups. See
+// MEMORY.md "Canonical 16 DB grain names". Pre-2026-04-24 this list
+// carried "Sunflower Seed" / "Canary Seed" / "Triticale" / "Chickpeas"
+// and was missing "Beans" — a bug that never mattered because this
+// route is the V1 Grok orchestrator and V1 is gated off; keeping it
+// correct so any recovery-mode fire lands on the right grains.
 const ALL_GRAINS = [
-  "Wheat",
-  "Canola",
+  "Amber Durum",
   "Barley",
-  "Oats",
-  "Peas",
+  "Beans",
+  "Canaryseed",
+  "Canola",
+  "Chick Peas",
   "Corn",
   "Flaxseed",
-  "Soybeans",
-  "Amber Durum",
   "Lentils",
-  "Rye",
   "Mustard Seed",
-  "Sunflower Seed",
-  "Canary Seed",
-  "Triticale",
-  "Chickpeas",
+  "Oats",
+  "Peas",
+  "Rye",
+  "Soybeans",
+  "Sunflower",
+  "Wheat",
 ];
 
 const POLL_INTERVAL_MS = 5_000;
@@ -67,6 +73,52 @@ function authorizePipelineRequest(request: Request): Response | null {
 }
 
 // ---------------------------------------------------------------------------
+// V1 Grok kill-switch — fail-closed.
+//
+// This orchestrator dispatches `analyze-grain-market` (V1 Grok) via pg_net
+// and then chains to `generate-farm-summary` (also V1 Grok). Both downstream
+// Edge Functions now carry their own V1 gate as belt-and-suspenders, but we
+// also block the orchestrator here so the Vercel route returns 410 Gone and
+// never burns a function invocation + polls pipeline_runs in vain.
+//
+// To resurrect during an incident:
+//   1. `vercel env add ALLOW_V1_GROK production` (set to "1")
+//   2. `supabase secrets set ALLOW_V1_GROK=1` (enables EFs too)
+//   3. Redeploy Vercel so the env is picked up
+//   4. After recovery: unset both, redeploy.
+// ---------------------------------------------------------------------------
+
+function blockV1IfDisabled(): Response | null {
+  if (process.env.ALLOW_V1_GROK === "1") {
+    console.warn(
+      "[pipeline/run] ALLOW_V1_GROK=1 — running V1 orchestrator in RECOVERY MODE. " +
+        "Ensure this was intentional; V2 Claude Agent Desk is the production source."
+    );
+    return null;
+  }
+
+  console.warn(
+    "[pipeline/run] Invocation BLOCKED — V1 Grok orchestrator retired. " +
+      "V2 Claude Agent Desk is the production source. " +
+      "Set ALLOW_V1_GROK=1 for manual recovery only."
+  );
+
+  return Response.json(
+    {
+      error: "v1_pipeline_retired",
+      route: "/api/pipeline/run",
+      detail:
+        "This route is the legacy V1 Grok orchestrator. V2 Claude Agent " +
+        "Desk is the production weekly pipeline and is triggered by Claude " +
+        "Desktop Routines, not this route. Set ALLOW_V1_GROK=1 in Vercel + " +
+        "Supabase secrets for manual recovery only.",
+      pipeline_version_in_use: "v2-claude-agent-desk",
+    },
+    { status: 410 }
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Helper: sleep
 // ---------------------------------------------------------------------------
 
@@ -81,6 +133,9 @@ function sleep(ms: number): Promise<void> {
 export async function POST(request: Request) {
   const authError = authorizePipelineRequest(request);
   if (authError) return authError;
+
+  const v1Blocked = blockV1IfDisabled();
+  if (v1Blocked) return v1Blocked;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -108,23 +163,30 @@ export async function POST(request: Request) {
     const cropYear: string =
       body.crop_year ?? getCurrentCropYear();
 
-    const { data: latestWeekData } = await supabase
-      .from("cgc_observations")
-      .select("grain_week")
-      .eq("crop_year", cropYear)
-      .order("grain_week", { ascending: false })
-      .limit(1)
-      .single();
+    // Query the baseline: latest week currently in cgc_observations
+    async function queryLatestWeek(): Promise<number> {
+      const { data } = await supabase
+        .from("cgc_observations")
+        .select("grain_week")
+        .eq("crop_year", cropYear)
+        .order("grain_week", { ascending: false })
+        .limit(1)
+        .single();
+      return data?.grain_week ?? 1;
+    }
 
-    const grainWeek: number = latestWeekData?.grain_week ?? 1;
+    const baselineWeek = await queryLatestWeek();
+    const targetImportWeek = baselineWeek + 1;
 
     console.log(
-      `[pipeline/run] Starting parallel run: ${requestedGrains.length} grains, week ${grainWeek}, crop year ${cropYear}, skip_import=${skipImport}`
+      `[pipeline/run] Starting parallel run: ${requestedGrains.length} grains, baseline week ${baselineWeek}, target import week ${targetImportWeek}, crop year ${cropYear}, skip_import=${skipImport}`
     );
 
     // -- Step 1: Optional CGC import --
     if (!skipImport) {
-      console.log("[pipeline/run] Triggering CGC import...");
+      console.log(
+        `[pipeline/run] Triggering CGC import for week ${targetImportWeek}...`
+      );
       try {
         const importRes = await fetch(
           `${supabaseUrl}/functions/v1/import-cgc-weekly`,
@@ -134,7 +196,10 @@ export async function POST(request: Request) {
               "Content-Type": "application/json",
               "x-bushel-internal-secret": internalSecret,
             },
-            body: JSON.stringify({ crop_year: cropYear }),
+            body: JSON.stringify({
+              crop_year: cropYear,
+              week: targetImportWeek,
+            }),
           }
         );
         const importResult = await importRes.json().catch(() => null);
@@ -145,6 +210,20 @@ export async function POST(request: Request) {
       } catch (err) {
         console.error("[pipeline/run] Import failed (continuing):", err);
       }
+    }
+
+    // Re-query latest week — if import succeeded it advanced; if it failed we
+    // fall back to the baseline so downstream analyses still run against
+    // current data rather than a future week that doesn't exist yet.
+    const grainWeek = await queryLatestWeek();
+    if (grainWeek !== baselineWeek) {
+      console.log(
+        `[pipeline/run] Data advanced: baseline week ${baselineWeek} → current week ${grainWeek}`
+      );
+    } else {
+      console.log(
+        `[pipeline/run] No new week imported — proceeding with week ${grainWeek}`
+      );
     }
 
     // -- Step 2: Create pipeline_runs row --

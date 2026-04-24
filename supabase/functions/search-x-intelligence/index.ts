@@ -33,6 +33,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { requireV1Enabled } from "../_shared/v1-gate.ts";
 
 const XAI_API_URL = "https://api.x.ai/v1/responses";
 const MODEL = "grok-4-1-fast-reasoning";
@@ -61,6 +62,9 @@ Deno.serve(async (req) => {
   if (authError) {
     return authError;
   }
+
+  const v1Blocked = requireV1Enabled("search-x-intelligence");
+  if (v1Blocked) return v1Blocked;
 
   const startTime = Date.now();
 

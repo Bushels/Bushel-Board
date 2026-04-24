@@ -15,6 +15,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { requireV1Enabled } from "../_shared/v1-gate.ts";
 import { buildVikingPipelineContext } from "../_shared/viking-knowledge.ts";
 import { buildShippingCalendar } from "../_shared/shipping-calendar.ts";
 import { computeAnalystRatios } from "../_shared/data-brief.ts";
@@ -185,6 +186,9 @@ const OUTPUT_SCHEMA = {
 Deno.serve(async (req) => {
   const authError = requireInternalRequest(req);
   if (authError) return authError;
+
+  const v1Blocked = requireV1Enabled("analyze-grain-market");
+  if (v1Blocked) return v1Blocked;
 
   const startTime = Date.now();
 
