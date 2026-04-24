@@ -21,6 +21,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { requireV1Enabled } from "../_shared/v1-gate.ts";
 import {
   buildAnalyzeMarketDataSystemPrompt,
   buildDataContextPreamble,
@@ -52,6 +53,9 @@ Deno.serve(async (req) => {
   if (authError) {
     return authError;
   }
+
+  const v1Blocked = requireV1Enabled("analyze-market-data");
+  if (v1Blocked) return v1Blocked;
 
   const startTime = Date.now();
 

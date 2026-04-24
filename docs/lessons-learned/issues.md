@@ -1,5 +1,43 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-24 — V1 Grok pipeline kill switch (fail-closed)
+
+**Symptom:** A rogue V1 Grok run landed in `market_analysis` at 2026-04-24 19:08 UTC (13:08 MT) for Canola with `model_used='grok-4.20-reasoning'`. This was 5.5 hours before the Friday 6:47 PM MT V2 Claude Agent Desk swarm was scheduled to fire. CLAUDE.md explicitly designates V1 as "recovery fallback only" — no scheduled writer should have hit the old path. No caller was identified via Vercel routes, scripts, `pg_cron`, `pipeline_runs`, or Claude Desktop Routines; the write was happening but we could not find the trigger.
+
+**Root cause (architectural):** V1 was paused on 2026-03-17 by disabling every Vercel cron, but the V1 Edge Functions themselves (`analyze-grain-market`, `search-x-intelligence`, `analyze-market-data`, `generate-intelligence`, `generate-farm-summary`) were still live with `verify_jwt = false` + `x-bushel-internal-secret` auth. Any caller in possession of `BUSHEL_INTERNAL_FUNCTION_SECRET` — a shell script left in someone's crontab, a stale Hermes worker, a manually invoked Vercel preview, an old Claude Desktop Routine — could still write V1 output into `market_analysis` / `grain_intelligence` / `farm_summaries` tables. Pausing crons was necessary but not sufficient. We needed the *functions* to refuse, not the *schedule* to be empty.
+
+**Fix shipped — fail-closed V1 kill switch at every V1 entrypoint:**
+1. **New shared helper** `supabase/functions/_shared/v1-gate.ts` exports `requireV1Enabled(functionName)`. Called at top of every V1 EF after `requireInternalRequest`. Checks `Deno.env.get("ALLOW_V1_GROK")`. Default = refuse with HTTP 410 Gone + a typed JSON envelope (`error`, `function`, `detail`, `pipeline_version_in_use: "v2-claude-agent-desk"`, `unblock_instructions`). Only an explicit `ALLOW_V1_GROK=1` Supabase secret flips it to recovery mode, and even then it logs a loud warning to the EF console.
+2. **Gated 5 V1 Edge Functions:** `analyze-grain-market` v16, `search-x-intelligence` v32, `analyze-market-data` v31, `generate-intelligence` v53, `generate-farm-summary` v37. Same pattern in each: `const v1Blocked = requireV1Enabled("<name>"); if (v1Blocked) return v1Blocked;` inserted right after the internal-secret check.
+3. **Vercel layer also gated:** `app/api/pipeline/run/route.ts` got a parallel `blockV1IfDisabled()` check that returns 410 unless `process.env.ALLOW_V1_GROK === "1"`. This shuts off the Vercel-side orchestrator that fans out to the V1 chain.
+4. **Incidental fix while in that route:** `ALL_GRAINS` in `app/api/pipeline/run/route.ts` was wrong in 4/16 slots (had `"Sunflower Seed"`, `"Canary Seed"`, `"Triticale"`, `"Chickpeas"`; missing `"Beans"`). Corrected to the canonical 16 DB grain names per MEMORY.md. If anyone ever does need to run V1 in recovery mode, it will now target the right grains instead of silently skipping 4.
+
+**Deployed:** All 5 EFs pushed to Supabase via `supabase functions deploy`. All 5 smoke-tested with `curl -H 'x-bushel-internal-secret: <secret>' ...` → HTTP 410 with the deprecation envelope. Vercel route change rides along in this commit.
+
+**Dos and don'ts — retiring legacy pipelines:**
+
+- ✅ **DO** make retirement fail-closed. Default = refuse, explicit env flag = allow. A paused cron is not a retired pipeline; the pipeline is retired when the functions themselves say no.
+- ✅ **DO** return HTTP 410 Gone (not 403, not 404, not 500) for intentionally retired endpoints. 410 is the RFC 7231 signal that the resource is permanently unavailable; any honest client stops retrying.
+- ✅ **DO** include `unblock_instructions` in the 410 envelope. Future-you will try to run this in recovery mode and won't remember the env var name. Put it in the response body.
+- ✅ **DO** gate at every layer independently. The Supabase EFs have their own gate; the Vercel orchestrator has its own gate. If one layer's env is misconfigured, the other still holds.
+- ❌ **DON'T** assume pausing the scheduler is enough. Shell scripts, cron entries on dev machines, Hermes workers, and curl-happy humans all live outside your scheduler. Gate the *function*, not the *timer*.
+- ❌ **DON'T** rely solely on deleting the env secret (e.g. `XAI_API_KEY`) as a retirement mechanism — CLAUDE.md explicitly says we keep `XAI_API_KEY` in Vercel env so V1 can boot in recovery. The retirement must live in code, not in secret absence.
+- ✅ **DO** log loudly when recovery mode activates. A `console.warn("ALLOW_V1_GROK=1 — running <name> in RECOVERY MODE")` shows up in Supabase function logs and gives future-you a breadcrumb to explain why a grok-4.20-reasoning row just appeared in `market_analysis`.
+- ✅ **DO** fix the grain-names list at the same time you're in the V1 route. If it ever runs again (emergency recovery), it should target the canonical 16, not silently skip 4. Low-effort, high-value drive-by.
+- ❌ **DON'T** spend unbounded time hunting the unknown caller when gating every endpoint is cheap. The gate works regardless of who's calling; the caller-hunt is a bonus, not a blocker.
+- ✅ **DO** write the lessons-learned entry the same day the kill switch ships. If the rogue run ever comes back post-gate, future-you needs the full symptom → root cause → fix → unblock trail in one place.
+
+**Files:**
+- `supabase/functions/_shared/v1-gate.ts` (new)
+- `supabase/functions/analyze-grain-market/index.ts` (v16)
+- `supabase/functions/search-x-intelligence/index.ts` (v32)
+- `supabase/functions/analyze-market-data/index.ts` (v31)
+- `supabase/functions/generate-intelligence/index.ts` (v53)
+- `supabase/functions/generate-farm-summary/index.ts` (v37)
+- `app/api/pipeline/run/route.ts` (gate + canonical 16 grain names)
+
+**Tags:** #v1-retirement #grok #kill-switch #fail-closed #pipeline #410-gone #recovery-mode #canonical-grains #followup
+
 ## 2026-04-24 — CGC Week 37 import failed: IP block + 3 latent bugs unmasked
 
 **Symptom:** Thursday 2026-04-24 `collect-cgc` routine failed at 3:33 PM MT. Supabase logs showed `ECONNRESET` from `grainscanada.gc.ca`. A phantom row landed in `cgc_imports` with `grain_week=39` (today's calendar week), `crop_year='2025-2026'`, `status='failed'`, even though the real current data week is 37. A separate retry storm on 2026-04-16 had left 5 rows with short-format `crop_year='2025-26'` polluting the audit table.
