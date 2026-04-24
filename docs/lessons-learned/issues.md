@@ -1,5 +1,48 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-24 — CGC Week 37 import failed: IP block + 3 latent bugs unmasked
+
+**Symptom:** Thursday 2026-04-24 `collect-cgc` routine failed at 3:33 PM MT. Supabase logs showed `ECONNRESET` from `grainscanada.gc.ca`. A phantom row landed in `cgc_imports` with `grain_week=39` (today's calendar week), `crop_year='2025-2026'`, `status='failed'`, even though the real current data week is 37. A separate retry storm on 2026-04-16 had left 5 rows with short-format `crop_year='2025-26'` polluting the audit table.
+
+**Root cause (multi-layered):**
+1. **CGC TCP-layer IP block** — grainscanada.gc.ca silently drops Supabase edge egress IPs at connection time. The EF's built-in scrape-then-fetch path never got a handshake. Not an HTTP 403; not a rate limit; a raw socket reset. No error body to parse, no retry policy that recovers.
+2. **Calendar-derived `grain_week`** — `supabase/functions/import-cgc-weekly/index.ts` had a `getCurrentGrainWeek()` helper that computed the grain week from `NOW()` relative to Aug 1. The catch block used this value when writing the failure row. Net effect: a failure row claimed data week 39 when CGC has only published through week 37.
+3. **Short-format `crop_year` drift** — An older retry storm on 2026-04-16 wrote `crop_year='2025-26'` instead of the canonical `'2025-2026'`. Nothing validated the format at write time, so the audit table accumulated rows that silently break any query filtering on the long form.
+4. **Schedule doc timezone mislabel** — `docs/reference/collector-task-configs.md` labelled the cron column as "ET" but Claude Desktop Routines fire in the scheduler's **local time** (America/Edmonton, MT). A registered cron of `33 15 * * 4` was documented as "3:33 PM ET" when it actually fires at 3:33 PM MT / 5:33 PM ET. The doc drift made it harder to reason about whether a failure was timing-related.
+
+**Fix shipped:**
+- **Vercel proxy** — new route `app/api/cron/import-cgc/route.ts` scrapes CGC from Vercel's serverless egress (not in the blocklist), validates the CSV header, forwards the raw text to `import-cgc-weekly` via the new `csv_data` body parameter. Dual auth: `CRON_SECRET` Bearer or `x-bushel-internal-secret`.
+- **EF v36** — `supabase/functions/import-cgc-weekly/index.ts` deleted `getCurrentGrainWeek()`, delegates scraping to `supabase/functions/_shared/cgc-source.ts`, and writes `grain_week: 0` (not a calendar week) in the catch block. Long-format `getCurrentCropYear()` returns `'2025-2026'`.
+- **Shared scrape helper** — `supabase/functions/_shared/cgc-source.ts` is the single source of truth for CSV discovery; both the EF (legacy `--direct-ef` path) and the Vercel proxy use it.
+- **Collector wrapper** — `scripts/collect-cgc.py` defaults to the Vercel proxy; keeps `--direct-ef` as an emergency escape hatch for non-Supabase egress; never schedule it.
+- **Schedule doc corrected** — `docs/reference/collector-task-configs.md` now has a prominent timezone disclaimer, MT-primary columns, and a "CGC Timing Rationale" block explaining the 2h 33m buffer after CGC's ~1 PM MT publish.
+- **cgc_imports audit cleaned** — deleted 1 phantom Week 39 row from today + 5 short-format retry-storm rows from 2026-04-16. Audit table is now clean: Week 37 success on top, all remaining rows long-format.
+
+**Post-fix verification:** Week 37 CSV landed via the proxy (4,309 rows in `cgc_observations`), all 16 canonical CAD grain heartbeats written to `score_trajectory` with `scan_type='collector_cgc'`, and `getDisplayWeek()` correctly returns 37. The Week 36 sighting on the dashboard is the *market_analysis* row from last Friday's swarm — this week's swarm runs Fri 2026-04-25 @ 6:47 PM MT and will rewrite to Week 37.
+
+**Dos and don'ts — CGC pipeline:**
+
+- ✅ **DO** scrape external sources from Vercel egress when Supabase egress IPs are blocked. The `app/api/cron/import-cgc` pattern generalizes to any CGC-style blocklist. Short, typed, auditable, no new infrastructure.
+- ❌ **DON'T** synthesize `grain_week` from the calendar. Always query `MAX(grain_week) FROM cgc_observations` (or accept the value the CSV itself reports). A calendar-derived week can exceed the latest published CGC week by 1–2 weeks and silently masks fresh analysis behind ghost rows.
+- ❌ **DON'T** write `cgc_imports` (or any audit table) with a non-zero `grain_week` in a catch block unless you *know* which week you were attempting. `grain_week=0` is the correct "import failed before we could determine the week" sentinel.
+- ✅ **DO** use long-format `crop_year` (`'2025-2026'`) in every write. The short form (`'2025-26'`) is a bug trap — queries filtering on `crop_year='2025-2026'` silently skip short-form rows with no error.
+- ❌ **DON'T** trust a single freshness source on the dashboard. Use `getDisplayWeek() = MAX(importWeek, analysisWeek)` — it survives the transient state where CGC has landed a new week but the Friday analysis swarm hasn't rewritten `market_analysis` yet.
+- ✅ **DO** interpret Claude Desktop Routine crons as scheduler-local (MT) time. `list_scheduled_tasks` is the source of truth; if a doc disagrees with the live task, the doc is wrong unless a timing change is deliberately deferred.
+- ✅ **DO** keep `--direct-ef` in `collect-cgc.py` as an emergency escape hatch for humans running from non-Supabase egress. **DON'T** wire it into any routine — the blocklist will drop it and you'll burn a scheduled slot writing a failure row.
+- ✅ **DO** fan out Phase 1 heartbeats to all 16 canonical CAD grains *even if* a grain had zero `cgc_observations` rows this week. The heartbeat row carries prior stance/recommendation forward unchanged — its value is "CGC ran at time T" for the Friday swarm + UI sparklines. Use `has_current_week_rows` in the evidence JSON to distinguish fresh data from carry-forward.
+- ❌ **DON'T** sort CGC queries by `grain_week` first when looking for the latest week. `week_ending_date DESC, grain_week DESC` is correct; sorting by `grain_week` alone picks historical week-52 rows from a prior crop year.
+- ✅ **DO** validate CSV shape at the proxy boundary (first-line column check). It's cheap, catches upstream page-shape changes early, and means the EF only ever sees a CSV that matches its expected schema.
+
+**Files:**
+- `app/api/cron/import-cgc/route.ts` (new)
+- `supabase/functions/import-cgc-weekly/index.ts` (v36)
+- `supabase/functions/_shared/cgc-source.ts` (new, shared)
+- `scripts/collect-cgc.py` (default path = Vercel proxy)
+- `docs/reference/collector-task-configs.md` (timezone disclaimer + MT columns)
+- `docs/hermes/skills/import-cgc.md` (new collector skill doc)
+
+**Tags:** #cgc #ip-block #vercel-proxy #grain-week #crop-year-format #schedule-drift #audit-trail #pipeline #followup
+
 ## 2026-04-16 — Missing bear_reasoning when stance drops (swarm-prompt gap)
 
 **Symptom:** The Overview unified stance chart showed Barley with a -25 WoW stance drop but an empty Bear Case panel. A farmer legitimately asked "why is there no bear case when it is down 25 over the previous week?" — the answer was that our AI produced a directional score without producing structured reasoning to back it up.
