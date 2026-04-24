@@ -27,6 +27,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
+import { requireV1Enabled } from "../_shared/v1-gate.ts";
 import { fetchKnowledgeContext } from "../_shared/knowledge-context.ts";
 import {
   buildCotPositioningResult,
@@ -41,6 +42,9 @@ Deno.serve(async (req) => {
   if (authError) {
     return authError;
   }
+
+  const v1Blocked = requireV1Enabled("generate-intelligence");
+  if (v1Blocked) return v1Blocked;
 
   const startTime = Date.now();
 
