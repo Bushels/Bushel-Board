@@ -1,21 +1,28 @@
 /**
  * Supabase Edge Function: import-cgc-weekly
  *
- * Legacy internal-only fallback for importing weekly CGC grain statistics.
+ * Imports weekly CGC grain statistics into cgc_observations.
  *
- * The canonical production ingest path is the Vercel cron route at
- * /api/cron/import-cgc, which fetches the CGC CSV and writes directly to
- * cgc_observations before triggering validate-import.
+ * The canonical production ingest path is the Vercel pipeline route at
+ * /api/pipeline/run which calls this function with the desired week.
  *
- * This function remains available for internal recovery/testing only. It parses
- * the requested CSV, upserts rows into cgc_observations, logs the result to
- * cgc_imports, then queues validate-import on success.
+ * Request body (all optional):
+ *   {
+ *     "week": 36,              // target week hint — filter rows to this week
+ *     "crop_year": "2025-2026",// target crop year hint (long format)
+ *     "csv_data": "..."        // pre-fetched CSV for operator recovery
+ *   }
  *
- * Request body (optional):
- *   { "week": 29, "crop_year": "2025-26", "csv_data": "..." }
+ * CSV source strategy (in order of preference):
+ *   1. `csv_data` from the request body (operator recovery — e.g. when CGC
+ *      is bot-filtering Supabase IPs)
+ *   2. Scrape the CGC index page, extract the current CSV URL, fetch it.
+ *      (The real URL is `/{crop-year}/gsw-shg-en.csv` — a single crop-year
+ *      file that CGC overwrites weekly.)
  *
- * If csv_data is provided, uses it directly instead of fetching from CGC.
- * If no body is provided, auto-detects the current grain week and crop year.
+ * The CSV contains the full crop-year (all weeks 1..N). When `week` is
+ * provided we filter to that week to keep the upsert small and fast. When
+ * omitted we upsert everything — useful for manual full-year recovery.
  *
  * Auth: requires x-bushel-internal-secret via requireInternalRequest().
  */
@@ -25,9 +32,7 @@ import {
   enqueueInternalFunction,
   requireInternalRequest,
 } from "../_shared/internal-auth.ts";
-
-const CGC_BASE_URL =
-  "https://www.grainscanada.gc.ca/en/grain-research/statistics/grain-statistics-weekly/";
+import { fetchLatestCgcCsv } from "../_shared/cgc-source.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,25 +107,15 @@ function parseCgcCsv(csvText: string): CgcRow[] {
 // Crop year / week helpers
 // ---------------------------------------------------------------------------
 
-/** Returns crop year in short format: "2025-26" (matches CGC CSV convention). */
+/** Returns crop year in long format: "2025-2026" (matches CGC CSV + cgc_observations convention).
+ * Migrations 20260306200100 and 20260312153000 normalized all persisted crop_year values to
+ * long format. Any helper that writes to cgc_imports/cgc_observations must stay in long format. */
 function getCurrentCropYear(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed: 7 = August
   const startYear = month >= 7 ? year : year - 1;
-  const endYear = (startYear + 1) % 100;
-  return `${startYear}-${endYear.toString().padStart(2, "0")}`;
-}
-
-function getCurrentGrainWeek(): number {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const cropYearStart =
-    month >= 7 ? new Date(year, 7, 1) : new Date(year - 1, 7, 1);
-  const diffMs = now.getTime() - cropYearStart.getTime();
-  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-  return Math.max(1, diffWeeks + 1);
+  return `${startYear}-${startYear + 1}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,59 +136,96 @@ Deno.serve(async (req) => {
 
     // Accept optional overrides in request body
     const body = await req.json().catch(() => ({}));
-    const targetWeek: number = body.week || getCurrentGrainWeek();
-    const cropYear: string = body.crop_year || getCurrentCropYear();
+    const targetWeek: number | undefined =
+      typeof body.week === "number" ? body.week : undefined;
+    const cropYearHint: string | undefined = body.crop_year;
 
     console.log(
-      `Importing CGC data for week ${targetWeek}, crop year ${cropYear}`
+      `Importing CGC data — target week: ${targetWeek ?? "(all)"}, crop year hint: ${cropYearHint ?? "(auto)"}`
     );
 
-    // Recovery callers can provide pre-fetched CSV, otherwise fetch from CGC
+    // -- 1. Obtain the CSV --
+    // Priority: explicit csv_data → scrape CGC index → fail
     let csvText: string;
+    let sourceFile: string;
 
     if (body.csv_data && typeof body.csv_data === "string") {
       console.log(`Using pre-fetched CSV data (${body.csv_data.length} bytes)`);
       csvText = body.csv_data;
+      sourceFile = "csv_data (operator)";
     } else {
-      const csvUrl = `${CGC_BASE_URL}gsw-shg-${targetWeek}-en.csv`;
-      console.log(`Fetching CSV from CGC: ${csvUrl}`);
-      const response = await fetch(csvUrl);
-
-      if (!response.ok) {
-        await supabase.from("cgc_imports").insert({
-          crop_year: cropYear,
-          grain_week: targetWeek,
-          source_file: `gsw-shg-${targetWeek}-en.csv`,
-          rows_inserted: 0,
-          rows_skipped: 0,
-          status: "failed",
-          error_message: `HTTP ${response.status}: ${response.statusText}`,
-        });
-
-        return new Response(
-          JSON.stringify({
-            error: `Failed to fetch week ${targetWeek}`,
-            status: response.status,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      csvText = await response.text();
+      console.log("Scraping CGC index page for current CSV URL...");
+      const payload = await fetchLatestCgcCsv();
+      csvText = payload.csvText;
+      sourceFile = payload.csvUrl;
+      console.log(
+        `Fetched CGC CSV: ${payload.csvUrl} (${csvText.length} bytes, crop year ${payload.cropYear}, latest week ${payload.grainWeek})`
+      );
     }
 
-    const rows = parseCgcCsv(csvText);
-    console.log(`Parsed ${rows.length} rows`);
+    // -- 2. Parse CSV --
+    const allRows = parseCgcCsv(csvText);
+    console.log(`Parsed ${allRows.length} rows from CSV`);
 
-    if (rows.length === 0) {
-      console.log(`No rows parsed for week ${targetWeek} — CSV may not be published yet`);
+    if (allRows.length === 0) {
+      const msg = "No rows parsed — CSV may be empty or malformed";
+      await supabase.from("cgc_imports").insert({
+        crop_year: cropYearHint ?? getCurrentCropYear(),
+        grain_week: targetWeek ?? 0,
+        source_file: sourceFile,
+        rows_inserted: 0,
+        rows_skipped: 0,
+        status: "failed",
+        error_message: msg,
+      });
       return new Response(
-        JSON.stringify({ week: targetWeek, crop_year: cropYear, inserted: 0, skipped: 0, message: "No data rows in CSV" }),
+        JSON.stringify({ error: msg, source: sourceFile }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Batch upsert — 500 rows per batch (Edge Function has tighter limits)
+    // -- 3. Optionally filter to target week (fast-path for scheduled runs) --
+    const rows = targetWeek
+      ? allRows.filter((r) => r.grain_week === targetWeek)
+      : allRows;
+
+    // Actual crop year / week from data (authoritative, not caller hint)
+    const actualCropYear =
+      rows[0]?.crop_year ?? cropYearHint ?? getCurrentCropYear();
+    const actualMaxWeek = rows.reduce((m, r) => Math.max(m, r.grain_week), 0);
+
+    console.log(
+      `Importing ${rows.length} rows (crop_year=${actualCropYear}, max week=${actualMaxWeek})`
+    );
+
+    if (rows.length === 0) {
+      const msg = `CSV did not contain any rows for week ${targetWeek} — CGC may not have published it yet`;
+      // grain_week 0 here instead of targetWeek: a failed attempt to import a
+      // not-yet-published week must NOT leave a row tagged with a real week
+      // number, or getLatestImportedWeek()/getDisplayWeek() would advertise a
+      // phantom week to the UI. error_message preserves what was attempted.
+      await supabase.from("cgc_imports").insert({
+        crop_year: actualCropYear,
+        grain_week: 0,
+        source_file: sourceFile,
+        rows_inserted: 0,
+        rows_skipped: 0,
+        status: "failed",
+        error_message: `${msg} (attempted week=${targetWeek ?? "(all)"})`,
+      });
+      return new Response(
+        JSON.stringify({
+          week: targetWeek,
+          crop_year: actualCropYear,
+          inserted: 0,
+          skipped: 0,
+          message: msg,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // -- 4. Batch upsert --
     let inserted = 0;
     let skipped = 0;
     const BATCH_SIZE = 500;
@@ -216,46 +248,57 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Log the import
+    // -- 5. Audit row uses authoritative max week from the CSV --
     await supabase.from("cgc_imports").insert({
-      crop_year: cropYear,
-      grain_week: targetWeek,
-      source_file: `gsw-shg-${targetWeek}-en.csv`,
+      crop_year: actualCropYear,
+      grain_week: actualMaxWeek,
+      source_file: sourceFile,
       rows_inserted: inserted,
       rows_skipped: skipped,
       status: skipped > 0 ? "partial" : "success",
     });
 
+    // -- 6. Chain to validator on success --
     if (skipped === 0) {
       try {
         console.log("Queueing post-import validation...");
         await enqueueInternalFunction(supabase, "validate-import", {
-          crop_year: cropYear,
-          grain_week: targetWeek,
+          crop_year: actualCropYear,
+          grain_week: actualMaxWeek,
         });
         console.log("Queued validate-import");
       } catch (chainErr) {
         console.error("validate-import queue failed:", chainErr);
-        // Don't fail the import; validation/intelligence pipeline is best-effort
+        // Don't fail the import; validation is best-effort
       }
     }
 
     return new Response(
-      JSON.stringify({ week: targetWeek, crop_year: cropYear, inserted, skipped }),
+      JSON.stringify({
+        week: actualMaxWeek,
+        crop_year: actualCropYear,
+        inserted,
+        skipped,
+        source: sourceFile,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("Import error:", err);
 
-    // Log the failure to cgc_imports for audit trail
+    // Best-effort audit logging — don't mask the original error
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
+      // grain_week 0: we don't know what week this attempt was targeting from
+      // inside the catch. Do not advertise a calendar-derived week number here
+      // — the freshness helpers key off max(grain_week) and would jump forward
+      // into non-existent data. The error_message preserves diagnostic detail.
       await supabase.from("cgc_imports").insert({
         crop_year: getCurrentCropYear(),
-        grain_week: getCurrentGrainWeek(),
+        grain_week: 0,
         source_file: "unknown (catch block)",
         rows_inserted: 0,
         rows_skipped: 0,
@@ -263,7 +306,7 @@ Deno.serve(async (req) => {
         error_message: String(err).slice(0, 500),
       });
     } catch {
-      // Best-effort audit logging — don't mask the original error
+      // swallow
     }
 
     return new Response(JSON.stringify({ error: String(err) }), {
