@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useReducedMotion } from "framer-motion";
 
 interface Props {
   weeks: string[]; // ISO date strings, ascending
@@ -8,14 +9,13 @@ interface Props {
   onChange: (weekEnding: string) => void;
 }
 
-/** Detect prefers-reduced-motion in an SSR-safe way. */
-function getReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 export function SeedingScrubber({ weeks, currentWeek, onChange }: Props) {
-  const reducedMotion = getReducedMotion();
+  // framer-motion's useReducedMotion returns null on first render (server +
+  // hydration), then true/false after mount. We treat null as "not reduced" so
+  // the Replay button renders consistently between server and client first
+  // render — no hydration mismatch — then disappears if the user actually has
+  // reduced-motion enabled.
+  const reducedMotion = useReducedMotion() === true;
 
   const currentIndex = Math.max(0, weeks.indexOf(currentWeek));
 
