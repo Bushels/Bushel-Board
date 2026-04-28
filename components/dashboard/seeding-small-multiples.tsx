@@ -2,8 +2,11 @@
 // Five-card command-center view of US grain-belt seeding progress.
 // One card per commodity (Corn / Soybeans / Wheat / Barley / Oats), each
 // containing a static grain-belt SVG with state-level mini glyphs absolutely
-// positioned at their centroids. A single shared scrubber at the bottom drives
-// the scan-line for every glyph in every card.
+// positioned at their centroids.
+//
+// This is a *controlled* component: currentWeek and selectedCommodity are
+// owned by the parent SeedingDashboard, which also owns the SeedingFocusMap
+// below. Clicking a card swaps which crop is focused on the big map.
 //
 // Why static SVG (not 5 Mapbox instances): glance-able comparison across all
 // 5 commodities is the point — geographic precision isn't. 5 Mapbox tiles
@@ -12,9 +15,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
 import { SeedingMiniGlyph } from "@/components/dashboard/seeding-mini-glyph";
-import { SeedingScrubber } from "@/components/dashboard/seeding-scrubber";
 import {
   SeedingBeltSvg,
   lngLatToPercent,
@@ -27,9 +28,13 @@ import type {
   CommodityDashboard,
   UsTotalSummary,
 } from "@/lib/queries/seeding-progress";
+import { cn } from "@/lib/utils";
 
 interface Props {
   dashboards: CommodityDashboard[];
+  currentWeek: string;
+  selectedCommodity: string;
+  onSelectCommodity: (commodity: string) => void;
 }
 
 function titleCase(s: string): string {
@@ -92,41 +97,23 @@ function badgeFor(commodity: string, us: UsTotalSummary | null): string {
   return `${fmtPct(us.planted_pct)} planted`;
 }
 
-export function SeedingSmallMultiples({ dashboards }: Props) {
-  // Single shared week scrubber across all 5 cards
-  const allWeeks = useMemo(() => {
-    const set = new Set<string>();
-    for (const d of dashboards) {
-      for (const r of d.rows) set.add(r.week_ending);
-    }
-    return [...set].sort();
-  }, [dashboards]);
-
-  const [currentWeek, setCurrentWeek] = useState<string>(
-    allWeeks[allWeeks.length - 1] ?? "",
-  );
-
+export function SeedingSmallMultiples({
+  dashboards,
+  currentWeek,
+  selectedCommodity,
+  onSelectCommodity,
+}: Props) {
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {dashboards.map((d) => (
-          <CommodityCard
-            key={d.commodity}
-            dashboard={d}
-            currentWeek={currentWeek}
-          />
-        ))}
-      </div>
-
-      {allWeeks.length > 0 && (
-        <div className="rounded-2xl border border-border/40 bg-card/60 p-4">
-          <SeedingScrubber
-            weeks={allWeeks}
-            currentWeek={currentWeek}
-            onChange={setCurrentWeek}
-          />
-        </div>
-      )}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {dashboards.map((d) => (
+        <CommodityCard
+          key={d.commodity}
+          dashboard={d}
+          currentWeek={currentWeek}
+          isSelected={d.commodity === selectedCommodity}
+          onClick={() => onSelectCommodity(d.commodity)}
+        />
+      ))}
     </div>
   );
 }
@@ -134,20 +121,44 @@ export function SeedingSmallMultiples({ dashboards }: Props) {
 interface CommodityCardProps {
   dashboard: CommodityDashboard;
   currentWeek: string;
+  isSelected: boolean;
+  onClick: () => void;
 }
 
-function CommodityCard({ dashboard, currentWeek }: CommodityCardProps) {
+function CommodityCard({
+  dashboard,
+  currentWeek,
+  isSelected,
+  onClick,
+}: CommodityCardProps) {
   const { commodity, rows, usTotal } = dashboard;
   const grouped = groupByState(rows);
   const stats = statsFor(commodity, usTotal);
   const badge = badgeFor(commodity, usTotal);
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-card/80 p-4 shadow-sm">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isSelected}
+      aria-label={`Focus ${titleCase(commodity)} on the detail map below`}
+      className={cn(
+        "group flex flex-col gap-3 rounded-2xl border bg-card/80 p-4 text-left shadow-sm transition-all duration-200",
+        "hover:-translate-y-[1px] hover:shadow-md",
+        isSelected
+          ? "border-canola/70 ring-2 ring-canola/30 shadow-md"
+          : "border-border/40 hover:border-border/70",
+      )}
+    >
       {/* Crop header */}
       <header className="flex items-start justify-between gap-2 border-b border-border/30 pb-3">
         <div>
-          <h2 className="font-display text-lg font-semibold leading-tight">
+          <h2
+            className={cn(
+              "font-display text-lg font-semibold leading-tight",
+              isSelected && "text-canola",
+            )}
+          >
             {titleCase(commodity)}
           </h2>
           {currentWeek && (
@@ -156,7 +167,14 @@ function CommodityCard({ dashboard, currentWeek }: CommodityCardProps) {
             </p>
           )}
         </div>
-        <span className="rounded-full border border-border/40 bg-muted/30 px-2 py-1 text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+        <span
+          className={cn(
+            "rounded-full border px-2 py-1 text-[10px] font-bold whitespace-nowrap transition-colors",
+            isSelected
+              ? "border-canola/40 bg-canola/10 text-canola"
+              : "border-border/40 bg-muted/30 text-muted-foreground",
+          )}
+        >
           {badge}
         </span>
       </header>
@@ -209,6 +227,18 @@ function CommodityCard({ dashboard, currentWeek }: CommodityCardProps) {
           </div>
         ))}
       </div>
-    </article>
+
+      {/* Hover affordance — appears only when not selected */}
+      {!isSelected && (
+        <p className="text-[10px] font-medium text-muted-foreground/70 transition-colors group-hover:text-canola">
+          Click to focus on map ↓
+        </p>
+      )}
+      {isSelected && (
+        <p className="text-[10px] font-medium text-canola">
+          Showing on map ↓
+        </p>
+      )}
+    </button>
   );
 }

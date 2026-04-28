@@ -1,7 +1,7 @@
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
-import { SeedingSmallMultiples } from "@/components/dashboard/seeding-small-multiples";
+import { SeedingDashboard } from "@/components/dashboard/seeding-dashboard";
 import { SeedingCanadaPlaceholder } from "@/components/dashboard/seeding-canada-placeholder";
 import { getSeedingDashboard } from "@/lib/queries/seeding-progress";
 import { safeQuery } from "@/lib/utils/safe-query";
@@ -45,7 +45,7 @@ export default async function SeedingPage() {
             message="USDA NASS releases new state-level data Mondays in season."
           />
         ) : (
-          <SeedingSmallMultiples dashboards={dashboards} />
+          <SeedingDashboard dashboards={dashboards} />
         )}
       </SectionBoundary>
     </div>
