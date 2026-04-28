@@ -27,9 +27,6 @@ export function DesktopNavLinks({
 
   return (
     <nav className="hidden shrink-0 items-center gap-1 rounded-full border border-white/35 bg-white/30 p-1 shadow-[0_18px_40px_-28px_rgba(42,38,30,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5 md:flex">
-      <Link href="/chat" className={navLinkClasses(pathname === "/chat")}>
-        Bushy
-      </Link>
       <Link href="/my-farm" className={navLinkClasses(pathname.startsWith("/my-farm"))}>
         My Farm
       </Link>

@@ -16,7 +16,7 @@ export async function Nav() {
   // Fetch the current user's unlocked grains and email
   let unlockedGrains: string[] = [];
   let userEmail: string | null = null;
-  let homeHref: "/chat" | "/overview" | "/my-farm" = "/chat";
+  let homeHref: "/overview" | "/my-farm" = "/overview";
   try {
     const supabase = await createClient();
     const {
