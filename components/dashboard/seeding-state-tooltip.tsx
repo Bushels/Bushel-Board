@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import type { JSX } from "react";
 import type { SeismographRow } from "@/lib/queries/seeding-progress-utils";
+import { fmtAcres } from "@/lib/queries/seeding-progress-utils";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -166,6 +167,19 @@ export function SeedingStateTooltip({
             {condition.text}
           </span>
         </div>
+        {row.planted_acres !== null && (
+          <div className="flex items-center justify-between gap-4 border-t border-border/30 pt-2 text-sm">
+            <span className="text-muted-foreground">Total {titleCase(commodity).toLowerCase()} acres</span>
+            <span className="tabular-nums font-bold text-foreground">
+              {fmtAcres(row.planted_acres)}
+              {row.planted_pct !== null && row.planted_acres !== null && (
+                <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
+                  · ~{fmtAcres((row.planted_pct / 100) * row.planted_acres)} in
+                </span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </motion.div>
   );

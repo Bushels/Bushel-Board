@@ -14,6 +14,21 @@ export interface SeismographRow {
   good_excellent_pct: number | null;
   condition_index: number | null;
   ge_pct_yoy_change: number | null;
+  /** Latest USDA NASS planted-acres estimate for this state (annual,
+   *  same value across all weeks). Null if not yet ingested. */
+  planted_acres: number | null;
+}
+
+/** Format planted acres into compact farmer-friendly text.
+ *  >= 1M → "13.4M ac" · >= 10k → "850k ac" · else → "5,200 ac" · null → "—"
+ */
+export function fmtAcres(n: number | null): string {
+  if (n === null || !Number.isFinite(n)) return "—";
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M ac`;
+  if (n >= 10_000)
+    return `${Math.round(n / 1_000).toLocaleString()}k ac`;
+  return `${Math.round(n).toLocaleString()} ac`;
 }
 
 export type SeismographByState = Record<string, SeismographRow[]>;

@@ -22,6 +22,7 @@ import {
 } from "@/components/dashboard/seeding-belt-svg";
 import {
   groupByState,
+  fmtAcres,
   type SeismographRow,
 } from "@/lib/queries/seeding-progress-utils";
 import type {
@@ -86,15 +87,30 @@ function statsFor(
   ];
 }
 
-/** Headline badge text per commodity (right side of card head). */
-function badgeFor(commodity: string, us: UsTotalSummary | null): string {
-  if (!us) return "no data";
+/** Headline badge text per commodity (right side of card head).
+ *  Format: "{progress%} of {acres}" — anchors the % to a real magnitude.
+ *  Wheat shows G/E condition % since spring planting is partial-data early. */
+function badgeFor(
+  commodity: string,
+  us: UsTotalSummary | null,
+  usTotalAcres: number | null,
+): string {
+  if (!us && usTotalAcres === null) return "no data";
+  const acres = usTotalAcres !== null ? fmtAcres(usTotalAcres) : null;
   if (commodity === "WHEAT") {
-    return us.good_excellent_pct === null
-      ? `${fmtPct(us.planted_pct)} spring planted`
-      : `${fmtPct(us.good_excellent_pct)} G/E`;
+    if (us?.good_excellent_pct !== null && us?.good_excellent_pct !== undefined) {
+      return acres
+        ? `${fmtPct(us.good_excellent_pct)} G/E · ${acres}`
+        : `${fmtPct(us.good_excellent_pct)} G/E`;
+    }
+    return acres
+      ? `${fmtPct(us?.planted_pct ?? null)} spring · ${acres}`
+      : `${fmtPct(us?.planted_pct ?? null)} spring planted`;
   }
-  return `${fmtPct(us.planted_pct)} planted`;
+  if (acres) {
+    return `${fmtPct(us?.planted_pct ?? null)} of ${acres}`;
+  }
+  return `${fmtPct(us?.planted_pct ?? null)} planted`;
 }
 
 export function SeedingSmallMultiples({
@@ -131,10 +147,10 @@ function CommodityCard({
   isSelected,
   onClick,
 }: CommodityCardProps) {
-  const { commodity, rows, usTotal } = dashboard;
+  const { commodity, rows, usTotal, usTotalAcres } = dashboard;
   const grouped = groupByState(rows);
   const stats = statsFor(commodity, usTotal);
-  const badge = badgeFor(commodity, usTotal);
+  const badge = badgeFor(commodity, usTotal, usTotalAcres);
 
   return (
     <button

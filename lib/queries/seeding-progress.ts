@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { SeismographRow } from "@/lib/queries/seeding-progress-utils";
 
 export type { SeismographRow, SeismographByState } from "@/lib/queries/seeding-progress-utils";
-export { groupByState, conditionStrokeColor } from "@/lib/queries/seeding-progress-utils";
+export { groupByState, conditionStrokeColor, fmtAcres } from "@/lib/queries/seeding-progress-utils";
 
 /** Coerce nullable PostgREST numeric (string) to JS number | null. */
 function num(v: unknown): number | null {
@@ -28,6 +28,9 @@ export interface CommodityDashboard {
   commodity: string;
   rows: SeismographRow[];
   usTotal: UsTotalSummary | null;
+  /** Latest USDA NASS national planted-acres estimate (Prospective Plantings
+   *  or Acreage report, whichever is more recent). Used for card badges. */
+  usTotalAcres: number | null;
 }
 
 const SMALL_MULTIPLES_COMMODITIES = [
@@ -79,11 +82,12 @@ export async function getSeedingDashboard(
   marketYear: number,
 ): Promise<CommodityDashboard[]> {
   const tasks = SMALL_MULTIPLES_COMMODITIES.map(async (commodity) => {
-    const [rows, usTotal] = await Promise.all([
+    const [rows, usTotal, usTotalAcres] = await Promise.all([
       getSeedingSeismograph(commodity, marketYear),
       getUsTotalLatest(commodity, marketYear),
+      getUsTotalAcreage(commodity, marketYear),
     ]);
-    return { commodity, rows, usTotal };
+    return { commodity, rows, usTotal, usTotalAcres };
   });
   return Promise.all(tasks);
 }
@@ -122,5 +126,21 @@ export async function getSeedingSeismograph(
     good_excellent_pct: num(r.good_excellent_pct),
     condition_index: num(r.condition_index),
     ge_pct_yoy_change: num(r.ge_pct_yoy_change),
+    planted_acres: num(r.planted_acres),
   }));
+}
+
+/** Fetch latest US TOTAL planted-acres for a commodity (national headline). */
+export async function getUsTotalAcreage(
+  commodity: string,
+  marketYear: number,
+): Promise<number | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_us_total_acreage", {
+    p_commodity: commodity.toUpperCase(),
+    p_market_year: marketYear,
+  });
+  if (error || data === null || data === undefined) return null;
+  const n = Number(data);
+  return Number.isFinite(n) ? n : null;
 }
