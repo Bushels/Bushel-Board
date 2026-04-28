@@ -25,7 +25,16 @@ export default async function UsOverviewPage() {
         <SectionHeader
           title="US Grain Thesis Overview"
           subtitle={`US grain markets this week — what's selling and what's stuck (crop year ${overview.cropYear}).`}
-        />
+        >
+          {isPlantingSeason() && (
+            <Link
+              href="/seeding"
+              className="text-xs font-medium text-canola hover:underline"
+            >
+              National seeding progress →
+            </Link>
+          )}
+        </SectionHeader>
 
         {overview.stances.length === 0 ? (
           <SectionStateCard
@@ -147,4 +156,9 @@ export default async function UsOverviewPage() {
       </section>
     </div>
   );
+}
+
+function isPlantingSeason(): boolean {
+  const m = new Date().getMonth() + 1; // 1-based
+  return m >= 4 && m <= 6;
 }
