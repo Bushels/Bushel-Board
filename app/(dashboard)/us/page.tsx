@@ -24,13 +24,13 @@ export default async function UsOverviewPage() {
       <section className="space-y-4">
         <SectionHeader
           title="US Grain Thesis Overview"
-          subtitle={`US weekly market view for crop year ${overview.cropYear} (market year ${overview.marketYear})`}
+          subtitle={`US grain markets this week — what's selling and what's stuck (crop year ${overview.cropYear}).`}
         />
 
         {overview.stances.length === 0 ? (
           <SectionStateCard
-            title="US thesis data unavailable"
-            message="No stored US weekly theses were found yet. Run the US thesis generator and publish path first."
+            title="US market view is being prepared"
+            message="New analysis releases Friday evenings. Check back soon."
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

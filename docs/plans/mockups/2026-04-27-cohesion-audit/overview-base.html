@@ -1,0 +1,42 @@
+<!-- 
+  Mockup: overview-base
+  Generated: 2026-04-27
+  Surface: overview
+  Variant: base
+  Notes: This is the AS-IS snapshot of the current /overview route: one section titled AI Market Stance with a GlassCard around a UnifiedMarketStanceChart-style bar grid and a plain unavailable state.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview - AS-IS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&display=swap" rel="stylesheet">
+<style>
+:root{--wheat-50:#f5f3ee;--wheat-100:#ece8dc;--wheat-200:#ddd5c0;--canola:#c17f24;--canola-soft:#e8b96b;--prairie:#437a22;--prairie-soft:#7ba84e;--amber:#d97706;--crimson:#b8350f;--ink:#1a1813;--muted:#6b6353;--line:#e0d9c5;--ease:cubic-bezier(.16,1,.3,1)}
+*{box-sizing:border-box}body{margin:0;background:var(--wheat-50);color:var(--ink);font-family:"DM Sans",system-ui,sans-serif}.page{max-width:1180px;margin:0 auto;padding:34px 24px 56px}.section-header{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:16px}.section-copy{border-left:3px solid var(--canola);padding-left:12px}.section-copy h1{font-family:"Fraunces",serif;font-size:22px;line-height:1.08;margin:0 0 4px}.section-copy p{margin:0;color:var(--muted);font-size:14px}.tag{border:1px solid var(--line);background:var(--wheat-100);border-radius:999px;padding:8px 10px;color:var(--muted);font-size:12px;font-weight:700}.glass{background:color-mix(in srgb,var(--wheat-100) 82%,transparent);border:1px solid var(--wheat-200);border-radius:24px;box-shadow:0 4px 16px rgba(26,24,19,.06),0 1px 3px rgba(26,24,19,.04);padding:24px}.chart-head{display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:18px}.chart-head h2{font-family:"Fraunces",serif;margin:0;font-size:28px}.chart-head p{margin:4px 0 0;color:var(--muted);font-size:13px}.bars{display:grid;grid-template-columns:170px minmax(0,1fr) 58px;gap:12px;align-items:center}.row{display:contents}.name{font-weight:700}.track{height:22px;background:var(--wheat-50);border:1px solid var(--line);border-radius:999px;overflow:hidden;position:relative}.track::before{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:1px solid var(--line)}.bar{height:100%;border-radius:999px;background:var(--canola);width:var(--w);margin-left:50%}.bar.bear{background:var(--amber);margin-left:calc(50% - var(--w))}.bar.good{background:var(--prairie)}.score{font-variant-numeric:tabular-nums;font-weight:800;color:var(--muted)}.legend{display:flex;gap:14px;margin-top:18px;color:var(--muted);font-size:12px}.legend span{display:flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:50%;background:var(--canola)}.dot.p{background:var(--prairie)}.dot.a{background:var(--amber)}.empty{margin-top:22px;background:var(--wheat-50);border:1px dashed var(--wheat-200);border-radius:18px;padding:18px}.empty h3{font-family:"Fraunces",serif;margin:0 0 6px}.empty p{margin:0;color:var(--muted);font-size:13px}@media(max-width:720px){.section-header,.chart-head{align-items:start;flex-direction:column}.bars{grid-template-columns:1fr}.score{margin-bottom:8px}.page{padding:22px 14px}.glass{padding:16px}}
+</style>
+</head>
+<body>
+<main class="page">
+  <section>
+    <div class="section-header"><div class="section-copy"><h1>AI Market Stance</h1><p>Weekly bullish/bearish scoring across prairie grains and US markets, with bull and bear points</p></div><span class="tag">AS-IS / one section</span></div>
+    <div class="glass">
+      <div class="chart-head"><div><h2>UnifiedMarketStanceChart</h2><p>Canada and US calls in one combined board.</p></div><span class="tag">Updated today</span></div>
+      <div class="bars">
+        <div class="row"><div class="name">Canola</div><div class="track"><div class="bar good" style="--w:38%"></div></div><div class="score">+38</div></div>
+        <div class="row"><div class="name">Spring Wheat</div><div class="track"><div class="bar bear" style="--w:24%"></div></div><div class="score">-24</div></div>
+        <div class="row"><div class="name">Durum</div><div class="track"><div class="bar" style="--w:12%"></div></div><div class="score">+12</div></div>
+        <div class="row"><div class="name">Corn</div><div class="track"><div class="bar good" style="--w:30%"></div></div><div class="score">+30</div></div>
+        <div class="row"><div class="name">Soybeans</div><div class="track"><div class="bar bear" style="--w:18%"></div></div><div class="score">-18</div></div>
+        <div class="row"><div class="name">Oats</div><div class="track"><div class="bar" style="--w:8%"></div></div><div class="score">+8</div></div>
+      </div>
+      <div class="legend"><span><i class="dot p"></i>Supportive</span><span><i class="dot"></i>Mixed</span><span><i class="dot a"></i>Pressure</span></div>
+      <div class="empty"><h3>Market stance temporarily unavailable</h3><p>Canadian and US stance data are both unavailable right now. Please refresh shortly.</p></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

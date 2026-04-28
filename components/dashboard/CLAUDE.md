@@ -1,65 +1,134 @@
 # Dashboard Components — Agent Guide
 
-## Page Section Structure
+**Last refreshed:** 2026-04-27 (cohesion audit sweep)
+**Audit reference:** [docs/plans/2026-04-27-bushel-board-cohesion-audit.md](docs/plans/2026-04-27-bushel-board-cohesion-audit.md)
 
-Both Overview and grain detail pages use a **3-section layout** with `SectionHeader` and `space-y-10` between sections. Every data-dependent section is wrapped in `SectionBoundary` for error isolation.
+## Page Section Rhythms (Descriptive)
 
-**Overview page:** Prairie Snapshot → Community Pulse → Market Intelligence
-**Grain detail page:** Market Thesis → Ask Bushy → My Farm
+Different surfaces use different rhythms. The rhythm is chosen for the surface's job, **not enforced by a global rule.** When adding content, ask "what rhythm does this page use?" and fit the content to that rhythm; don't force a 3-section pattern just because grain detail uses one.
 
-## Key Components
+| Route | Sections | Rhythm intent |
+|---|---|---|
+| `/overview` | 1 | Compact AI Market Stance scan. The unified chart IS the surface. |
+| `/grain/[slug]` | 3 | Market Thesis → Ask Bushy → My Farm. Natural left-to-right reading for one grain. |
+| `/my-farm` | 5 | Seasonal workflow: Weekly Summary → Market Sentiment → Your Recommendations → Your Grains → Delivery Pace. |
+| `/us` | 2 | US Grain Thesis Overview + US Weekly Thesis Cards. |
+| `/us/[market]` | 3 | US Market Thesis → Top Signals → Data Freshness. |
+| `/seeding` (planned) | 1 | Seismograph map IS the surface. v2/v3 may grow into a /my-farm-style multi-section workflow per [the design doc](docs/plans/2026-04-27-seeding-progress-map-design.md). |
 
-| Component | Purpose | Where Used |
-|-----------|---------|------------|
-| `section-header.tsx` | Canola left-accent section divider with title/subtitle/children slot | Both pages |
-| `section-boundary.tsx` | Error boundary wrapper for graceful section failure | Both pages |
-| `section-state-card.tsx` | Fallback UI when a section's data is unavailable | Both pages |
-| `compact-signal-strip.tsx` | Horizontal scroll signal pills with optional vote buttons | Overview only |
-| `farmer-cot-card.tsx` | Farmer-friendly COT positioning (mood gauge + plain-English insight) | Grain detail |
-| `key-metrics-cards.tsx` | 4-card grid: Deliveries/Processing/Exports/Stocks with WoW + insight | Grain detail |
-| `metric-sentiment-vote.tsx` | Inline bullish/bearish vote buttons for key metric cards | Grain detail |
-| `percentile-graph.tsx` | Bell curve SVG showing farmer's delivery pace vs peers | My Farm |
-| `sentiment-banner.tsx` | Cross-grain sentiment overview | Overview |
-| `sentiment-poll.tsx` | Per-grain Holding/Hauling vote | Grain detail |
-| `bull-bear-cards.tsx` | Side-by-side bull/bear cases with confidence bar + assessment | Grain detail |
-| `crush-utilization-gauge.tsx` | Semicircle SVG gauge: annualized processing vs capacity | Grain detail |
-| `price-sparkline.tsx` | Compact SVG price sparkline with latest settlement + daily change | Grain detail |
-| `delivery-gap-chart.tsx` | YoY cumulative delivery gap with dual Y-axes: left for deliveries, right for gap line + fill | Grain detail (Canola only) |
-| `grain-bushy-chat.tsx` | Grain-scoped Bushy Chat wrapper (400px fixed height, grain context) | Grain detail |
-| `grain-farm-progress.tsx` | 3-tile delivery/contract progress + recommendation + pace badge | Grain detail |
+## Required Patterns
 
-## Deleted Components — Do Not Recreate
-
-These were removed in the UX Layout & Hierarchy Redesign (Track #16, 2026-03-11):
-
-- `signal-tape.tsx` — Replaced by `compact-signal-strip.tsx` on Overview. Grain detail uses `x-signal-feed.tsx` directly.
-- `disposition-bar.tsx` — Domestic disappearance folded into `supply-pipeline.tsx` as a collapsible section.
-- `insight-cards.tsx` — Content overlapped with ThesisBanner + IntelligenceKPIs. Removed.
-- `waterfall-chart.tsx` — "Where Does X Go?" supply waterfall. Redundant with `supply-pipeline.tsx`. Removed (2026-03-12).
-- `x-signal-feed.tsx` — Full interactive X signal cards. Removed in Wave 2 (2026-03-14). Grain detail uses overview-only `compact-signal-strip.tsx`.
-- `supply-pipeline.tsx` — AAFC waterfall. Replaced by Key Metrics + Net Balance chart in Wave 2 (2026-03-14).
-- `flow-donut-chart.tsx` — "Where Grain Went" donut. Replaced by delivery breakdown chart in Wave 2.
-- `intelligence-kpis.tsx` — KPI cards. Replaced by key-metrics-cards in Wave 2.
-- `cot-positioning-card.tsx` — Trader-focused COT chart. Replaced by farmer-friendly `farmer-cot-card.tsx` in Wave 3 (2026-03-14).
-- `key-metrics-cards.tsx` — KPI grid replaced by thesis reasoning + chat. Retained for Bushy Chat queries. (Track #43, 2026-04-15)
-- `net-balance-chart.tsx` — Net balance chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `delivery-breakdown-chart.tsx` — Delivery channels chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `terminal-flow-chart.tsx` — Terminal net flow chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `gamified-grain-chart.tsx` — Pipeline velocity chart. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `logistics-card.tsx` — Port/rail KPI tiles. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `province-map.tsx` — Provincial delivery map. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `storage-breakdown.tsx` — Grain storage breakdown. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `farmer-cot-card.tsx` — COT positioning card. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `crush-utilization-gauge.tsx` — Crush gauge. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-- `wow-comparison.tsx` — WoW detail card. Data accessible via Bushy Chat. Retained. (Track #43, 2026-04-15)
-
-## Patterns
-
-- **SectionHeader is required** for any new top-level section on either page. Don't add raw `<h2>` tags.
-- **Don't add a 4th section** to either page without explicit design approval. Place new content within an existing section.
-- **CGC region names are NOT unique** — never use them as React keys. Use index-suffixed keys: `` key={`${d.region}-${i}`} ``.
-- **Overview uses compact previews**, grain detail uses full interactive versions. Don't render both on the same page.
-- **`safeQuery()` pattern** — wrap all data fetches so individual section failures don't crash the page.
-- **Farmer-friendly language** — no trader jargon. "Managed Money" → "Fund Sentiment". Always include a "What This Means For You" plain-English callout where possible.
-- **Prairie Chatter on overview only** — `compact-signal-strip.tsx` belongs on the overview page, NOT on grain detail pages.
+- **`SectionHeader`** for every top-level section (canola left-accent + Fraunces title + DM Sans subtitle). Don't add raw `<h2>` tags.
+- **`SectionBoundary`** wrap for every data-dependent section. Failure mode is a `SectionStateCard`, not a white-screen page crash.
+  - *Audit P2.1: not currently uniform on `/overview`, `/my-farm`, `/us`. Sweep 3 backlog.*
+- **`safeQuery()`** wrapping every data fetch in server components. `safeQuery` swallows errors at the data layer; `SectionBoundary` catches render-time failures. Use both.
+- **`GlassCard`** for elevation. Do NOT roll bespoke card styles.
+  - *Audit P2.3: `/my-farm` hero uses raw div. Sweep 3 backlog.*
+- **Farmer-friendly voice** — no trader jargon, no operator/dev jargon. See Voice Rules below.
 - **Client wrappers for vote actions** — Server Components can't pass functions as props. Use thin client wrappers (e.g., `key-metrics-with-voting.tsx`, `signal-strip-with-voting.tsx`) that import server actions and bind them.
+- **CGC region names are NOT unique** — never use them as React keys. Use index-suffixed keys: `` key={`${d.region}-${i}`} ``.
+- **No transitive server-only imports in client components.** Split into `foo-utils.ts` (client-safe) and `foo.ts` (server-only) per the project pattern.
+
+## Component Lifecycle
+
+### Active
+
+| Component | Where | Notes |
+|---|---|---|
+| `section-header.tsx` | All sectioned pages | Canola left-accent + Fraunces title |
+| `section-boundary.tsx` | Data-dependent sections | Apply uniformly (Sweep 3 will close gaps) |
+| `section-state-card.tsx` | Empty/error state fallback | Used by SectionBoundary |
+| `compact-signal-strip.tsx` | `/overview` only | "Prairie Chatter" — horizontal scroll signal pills. Don't render on grain detail. |
+| `bull-bear-cards.tsx` | `/grain/[slug]` Market Thesis | Should also be used on `/us/[market]` (audit P2.4 — Sweep 4 backlog) |
+| `grain-bushy-chat.tsx` | `/grain/[slug]` Ask Bushy | Grain-scoped chat wrapper, 400px height |
+| `grain-farm-progress.tsx` | `/grain/[slug]` My Farm section | 3-tile delivery/contract progress + recommendation + pace badge |
+| `sentiment-banner.tsx` | `/my-farm` Market Sentiment | Cross-grain sentiment overview |
+| `multi-grain-sentiment.tsx` | `/my-farm` Market Sentiment | Voting on selected grains |
+| `delivery-pace-card.tsx` | `/my-farm` Delivery Pace | Bar marker visualization |
+| `price-sparkline.tsx` | `/grain/[slug]` hero | Compact price trend |
+| `delivery-gap-chart.tsx` | `/grain/[slug]` (Canola) | YoY cumulative delivery gap, dual Y-axis |
+| `metric-sentiment-vote.tsx` | Inline | Bullish/bearish vote buttons for metric cards |
+| `unified-market-stance-chart.tsx` | `/overview` | The hero of the single Overview section |
+
+### Retired (file kept; do NOT recreate)
+
+| Component | Retired in | Why | Status |
+|---|---|---|---|
+| `signal-tape.tsx` | Track #16 (2026-03-11) | Replaced by `compact-signal-strip.tsx` | File retained |
+| `disposition-bar.tsx` | Track #16 (2026-03-11) | Folded into `supply-pipeline.tsx` then itself retired | File retained |
+| `insight-cards.tsx` | Track #16 (2026-03-11) | Overlapped with ThesisBanner + KPIs | File retained |
+| `waterfall-chart.tsx` | 2026-03-12 | Redundant with `supply-pipeline.tsx` | File retained |
+| `x-signal-feed.tsx` | Wave 2 (2026-03-14) | Replaced by `compact-signal-strip.tsx` (overview-only) | File retained — fully retired, no current use |
+| `supply-pipeline.tsx` | Wave 2 (2026-03-14) | Replaced by Key Metrics + Net Balance chart | File retained |
+| `flow-donut-chart.tsx` | Wave 2 (2026-03-14) | Replaced by delivery breakdown chart | File retained |
+| `intelligence-kpis.tsx` | Wave 2 (2026-03-14) | Replaced by `key-metrics-cards.tsx` | File retained |
+| `cot-positioning-card.tsx` | Wave 3 (2026-03-14) | Replaced by farmer-friendly `farmer-cot-card.tsx` | File retained (now also retired below) |
+| `key-metrics-cards.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `net-balance-chart.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `delivery-breakdown-chart.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `terminal-flow-chart.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `gamified-grain-chart.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `logistics-card.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `province-map.tsx` | Track #43 (2026-04-15) | Provincial delivery volumes; data via Bushy Chat | File retained — **Note:** different surface from the new `/seeding` map (different question, different file) |
+| `storage-breakdown.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `farmer-cot-card.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `crush-utilization-gauge.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `wow-comparison.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
+| `sentiment-poll.tsx` | 2026-04-27 (this audit) | Per-grain Holding/Hauling vote. Was on grain detail; accidentally removed during a prior refactor. **Decision 2026-04-27:** leave it out for now while focus is on Bushel Board cohesion. File retained, database wiring retained. May restore in a future feature pass. |
+
+### Status pending review
+
+| Component | Issue | Decision needed |
+|---|---|---|
+| `percentile-graph.tsx` | Guide previously claimed it was on `/my-farm`, but `delivery-pace-card.tsx` is what's actually rendered | **Deferred until My Farm value review.** Both files retained. Will be resolved when My Farm's overall purpose is rethought. |
+
+## Voice Rules
+
+### Approved
+
+| Pattern | Example |
+|---|---|
+| Plain-English direction | *"Where each market is heading this week, in plain terms."* |
+| Honest data scope | *"USDA NASS week ending April 26, 2026. State data only for the US grain belt."* |
+| Direct invitation | *"Ask anything about Canola this week."* |
+| Ownership framing | *"Your grain. Your decisions."* |
+
+### Drift to avoid
+
+| Anti-pattern | Why | Replace with |
+|---|---|---|
+| ❌ *"Run the US thesis generator and publish path first."* | Operator/dev jargon leaked into a farmer-facing empty state | *"New analysis releases Friday evenings. Check back soon."* |
+| ❌ *"Weekly bullish/bearish scoring across prairie grains and US markets"* | Trader-shaped scoring metaphor | *"Where each market is heading this week"* |
+| ❌ *"Managed Money net long position"* | CFTC trader jargon | *"Fund sentiment"* |
+| ❌ *"S/U ratio at 7.2%"* without context | USDA balance-sheet shorthand | *"Stocks-to-use is tight (7.2% — about 26 days of supply)"* |
+| ❌ *"BPS"*, *"basis"* without explanation in farmer surfaces | Trader unit | *"price gap"* / *"local-price gap"* |
+
+When in doubt, include a *"What This Means For You"* plain-English callout.
+
+## Anti-Patterns
+
+- **Don't render Overview-only components on grain detail.** `compact-signal-strip.tsx` belongs on `/overview`, not `/grain/[slug]`.
+- **Don't add a section without identifying its rhythm.** Identify the page's existing rhythm; fit the section to it. If the new content doesn't fit any existing rhythm, that's a design conversation, not a refactor.
+- **Don't roll bespoke card styles.** `GlassCard` exists; use it.
+- **Don't use CGC region names as React keys.** Not unique. Use `${region}-${index}`.
+- **Don't import server-only modules into `"use client"` components.** Split into `foo-utils.ts` (client-safe) and `foo.ts` (server-only).
+
+## Outstanding Audit Backlog (not yet swept)
+
+Tracked in [docs/plans/2026-04-27-bushel-board-cohesion-audit.md](docs/plans/2026-04-27-bushel-board-cohesion-audit.md):
+
+- **P2.1** Apply `SectionBoundary` uniformly on `/overview`, `/my-farm`, `/us` — Sweep 3
+- **P2.2** Resolve `/advisor` silent redirect — Sweep 3
+- **P2.3** Refactor `/my-farm` hero to use `GlassCard` — Sweep 3
+- **P2.4** Refactor `/us/[market]` to use `BullBearCards` — Sweep 4
+- **P2.5** Refactor `/digest` empty state to use `SectionHeader` — Sweep 3
+- **My Farm value review** (strategic, separate from audit) — drives the `percentile-graph` vs `delivery-pace-card` decision
+
+## Closed by 2026-04-27 audit (this sweep)
+
+- `/us` empty state — replaced developer jargon with farmer-friendly copy
+- `/overview` subtitle — voice pass
+- `/us` subtitle — voice pass
+- `sentiment-poll.tsx` — explicit retired status, decision documented above
+- `x-signal-feed.tsx` — guide self-contradiction resolved (component is fully retired, no longer claimed as active anywhere)
+- Section pattern documentation — switched from prescriptive to descriptive

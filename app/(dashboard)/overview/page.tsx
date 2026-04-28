@@ -27,7 +27,7 @@ export default async function OverviewPage() {
       <section>
         <SectionHeader
           title="AI Market Stance"
-          subtitle="Weekly bullish/bearish scoring across prairie grains and US markets, with bull and bear points"
+          subtitle="Where each market is heading this week, in plain terms."
         />
         <div className="mt-4">
           <GlassCard elevation={2} hover={false}>

@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-04-27T00:00:00-06:00",
+  "mockups": [
+    { "file": "seeding-base.html", "surface": "seeding", "variant": "base", "explores": "Literal seismograph map design with Canada placeholder, crop selector, glyph legend, and week scrubber." },
+    { "file": "seeding-variant-1.html", "surface": "seeding", "variant": "variant-1", "explores": "Dense small-multiples layout showing Corn, Soybeans, Wheat, Barley, and Oats simultaneously." },
+    { "file": "seeding-variant-2.html", "surface": "seeding", "variant": "variant-2", "explores": "Story-led hero glyph with a selected state expanded and peripheral states smaller." },
+    { "file": "seeding-variant-3.html", "surface": "seeding", "variant": "variant-3", "explores": "Accessibility-first table-led layout with the map as supporting context." },
+    { "file": "overview-base.html", "surface": "overview", "variant": "base", "explores": "Current one-section /overview reality with AI Market Stance and a UnifiedMarketStanceChart placeholder." },
+    { "file": "overview-variant-1.html", "surface": "overview", "variant": "variant-1", "explores": "Docs-described three-section overview with visible SectionBoundary isolation per section." },
+    { "file": "overview-variant-2.html", "surface": "overview", "variant": "variant-2", "explores": "Polished single-section overview with farmer-friendly empty-state copy." },
+    { "file": "overview-variant-3.html", "surface": "overview", "variant": "variant-3", "explores": "Workflow-led five-section overview mirroring /my-farm's rhythm." }
+  ]
+}
