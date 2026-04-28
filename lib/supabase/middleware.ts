@@ -30,18 +30,20 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protected routes: redirect unauthenticated users to /login
-  // Public routes: /, /login, /signup, /reset-password, /callback,
-  // and /api/trial-notify (public trial signup notification endpoint).
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/signup") &&
-    !request.nextUrl.pathname.startsWith("/reset-password") &&
-    !request.nextUrl.pathname.startsWith("/callback") &&
-    !request.nextUrl.pathname.startsWith("/api/trial-notify") &&
-    request.nextUrl.pathname !== "/"
-  ) {
+  // Auth model: public-by-default. The home route `/` redirects to
+  // `/overview`, and most pages (overview, grain detail, US markets,
+  // seeding) render without a session. Login is required only for
+  // explicitly listed paths below — currently My Farm. Other
+  // auth-required surfaces (/chat, /digest) self-redirect at the page
+  // level, so they don't need to be duplicated here.
+  const PROTECTED_PATHS = ["/my-farm"];
+  const isProtected = PROTECTED_PATHS.some(
+    (path) =>
+      request.nextUrl.pathname === path ||
+      request.nextUrl.pathname.startsWith(`${path}/`)
+  );
+
+  if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

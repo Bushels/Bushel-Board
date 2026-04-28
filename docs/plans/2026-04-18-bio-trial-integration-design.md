@@ -1,6 +1,8 @@
 # Bio Trial Integration into Bushel Board — Design Doc
 
-**Author:** Claude (Opus 4.7) • **Date:** 2026-04-18 • **Status:** approved, in progress (lighter gates — formal data-audit + security-auditor pass deferred until Phase 6 is complete)
+> **⚠️ DEPRECATED 2026-04-28.** This feature was retired with the public-first auth pivot (STATUS Track 47). The Prairie Landing Page (Track 13), the bio-trial signup flow (Track 45), and the `/api/trial-notify` endpoint were deleted. Phases 4–6 below were never implemented and will not be. The Supabase RPCs `public.submit_bio_trial_signup` / `public.get_bio_trial_acres` remain in the database with no app-side caller. **Do not implement anything from this doc.** Kept for historical reference and possible future seasonal-trial revival.
+
+**Author:** Claude (Opus 4.7) • **Date:** 2026-04-18 • **Status:** Retired 2026-04-28 (originally: approved, in progress)
 
 > **Shipped-state reference (phases 1–3):** See [`docs/reference/bio-trial-signup.md`](../reference/bio-trial-signup.md) before modifying any file in the trial signup flow. That doc captures the current-as-of-ship architecture, env vars, and critical invariants (why the submit path deliberately does *not* use a Next.js server action, why `/api/trial-notify` is exempt from auth middleware, Resend sandbox constraint, etc.). Phases 4–6 below are not yet implemented.
 

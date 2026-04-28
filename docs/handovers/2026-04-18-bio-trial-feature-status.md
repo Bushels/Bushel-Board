@@ -1,5 +1,7 @@
 # Bio Trial — Feature Status & Architecture
 
+> **⚠️ DEPRECATED 2026-04-28.** This handover is historical. The bio-trial signup feature was retired with the Prairie Landing Page when the auth model flipped to public-by-default (STATUS Tracks 47 + 13 + 45). All code paths described below have been deleted. The Supabase RPCs are dormant. The seasonal-trial revival mentioned below would now have to be rebuilt against whatever public surface replaces the landing page. **Do not treat the architecture below as current.**
+
 **Date:** 2026-04-18 (evening)
 **Owner context:** 2026 Buperac × SixRing foliar biostimulant trial. Seasonal feature — expected to reactivate annually when new trials open.
 **Branch:** `feature/bio-trial-integration` (see [Branch strategy](#branch-strategy)).

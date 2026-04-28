@@ -1,6 +1,8 @@
 # Bio Trial Signup — Feature Reference
 
-**Status:** Shipped (2026-04-18). Live on the public landing page at `/`.
+> **⚠️ DEPRECATED 2026-04-28.** This feature was retired alongside the Prairie Landing Page when the auth model flipped to public-by-default (STATUS Tracks 47 + 13 + 45). The frontend (`components/landing/trial-*`), the `/api/trial-notify` route, and the middleware route exemption have all been deleted. The Supabase RPCs `public.submit_bio_trial_signup` and `public.get_bio_trial_acres` remain in the database with no app-side caller — they can be dropped in a future cleanup or kept as a stub for a possible future trial-signup revival. **Do not treat anything below as a current architectural reference.** Kept for historical context and seasonal-trial revival reference only.
+
+**Status:** Retired (2026-04-28). Originally shipped 2026-04-18 on the now-removed landing page at `/`.
 **Supersedes in practice:** Phase 3 of `docs/plans/2026-04-18-bio-trial-integration-design.md`.
 **Owner context:** 2026 Buperac/BioLift foliar biostimulant trial. Lead capture on the homepage; fulfillment handled by SixRing (vendor console is a separate, later phase).
 

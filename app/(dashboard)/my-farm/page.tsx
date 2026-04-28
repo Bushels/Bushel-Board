@@ -1,13 +1,12 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getFarmSummary, getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
 import type { MarketAnalysis } from "@/lib/queries/intelligence";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
 import { getGrainOverview } from "@/lib/queries/grains";
-import { getSentimentOverview } from "@/lib/queries/sentiment";
-import { getUserSentimentVote } from "@/lib/queries/sentiment";
 import { getUserRole } from "@/lib/auth/role-guard";
-import { CURRENT_CROP_YEAR, getCurrentGrainWeek } from "@/lib/utils/crop-year";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { grainSlug } from "@/lib/constants/grains";
 import { deriveRecommendation } from "@/lib/utils/recommendations";
 import type { RecommendationResult } from "@/lib/utils/recommendations";
@@ -16,8 +15,9 @@ import { DeliveryPaceCard } from "@/components/dashboard/delivery-pace-card";
 import { YourImpact } from "@/components/dashboard/your-impact";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
-import { MultiGrainSentiment } from "@/components/dashboard/multi-grain-sentiment";
-import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
+import { GrainStorageCard } from "@/components/dashboard/grain-storage-card";
+import { getGrainStorageComparison } from "@/lib/queries/grain-storage-comparison";
+import { convertKtToTonnes } from "@/lib/utils/grain-units";
 import { MyFarmClient, type MarketSupplyData } from "./client";
 import { Wheat } from "lucide-react";
 
@@ -41,7 +41,9 @@ export default async function MyFarmPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const grainWeek = getCurrentGrainWeek();
+  if (!user) {
+    redirect("/login");
+  }
 
   const [{ data: cropPlans }, farmSummary, analytics, role] = await Promise.all([
     supabase
@@ -61,54 +63,44 @@ export default async function MyFarmPage() {
     (plan) => (plan.deliveries ?? []).length > 0
   );
 
-  // Build grain info for sentiment + recommendations
   const grainSlugs = plans.map((p) => grainSlug(p.grain));
-  const grainInfos = plans.map((p) => ({
-    name: p.grain,
-    slug: grainSlug(p.grain),
-  }));
 
-  // Fetch AAFC supply data, sentiment overview, intelligence, and user votes in parallel
-  const [supplyData, sentimentOverview, grainOverviewData, ...intelligenceAndVotes] =
-    await Promise.all([
-      grainSlugs.length > 0
-        ? getSupplyDispositionForGrains(grainSlugs)
-        : Promise.resolve([]),
-      getSentimentOverview(CURRENT_CROP_YEAR, grainWeek),
-      getGrainOverview(),
-      ...plans.flatMap((p) => [
-        getGrainIntelligence(p.grain),
-        user?.id
-          ? (async () => {
-              const vote = await getUserSentimentVote(
-                supabase,
-                p.grain,
-                CURRENT_CROP_YEAR,
-                grainWeek
-              );
-              return { grain: p.grain, vote };
-            })()
-          : Promise.resolve({ grain: p.grain, vote: null }),
-        getMarketAnalysis(p.grain),
-      ]),
-    ]);
+  // AAFC supply data, market intelligence, market analysis, and per-grain
+  // storage peer comparisons fetched in parallel. (Sentiment fetches were
+  // removed when the per-grain voting block was paused — the components
+  // and DB tables remain so voting can be redeployed later.)
+  const [
+    supplyData,
+    grainOverviewData,
+    storageComparisons,
+    ...intelligenceAndAnalysis
+  ] = await Promise.all([
+    grainSlugs.length > 0
+      ? getSupplyDispositionForGrains(grainSlugs)
+      : Promise.resolve([]),
+    getGrainOverview(),
+    Promise.all(plans.map((p) => getGrainStorageComparison(p.grain))),
+    ...plans.flatMap((p) => [
+      getGrainIntelligence(p.grain),
+      getMarketAnalysis(p.grain),
+    ]),
+  ]);
 
-  // Parse intelligence results, user votes, and market analysis from interleaved array
+  const storageComparisonByGrain = new Map(
+    plans.map((p, i) => [p.grain, storageComparisons[i] ?? null])
+  );
+
+  // Parse intelligence + market analysis from the interleaved tail
+  // (2 entries per plan: [intel, ma, intel, ma, ...]).
   const intelligenceMap: Record<string, Awaited<ReturnType<typeof getGrainIntelligence>>> = {};
-  const initialVotes: Record<string, number | null> = {};
   const marketAnalysisMap: Record<string, MarketAnalysis | null> = {};
 
   for (let i = 0; i < plans.length; i++) {
-    const intel = intelligenceAndVotes[i * 3] as Awaited<
+    const intel = intelligenceAndAnalysis[i * 2] as Awaited<
       ReturnType<typeof getGrainIntelligence>
     >;
-    const voteResult = intelligenceAndVotes[i * 3 + 1] as {
-      grain: string;
-      vote: number | null;
-    };
-    const ma = intelligenceAndVotes[i * 3 + 2] as MarketAnalysis | null;
+    const ma = intelligenceAndAnalysis[i * 2 + 1] as MarketAnalysis | null;
     intelligenceMap[plans[i].grain] = intel;
-    initialVotes[voteResult.grain] = voteResult.vote;
     marketAnalysisMap[plans[i].grain] = ma;
   }
 
@@ -181,8 +173,6 @@ export default async function MyFarmPage() {
     });
   }
 
-  const unlockedSlugs = grainSlugs;
-
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* HERO */}
@@ -209,27 +199,32 @@ export default async function MyFarmPage() {
         />
       </section>
 
-      {/* MARKET SENTIMENT */}
+      {/* MARKET SENTIMENT — paused; will be redeployed once peer-comparison
+          metrics ship. Component + DB tables left intact for restoration. */}
+
+      {/* GRAIN STORAGE — the new headline focus. Two simple inputs per crop:
+          total this year + how much is left in the bin. Below each card is
+          a peer-comparison stat ("X% of farmers have more in the bin"). */}
       {plans.length > 0 && (
         <section className="space-y-4">
           <SectionHeader
-            title="Market Sentiment"
-            subtitle="Vote on your grains and see how the community feels"
+            title="Grain in your bin"
+            subtitle="Update your total and what's left — see how it stacks up against other farmers."
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MultiGrainSentiment
-              grains={grainInfos}
-              grainWeek={grainWeek}
-              cropYear={CURRENT_CROP_YEAR}
-              role={role}
-              initialVotes={initialVotes}
-              sentimentOverview={sentimentOverview}
-            />
-            <SentimentBanner
-              sentimentData={sentimentOverview}
-              grainWeek={grainWeek}
-              unlockedSlugs={unlockedSlugs}
-            />
+            {plans.map((plan) => (
+              <GrainStorageCard
+                key={plan.grain}
+                grain={plan.grain}
+                initialTotalTonnes={convertKtToTonnes(
+                  Number(plan.starting_grain_kt ?? 0)
+                )}
+                initialRemainingTonnes={convertKtToTonnes(
+                  Number(plan.volume_left_to_sell_kt ?? 0)
+                )}
+                comparison={storageComparisonByGrain.get(plan.grain) ?? null}
+              />
+            ))}
           </div>
         </section>
       )}

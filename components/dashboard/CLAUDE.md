@@ -1,6 +1,6 @@
 # Dashboard Components — Agent Guide
 
-**Last refreshed:** 2026-04-27 (cohesion audit sweep)
+**Last refreshed:** 2026-04-28 (My Farm storage tracker + sentiment pause + landing retirement)
 **Audit reference:** [docs/plans/2026-04-27-bushel-board-cohesion-audit.md](docs/plans/2026-04-27-bushel-board-cohesion-audit.md)
 
 ## Page Section Rhythms (Descriptive)
@@ -11,7 +11,7 @@ Different surfaces use different rhythms. The rhythm is chosen for the surface's
 |---|---|---|
 | `/overview` | 1 | Compact AI Market Stance scan. The unified chart IS the surface. |
 | `/grain/[slug]` | 3 | Market Thesis → Ask Bushy → My Farm. Natural left-to-right reading for one grain. |
-| `/my-farm` | 5 | Seasonal workflow: Weekly Summary → Market Sentiment → Your Recommendations → Your Grains → Delivery Pace. |
+| `/my-farm` | 5 | Seasonal workflow: Weekly Summary → **Grain in your bin** → Your Recommendations → Your Grains → Delivery Pace. (*Market Sentiment* slot was paused on 2026-04-28; the new headline is the simple storage tracker with peer comparison.) |
 | `/us` | 2 | US Grain Thesis Overview + US Weekly Thesis Cards. |
 | `/us/[market]` | 3 | US Market Thesis → Top Signals → Data Freshness. |
 | `/seeding` (planned) | 1 | Seismograph map IS the surface. v2/v3 may grow into a /my-farm-style multi-section workflow per [the design doc](docs/plans/2026-04-27-seeding-progress-map-design.md). |
@@ -42,8 +42,7 @@ Different surfaces use different rhythms. The rhythm is chosen for the surface's
 | `bull-bear-cards.tsx` | `/grain/[slug]` Market Thesis | Should also be used on `/us/[market]` (audit P2.4 — Sweep 4 backlog) |
 | `grain-bushy-chat.tsx` | `/grain/[slug]` Ask Bushy | Grain-scoped chat wrapper, 400px height |
 | `grain-farm-progress.tsx` | `/grain/[slug]` My Farm section | 3-tile delivery/contract progress + recommendation + pace badge |
-| `sentiment-banner.tsx` | `/my-farm` Market Sentiment | Cross-grain sentiment overview |
-| `multi-grain-sentiment.tsx` | `/my-farm` Market Sentiment | Voting on selected grains |
+| `grain-storage-card.tsx` | `/my-farm` Grain in your bin | Two-input storage tracker (total + remaining tonnes per grain) with peer comparison "X% of farmers have more in the bin than you". Headline focus on My Farm as of 2026-04-28. |
 | `delivery-pace-card.tsx` | `/my-farm` Delivery Pace | Bar marker visualization |
 | `price-sparkline.tsx` | `/grain/[slug]` hero | Compact price trend |
 | `delivery-gap-chart.tsx` | `/grain/[slug]` (Canola) | YoY cumulative delivery gap, dual Y-axis |
@@ -75,6 +74,8 @@ Different surfaces use different rhythms. The rhythm is chosen for the surface's
 | `crush-utilization-gauge.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
 | `wow-comparison.tsx` | Track #43 (2026-04-15) | Data via Bushy Chat | File retained |
 | `sentiment-poll.tsx` | 2026-04-27 (this audit) | Per-grain Holding/Hauling vote. Was on grain detail; accidentally removed during a prior refactor. **Decision 2026-04-27:** leave it out for now while focus is on Bushel Board cohesion. File retained, database wiring retained. May restore in a future feature pass. |
+| `multi-grain-sentiment.tsx` | 2026-04-28 (My Farm pivot) | Cross-grain Holding/Hauling voting card on /my-farm. Removed from page render in favor of the new `grain-storage-card.tsx`. **Paused, not deleted** — file, server action `voteSentiment()`, and `grain_sentiment_votes` / `sentiment_history` / `sentiment_daily_rollup` tables all retained. To restore: re-import in `app/(dashboard)/my-farm/page.tsx`, re-add the `getSentimentOverview` + `getUserSentimentVote` parallel fetches, and put the section back between Weekly Summary and Grain in your bin. |
+| `sentiment-banner.tsx` | 2026-04-28 (My Farm pivot) | Cross-grain sentiment overview rail. Paired with `multi-grain-sentiment` retirement above. Same restoration path. |
 
 ### Status pending review
 
@@ -122,7 +123,7 @@ Tracked in [docs/plans/2026-04-27-bushel-board-cohesion-audit.md](docs/plans/202
 - **P2.3** Refactor `/my-farm` hero to use `GlassCard` — Sweep 3
 - **P2.4** Refactor `/us/[market]` to use `BullBearCards` — Sweep 4
 - **P2.5** Refactor `/digest` empty state to use `SectionHeader` — Sweep 3
-- **My Farm value review** (strategic, separate from audit) — drives the `percentile-graph` vs `delivery-pace-card` decision
+- **My Farm value review** (strategic, separate from audit) — drives the `percentile-graph` vs `delivery-pace-card` decision. Partially addressed by the 2026-04-28 storage-tracker pivot below; full review of `delivery-pace-card.tsx` still pending.
 
 ## Closed by 2026-04-27 audit (this sweep)
 
@@ -132,3 +133,11 @@ Tracked in [docs/plans/2026-04-27-bushel-board-cohesion-audit.md](docs/plans/202
 - `sentiment-poll.tsx` — explicit retired status, decision documented above
 - `x-signal-feed.tsx` — guide self-contradiction resolved (component is fully retired, no longer claimed as active anywhere)
 - Section pattern documentation — switched from prescriptive to descriptive
+
+## Closed by 2026-04-28 (My Farm pivot + auth pivot)
+
+- **Auth model flipped to public-by-default.** Middleware now denylists only `/my-farm`; everything else (Overview, Grain detail, US, Seeding) is publicly accessible. Root route redirects to `/overview`.
+- **Landing page retired.** `app/page.tsx` reduced to a one-line redirect; `components/landing/` and `app/api/trial-notify/route.ts` deleted. Bio-trial design/handover docs marked deprecated.
+- **My Farm headline changed.** New `grain-storage-card.tsx` (two-input total + remaining tonnes) is the prominent slot. Sentiment voting block removed; components paused not deleted (see Retired table).
+- **Nav reorder shipped.** `My Farm` tab moved out of the central pill and anchored to the right cluster of the header (`components/layout/my-farm-nav-link.tsx`). Mobile sheet reordered so My Farm sits at the bottom of the primary nav block.
+- **New RPC.** `get_grain_storage_comparison(p_grain)` ships peer comparison with ≥5-farmer privacy gate.
