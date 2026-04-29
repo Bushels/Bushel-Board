@@ -15,7 +15,7 @@
 // in lib/kalshi/types.ts.
 // ────────────────────────────────────────────────────────────────────────
 
-import { formatVolume } from "@/lib/kalshi/client";
+import { buildKalshiUrl, formatVolume } from "@/lib/kalshi/client";
 import type { KalshiCrop, KalshiMarket } from "@/lib/kalshi/types";
 
 const INK = "#2a261e";
@@ -96,9 +96,10 @@ function VolumeBar({
 }
 
 /**
- * Tiny built-from-quotes mini-spark — uses bid/last/ask as 3 implicit
- * points to suggest "where is the market quoting around the last
- * print". Not a real time-series, but communicates spread+last clearly.
+ * Honest 2-point mini-spark: yesterday's close → current YES probability.
+ * Uses Kalshi's `previous_price_dollars` (yesterday's close) as the left
+ * point. Slope direction is colored: prairie up, amber down, neutral
+ * dashed when no prior reference exists yet.
  */
 function MiniSpark({
   market,
@@ -111,13 +112,13 @@ function MiniSpark({
   height?: number;
   color: string;
 }) {
-  const bid = market.yesBid;
-  const last = market.lastPrice;
-  const ask = market.yesAsk;
-  const points = [bid, last, ask].filter((v): v is number => v != null && v >= 0 && v <= 1);
-  if (points.length < 2) {
+  const prior = market.previousLastPrice ?? market.previousYesBid;
+  const current = market.yesProbability;
+
+  if (prior == null || current == null) {
+    // Neutral dashed line — no prior reference yet (new market).
     return (
-      <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height}>
+      <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden>
         <line
           x1={0}
           y1={height / 2}
@@ -131,22 +132,42 @@ function MiniSpark({
       </svg>
     );
   }
-  const minV = Math.min(...points);
-  const maxV = Math.max(...points);
-  const range = Math.max(0.01, maxV - minV);
-  const PAD = 1;
+
+  const direction = current > prior ? "up" : current < prior ? "down" : "flat";
+  const lineColor =
+    direction === "up" ? PRAIRIE : direction === "down" ? AMBER : INK_MUTED;
+
+  // Pad inside the viewBox so the stroke doesn't clip top/bottom.
+  const PAD = 2;
   const innerW = width - PAD * 2;
   const innerH = height - PAD * 2;
-  const path = points
-    .map((v, i) => {
-      const x = PAD + (i / (points.length - 1)) * innerW;
-      const y = PAD + (1 - (v - minV) / range) * innerH;
-      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
+
+  // Map prior + current onto y, normalized within the spread of the two
+  // points alone — this exaggerates a small move so it reads as movement.
+  const minV = Math.min(prior, current);
+  const maxV = Math.max(prior, current);
+  const range = Math.max(0.01, maxV - minV);
+  const yFor = (v: number) => PAD + (1 - (v - minV) / range) * innerH;
+
+  // Curved path with one mid-control-point so the line reads as a gentle
+  // wave rather than a straight rule — feels editorial, not technical.
+  const x1 = PAD;
+  const x2 = PAD + innerW;
+  const y1 = yFor(prior);
+  const y2 = yFor(current);
+  const cx = PAD + innerW * 0.5;
+  const cy = direction === "flat" ? y1 : (y1 + y2) / 2;
+
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden>
-      <path d={path} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" />
+      <path
+        d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
+        fill="none"
+        stroke={lineColor}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <circle cx={x2} cy={y2} r={1.8} fill={lineColor} />
     </svg>
   );
 }
@@ -165,13 +186,13 @@ function MarketRow({
     market.yesProbability != null ? Math.round(market.yesProbability * 100) : 50;
   const noPct = 100 - yesPct;
 
-  // Movement: lastPrice vs midOf(bid,ask) — when last is on a different
-  // tick than the current quote, that's the most-recent direction. It
-  // isn't 24h but it's an honest single-glance mover signal.
+  // Honest day-over-day delta: today's YES probability minus yesterday's
+  // close (Kalshi's `previous_price_dollars`). Falls back to NO ¢ when no
+  // prior reference exists (new market).
   let movement: number | null = null;
-  if (market.lastPrice != null && market.yesBid != null && market.yesAsk != null) {
-    const mid = (market.yesBid + market.yesAsk) / 2;
-    movement = Math.round((market.lastPrice - mid) * 100);
+  const prior = market.previousLastPrice ?? market.previousYesBid;
+  if (prior != null && market.yesProbability != null) {
+    movement = Math.round((market.yesProbability - prior) * 100);
   }
   const moveColor =
     movement == null
@@ -183,9 +204,7 @@ function MarketRow({
           : INK_MUTED;
   const moveGlyph = movement == null ? "·" : movement > 0 ? "↑" : movement < 0 ? "↓" : "·";
 
-  const kalshiUrl = `https://kalshi.com/markets/${encodeURIComponent(
-    market.eventTicker ?? market.ticker,
-  )}`;
+  const kalshiUrl = buildKalshiUrl(market.seriesTicker);
 
   return (
     <a
@@ -279,8 +298,9 @@ function MarketRow({
             letterSpacing: "0.06em",
           }}
         >
-          {moveGlyph}{" "}
-          {movement != null ? `${Math.abs(movement)}¢` : `${noPct}¢ NO`}
+          {movement != null
+            ? `${moveGlyph} ${Math.abs(movement)}¢ 24h`
+            : `NO ${noPct}¢`}
         </span>
       </div>
 

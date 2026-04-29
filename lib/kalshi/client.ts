@@ -149,6 +149,35 @@ export function deriveDisplayTitle(
 }
 
 /**
+ * Coerce a Kalshi previous-* field to a usable price. Kalshi seeds these
+ * fields with `"0.0000"` for markets that haven't traded yet, which would
+ * compute a meaningless "moved from 0¢ to 51¢ overnight" delta. Treat
+ * exact-zero strings as missing, not as a real prior price.
+ */
+function parsePreviousPrice(
+  value: string | number | null | undefined,
+): number | null {
+  const n = parseKalshiNumber(value);
+  if (n == null || n <= 0 || n >= 1) return null;
+  return n;
+}
+
+/**
+ * Build the canonical kalshi.com web URL for a market. Kalshi's URL
+ * pattern is `/markets/{lowercase-series-ticker}` — when visited, it
+ * redirects to the canonical event page (e.g.,
+ * `/markets/kxcornmon/corn-monthly/kxcornmon-26apr3017`). We use the
+ * series-ticker form because it's stable across event rolls and we
+ * don't have access to Kalshi's slug strings from the API.
+ *
+ * Verified 2026-04-29 against live Kalshi for KXFERT, KXCORNMON.
+ * The earlier `kalshi.com/markets/{eventTicker}` form returned 404.
+ */
+export function buildKalshiUrl(seriesTicker: string): string {
+  return `https://kalshi.com/markets/${encodeURIComponent(seriesTicker.toLowerCase())}`;
+}
+
+/**
  * Normalize one raw Kalshi market response into our display shape.
  * Returns null if the row is missing required identifiers.
  */
@@ -161,6 +190,8 @@ export function normalizeKalshiMarket(
   const yesBid = parseKalshiNumber(raw.yes_bid_dollars);
   const yesAsk = parseKalshiNumber(raw.yes_ask_dollars);
   const lastPrice = parseKalshiNumber(raw.last_price_dollars);
+  const previousLastPrice = parsePreviousPrice(raw.previous_price_dollars);
+  const previousYesBid = parsePreviousPrice(raw.previous_yes_bid_dollars);
   const volume =
     parseKalshiNumber(raw.volume_fp) ?? parseKalshiNumber(raw.volume) ?? 0;
   const openInterest =
@@ -180,6 +211,8 @@ export function normalizeKalshiMarket(
     yesBid,
     yesAsk,
     lastPrice,
+    previousLastPrice,
+    previousYesBid,
     yesProbability: deriveYesProbability(lastPrice, yesBid, yesAsk),
     volume,
     openInterest,

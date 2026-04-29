@@ -186,6 +186,10 @@ function fallbackToMarket(f: FallbackMarket): KalshiMarket {
     yesBid: f.yesBid,
     yesAsk: f.yesAsk,
     lastPrice: f.lastPrice,
+    // Snapshot mode has no real prior reference — keep these null so
+    // the UI shows "NO X¢" rather than fabricating a delta.
+    previousLastPrice: null,
+    previousYesBid: null,
     yesProbability: f.yesProbability,
     volume: f.volume,
     openInterest: f.openInterest,

@@ -32,6 +32,15 @@ export interface KalshiMarket {
   yesBid: number | null;
   yesAsk: number | null;
   lastPrice: number | null;
+  /**
+   * Last price as of the previous trading day's close. Kalshi exposes this
+   * as `previous_price_dollars` on every market response. Used for the
+   * honest 24h delta in the dense roll (no synthesis from spread).
+   * `null` when the market was minted today (or hasn't traded yet).
+   */
+  previousLastPrice: number | null;
+  /** Previous trading day's YES bid close. */
+  previousYesBid: number | null;
   yesProbability: number | null;
   volume: number;
   openInterest: number;
@@ -55,6 +64,8 @@ export interface KalshiRawMarket {
   yes_bid_dollars?: string | number | null;
   yes_ask_dollars?: string | number | null;
   last_price_dollars?: string | number | null;
+  previous_price_dollars?: string | number | null;
+  previous_yes_bid_dollars?: string | number | null;
   volume_fp?: string | number | null;
   volume?: string | number | null;
   open_interest_fp?: string | number | null;

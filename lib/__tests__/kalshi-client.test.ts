@@ -4,6 +4,7 @@ import {
   FEATURED_KALSHI_TICKERS,
   __clearKalshiCacheForTests,
   __getKalshiCacheForTests,
+  buildKalshiUrl,
   candleMidPrice,
   deriveDisplayTitle,
   deriveYesProbability,
@@ -54,6 +55,8 @@ const REAL_CORN_ROW: KalshiRawMarket = {
   yes_bid_dollars: "0.6600",
   yes_ask_dollars: "0.6800",
   last_price_dollars: "0.6600",
+  previous_price_dollars: "0.7200",
+  previous_yes_bid_dollars: "0.7100",
   volume_fp: "3013.54",
   open_interest_fp: "1940.74",
   close_time: "2026-04-30T21:00:00Z",
@@ -171,6 +174,24 @@ describe("deriveYesProbability", () => {
   });
 });
 
+describe("buildKalshiUrl", () => {
+  it("uses the lowercase series ticker as the URL slug", () => {
+    expect(buildKalshiUrl("KXFERT")).toBe("https://kalshi.com/markets/kxfert");
+    expect(buildKalshiUrl("KXCORNMON")).toBe(
+      "https://kalshi.com/markets/kxcornmon",
+    );
+  });
+
+  it("URL-encodes non-alphanumeric characters defensively", () => {
+    // Kalshi tickers are uppercase-alphanumeric in practice, but if a
+    // future series ever included a slash or space we should not
+    // produce a malformed URL.
+    expect(buildKalshiUrl("KX/WEIRD")).toBe(
+      "https://kalshi.com/markets/kx%2Fweird",
+    );
+  });
+});
+
 describe("normalizeKalshiMarket", () => {
   it("maps a real API row into our shape", () => {
     const m = normalizeKalshiMarket(REAL_CORN_ROW, CORN_SPEC);
@@ -182,10 +203,33 @@ describe("normalizeKalshiMarket", () => {
     expect(m?.yesBid).toBe(0.66);
     expect(m?.yesAsk).toBe(0.68);
     expect(m?.lastPrice).toBe(0.66);
+    expect(m?.previousLastPrice).toBe(0.72);
+    expect(m?.previousYesBid).toBe(0.71);
     expect(m?.volume).toBe(3013.54);
     expect(m?.openInterest).toBe(1940.74);
     expect(m?.yesProbability).toBe(0.66);
     expect(m?.closeLabel).toBe("Apr 30");
+  });
+
+  it("treats Kalshi's '0.0000' previous-* placeholders as missing data", () => {
+    const newMarket: KalshiRawMarket = {
+      ticker: "KXCORNMON-NEW",
+      title: "Brand new corn market",
+      status: "active",
+      yes_bid_dollars: "0.5000",
+      yes_ask_dollars: "0.5500",
+      last_price_dollars: "0.5200",
+      // Kalshi seeds these as "0.0000" until the market has its first
+      // overnight; a synthetic 52¢ "moved up" delta from 0¢ would be
+      // misleading editorial copy.
+      previous_price_dollars: "0.0000",
+      previous_yes_bid_dollars: "0.0000",
+    };
+    const m = normalizeKalshiMarket(newMarket, CORN_SPEC);
+    expect(m?.previousLastPrice).toBeNull();
+    expect(m?.previousYesBid).toBeNull();
+    // Current quotes still parse fine.
+    expect(m?.yesProbability).toBe(0.52);
   });
 
   it("returns null when the row is missing required identifiers", () => {

@@ -10,7 +10,7 @@
 // in lib/kalshi/types.ts.
 // ────────────────────────────────────────────────────────────────────────
 
-import { formatVolume } from "@/lib/kalshi/client";
+import { buildKalshiUrl, formatVolume } from "@/lib/kalshi/client";
 import type { KalshiCandle, KalshiCrop, KalshiMarket, KalshiTrade } from "@/lib/kalshi/types";
 import { Sparkline } from "./sparkline";
 
@@ -76,13 +76,17 @@ export function SpotlightCard({ market, candles, trades }: SpotlightCardProps) {
       : 50;
 
   // Movement vs. start of candle window (24h prior, by default).
+  // Falls back to Kalshi's `previous_price_dollars` (yesterday's close) when
+  // the candle series is empty — common on quiet markets that didn't trade
+  // every hour for the lookback window.
   const firstCandlePrice =
     candles.length > 0
       ? candles[0].yesBidClose ?? candles[0].yesAskClose ?? null
       : null;
+  const referencePrice = firstCandlePrice ?? market.previousLastPrice;
   const movement =
-    firstCandlePrice != null && market.yesProbability != null
-      ? Math.round((market.yesProbability - firstCandlePrice) * 100)
+    referencePrice != null && market.yesProbability != null
+      ? Math.round((market.yesProbability - referencePrice) * 100)
       : null;
 
   const movementColor =
@@ -96,9 +100,7 @@ export function SpotlightCard({ market, candles, trades }: SpotlightCardProps) {
   const movementGlyph =
     movement == null ? "·" : movement > 0 ? "↑" : movement < 0 ? "↓" : "·";
 
-  const kalshiUrl = `https://kalshi.com/markets/${encodeURIComponent(
-    market.eventTicker ?? market.ticker,
-  )}`;
+  const kalshiUrl = buildKalshiUrl(market.seriesTicker);
 
   return (
     <div
