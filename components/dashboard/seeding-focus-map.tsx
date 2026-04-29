@@ -12,6 +12,7 @@ import type { MapEvent, MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { SeismographGlyph } from "@/components/dashboard/seeding-seismograph-glyph";
 import { SeedingStateTooltip } from "@/components/dashboard/seeding-state-tooltip";
+import { SeedingDrillPanel } from "@/components/dashboard/seeding-drill-panel";
 import { GlassCard } from "@/components/ui/glass-card";
 import {
   groupByState,
@@ -187,6 +188,10 @@ function SeedingFocusMapInner({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [showNdvi, setShowNdvi] = useState(true);
   const [pinnedStateCode, setPinnedStateCode] = useState<string | null>(null);
+  const [drillSelection, setDrillSelection] = useState<{
+    stateCode: string;
+    commodity: string;
+  } | null>(null);
 
   const ndviCompositeDate = useMemo(() => {
     if (!currentWeek) return snapToModis8Day(new Date());
@@ -326,9 +331,11 @@ function SeedingFocusMapInner({
       if (pinnedStateCode === stateCode) {
         setPinnedStateCode(null);
         setTooltip(null);
+        setDrillSelection(null);
         return;
       }
       setPinnedStateCode(stateCode);
+      setDrillSelection({ stateCode, commodity: activeCommodity });
       const first = stateRows[0];
       const map = mapRef.current?.getMap();
       if (!first) return;
@@ -349,12 +356,13 @@ function SeedingFocusMapInner({
         showTooltipForLngLat(stateRows);
       });
     },
-    [pinnedStateCode, reducedMotion, showTooltipForLngLat],
+    [activeCommodity, pinnedStateCode, reducedMotion, showTooltipForLngLat],
   );
 
-  // Clear pinned state when commodity changes (different state set may apply)
+  // Clear pinned state and drill panel when commodity changes
   useEffect(() => {
     setPinnedStateCode(null);
+    setDrillSelection(null);
   }, [selectedCommodity]);
 
   return (
@@ -481,6 +489,10 @@ function SeedingFocusMapInner({
                       onClick={(event) => {
                         event.stopPropagation();
                         showTooltipForElement(stateRows, event.currentTarget);
+                        setDrillSelection({
+                          stateCode,
+                          commodity: activeCommodity,
+                        });
                       }}
                       onBlur={() => setTooltip(null)}
                     >
@@ -510,6 +522,10 @@ function SeedingFocusMapInner({
                       onClick={(event) => {
                         event.stopPropagation();
                         showTooltipForElement(stateRows, event.currentTarget);
+                        setDrillSelection({
+                          stateCode,
+                          commodity: activeCommodity,
+                        });
                       }}
                       onBlur={() => setTooltip(null)}
                     >
@@ -559,6 +575,22 @@ function SeedingFocusMapInner({
               anchor={tooltip.anchor}
               containerSize={tooltip.containerSize}
               reducedMotion={reducedMotion}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {drillSelection && (
+            <SeedingDrillPanel
+              key={`${drillSelection.stateCode}-${drillSelection.commodity}`}
+              stateCode={drillSelection.stateCode}
+              commodity={drillSelection.commodity}
+              currentWeek={currentWeek}
+              onClose={() => {
+                setDrillSelection(null);
+                setPinnedStateCode(null);
+                setTooltip(null);
+              }}
             />
           )}
         </AnimatePresence>
