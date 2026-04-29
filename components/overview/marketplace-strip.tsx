@@ -1,8 +1,12 @@
 // components/overview/marketplace-strip.tsx
-// Kalshi predictive market cards (mocked) + spot price tiles.
-// Kalshi cards are explicitly mocked — API wiring is deferred.
-// Spot prices are real from grain_prices table.
+// Kalshi prediction-market cards (live) + spot price tiles (live).
+// Kalshi data flows from lib/kalshi/client.ts — fetched per render with a
+// 5-minute in-memory cache. Falls back to a static snapshot if the API is
+// unreachable, so the page never goes blank.
 
+import { fetchKalshiMarkets } from "@/lib/kalshi/client";
+import { formatVolume } from "@/lib/kalshi/client";
+import type { KalshiCrop, KalshiMarket } from "@/lib/kalshi/types";
 import type { SpotPrice } from "@/lib/queries/overview-data";
 
 const INK = "#2a261e";
@@ -15,63 +19,88 @@ const PRAIRIE = "#437a22";
 const AMBER = "#b8702a";
 const CANOLA = "#c17f24";
 
-// TODO: Kalshi API wiring deferred. These are representative mock contracts
-// matching the Kalshi corn/soy product line as of 2026-04.
-// When the API is wired: replace with real fetchKalshiContracts() call
-// and remove this stub array.
-interface KalshiContract {
-  crop: "CORN" | "SOY";
+interface KalshiCardData {
+  crop: KalshiCrop;
   title: string;
   yesPct: number;
   noPct: number;
   volume: string;
-  move: string;
   expires: string;
+  isLive: boolean;
 }
 
-const KALSHI_MOCK: KalshiContract[] = [
+// Static snapshot used when Kalshi is unreachable. Captured 2026-04-28 from
+// production data; kept short so degraded mode is obviously a snapshot, not
+// pretending to be live.
+const KALSHI_FALLBACK: KalshiCardData[] = [
   {
     crop: "CORN",
-    title: "Will Dec corn close above $4.75 this week?",
-    yesPct: 64,
-    noPct: 36,
-    volume: "$284k",
-    move: "+8",
-    expires: "Fri, May 2",
-  },
-  {
-    crop: "CORN",
-    title: "USDA May WASDE: corn ending stocks below 2.0 bn bu?",
-    yesPct: 41,
-    noPct: 59,
-    volume: "$612k",
-    move: "-3",
-    expires: "May 9",
+    title: "Will May corn close above $4.55/bu Apr 30?",
+    yesPct: 66,
+    noPct: 34,
+    volume: "$3.0k",
+    expires: "Apr 30",
+    isLive: false,
   },
   {
     crop: "SOY",
-    title: "Will May soybeans close above $10.50 this week?",
-    yesPct: 28,
-    noPct: 72,
-    volume: "$198k",
-    move: "-12",
-    expires: "Fri, May 2",
+    title: "Will May soy close above $11.56/bu Apr 30?",
+    yesPct: 85,
+    noPct: 15,
+    volume: "$3.7k",
+    expires: "Apr 30",
+    isLive: false,
   },
   {
-    crop: "SOY",
-    title: "Soybean planting >55% by May 12?",
-    yesPct: 71,
-    noPct: 29,
-    volume: "$94k",
-    move: "+5",
-    expires: "May 12",
+    crop: "WHEAT",
+    title: "Will May wheat close above $5.79/bu Apr 30?",
+    yesPct: 90,
+    noPct: 10,
+    volume: "$2.6k",
+    expires: "Apr 30",
+    isLive: false,
+  },
+  {
+    crop: "CORN",
+    title: "Will May corn close above $4.71/bu May 1?",
+    yesPct: 52,
+    noPct: 48,
+    volume: "$1.0k",
+    expires: "May 1",
+    isLive: false,
   },
 ];
 
-function KalshiCard({ k }: { k: KalshiContract }) {
-  const cropColor = k.crop === "CORN" ? CANOLA : PRAIRIE;
-  const isUp = k.move.startsWith("+");
-  const moveColor = isUp ? PRAIRIE : AMBER;
+function cropColor(crop: KalshiCrop): string {
+  switch (crop) {
+    case "CORN":
+      return CANOLA;
+    case "SOY":
+      return PRAIRIE;
+    case "WHEAT":
+      return AMBER;
+    default:
+      return INK_MUTED;
+  }
+}
+
+function toCardData(m: KalshiMarket): KalshiCardData {
+  // Probability is in [0, 1]; round to nearest percent for display.
+  const yes = m.yesProbability;
+  const yesPct = yes != null ? Math.max(0, Math.min(100, Math.round(yes * 100))) : 50;
+  return {
+    crop: m.crop,
+    title: m.title,
+    yesPct,
+    noPct: 100 - yesPct,
+    volume: formatVolume(m.volume),
+    expires: m.closeLabel,
+    isLive: true,
+  };
+}
+
+function KalshiCard({ k }: { k: KalshiCardData }) {
+  const accent = cropColor(k.crop);
   return (
     <div
       style={{
@@ -93,7 +122,7 @@ function KalshiCard({ k }: { k: KalshiContract }) {
           style={{
             fontSize: 10,
             letterSpacing: "0.18em",
-            color: cropColor,
+            color: accent,
             fontWeight: 700,
             textTransform: "uppercase" as const,
           }}
@@ -165,9 +194,6 @@ function KalshiCard({ k }: { k: KalshiContract }) {
         }}
       >
         <span>Vol {k.volume}</span>
-        <span style={{ color: moveColor, fontWeight: 600 }}>
-          {isUp ? "↑" : "↓"} {k.move.replace(/^[+-]/, "")} this week
-        </span>
         <span>Closes {k.expires}</span>
       </div>
     </div>
@@ -241,8 +267,37 @@ interface MarketplaceStripProps {
   spotPrices: SpotPrice[];
 }
 
-export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
+export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
   const visibleSpot = spotPrices.slice(0, 3);
+
+  const liveMarkets = await fetchKalshiMarkets();
+  const usingFallback = liveMarkets.length === 0;
+  const cards: KalshiCardData[] = usingFallback
+    ? KALSHI_FALLBACK
+    : liveMarkets.slice(0, 4).map(toCardData);
+
+  // If we got fewer than 4 live markets, top up with fallback cards so the
+  // 2×2 grid stays full. Tag the borrowed cards as not live.
+  if (!usingFallback && cards.length < 4) {
+    const filler = KALSHI_FALLBACK.slice(0, 4 - cards.length).map((c) => ({
+      ...c,
+      isLive: false,
+    }));
+    cards.push(...filler);
+  }
+
+  const headerLabel = usingFallback
+    ? "Snapshot · Kalshi reconnecting · CBOT live"
+    : "Live · Kalshi + CBOT";
+
+  const asOf = new Date().toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Edmonton",
+    timeZoneName: "short",
+  });
 
   return (
     <div>
@@ -278,7 +333,7 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
             fontWeight: 600,
           }}
         >
-          Preview · Kalshi coming soon · CBOT live
+          {headerLabel}
         </span>
       </div>
       <p
@@ -305,8 +360,8 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         }}
         className="grid-cols-1 sm:grid-cols-2"
       >
-        {KALSHI_MOCK.map((k, i) => (
-          <KalshiCard key={i} k={k} />
+        {cards.map((k, i) => (
+          <KalshiCard key={`${k.crop}-${i}`} k={k} />
         ))}
       </div>
 
@@ -327,7 +382,7 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         </div>
       )}
 
-      {/* Kalshi mock disclaimer */}
+      {/* Footnote */}
       <div
         style={{
           marginTop: 10,
@@ -337,8 +392,9 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
           letterSpacing: "0.04em",
         }}
       >
-        Predictive market data is illustrative. Kalshi API integration deferred
-        — live wiring coming soon.
+        {usingFallback
+          ? "Live data unavailable — showing recent snapshot."
+          : `As of ${asOf} · Kalshi public API.`}
       </div>
     </div>
   );
