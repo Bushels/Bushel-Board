@@ -18,7 +18,11 @@ import {
   type SeismographRow,
 } from "@/lib/queries/seeding-progress-utils";
 import type { CommodityDashboard } from "@/lib/queries/seeding-progress";
+import { snapToModis8Day, buildGibsTileUrl } from "@/lib/utils/ndvi-time";
 import { cn } from "@/lib/utils";
+
+const NDVI_SOURCE_ID = "ndvi-modis-8day";
+const NDVI_LAYER_ID = "ndvi-modis-8day-layer";
 
 interface Props {
   dashboards: CommodityDashboard[];
@@ -83,23 +87,70 @@ function polishBaseMap(map: MapEvent["target"]): void {
   for (const layer of layers) {
     if (layer.type !== "symbol") continue;
 
-    const keepStateLabel = layer.id.includes("state-label");
+    // satellite-streets-v12 has heavier label noise than light-v11 — keep
+    // only state and country labels, dial the rest down to zero.
+    const keepLabel =
+      layer.id.includes("state-label") || layer.id.includes("country-label");
     try {
       map.setLayoutProperty(
         layer.id,
         "visibility",
-        keepStateLabel ? "visible" : "none",
+        keepLabel ? "visible" : "none",
       );
 
-      if (keepStateLabel) {
-        map.setPaintProperty(layer.id, "text-color", "#8c806a");
-        map.setPaintProperty(layer.id, "text-halo-color", "#f5f3ee");
-        map.setPaintProperty(layer.id, "text-halo-width", 1);
-        map.setPaintProperty(layer.id, "text-opacity", 0.58);
+      if (keepLabel) {
+        // Light, high-contrast against satellite imagery.
+        map.setPaintProperty(layer.id, "text-color", "#f5f3ee");
+        map.setPaintProperty(layer.id, "text-halo-color", "#1a1813");
+        map.setPaintProperty(layer.id, "text-halo-width", 1.4);
+        map.setPaintProperty(layer.id, "text-opacity", 0.85);
       }
     } catch {
       // Mapbox style layers vary slightly by release; ignore unavailable layers.
     }
+  }
+}
+
+function ensureNdviLayer(
+  map: MapEvent["target"],
+  compositeDate: string,
+  initiallyVisible: boolean,
+): void {
+  const tileUrl = buildGibsTileUrl(compositeDate);
+
+  // Find the first symbol layer so we can insert the raster *under* labels
+  // (state/country names should stay readable over the NDVI tint).
+  const layers = map.getStyle().layers ?? [];
+  const firstSymbolLayerId = layers.find(
+    (layer) => layer.type === "symbol",
+  )?.id;
+
+  if (!map.getSource(NDVI_SOURCE_ID)) {
+    map.addSource(NDVI_SOURCE_ID, {
+      type: "raster",
+      tiles: [tileUrl],
+      tileSize: 256,
+      attribution: "NDVI © NASA EOSDIS GIBS · MODIS Terra",
+    });
+  }
+
+  if (!map.getLayer(NDVI_LAYER_ID)) {
+    map.addLayer(
+      {
+        id: NDVI_LAYER_ID,
+        type: "raster",
+        source: NDVI_SOURCE_ID,
+        paint: {
+          "raster-opacity": 0.55,
+          "raster-saturation": 0.4,
+          "raster-contrast": 0.1,
+        },
+        layout: {
+          visibility: initiallyVisible ? "visible" : "none",
+        },
+      },
+      firstSymbolLayerId,
+    );
   }
 }
 
@@ -134,6 +185,16 @@ function SeedingFocusMapInner({
   const previousCommodityRef = useRef(selectedCommodity);
   const [mapReady, setMapReady] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [showNdvi, setShowNdvi] = useState(true);
+
+  const ndviCompositeDate = useMemo(() => {
+    if (!currentWeek) return snapToModis8Day(new Date());
+    try {
+      return snapToModis8Day(currentWeek);
+    } catch {
+      return snapToModis8Day(new Date());
+    }
+  }, [currentWeek]);
 
   const activeDashboard = useMemo(
     () =>
@@ -165,10 +226,44 @@ function SeedingFocusMapInner({
     });
   }, [activeRows]);
 
-  const handleMapLoad = useCallback((event: MapEvent) => {
-    polishBaseMap(event.target);
-    setMapReady(true);
-  }, []);
+  const handleMapLoad = useCallback(
+    (event: MapEvent) => {
+      polishBaseMap(event.target);
+      ensureNdviLayer(event.target, ndviCompositeDate, showNdvi);
+      setMapReady(true);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+    // ndviCompositeDate / showNdvi are captured at mount; their changes are
+    // handled by the dedicated effects below. This callback only fires on
+    // the initial Mapbox load event.
+  );
+
+  // Update NDVI tiles when the user scrubs the week — Mapbox swaps tiles
+  // without recreating the source, so this is cheap.
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const source = map.getSource(NDVI_SOURCE_ID) as
+      | { setTiles?: (tiles: string[]) => void }
+      | undefined;
+    if (source?.setTiles) {
+      source.setTiles([buildGibsTileUrl(ndviCompositeDate)]);
+    }
+  }, [ndviCompositeDate, mapReady]);
+
+  // Toggle NDVI layer visibility without removing it (keeps tile cache warm).
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapRef.current?.getMap();
+    if (!map?.getLayer(NDVI_LAYER_ID)) return;
+    map.setLayoutProperty(
+      NDVI_LAYER_ID,
+      "visibility",
+      showNdvi ? "visible" : "none",
+    );
+  }, [showNdvi, mapReady]);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -258,9 +353,26 @@ function SeedingFocusMapInner({
           })}
         </div>
 
-        <p className="text-sm font-medium text-muted-foreground">
-          Hover a state for details
-        </p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowNdvi((prev) => !prev)}
+            aria-pressed={showNdvi}
+            aria-label="Toggle NDVI satellite vegetation overlay"
+            className={cn(
+              "inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
+              showNdvi
+                ? "border-prairie/60 bg-prairie/12 text-prairie"
+                : "border-border/45 bg-card/50 text-muted-foreground hover:border-prairie/40 hover:bg-prairie/8 hover:text-foreground",
+            )}
+          >
+            <span aria-hidden="true">🛰</span>
+            {showNdvi ? "NDVI on" : "NDVI off"}
+          </button>
+          <p className="hidden text-sm font-medium text-muted-foreground sm:block">
+            Hover a state for details
+          </p>
+        </div>
       </header>
 
       <div
@@ -272,7 +384,7 @@ function SeedingFocusMapInner({
           ref={mapRef}
           initialViewState={INITIAL_VIEW}
           style={{ width: "100%", height: "100%" }}
-          mapStyle="mapbox://styles/mapbox/light-v11"
+          mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
           mapboxAccessToken={mapboxToken}
           maxBounds={MAX_BOUNDS}
           minZoom={3.3}
@@ -368,11 +480,18 @@ function SeedingFocusMapInner({
           className="pointer-events-none absolute inset-0 z-10 rounded-2xl"
           style={{
             background:
-              "radial-gradient(circle at center, transparent 56%, rgba(245,243,238,0.44) 100%)",
+              "radial-gradient(circle at center, transparent 56%, rgba(26,24,19,0.34) 100%)",
             boxShadow:
-              "inset 0 0 72px rgba(245,243,238,0.72), inset 0 0 1px rgba(42,38,30,0.14)",
+              "inset 0 0 60px rgba(26,24,19,0.28), inset 0 0 1px rgba(42,38,30,0.45)",
           }}
         />
+
+        {showNdvi && (
+          <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-full border border-white/30 bg-ink/45 px-3 py-1.5 text-[11px] font-medium text-white shadow-md backdrop-blur-md">
+            <span aria-hidden="true">🛰</span>{" "}
+            NDVI · MODIS Terra · {ndviCompositeDate}
+          </div>
+        )}
 
         {stateEntries.length === 0 && (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center text-sm font-medium text-muted-foreground">
@@ -395,7 +514,7 @@ function SeedingFocusMapInner({
       </div>
 
       <p className="mt-3 text-[11px] font-medium text-muted-foreground/80">
-        Mapbox · USDA NASS · State centroids approximate
+        Mapbox satellite · NASA EOSDIS GIBS NDVI · USDA NASS · State centroids approximate
       </p>
     </GlassCard>
   );

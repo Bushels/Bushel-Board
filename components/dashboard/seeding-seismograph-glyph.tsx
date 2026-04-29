@@ -86,7 +86,7 @@ export function SeismographGlyph({ rows, commodity, currentWeek }: Props) {
       height={H}
       viewBox={`0 0 ${W} ${H}`}
       aria-label={`${stateCode} ${commodity} weekly progress`}
-      style={{ filter: "drop-shadow(0 3px 6px rgba(26,24,19,.14))" }}
+      style={{ filter: "drop-shadow(0 3px 8px rgba(26,24,19,.45))" }}
       xmlns="http://www.w3.org/2000/svg"
     >
       {/* Card background */}
