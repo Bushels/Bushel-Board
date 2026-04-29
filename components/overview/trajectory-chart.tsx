@@ -39,7 +39,7 @@ function buildPath(
 ): string {
   if (!points.length) return "";
   const n = points.length;
-  const xFor = (i: number) => leftPad + (i / (n - 1)) * (w - leftPad - rightPad);
+  const xFor = (i: number) => leftPad + (i / Math.max(n - 1, 1)) * (w - leftPad - rightPad);
   return points
     .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i).toFixed(1)},${scoreToY(p.stanceScore, h).toFixed(1)}`)
     .join(" ");
@@ -55,7 +55,7 @@ function buildFillPath(
   const linePath = buildPath(points, w, h, leftPad, rightPad);
   if (!linePath) return "";
   const n = points.length;
-  const xFor = (i: number) => leftPad + (i / (n - 1)) * (w - leftPad - rightPad);
+  const xFor = (i: number) => leftPad + (i / Math.max(n - 1, 1)) * (w - leftPad - rightPad);
   const baseline = h / 2;
   const lastX = xFor(n - 1).toFixed(1);
   const firstX = xFor(0).toFixed(1);
@@ -89,7 +89,7 @@ export function TrajectoryChart({
   const usPath = usPoints?.length ? buildPath(usPoints, w, h, leftPad, rightPad) : "";
 
   const n = Math.max(caPoints.length, usPoints?.length ?? 0, 2);
-  const xFor = (i: number) => leftPad + (i / (n - 1)) * (w - leftPad - rightPad);
+  const xFor = (i: number) => leftPad + (i / Math.max(n - 1, 1)) * (w - leftPad - rightPad);
 
   const dayLabels = caPoints.map((p, i) => ({
     label: getDayLabel(p.recordedAt),

@@ -29,6 +29,18 @@ function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
+/** Format an ISO date (e.g., "2026-04-26") as a short human label like "Apr 26". */
+function formatWeekEnding(iso: string): string {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 function formatPct(value: number | null): string {
   return value === null ? "No data" : `${Math.round(value)}%`;
 }
@@ -134,7 +146,7 @@ export function SeedingStateTooltip({
             {row.state_name}
           </p>
           <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            {titleCase(commodity)} · Week {row.week_ending}
+            {titleCase(commodity)} · Week ending {formatWeekEnding(row.week_ending)}
           </p>
         </div>
         <div className="rounded-full border border-canola/35 bg-canola/10 px-2 py-1 text-[10px] font-bold text-canola">

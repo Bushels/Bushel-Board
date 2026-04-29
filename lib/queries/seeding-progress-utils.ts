@@ -26,9 +26,19 @@ export function fmtAcres(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return "—";
   if (n >= 1_000_000)
     return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M ac`;
-  if (n >= 10_000)
-    return `${Math.round(n / 1_000).toLocaleString()}k ac`;
-  return `${Math.round(n).toLocaleString()} ac`;
+  // Use plain template strings (not toLocaleString) so the "k ac" / "ac"
+  // formatting stays locale-stable. fr-CA / en-CA toLocaleString would
+  // insert non-breaking-space thousands separators, breaking layout in
+  // tight badges/tooltips.
+  if (n >= 10_000) {
+    return `${formatThousands(Math.round(n / 1_000))}k ac`;
+  }
+  return `${formatThousands(Math.round(n))} ac`;
+}
+
+/** Locale-stable thousands grouping with plain comma. */
+function formatThousands(n: number): string {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 export type SeismographByState = Record<string, SeismographRow[]>;

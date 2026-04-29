@@ -34,22 +34,20 @@ function cgcGrainFor(commodity: string): string {
   return COMMODITY_TO_CGC[commodity.toUpperCase()] ?? commodity;
 }
 
-/** Simple in-process cache so repeated calls within one request don't re-hit DB. */
-const STATE_NAME_CACHE = new Map<string, string>();
-
+// State name lookup runs at most twice per drill panel render and the result
+// rarely changes. We deliberately do NOT cache at module scope — Maps persist
+// across requests in Node-runtime API routes, and a per-request cache would
+// add ~5 lines for sub-ms savings. Direct query is fine.
 async function stateCodeToName(
   supabase: Awaited<ReturnType<typeof createClient>>,
   code: string,
 ): Promise<string> {
-  if (STATE_NAME_CACHE.has(code)) return STATE_NAME_CACHE.get(code)!;
   const { data } = await supabase
     .from("us_state_centroids")
     .select("state_name")
     .eq("state_code", code)
     .maybeSingle();
-  const name = (data as { state_name?: string } | null)?.state_name ?? code;
-  STATE_NAME_CACHE.set(code, name);
-  return name;
+  return (data as { state_name?: string } | null)?.state_name ?? code;
 }
 
 /** posted_prices is FSA-keyed. Without a state→FSA proximity helper, return [] for now. */

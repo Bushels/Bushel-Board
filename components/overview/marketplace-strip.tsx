@@ -278,7 +278,7 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
             fontWeight: 600,
           }}
         >
-          Live · Kalshi + CBOT
+          Preview · Kalshi coming soon · CBOT live
         </span>
       </div>
       <p

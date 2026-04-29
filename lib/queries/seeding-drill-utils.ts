@@ -64,11 +64,14 @@ export interface DrillData {
   wasde: WasdeOutlook | null;
 }
 
+// KE is Kansas City HRW Wheat (KCBT), NOT Barley. Barley has no liquid CBOT
+// ticker, so we route it through the empty-string path which triggers the
+// graceful "no futures available" branch in the drill panel.
 const COMMODITY_TO_TICKER: Record<string, { ticker: string; label: string }> = {
   CORN: { ticker: "ZC", label: "Corn (ZC)" },
   SOYBEANS: { ticker: "ZS", label: "Soybeans (ZS)" },
   WHEAT: { ticker: "ZW", label: "Wheat (ZW)" },
-  BARLEY: { ticker: "KE", label: "Barley (KE)" },
+  BARLEY: { ticker: "", label: "Barley" },
   OATS: { ticker: "ZO", label: "Oats (ZO)" },
 };
 

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import type { BulletPoint, GrainStanceData } from "@/components/dashboard/market-stance-chart";
 
 // Ordered by prairie-acreage popularity — grains farmers are most likely
@@ -54,6 +55,7 @@ export async function getMarketStances(grainWeek: number): Promise<GrainStanceDa
     .select(
       "grain, grain_week, stance_score, data_confidence, generated_at, initial_thesis, bull_reasoning, bear_reasoning",
     )
+    .eq("crop_year", CURRENT_CROP_YEAR)
     .eq("grain_week", grainWeek)
     .in("grain", OVERVIEW_GRAINS.map((g) => g.grain))
     .not("stance_score", "is", null)
@@ -67,15 +69,21 @@ export async function getMarketStances(grainWeek: number): Promise<GrainStanceDa
   const { data: priorStances } = await supabase
     .from("market_analysis")
     .select("grain, stance_score")
+    .eq("crop_year", CURRENT_CROP_YEAR)
     .eq("grain_week", grainWeek - 1)
     .in("grain", OVERVIEW_GRAINS.map((g) => g.grain))
     .not("stance_score", "is", null);
 
+  // Filter by grain so all 10+ overview grains can land in the priceMap.
+  // Without the filter, .limit() returns the most-recent rows (which all
+  // belong to the 4 daily-importing CBOT grains), causing every other
+  // grain to fall through to the hardcoded CASH_PRICE_MAP fallback.
   const { data: prices } = await supabase
     .from("grain_prices")
-    .select("grain, settlement_price, change_amount")
+    .select("grain, settlement_price, change_amount, price_date")
+    .in("grain", OVERVIEW_GRAINS.map((g) => g.grain))
     .order("price_date", { ascending: false })
-    .limit(10);
+    .limit(60);
 
   const priorMap = new Map(
     (priorStances ?? []).map((p) => [p.grain, p.stance_score]),
