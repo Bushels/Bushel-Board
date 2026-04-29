@@ -4,6 +4,7 @@ import {
   FEATURED_KALSHI_TICKERS,
   __clearKalshiCacheForTests,
   __getKalshiCacheForTests,
+  deriveDisplayTitle,
   deriveYesProbability,
   fetchKalshiMarkets,
   fetchTopMarketForSeries,
@@ -17,11 +18,19 @@ import type { KalshiRawMarket, KalshiSeriesSpec } from "@/lib/kalshi/types";
 const CORN_SPEC: KalshiSeriesSpec = {
   seriesTicker: "KXCORNMON",
   crop: "CORN",
+  cadence: "monthly",
 };
 
 const SOY_SPEC: KalshiSeriesSpec = {
   seriesTicker: "KXSOYBEANMON",
   crop: "SOY",
+  cadence: "monthly",
+};
+
+const FERT_SPEC: KalshiSeriesSpec = {
+  seriesTicker: "KXFERT",
+  crop: "FERT",
+  cadence: "wildcard",
 };
 
 // Real Kalshi API row shape captured from
@@ -158,6 +167,7 @@ describe("normalizeKalshiMarket", () => {
     expect(m).not.toBeNull();
     expect(m?.ticker).toBe("KXCORNMON-26APR3017-T455.99");
     expect(m?.crop).toBe("CORN");
+    expect(m?.cadence).toBe("monthly");
     expect(m?.seriesTicker).toBe("KXCORNMON");
     expect(m?.yesBid).toBe(0.66);
     expect(m?.yesAsk).toBe(0.68);
@@ -224,13 +234,35 @@ describe("fetchTopMarketForSeries", () => {
     expect(result?.ticker).toBe(REAL_CORN_ROW.ticker);
   });
 
-  it("returns null on a 500 error", async () => {
+  it("returns null on a 500 error after the single retry also fails", async () => {
     const fetchImpl = makeFetchImpl({
       "series_ticker=KXCORNMON": { status: 500, body: { error: "boom" } },
     });
 
-    const result = await fetchTopMarketForSeries(CORN_SPEC, fetchImpl);
+    // Pass 0ms retry delay so the test doesn't sit on a real timer.
+    const result = await fetchTopMarketForSeries(CORN_SPEC, fetchImpl, 0);
     expect(result).toBeNull();
+    // 1 initial + 1 retry = 2 calls
+    expect((fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBe(2);
+  });
+
+  it("retries once on 429 and succeeds when the retry returns 200", async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn(async () => {
+      calls++;
+      if (calls === 1) {
+        return new Response(JSON.stringify({ error: "rate limited" }), {
+          status: 429,
+        });
+      }
+      return new Response(JSON.stringify({ markets: [REAL_CORN_ROW] }), {
+        status: 200,
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchTopMarketForSeries(CORN_SPEC, fetchImpl, 0);
+    expect(result?.ticker).toBe(REAL_CORN_ROW.ticker);
+    expect(calls).toBe(2);
   });
 
   it("returns null when fetch throws (network error)", async () => {
@@ -278,7 +310,7 @@ describe("fetchKalshiMarkets", () => {
       },
     });
 
-    const result = await fetchKalshiMarkets([CORN_SPEC, SOY_SPEC], fetchImpl);
+    const result = await fetchKalshiMarkets([CORN_SPEC, SOY_SPEC], fetchImpl, 0);
     expect(result.map((m) => m.ticker).sort()).toEqual(["CORN-A", "SOY-A"]);
     expect(result.find((m) => m.ticker === "SOY-A")?.crop).toBe("SOY");
   });
@@ -294,7 +326,7 @@ describe("fetchKalshiMarkets", () => {
       "series_ticker=KXSOYBEANMON": { status: 500, body: { error: "boom" } },
     });
 
-    const result = await fetchKalshiMarkets([CORN_SPEC, SOY_SPEC], fetchImpl);
+    const result = await fetchKalshiMarkets([CORN_SPEC, SOY_SPEC], fetchImpl, 0);
     expect(result.map((m) => m.ticker)).toEqual(["CORN-A"]);
   });
 
@@ -304,7 +336,7 @@ describe("fetchKalshiMarkets", () => {
       "series_ticker=KXSOYBEANMON": { status: 502, body: null },
     });
 
-    const result = await fetchKalshiMarkets([CORN_SPEC, SOY_SPEC], fetchImpl);
+    const result = await fetchKalshiMarkets([CORN_SPEC, SOY_SPEC], fetchImpl, 0);
     expect(result).toEqual([]);
   });
 
@@ -316,16 +348,87 @@ describe("fetchKalshiMarkets", () => {
         }),
     ) as unknown as typeof fetch;
 
-    await fetchKalshiMarkets([CORN_SPEC], fetchImpl);
-    await fetchKalshiMarkets([CORN_SPEC], fetchImpl);
+    await fetchKalshiMarkets([CORN_SPEC], fetchImpl, 0);
+    await fetchKalshiMarkets([CORN_SPEC], fetchImpl, 0);
 
     expect((fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBe(1);
     const cached = __getKalshiCacheForTests();
     expect(cached.size).toBe(1);
   });
 
-  it("exposes a non-empty default ticker list", () => {
-    expect(FEATURED_KALSHI_TICKERS.length).toBeGreaterThanOrEqual(4);
-    expect(FEATURED_KALSHI_TICKERS.every((s) => s.seriesTicker.startsWith("KX"))).toBe(true);
+  it("exposes the full grain coverage in the default ticker list", () => {
+    // 6 grain price contracts (3 grains × 2 cadences) + 1 fertilizer wildcard.
+    expect(FEATURED_KALSHI_TICKERS).toHaveLength(7);
+    expect(
+      FEATURED_KALSHI_TICKERS.every((s) => s.seriesTicker.startsWith("KX")),
+    ).toBe(true);
+
+    const tickers = FEATURED_KALSHI_TICKERS.map((s) => s.seriesTicker);
+    for (const expected of [
+      "KXCORNMON",
+      "KXCORNW",
+      "KXSOYBEANMON",
+      "KXSOYBEANW",
+      "KXWHEATMON",
+      "KXWHEATW",
+      "KXFERT",
+    ]) {
+      expect(tickers).toContain(expected);
+    }
+
+    // Each crop value must be one of the known crop labels.
+    const validCrops = new Set(["CORN", "SOY", "WHEAT", "FERT", "OTHER"]);
+    for (const s of FEATURED_KALSHI_TICKERS) {
+      expect(validCrops.has(s.crop)).toBe(true);
+      expect(["monthly", "weekly", "wildcard"]).toContain(s.cadence);
+    }
+  });
+});
+
+describe("deriveDisplayTitle", () => {
+  it("rewrites generic KXFERT titles to include the strike", () => {
+    expect(
+      deriveDisplayTitle(
+        "How high will the price of fertilizer get this year?",
+        "KXFERT-26-1200",
+        "KXFERT",
+      ),
+    ).toBe("Will fertilizer reach $1200/ton this year?");
+  });
+
+  it("leaves non-KXFERT titles untouched", () => {
+    const original = "Will the corn close price be above $455.99 on Apr 30, 2026 at 5pm EDT?";
+    expect(
+      deriveDisplayTitle(original, "KXCORNMON-26APR3017-T455.99", "KXCORNMON"),
+    ).toBe(original);
+  });
+
+  it("falls back to the raw KXFERT title when the ticker doesn't match the strike pattern", () => {
+    const raw = "Some unusual fertilizer market";
+    expect(deriveDisplayTitle(raw, "KXFERT-WEIRD-FORMAT", "KXFERT")).toBe(raw);
+  });
+});
+
+describe("KXFERT integration via normalize", () => {
+  it("rewrites the KXFERT title and preserves wildcard cadence", () => {
+    const fertRow: KalshiRawMarket = {
+      ticker: "KXFERT-26-1200",
+      event_ticker: "KXFERT-26",
+      title: "How high will the price of fertilizer get this year?",
+      status: "active",
+      yes_bid_dollars: "0.4800",
+      yes_ask_dollars: "0.5100",
+      last_price_dollars: "0.5100",
+      volume_fp: "9925.66",
+      open_interest_fp: "3157.21",
+      close_time: "2027-01-01T00:00:00Z",
+    };
+
+    const m = normalizeKalshiMarket(fertRow, FERT_SPEC);
+    expect(m).not.toBeNull();
+    expect(m?.crop).toBe("FERT");
+    expect(m?.cadence).toBe("wildcard");
+    expect(m?.title).toBe("Will fertilizer reach $1200/ton this year?");
+    expect(m?.yesProbability).toBe(0.51);
   });
 });

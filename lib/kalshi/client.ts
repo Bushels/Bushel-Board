@@ -20,7 +20,6 @@
 // ────────────────────────────────────────────────────────────────────────
 
 import type {
-  KalshiCrop,
   KalshiMarket,
   KalshiRawMarket,
   KalshiSeriesSpec,
@@ -30,15 +29,26 @@ const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
 const USER_AGENT = "BushelBoard/1.0 (+https://bushelboard.com)";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-// Tunable list of grain markets to surface on the Marketplace strip.
-// Each spec maps a Kalshi series ticker to the crop label we display.
-// Verified active 2026-04-28 — KX*MON contracts have the deepest liquidity
-// (low-thousands volume_fp); KXCORNW gives a short-dated wildcard.
+// Tunable list of Kalshi grain-related markets to surface on the
+// Marketplace strip. Verified comprehensive 2026-04-28 — Kalshi's
+// commodity grain universe is exactly these 6 binary price contracts
+// (corn / soy / wheat × weekly / monthly). KXFERT (fertilizer) is added
+// as a single non-cadenced wildcard for input-cost relevance to farmers.
+//
+// Order matters: the marketplace strip groups by `cadence` and renders
+// each group in its own row, preserving the order within each cadence.
 export const FEATURED_KALSHI_TICKERS: KalshiSeriesSpec[] = [
-  { seriesTicker: "KXCORNMON", crop: "CORN" },
-  { seriesTicker: "KXSOYBEANMON", crop: "SOY" },
-  { seriesTicker: "KXWHEATMON", crop: "WHEAT" },
-  { seriesTicker: "KXCORNW", crop: "CORN" },
+  // Monthly contracts — primary row
+  { seriesTicker: "KXCORNMON", crop: "CORN", cadence: "monthly" },
+  { seriesTicker: "KXSOYBEANMON", crop: "SOY", cadence: "monthly" },
+  { seriesTicker: "KXWHEATMON", crop: "WHEAT", cadence: "monthly" },
+  // Input-cost wildcard — sits with the monthly row since it's a
+  // year-end resolution (slow-moving, big-picture).
+  { seriesTicker: "KXFERT", crop: "FERT", cadence: "wildcard" },
+  // Weekly contracts — secondary row
+  { seriesTicker: "KXCORNW", crop: "CORN", cadence: "weekly" },
+  { seriesTicker: "KXSOYBEANW", crop: "SOY", cadence: "weekly" },
+  { seriesTicker: "KXWHEATW", crop: "WHEAT", cadence: "weekly" },
 ];
 
 interface CacheEntry {
@@ -49,7 +59,9 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 function cacheKey(specs: KalshiSeriesSpec[]): string {
-  return specs.map((s) => `${s.seriesTicker}:${s.crop}`).join("|");
+  return specs
+    .map((s) => `${s.seriesTicker}:${s.crop}:${s.cadence}`)
+    .join("|");
 }
 
 /** Read internal cache. Exposed for tests. */
@@ -111,6 +123,28 @@ export function deriveYesProbability(
 }
 
 /**
+ * KXFERT markets all share the same generic title ("How high will the
+ * price of fertilizer get this year?") and only differ by strike level
+ * embedded in the ticker (e.g., KXFERT-26-1200 = $1,200 strike). Build
+ * a more useful headline from the ticker.
+ *
+ * Returns the original title unchanged for any non-KXFERT ticker.
+ */
+export function deriveDisplayTitle(
+  rawTitle: string,
+  ticker: string,
+  seriesTicker: string,
+): string {
+  if (seriesTicker !== "KXFERT") return rawTitle;
+  // KXFERT-{YY}-{strike} → e.g., KXFERT-26-1200 → 1200
+  const m = ticker.match(/^KXFERT-\d{2}-(\d+)$/);
+  if (!m) return rawTitle;
+  const strike = Number(m[1]);
+  if (!Number.isFinite(strike) || strike <= 0) return rawTitle;
+  return `Will fertilizer reach $${strike}/ton this year?`;
+}
+
+/**
  * Normalize one raw Kalshi market response into our display shape.
  * Returns null if the row is missing required identifiers.
  */
@@ -134,9 +168,10 @@ export function normalizeKalshiMarket(
     ticker: raw.ticker,
     eventTicker: raw.event_ticker ?? null,
     seriesTicker: spec.seriesTicker,
-    title: raw.title,
+    title: deriveDisplayTitle(raw.title, raw.ticker, spec.seriesTicker),
     subtitle: raw.subtitle ?? raw.yes_sub_title ?? null,
     crop: spec.crop,
+    cadence: spec.cadence,
     status: raw.status ?? "unknown",
     yesBid,
     yesAsk,
@@ -149,28 +184,41 @@ export function normalizeKalshiMarket(
   };
 }
 
+/** Default backoff for the 429/5xx single retry. Exposed for tests to override. */
+export const KALSHI_RETRY_DELAY_MS = 750;
+
 /**
  * Fetch one series, returning the most-traded open market (by volume).
- * Returns null on any error or empty response.
+ * Returns null on any error or empty response. Retries once on 429/5xx
+ * after a short backoff — Kalshi rate-limits aggressive parallel fan-out
+ * and this saves us when 7 specs go out at the same time.
  */
 export async function fetchTopMarketForSeries(
   spec: KalshiSeriesSpec,
   fetchImpl: typeof fetch = fetch,
+  retryDelayMs: number = KALSHI_RETRY_DELAY_MS,
 ): Promise<KalshiMarket | null> {
   const url = `${KALSHI_BASE}/markets?series_ticker=${encodeURIComponent(
     spec.seriesTicker,
   )}&status=open&limit=200`;
 
-  let resp: Response;
-  try {
-    resp = await fetchImpl(url, {
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    });
-  } catch {
-    return null;
+  const attempt = async (): Promise<Response | null> => {
+    try {
+      return await fetchImpl(url, {
+        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  let resp = await attempt();
+  if (resp && (resp.status === 429 || resp.status >= 500)) {
+    await new Promise((r) => setTimeout(r, retryDelayMs));
+    resp = await attempt();
   }
 
-  if (!resp.ok) return null;
+  if (!resp || !resp.ok) return null;
 
   let body: unknown;
   try {
@@ -195,14 +243,25 @@ export async function fetchTopMarketForSeries(
   return normalized[0];
 }
 
+/** Stagger between consecutive request starts, in ms. Tunable / test-overridable. */
+export const KALSHI_STAGGER_MS = 120;
+
 /**
- * Fetch the featured Kalshi markets in parallel. Returns a sparse list —
- * any series that fails or has no live markets is silently skipped.
- * Cached in-memory for 5 minutes per spec set.
+ * Fetch the featured Kalshi markets with a small inter-request stagger.
+ * Kalshi rate-limits aggressive parallel fan-out (we saw 429s on 3-of-7
+ * when blasting all at once), so each request kicks off `staggerMs` after
+ * the previous one. This keeps total latency reasonable while sidestepping
+ * the rate-limit cliff. For 7 specs at 120ms stagger that's ~840ms
+ * before all are in flight — overlap with Kalshi's ~200ms response means
+ * total wall-clock is ~1.1s on cache miss. Cached for 5 min after.
+ *
+ * Returns a sparse list — any series that fails or has no live markets
+ * is silently skipped. Cache is in-memory per (specs, cadence) key.
  */
 export async function fetchKalshiMarkets(
   specs: KalshiSeriesSpec[] = FEATURED_KALSHI_TICKERS,
   fetchImpl: typeof fetch = fetch,
+  staggerMs: number = KALSHI_STAGGER_MS,
 ): Promise<KalshiMarket[]> {
   const key = cacheKey(specs);
   const now = Date.now();
@@ -211,10 +270,21 @@ export async function fetchKalshiMarkets(
     return cached.data;
   }
 
-  const results = await Promise.all(
-    specs.map((spec) => fetchTopMarketForSeries(spec, fetchImpl)),
-  );
+  // Kick off requests in a staggered fashion: fire #0 immediately, #1 after
+  // staggerMs, #2 after 2×staggerMs, etc. They still resolve in parallel.
+  const promises = specs.map((spec, i) => {
+    const delay = i === 0 ? 0 : i * staggerMs;
+    if (delay === 0) {
+      return fetchTopMarketForSeries(spec, fetchImpl).catch(() => null);
+    }
+    return new Promise<KalshiMarket | null>((resolve) => {
+      setTimeout(() => {
+        fetchTopMarketForSeries(spec, fetchImpl).then(resolve).catch(() => resolve(null));
+      }, delay);
+    });
+  });
 
+  const results = await Promise.all(promises);
   const markets = results.filter((m): m is KalshiMarket => m != null);
 
   cache.set(key, { expiresAt: now + CACHE_TTL_MS, data: markets });

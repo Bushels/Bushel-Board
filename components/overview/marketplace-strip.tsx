@@ -16,9 +16,12 @@
 // first, then add a second bridge component — don't grow this file.
 // ────────────────────────────────────────────────────────────────────────
 
-import { fetchKalshiMarkets } from "@/lib/kalshi/client";
-import { formatVolume } from "@/lib/kalshi/client";
-import type { KalshiCrop, KalshiMarket } from "@/lib/kalshi/types";
+import { fetchKalshiMarkets, formatVolume } from "@/lib/kalshi/client";
+import type {
+  KalshiCadence,
+  KalshiCrop,
+  KalshiMarket,
+} from "@/lib/kalshi/types";
 import type { SpotPrice } from "@/lib/queries/overview-data";
 
 const INK = "#2a261e";
@@ -30,9 +33,11 @@ const INK_MUTED = "#7c6c43";
 const PRAIRIE = "#437a22";
 const AMBER = "#b8702a";
 const CANOLA = "#c17f24";
+const SOIL = "#6b3f2a"; // distinct earth tone for fertilizer/input cards
 
 interface KalshiCardData {
   crop: KalshiCrop;
+  cadence: KalshiCadence;
   title: string;
   yesPct: number;
   noPct: number;
@@ -43,10 +48,13 @@ interface KalshiCardData {
 
 // Static snapshot used when Kalshi is unreachable. Captured 2026-04-28 from
 // production data; kept short so degraded mode is obviously a snapshot, not
-// pretending to be live.
+// pretending to be live. Cadence labels match the live grid layout so the
+// two rows render even in fallback mode.
 const KALSHI_FALLBACK: KalshiCardData[] = [
+  // Top row — monthly contracts + fertilizer wildcard
   {
     crop: "CORN",
+    cadence: "monthly",
     title: "Will May corn close above $4.55/bu Apr 30?",
     yesPct: 66,
     noPct: 34,
@@ -56,28 +64,62 @@ const KALSHI_FALLBACK: KalshiCardData[] = [
   },
   {
     crop: "SOY",
-    title: "Will May soy close above $11.56/bu Apr 30?",
-    yesPct: 85,
-    noPct: 15,
-    volume: "$3.7k",
+    cadence: "monthly",
+    title: "Will May soy close above $11.66/bu Apr 30?",
+    yesPct: 91,
+    noPct: 9,
+    volume: "$3.8k",
     expires: "Apr 30",
     isLive: false,
   },
   {
     crop: "WHEAT",
-    title: "Will May wheat close above $5.79/bu Apr 30?",
-    yesPct: 90,
-    noPct: 10,
+    cadence: "monthly",
+    title: "Will May wheat close above $5.89/bu Apr 30?",
+    yesPct: 91,
+    noPct: 9,
     volume: "$2.6k",
     expires: "Apr 30",
     isLive: false,
   },
   {
+    crop: "FERT",
+    cadence: "wildcard",
+    title: "Will fertilizer reach $1200/ton this year?",
+    yesPct: 51,
+    noPct: 49,
+    volume: "$9.9k",
+    expires: "Jan 1",
+    isLive: false,
+  },
+  // Bottom row — weekly contracts
+  {
     crop: "CORN",
+    cadence: "weekly",
     title: "Will May corn close above $4.71/bu May 1?",
     yesPct: 52,
     noPct: 48,
     volume: "$1.0k",
+    expires: "May 1",
+    isLive: false,
+  },
+  {
+    crop: "SOY",
+    cadence: "weekly",
+    title: "Will May soy close above $11.02/bu May 1?",
+    yesPct: 96,
+    noPct: 4,
+    volume: "$0.5k",
+    expires: "May 1",
+    isLive: false,
+  },
+  {
+    crop: "WHEAT",
+    cadence: "weekly",
+    title: "Will May wheat close above $5.18/bu May 1?",
+    yesPct: 96,
+    noPct: 4,
+    volume: "$0.4k",
     expires: "May 1",
     isLive: false,
   },
@@ -91,9 +133,15 @@ function cropColor(crop: KalshiCrop): string {
       return PRAIRIE;
     case "WHEAT":
       return AMBER;
+    case "FERT":
+      return SOIL;
     default:
       return INK_MUTED;
   }
+}
+
+function cropLabel(crop: KalshiCrop): string {
+  return crop === "FERT" ? "FERTILIZER" : crop;
 }
 
 function toCardData(m: KalshiMarket): KalshiCardData {
@@ -102,6 +150,7 @@ function toCardData(m: KalshiMarket): KalshiCardData {
   const yesPct = yes != null ? Math.max(0, Math.min(100, Math.round(yes * 100))) : 50;
   return {
     crop: m.crop,
+    cadence: m.cadence,
     title: m.title,
     yesPct,
     noPct: 100 - yesPct,
@@ -109,6 +158,22 @@ function toCardData(m: KalshiMarket): KalshiCardData {
     expires: m.closeLabel,
     isLive: true,
   };
+}
+
+function partitionByCadence(cards: KalshiCardData[]): {
+  primary: KalshiCardData[];
+  weekly: KalshiCardData[];
+} {
+  // Top row: monthly contracts + the wildcard (fertilizer is a slow-moving
+  // input cost, sits naturally with the macro/monthly view).
+  // Bottom row: weekly contracts (tactical short-dated bets).
+  const primary: KalshiCardData[] = [];
+  const weekly: KalshiCardData[] = [];
+  for (const c of cards) {
+    if (c.cadence === "weekly") weekly.push(c);
+    else primary.push(c);
+  }
+  return { primary, weekly };
 }
 
 function KalshiCard({ k }: { k: KalshiCardData }) {
@@ -139,7 +204,7 @@ function KalshiCard({ k }: { k: KalshiCardData }) {
             textTransform: "uppercase" as const,
           }}
         >
-          {k.crop}
+          {cropLabel(k.crop)}
         </span>
         <span style={{ fontSize: 10, color: INK_MUTED }}>via Kalshi</span>
       </div>
@@ -279,24 +344,34 @@ interface MarketplaceStripProps {
   spotPrices: SpotPrice[];
 }
 
+function RowSublabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontFamily: "var(--font-dm-sans)",
+        fontSize: 10,
+        letterSpacing: "0.22em",
+        textTransform: "uppercase",
+        color: INK_MUTED,
+        fontWeight: 700,
+        marginBottom: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
   const visibleSpot = spotPrices.slice(0, 3);
 
   const liveMarkets = await fetchKalshiMarkets();
   const usingFallback = liveMarkets.length === 0;
-  const cards: KalshiCardData[] = usingFallback
+  const allCards: KalshiCardData[] = usingFallback
     ? KALSHI_FALLBACK
-    : liveMarkets.slice(0, 4).map(toCardData);
+    : liveMarkets.map(toCardData);
 
-  // If we got fewer than 4 live markets, top up with fallback cards so the
-  // 2×2 grid stays full. Tag the borrowed cards as not live.
-  if (!usingFallback && cards.length < 4) {
-    const filler = KALSHI_FALLBACK.slice(0, 4 - cards.length).map((c) => ({
-      ...c,
-      isLive: false,
-    }));
-    cards.push(...filler);
-  }
+  const { primary, weekly } = partitionByCadence(allCards);
 
   const headerLabel = usingFallback
     ? "Snapshot · Kalshi reconnecting · CBOT live"
@@ -362,20 +437,45 @@ export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         futures below.
       </p>
 
-      {/* Kalshi cards — 2×2 grid on desktop, 1 col on mobile */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: 14,
-          marginBottom: 14,
-        }}
-        className="grid-cols-1 sm:grid-cols-2"
-      >
-        {cards.map((k, i) => (
-          <KalshiCard key={`${k.crop}-${i}`} k={k} />
-        ))}
-      </div>
+      {/* Top row — monthly grain contracts + fertilizer wildcard (4 cards) */}
+      {primary.length > 0 && (
+        <>
+          <RowSublabel>Monthly contracts · Inputs</RowSublabel>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${Math.max(primary.length, 1)}, 1fr)`,
+              gap: 14,
+              marginBottom: 18,
+            }}
+            className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+          >
+            {primary.map((k, i) => (
+              <KalshiCard key={`primary-${k.crop}-${i}`} k={k} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Bottom row — weekly grain contracts (3 cards) */}
+      {weekly.length > 0 && (
+        <>
+          <RowSublabel>Weekly contracts</RowSublabel>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${Math.max(weekly.length, 1)}, 1fr)`,
+              gap: 14,
+              marginBottom: 14,
+            }}
+            className="grid-cols-1 sm:grid-cols-3"
+          >
+            {weekly.map((k, i) => (
+              <KalshiCard key={`weekly-${k.crop}-${i}`} k={k} />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Spot price strip */}
       {visibleSpot.length > 0 && (

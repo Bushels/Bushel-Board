@@ -12,7 +12,13 @@
 // Kalshi-only.
 // ────────────────────────────────────────────────────────────────────────
 
-export type KalshiCrop = "CORN" | "SOY" | "WHEAT" | "OTHER";
+export type KalshiCrop = "CORN" | "SOY" | "WHEAT" | "FERT" | "OTHER";
+
+// "monthly" + "weekly" map to the two grain-price binary contract cadences;
+// "wildcard" is for non-cadenced grain-adjacent series like fertilizer that
+// don't fit either bucket. The marketplace strip uses this to group cards
+// into editorial rows.
+export type KalshiCadence = "monthly" | "weekly" | "wildcard";
 
 export interface KalshiMarket {
   ticker: string;
@@ -21,6 +27,7 @@ export interface KalshiMarket {
   title: string;
   subtitle: string | null;
   crop: KalshiCrop;
+  cadence: KalshiCadence;
   status: string;
   yesBid: number | null;
   yesAsk: number | null;
@@ -35,6 +42,7 @@ export interface KalshiMarket {
 export interface KalshiSeriesSpec {
   seriesTicker: string;
   crop: KalshiCrop;
+  cadence: KalshiCadence;
 }
 
 export interface KalshiRawMarket {
