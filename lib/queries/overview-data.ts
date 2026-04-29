@@ -59,7 +59,7 @@ export function computeWow(current: number, prior: number): number | null {
   return ((current - prior) / Math.abs(prior)) * 100;
 }
 
-async function fetchSpotPrices(): Promise<SpotPrice[]> {
+export async function fetchSpotPrices(): Promise<SpotPrice[]> {
   const supabase = await createClient();
   const grainNames = SPOT_GRAINS.map((g) => g.grain);
 

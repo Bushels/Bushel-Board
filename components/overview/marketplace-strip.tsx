@@ -24,6 +24,8 @@
 // first, then add a second bridge component — don't grow this file.
 // ────────────────────────────────────────────────────────────────────────
 
+import Link from "next/link";
+
 import {
   fetchCandlesticks,
   fetchKalshiMarkets,
@@ -279,6 +281,17 @@ function SpotTile({ price, isLast }: { price: SpotPrice; isLast: boolean }) {
 
 interface MarketplaceStripProps {
   spotPrices: SpotPrice[];
+  /**
+   * "full" — the complete /markets dashboard: header + tape + spotlight +
+   *   dense roll of remaining markets + CBOT spot tiles + footnote.
+   * "teaser" — the /overview snippet: header + spotlight + a "View full
+   *   Predictive Market →" CTA pointing at /markets, no tape, no roll, no
+   *   CBOT (the spot rail at the top of /overview already covers that).
+   *
+   * Defaults to "full" so existing call sites that don't pass this prop
+   * keep their current behavior. /overview opts in to "teaser".
+   */
+  variant?: "full" | "teaser";
 }
 
 function SectionDivider() {
@@ -293,7 +306,11 @@ function SectionDivider() {
   );
 }
 
-export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
+export async function MarketplaceStrip({
+  spotPrices,
+  variant = "full",
+}: MarketplaceStripProps) {
+  const isTeaser = variant === "teaser";
   const visibleSpot = spotPrices.slice(0, 3);
 
   // Fetch all 7 markets (5-min cached, 120ms staggered).
@@ -362,19 +379,21 @@ export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         isLive={!usingFallback}
       />
 
-      {/* Live tape */}
-      <div style={{ margin: "20px 0 24px" }}>
-        <LiveTape
-          seed={tapeSeed}
-          cropByTicker={cropByTicker}
-          pollTicker={spotlight?.ticker ?? ""}
-          pollMs={12000}
-        />
-      </div>
+      {/* Live tape — full variant only. The teaser keeps the surface calm. */}
+      {!isTeaser && (
+        <div style={{ margin: "20px 0 24px" }}>
+          <LiveTape
+            seed={tapeSeed}
+            cropByTicker={cropByTicker}
+            pollTicker={spotlight?.ticker ?? ""}
+            pollMs={12000}
+          />
+        </div>
+      )}
 
       {/* Spotlight */}
       {spotlight && (
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 28, marginTop: isTeaser ? 20 : 0 }}>
           <SpotlightCard
             market={spotlight}
             candles={spotlightCandles}
@@ -383,8 +402,60 @@ export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         </div>
       )}
 
-      {/* The Roll */}
-      {rollMarkets.length > 0 && (
+      {/* Teaser CTA — sits under the spotlight, nudges to /markets. */}
+      {isTeaser && (
+        <div
+          style={{
+            marginTop: 8,
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+            padding: "16px 20px",
+            background: WHEAT_50,
+            border: `1px solid ${WHEAT_100}`,
+            fontFamily: "var(--font-dm-sans)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 13,
+              color: WHEAT_700,
+              fontWeight: 500,
+              lineHeight: 1.45,
+            }}
+          >
+            {markets.length > 1
+              ? `${markets.length - 1} more grain markets, plus this week's editorial brief.`
+              : "This week's editorial brief and the full Kalshi tape."}
+          </span>
+          <Link
+            href="/markets"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 16px",
+              background: PRAIRIE,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              textDecoration: "none",
+              borderRadius: 999,
+              whiteSpace: "nowrap",
+            }}
+          >
+            View full Predictive Market <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      )}
+
+      {/* The Roll — full variant only. */}
+      {!isTeaser && rollMarkets.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <div
             style={{
@@ -422,10 +493,11 @@ export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         </div>
       )}
 
-      <SectionDivider />
+      {!isTeaser && <SectionDivider />}
 
-      {/* CBOT futures — ground truth tier */}
-      {visibleSpot.length > 0 && (
+      {/* CBOT futures — ground truth tier (full variant only; the
+          /overview teaser already has a SpotPriceRail at page top). */}
+      {!isTeaser && visibleSpot.length > 0 && (
         <div>
           <div
             style={{
@@ -497,7 +569,9 @@ export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
         <span>
           {usingFallback
             ? "Live data unavailable — showing recent snapshot."
-            : `As of ${asOf} · Tape refreshes every 12s · Markets refresh every 5min`}
+            : isTeaser
+              ? `As of ${asOf} · Markets refresh every 5min`
+              : `As of ${asOf} · Tape refreshes every 12s · Markets refresh every 5min`}
         </span>
         <span>
           via{" "}

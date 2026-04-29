@@ -87,6 +87,17 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                 US Markets
               </Link>
               <Link
+                href="/markets"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname.startsWith("/markets")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                Predictive Market
+              </Link>
+              <Link
                 href="/my-farm"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",

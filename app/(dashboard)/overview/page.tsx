@@ -145,9 +145,11 @@ export default async function OverviewPage() {
 
         {SECTION_DIVIDER}
 
-        {/* ── Section 4: Marketplace ────────────────────────────────────── */}
+        {/* ── Section 4: Marketplace teaser ─────────────────────────────── */}
+        {/* Trimmed to spotlight + CTA on /overview; the full dashboard */}
+        {/* lives at /markets (Track 52). */}
         <section style={{ marginTop: 64, marginBottom: 64 }}>
-          <MarketplaceStrip spotPrices={spotPrices} />
+          <MarketplaceStrip spotPrices={spotPrices} variant="teaser" />
         </section>
 
         {/* Footer note */}
