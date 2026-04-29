@@ -61,3 +61,81 @@ export interface KalshiRawMarket {
   open_interest?: string | number | null;
   close_time?: string | null;
 }
+
+/**
+ * Single point on the YES-probability time series. We store the close of
+ * the period as the headline value (matches what traders mean by "the
+ * price at 11:42") and keep volume for the optional liquidity overlay.
+ */
+export interface KalshiCandle {
+  /** Period end timestamp in seconds since epoch. */
+  endTs: number;
+  /** YES bid close, in dollars (probability ∈ [0, 1]). */
+  yesBidClose: number | null;
+  /** YES ask close, in dollars. */
+  yesAskClose: number | null;
+  /** Volume traded in this period, fixed-point. */
+  volume: number;
+  /** Open interest at end of period. */
+  openInterest: number;
+}
+
+export interface KalshiRawCandle {
+  end_period_ts?: number;
+  yes_bid?: {
+    close_dollars?: string | number | null;
+    high_dollars?: string | number | null;
+    low_dollars?: string | number | null;
+    open_dollars?: string | number | null;
+  };
+  yes_ask?: {
+    close_dollars?: string | number | null;
+    high_dollars?: string | number | null;
+    low_dollars?: string | number | null;
+    open_dollars?: string | number | null;
+  };
+  price?: {
+    previous_dollars?: string | number | null;
+  };
+  volume_fp?: string | number | null;
+  open_interest_fp?: string | number | null;
+}
+
+/**
+ * A single trade print on the live tape. We collapse Kalshi's YES/NO
+ * representation into a single signed-probability value: when the taker
+ * hit YES, we use yes_price; when they hit NO, we use 1 - no_price (the
+ * implied YES price). Either way, the displayed number is "what was YES
+ * worth at the moment this trade printed".
+ */
+export interface KalshiTrade {
+  ticker: string;
+  /** ISO timestamp the trade was created. */
+  createdTime: string;
+  /** Implied YES price in dollars (probability ∈ [0, 1]). */
+  yesPrice: number;
+  /** Which side hit the book — "yes" or "no". */
+  takerSide: "yes" | "no";
+  /** Number of contracts traded. */
+  count: number;
+}
+
+export interface KalshiRawTrade {
+  trade_id?: string;
+  ticker?: string;
+  created_time?: string;
+  yes_price_dollars?: string | number | null;
+  no_price_dollars?: string | number | null;
+  taker_side?: string;
+  count_fp?: string | number | null;
+}
+
+/**
+ * Bundle of richer per-market data fetched only for the spotlight market
+ * (we don't pay this cost for the 6 dense-row markets — the per-render
+ * fan-out would blow the rate limit).
+ */
+export interface KalshiSpotlightExtras {
+  candles: KalshiCandle[];
+  trades: KalshiTrade[];
+}

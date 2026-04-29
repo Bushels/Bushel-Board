@@ -1,8 +1,16 @@
 // components/overview/marketplace-strip.tsx
-// Kalshi prediction-market cards (live) + spot price tiles (live).
-// Kalshi data flows from lib/kalshi/client.ts — fetched per render with a
-// 5-minute in-memory cache. Falls back to a static snapshot if the API is
-// unreachable, so the page never goes blank.
+// "Editorial Trading Floor" — the Predictive Market dashboard on /overview.
+//
+// Composition:
+//   PredictiveMarketHeader   — section title + collapsible disclosure
+//   LiveTape                 — always-scrolling client-side tape
+//   SpotlightCard            — hero card with sparkline + recent prints
+//   MarketRoll               — dense table of remaining markets
+//   CBOT futures strip       — ground-truth tier (existing component, restyled)
+//
+// Server component. Fetches all 7 markets in a staggered fan-out via
+// fetchKalshiMarkets, then fetches the spotlight market's candlesticks +
+// recent trades in parallel. The tape polls client-side at 12s.
 //
 // ── INTEGRATION POINT ───────────────────────────────────────────────────
 // This is the single bridge between the isolated Kalshi module
@@ -16,13 +24,24 @@
 // first, then add a second bridge component — don't grow this file.
 // ────────────────────────────────────────────────────────────────────────
 
-import { fetchKalshiMarkets, formatVolume } from "@/lib/kalshi/client";
+import {
+  fetchCandlesticks,
+  fetchKalshiMarkets,
+  fetchRecentTrades,
+  pickSpotlightMarket,
+} from "@/lib/kalshi/client";
 import type {
-  KalshiCadence,
+  KalshiCandle,
   KalshiCrop,
   KalshiMarket,
+  KalshiTrade,
 } from "@/lib/kalshi/types";
 import type { SpotPrice } from "@/lib/queries/overview-data";
+
+import { PredictiveMarketHeader } from "./marketplace/predictive-market-header";
+import { LiveTape } from "./marketplace/live-tape";
+import { SpotlightCard } from "./marketplace/spotlight-card";
+import { MarketRoll } from "./marketplace/market-roll";
 
 const INK = "#2a261e";
 const WHEAT_50 = "#f5f3ee";
@@ -33,99 +52,151 @@ const INK_MUTED = "#7c6c43";
 const PRAIRIE = "#437a22";
 const AMBER = "#b8702a";
 const CANOLA = "#c17f24";
-const SOIL = "#6b3f2a"; // distinct earth tone for fertilizer/input cards
+const SOIL = "#6b3f2a";
 
-interface KalshiCardData {
-  crop: KalshiCrop;
-  cadence: KalshiCadence;
+// ─── Fallback snapshot — when Kalshi is unreachable ────────────────────
+
+interface FallbackMarket {
+  ticker: string;
+  eventTicker: string;
   title: string;
-  yesPct: number;
-  noPct: number;
-  volume: string;
-  expires: string;
-  isLive: boolean;
+  crop: KalshiCrop;
+  cadence: "monthly" | "weekly" | "wildcard";
+  yesProbability: number;
+  yesBid: number;
+  yesAsk: number;
+  lastPrice: number;
+  volume: number;
+  openInterest: number;
+  closeLabel: string;
 }
 
-// Static snapshot used when Kalshi is unreachable. Captured 2026-04-28 from
-// production data; kept short so degraded mode is obviously a snapshot, not
-// pretending to be live. Cadence labels match the live grid layout so the
-// two rows render even in fallback mode.
-const KALSHI_FALLBACK: KalshiCardData[] = [
-  // Top row — monthly contracts + fertilizer wildcard
+// Captured 2026-04-29. Keep the labels short so degraded mode is obvious.
+const FALLBACK_MARKETS: FallbackMarket[] = [
   {
-    crop: "CORN",
-    cadence: "monthly",
-    title: "Will May corn close above $4.55/bu Apr 30?",
-    yesPct: 66,
-    noPct: 34,
-    volume: "$3.0k",
-    expires: "Apr 30",
-    isLive: false,
-  },
-  {
-    crop: "SOY",
-    cadence: "monthly",
-    title: "Will May soy close above $11.66/bu Apr 30?",
-    yesPct: 91,
-    noPct: 9,
-    volume: "$3.8k",
-    expires: "Apr 30",
-    isLive: false,
-  },
-  {
-    crop: "WHEAT",
-    cadence: "monthly",
-    title: "Will May wheat close above $5.89/bu Apr 30?",
-    yesPct: 91,
-    noPct: 9,
-    volume: "$2.6k",
-    expires: "Apr 30",
-    isLive: false,
-  },
-  {
+    ticker: "KXFERT-26-1200",
+    eventTicker: "KXFERT-26",
+    title: "Will fertilizer reach $1200/ton this year?",
     crop: "FERT",
     cadence: "wildcard",
-    title: "Will fertilizer reach $1200/ton this year?",
-    yesPct: 51,
-    noPct: 49,
-    volume: "$9.9k",
-    expires: "Jan 1",
-    isLive: false,
+    yesProbability: 0.51,
+    yesBid: 0.48,
+    yesAsk: 0.51,
+    lastPrice: 0.51,
+    volume: 9925.66,
+    openInterest: 3157.21,
+    closeLabel: "Jan 1",
   },
-  // Bottom row — weekly contracts
   {
+    ticker: "KXSOYBEANMON-26APR3017-T1166.99",
+    eventTicker: "KXSOYBEANMON-26APR3017",
+    title: "Will May soy close above $11.66/bu Apr 30?",
+    crop: "SOY",
+    cadence: "monthly",
+    yesProbability: 0.89,
+    yesBid: 0.88,
+    yesAsk: 0.91,
+    lastPrice: 0.89,
+    volume: 3812.59,
+    openInterest: 2354.69,
+    closeLabel: "Apr 30",
+  },
+  {
+    ticker: "KXCORNMON-26APR3017-T455.99",
+    eventTicker: "KXCORNMON-26APR3017",
+    title: "Will May corn close above $4.55/bu Apr 30?",
+    crop: "CORN",
+    cadence: "monthly",
+    yesProbability: 0.66,
+    yesBid: 0.65,
+    yesAsk: 0.67,
+    lastPrice: 0.66,
+    volume: 3013.54,
+    openInterest: 1940.74,
+    closeLabel: "Apr 30",
+  },
+  {
+    ticker: "KXWHEATMON-26APR3017-T589.99",
+    eventTicker: "KXWHEATMON-26APR3017",
+    title: "Will May wheat close above $5.89/bu Apr 30?",
+    crop: "WHEAT",
+    cadence: "monthly",
+    yesProbability: 0.91,
+    yesBid: 0.9,
+    yesAsk: 0.93,
+    lastPrice: 0.91,
+    volume: 2550.71,
+    openInterest: 1465.41,
+    closeLabel: "Apr 30",
+  },
+  {
+    ticker: "KXCORNW-26MAY0114-T471.99",
+    eventTicker: "KXCORNW-26MAY0114",
+    title: "Will May corn close above $4.71/bu May 1?",
     crop: "CORN",
     cadence: "weekly",
-    title: "Will May corn close above $4.71/bu May 1?",
-    yesPct: 52,
-    noPct: 48,
-    volume: "$1.0k",
-    expires: "May 1",
-    isLive: false,
+    yesProbability: 0.52,
+    yesBid: 0.5,
+    yesAsk: 0.54,
+    lastPrice: 0.52,
+    volume: 1002,
+    openInterest: 726,
+    closeLabel: "May 1",
   },
   {
-    crop: "SOY",
-    cadence: "weekly",
-    title: "Will May soy close above $11.02/bu May 1?",
-    yesPct: 96,
-    noPct: 4,
-    volume: "$0.5k",
-    expires: "May 1",
-    isLive: false,
-  },
-  {
+    ticker: "KXWHEATW-26MAY0114-T633.49",
+    eventTicker: "KXWHEATW-26MAY0114",
+    title: "Will May wheat close above $6.33/bu May 1?",
     crop: "WHEAT",
     cadence: "weekly",
-    title: "Will May wheat close above $5.18/bu May 1?",
-    yesPct: 96,
-    noPct: 4,
-    volume: "$0.4k",
-    expires: "May 1",
-    isLive: false,
+    yesProbability: 0.88,
+    yesBid: 0.86,
+    yesAsk: 0.9,
+    lastPrice: 0.88,
+    volume: 594,
+    openInterest: 375,
+    closeLabel: "May 1",
+  },
+  {
+    ticker: "KXSOYBEANW-26MAY0114-T1101.99",
+    eventTicker: "KXSOYBEANW-26MAY0114",
+    title: "Will May soy close above $11.02/bu May 1?",
+    crop: "SOY",
+    cadence: "weekly",
+    yesProbability: 0.96,
+    yesBid: 0.95,
+    yesAsk: 0.97,
+    lastPrice: 0.96,
+    volume: 495,
+    openInterest: 226,
+    closeLabel: "May 1",
   },
 ];
 
-function cropColor(crop: KalshiCrop): string {
+function fallbackToMarket(f: FallbackMarket): KalshiMarket {
+  return {
+    ticker: f.ticker,
+    eventTicker: f.eventTicker,
+    seriesTicker: f.ticker.split("-")[0],
+    title: f.title,
+    subtitle: null,
+    crop: f.crop,
+    cadence: f.cadence,
+    status: "snapshot",
+    yesBid: f.yesBid,
+    yesAsk: f.yesAsk,
+    lastPrice: f.lastPrice,
+    yesProbability: f.yesProbability,
+    volume: f.volume,
+    openInterest: f.openInterest,
+    closeTime: null,
+    closeLabel: f.closeLabel,
+  };
+}
+
+// ─── CBOT spot price tile (preserved from prior version) ───────────────
+
+function cropAccent(crop: KalshiCrop): string {
   switch (crop) {
     case "CORN":
       return CANOLA;
@@ -140,149 +211,11 @@ function cropColor(crop: KalshiCrop): string {
   }
 }
 
-function cropLabel(crop: KalshiCrop): string {
-  return crop === "FERT" ? "FERTILIZER" : crop;
+function cropLabelShort(crop: KalshiCrop): string {
+  return crop === "FERT" ? "FERT" : crop;
 }
 
-function toCardData(m: KalshiMarket): KalshiCardData {
-  // Probability is in [0, 1]; round to nearest percent for display.
-  const yes = m.yesProbability;
-  const yesPct = yes != null ? Math.max(0, Math.min(100, Math.round(yes * 100))) : 50;
-  return {
-    crop: m.crop,
-    cadence: m.cadence,
-    title: m.title,
-    yesPct,
-    noPct: 100 - yesPct,
-    volume: formatVolume(m.volume),
-    expires: m.closeLabel,
-    isLive: true,
-  };
-}
-
-function partitionByCadence(cards: KalshiCardData[]): {
-  primary: KalshiCardData[];
-  weekly: KalshiCardData[];
-} {
-  // Top row: monthly contracts + the wildcard (fertilizer is a slow-moving
-  // input cost, sits naturally with the macro/monthly view).
-  // Bottom row: weekly contracts (tactical short-dated bets).
-  const primary: KalshiCardData[] = [];
-  const weekly: KalshiCardData[] = [];
-  for (const c of cards) {
-    if (c.cadence === "weekly") weekly.push(c);
-    else primary.push(c);
-  }
-  return { primary, weekly };
-}
-
-function KalshiCard({ k }: { k: KalshiCardData }) {
-  const accent = cropColor(k.crop);
-  return (
-    <div
-      style={{
-        padding: "20px 22px",
-        background: "#fff",
-        border: `1px solid ${WHEAT_200}`,
-        fontFamily: "var(--font-dm-sans)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 10,
-          alignItems: "baseline",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            letterSpacing: "0.18em",
-            color: accent,
-            fontWeight: 700,
-            textTransform: "uppercase" as const,
-          }}
-        >
-          {cropLabel(k.crop)}
-        </span>
-        <span style={{ fontSize: 10, color: INK_MUTED }}>via Kalshi</span>
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-fraunces)",
-          fontSize: 17,
-          lineHeight: 1.3,
-          color: INK,
-          marginBottom: 14,
-          minHeight: 44,
-        }}
-      >
-        {k.title}
-      </div>
-      {/* YES/NO probability bar */}
-      <div
-        style={{
-          display: "flex",
-          height: 36,
-          marginBottom: 10,
-          fontWeight: 600,
-          fontSize: 13,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            flex: k.yesPct,
-            background: PRAIRIE,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontVariantNumeric: "tabular-nums",
-            gap: 4,
-          }}
-        >
-          YES {k.yesPct}¢
-        </div>
-        <div
-          style={{
-            flex: k.noPct,
-            background: WHEAT_100,
-            color: WHEAT_700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontVariantNumeric: "tabular-nums",
-            gap: 4,
-          }}
-        >
-          NO {k.noPct}¢
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 11,
-          color: INK_MUTED,
-          flexWrap: "wrap",
-          gap: 4,
-        }}
-      >
-        <span>Vol {k.volume}</span>
-        <span>Closes {k.expires}</span>
-      </div>
-    </div>
-  );
-}
-
-interface SpotTileProps {
-  price: SpotPrice;
-  isLast: boolean;
-}
-
-function SpotTile({ price, isLast }: SpotTileProps) {
+function SpotTile({ price, isLast }: { price: SpotPrice; isLast: boolean }) {
   const isUp = price.changeAmount >= 0;
   const changeColor = isUp ? PRAIRIE : AMBER;
   return (
@@ -305,9 +238,7 @@ function SpotTile({ price, isLast }: SpotTileProps) {
       >
         {price.grain}
       </div>
-      <div
-        style={{ display: "flex", alignItems: "baseline", gap: 6 }}
-      >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <span
           style={{
             fontFamily: "var(--font-fraunces)",
@@ -340,42 +271,76 @@ function SpotTile({ price, isLast }: SpotTileProps) {
   );
 }
 
+// ─── Section ───────────────────────────────────────────────────────────
+
 interface MarketplaceStripProps {
   spotPrices: SpotPrice[];
 }
 
-function RowSublabel({ children }: { children: React.ReactNode }) {
+function SectionDivider() {
   return (
     <div
       style={{
-        fontFamily: "var(--font-dm-sans)",
-        fontSize: 10,
-        letterSpacing: "0.22em",
-        textTransform: "uppercase",
-        color: INK_MUTED,
-        fontWeight: 700,
-        marginBottom: 8,
+        height: 1,
+        background: `linear-gradient(90deg, transparent 0%, ${WHEAT_200} 20%, ${WHEAT_200} 80%, transparent 100%)`,
+        margin: "32px 0",
       }}
-    >
-      {children}
-    </div>
+    />
   );
 }
 
 export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
   const visibleSpot = spotPrices.slice(0, 3);
 
+  // Fetch all 7 markets (5-min cached, 120ms staggered).
   const liveMarkets = await fetchKalshiMarkets();
   const usingFallback = liveMarkets.length === 0;
-  const allCards: KalshiCardData[] = usingFallback
-    ? KALSHI_FALLBACK
-    : liveMarkets.map(toCardData);
+  const markets: KalshiMarket[] = usingFallback
+    ? FALLBACK_MARKETS.map(fallbackToMarket)
+    : liveMarkets;
 
-  const { primary, weekly } = partitionByCadence(allCards);
+  // Pick the spotlight market and fetch its richer data in parallel.
+  const spotlight = pickSpotlightMarket(markets);
+  let spotlightCandles: KalshiCandle[] = [];
+  let spotlightTrades: KalshiTrade[] = [];
 
-  const headerLabel = usingFallback
-    ? "Snapshot · Kalshi reconnecting · CBOT live"
-    : "Live · Kalshi + CBOT";
+  if (spotlight && !usingFallback) {
+    // Brief breather before requesting the spotlight extras so we don't
+    // crowd the tail of the markets fan-out (Kalshi rate-limits ~4 req/s).
+    // Sequential rather than parallel for the same reason — one then the
+    // next, with a 250ms gap between them.
+    await new Promise((r) => setTimeout(r, 250));
+    spotlightCandles = await fetchCandlesticks(
+      spotlight.ticker,
+      spotlight.seriesTicker,
+      { periodInterval: 60, lookbackHours: 24 },
+    );
+    await new Promise((r) => setTimeout(r, 250));
+    spotlightTrades = await fetchRecentTrades(spotlight.ticker, 5);
+  }
+
+  // The remaining 6 markets go in the dense table.
+  const rollMarkets = spotlight
+    ? markets.filter((m) => m.ticker !== spotlight.ticker)
+    : markets;
+  const maxVolume = Math.max(1, ...rollMarkets.map((m) => m.volume));
+
+  // Crop mapping for the LiveTape (so polled trades can be colored).
+  const cropByTicker: Record<string, { crop: KalshiCrop; label: string }> = {};
+  for (const m of markets) {
+    cropByTicker[m.ticker] = {
+      crop: m.crop,
+      label: cropLabelShort(m.crop),
+    };
+  }
+
+  // Seed the LiveTape with the spotlight's recent trades so it has
+  // something on first paint before the first poll lands.
+  const tapeSeed = spotlightTrades.slice(0, 8).map((t) => ({
+    trade: t,
+    crop: spotlight?.crop ?? ("OTHER" as KalshiCrop),
+    cropLabel: cropLabelShort(spotlight?.crop ?? "OTHER"),
+  }));
 
   const asOf = new Date().toLocaleString("en-US", {
     month: "short",
@@ -388,125 +353,164 @@ export async function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          marginBottom: 6,
-          flexWrap: "wrap",
-          gap: 8,
-        }}
-      >
-        <h2
-          style={{
-            fontFamily: "var(--font-fraunces)",
-            fontSize: "clamp(24px, 2.5vw, 36px)",
-            fontWeight: 400,
-            color: INK,
-            margin: 0,
-            letterSpacing: "-0.015em",
-          }}
-        >
-          Marketplace
-        </h2>
-        <span
-          style={{
-            fontFamily: "var(--font-dm-sans)",
-            fontSize: 11,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: INK_MUTED,
-            fontWeight: 600,
-          }}
-        >
-          {headerLabel}
-        </span>
-      </div>
-      <p
-        style={{
-          fontFamily: "var(--font-fraunces)",
-          fontWeight: 300,
-          fontSize: "clamp(14px, 1.4vw, 18px)",
-          color: WHEAT_700,
-          margin: "0 0 24px",
-          maxWidth: 720,
-        }}
-      >
-        Where the crowd is putting money. Prediction contracts on top, spot
-        futures below.
-      </p>
+      <PredictiveMarketHeader
+        marketCount={markets.length}
+        isLive={!usingFallback}
+      />
 
-      {/* Top row — monthly grain contracts + fertilizer wildcard (4 cards) */}
-      {primary.length > 0 && (
-        <>
-          <RowSublabel>Monthly contracts · Inputs</RowSublabel>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${Math.max(primary.length, 1)}, 1fr)`,
-              gap: 14,
-              marginBottom: 18,
-            }}
-            className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            {primary.map((k, i) => (
-              <KalshiCard key={`primary-${k.crop}-${i}`} k={k} />
-            ))}
-          </div>
-        </>
+      {/* Live tape */}
+      <div style={{ margin: "20px 0 24px" }}>
+        <LiveTape
+          seed={tapeSeed}
+          cropByTicker={cropByTicker}
+          pollTicker={spotlight?.ticker ?? ""}
+          pollMs={12000}
+        />
+      </div>
+
+      {/* Spotlight */}
+      {spotlight && (
+        <div style={{ marginBottom: 28 }}>
+          <SpotlightCard
+            market={spotlight}
+            candles={spotlightCandles}
+            trades={spotlightTrades}
+          />
+        </div>
       )}
 
-      {/* Bottom row — weekly grain contracts (3 cards) */}
-      {weekly.length > 0 && (
-        <>
-          <RowSublabel>Weekly contracts</RowSublabel>
+      {/* The Roll */}
+      {rollMarkets.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 14,
+              fontFamily: "var(--font-dm-sans)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                color: INK_MUTED,
+                fontWeight: 700,
+              }}
+            >
+              The roll · <span style={{ color: INK }}>{rollMarkets.length} more</span>
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.18em",
+                color: INK_MUTED,
+                fontWeight: 600,
+                textTransform: "uppercase",
+              }}
+            >
+              Sorted by volume
+            </span>
+          </div>
+          <MarketRoll markets={rollMarkets} maxVolume={maxVolume} />
+        </div>
+      )}
+
+      <SectionDivider />
+
+      {/* CBOT futures — ground truth tier */}
+      {visibleSpot.length > 0 && (
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 12,
+              fontFamily: "var(--font-dm-sans)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                color: INK_MUTED,
+                fontWeight: 700,
+              }}
+            >
+              CBOT Futures ·{" "}
+              <span style={{ color: INK }}>Ground truth</span>
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.18em",
+                color: PRAIRIE,
+                fontWeight: 700,
+                textTransform: "uppercase",
+              }}
+            >
+              Live
+            </span>
+          </div>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: `repeat(${Math.max(weekly.length, 1)}, 1fr)`,
-              gap: 14,
-              marginBottom: 14,
+              gridTemplateColumns: `repeat(${visibleSpot.length}, 1fr)`,
+              border: `1px solid ${WHEAT_200}`,
+              background: "#fff",
             }}
             className="grid-cols-1 sm:grid-cols-3"
           >
-            {weekly.map((k, i) => (
-              <KalshiCard key={`weekly-${k.crop}-${i}`} k={k} />
+            {visibleSpot.map((p, i) => (
+              <SpotTile
+                key={p.grain}
+                price={p}
+                isLast={i === visibleSpot.length - 1}
+              />
             ))}
           </div>
-        </>
-      )}
-
-      {/* Spot price strip */}
-      {visibleSpot.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${visibleSpot.length}, 1fr)`,
-            border: `1px solid ${WHEAT_200}`,
-            background: "#fff",
-          }}
-          className="grid-cols-1 sm:grid-cols-3"
-        >
-          {visibleSpot.map((p, i) => (
-            <SpotTile key={p.grain} price={p} isLast={i === visibleSpot.length - 1} />
-          ))}
         </div>
       )}
 
       {/* Footnote */}
       <div
         style={{
-          marginTop: 10,
+          marginTop: 18,
           fontSize: 10,
           color: "#af9f76",
           fontFamily: "var(--font-dm-sans)",
           letterSpacing: "0.04em",
+          display: "flex",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 8,
         }}
       >
-        {usingFallback
-          ? "Live data unavailable — showing recent snapshot."
-          : `As of ${asOf} · Kalshi public API.`}
+        <span>
+          {usingFallback
+            ? "Live data unavailable — showing recent snapshot."
+            : `As of ${asOf} · Tape refreshes every 12s · Markets refresh every 5min`}
+        </span>
+        <span>
+          via{" "}
+          <a
+            href="https://kalshi.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "inherit",
+              textDecoration: "underline",
+              textDecorationStyle: "dotted",
+            }}
+          >
+            kalshi.com
+          </a>{" "}
+          · public API
+        </span>
       </div>
     </div>
   );

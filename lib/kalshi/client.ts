@@ -20,9 +20,13 @@
 // ────────────────────────────────────────────────────────────────────────
 
 import type {
+  KalshiCandle,
   KalshiMarket,
+  KalshiRawCandle,
   KalshiRawMarket,
+  KalshiRawTrade,
   KalshiSeriesSpec,
+  KalshiTrade,
 } from "./types";
 
 const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
@@ -244,7 +248,12 @@ export async function fetchTopMarketForSeries(
 }
 
 /** Stagger between consecutive request starts, in ms. Tunable / test-overridable. */
-export const KALSHI_STAGGER_MS = 120;
+// Empirically Kalshi's public endpoint sustains ~4 req/sec — at 180ms
+// we still saw isolated 429s when candlestick + trade fetches followed
+// the markets fan-out. 250ms (= 4 req/sec) clears the cliff comfortably.
+// 7 specs × 250ms = 1.75s before all are in flight; cached for 5 min
+// after, so this only affects cold renders.
+export const KALSHI_STAGGER_MS = 250;
 
 /**
  * Fetch the featured Kalshi markets with a small inter-request stagger.
@@ -289,4 +298,216 @@ export async function fetchKalshiMarkets(
 
   cache.set(key, { expiresAt: now + CACHE_TTL_MS, data: markets });
   return markets;
+}
+
+// ─── Candlesticks ──────────────────────────────────────────────────────
+
+/**
+ * Normalize a raw Kalshi candlestick row into our display shape. Returns
+ * null for rows missing the period timestamp (we use it as the x-axis
+ * key). All other fields are best-effort — a candle with neither bid nor
+ * ask is still kept so the consumer can decide how to handle gaps.
+ */
+export function normalizeKalshiCandle(
+  raw: KalshiRawCandle,
+): KalshiCandle | null {
+  if (raw == null || typeof raw.end_period_ts !== "number") return null;
+  return {
+    endTs: raw.end_period_ts,
+    yesBidClose: parseKalshiNumber(raw.yes_bid?.close_dollars),
+    yesAskClose: parseKalshiNumber(raw.yes_ask?.close_dollars),
+    volume: parseKalshiNumber(raw.volume_fp) ?? 0,
+    openInterest: parseKalshiNumber(raw.open_interest_fp) ?? 0,
+  };
+}
+
+/**
+ * Mid-of-bid/ask is the cleanest single-line representation of "what the
+ * crowd thinks YES is worth right now". Returns null when neither side
+ * is quoted.
+ */
+export function candleMidPrice(c: KalshiCandle): number | null {
+  if (c.yesBidClose != null && c.yesAskClose != null) {
+    return (c.yesBidClose + c.yesAskClose) / 2;
+  }
+  return c.yesBidClose ?? c.yesAskClose;
+}
+
+/**
+ * Fetch the candlestick series for one market. The Kalshi candlestick
+ * endpoint requires the parent series ticker in the URL path even
+ * though the leaf ticker uniquely identifies the market.
+ *
+ * `periodInterval` is in MINUTES — Kalshi accepts 1, 60, 1440 (=1d).
+ * For sparklines we default to 60-min over the last 24 hours: 24
+ * candles, plenty of resolution, one fetch.
+ */
+export async function fetchCandlesticks(
+  ticker: string,
+  seriesTicker: string,
+  options: {
+    periodInterval?: number;
+    lookbackHours?: number;
+    fetchImpl?: typeof fetch;
+    retryDelayMs?: number;
+  } = {},
+): Promise<KalshiCandle[]> {
+  const periodInterval = options.periodInterval ?? 60;
+  const lookbackHours = options.lookbackHours ?? 24;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const retryDelayMs = options.retryDelayMs ?? KALSHI_RETRY_DELAY_MS;
+
+  const endTs = Math.floor(Date.now() / 1000);
+  const startTs = endTs - lookbackHours * 3600;
+  const url =
+    `${KALSHI_BASE}/series/${encodeURIComponent(seriesTicker)}` +
+    `/markets/${encodeURIComponent(ticker)}/candlesticks` +
+    `?start_ts=${startTs}&end_ts=${endTs}&period_interval=${periodInterval}`;
+
+  const attempt = async (): Promise<Response | null> => {
+    try {
+      return await fetchImpl(url, {
+        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  let resp = await attempt();
+  if (resp && (resp.status === 429 || resp.status >= 500)) {
+    await new Promise((r) => setTimeout(r, retryDelayMs));
+    resp = await attempt();
+  }
+  if (!resp || !resp.ok) return [];
+
+  let body: unknown;
+  try {
+    body = await resp.json();
+  } catch {
+    return [];
+  }
+
+  const raw = (body as { candlesticks?: KalshiRawCandle[] })?.candlesticks;
+  if (!Array.isArray(raw)) return [];
+
+  const candles = raw
+    .map(normalizeKalshiCandle)
+    .filter((c): c is KalshiCandle => c != null);
+  // Always return chronologically — Kalshi already sorts ascending but
+  // belt-and-braces against API surprises.
+  candles.sort((a, b) => a.endTs - b.endTs);
+  return candles;
+}
+
+// ─── Recent trades ─────────────────────────────────────────────────────
+
+/**
+ * Normalize a raw Kalshi trade. Kalshi reports yes_price + no_price
+ * separately; we collapse to a single `yesPrice` (the implied probability
+ * that YES resolves true). When the taker hit YES, yes_price is what they
+ * paid; when they hit NO, the implied YES price is `1 - no_price`.
+ *
+ * Returns null if neither price is parseable (which would be a bug, but
+ * defensive coding).
+ */
+export function normalizeKalshiTrade(
+  raw: KalshiRawTrade,
+): KalshiTrade | null {
+  if (!raw?.ticker || !raw?.created_time) return null;
+  const yesPrice = parseKalshiNumber(raw.yes_price_dollars);
+  const noPrice = parseKalshiNumber(raw.no_price_dollars);
+
+  let impliedYes: number | null = null;
+  if (yesPrice != null && yesPrice >= 0 && yesPrice <= 1) {
+    impliedYes = yesPrice;
+  } else if (noPrice != null && noPrice >= 0 && noPrice <= 1) {
+    impliedYes = 1 - noPrice;
+  }
+  if (impliedYes == null) return null;
+
+  const takerSide: "yes" | "no" = raw.taker_side === "no" ? "no" : "yes";
+  const count = parseKalshiNumber(raw.count_fp) ?? 1;
+
+  return {
+    ticker: raw.ticker,
+    createdTime: raw.created_time,
+    yesPrice: impliedYes,
+    takerSide,
+    count,
+  };
+}
+
+/**
+ * Fetch the most recent N trades for a single market. Used for the
+ * spotlight card's "Recent prints" tape and for the live ticker bar.
+ *
+ * Kalshi's `/markets/trades?ticker=...` endpoint returns trades newest
+ * first; we preserve that order for display.
+ */
+export async function fetchRecentTrades(
+  ticker: string,
+  limit: number = 5,
+  fetchImpl: typeof fetch = fetch,
+  retryDelayMs: number = KALSHI_RETRY_DELAY_MS,
+): Promise<KalshiTrade[]> {
+  const url =
+    `${KALSHI_BASE}/markets/trades` +
+    `?ticker=${encodeURIComponent(ticker)}&limit=${Math.max(1, Math.min(limit, 50))}`;
+
+  const attempt = async (): Promise<Response | null> => {
+    try {
+      return await fetchImpl(url, {
+        headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  let resp = await attempt();
+  if (resp && (resp.status === 429 || resp.status >= 500)) {
+    await new Promise((r) => setTimeout(r, retryDelayMs));
+    resp = await attempt();
+  }
+  if (!resp || !resp.ok) return [];
+
+  let body: unknown;
+  try {
+    body = await resp.json();
+  } catch {
+    return [];
+  }
+
+  const raw = (body as { trades?: KalshiRawTrade[] })?.trades;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map(normalizeKalshiTrade)
+    .filter((t): t is KalshiTrade => t != null);
+}
+
+// ─── Spotlight picker ──────────────────────────────────────────────────
+
+/**
+ * Pick the single market that should headline the dashboard. Strategy:
+ *  1. Prefer the market with the largest |movement vs. previous lastPrice|
+ *     when we have any data to compare against (returns the biggest mover).
+ *  2. Fall back to the highest-volume market when all moves are tied / null
+ *     (returns the most-traded market).
+ *
+ * Returns null for an empty list — the consumer falls back to fallback art.
+ */
+export function pickSpotlightMarket(
+  markets: KalshiMarket[],
+): KalshiMarket | null {
+  if (markets.length === 0) return null;
+  if (markets.length === 1) return markets[0];
+
+  // Highest-volume wins as the baseline editorial choice. Volume is the
+  // single best proxy for "where the most attention is right now". A
+  // future iteration could weight by |yesBid - yesAsk| spread (liquidity
+  // surprise) or by intra-day movement once we wire candlesticks for
+  // every card.
+  return markets.reduce((best, m) => (m.volume > best.volume ? m : best));
 }

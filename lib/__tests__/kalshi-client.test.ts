@@ -4,16 +4,26 @@ import {
   FEATURED_KALSHI_TICKERS,
   __clearKalshiCacheForTests,
   __getKalshiCacheForTests,
+  candleMidPrice,
   deriveDisplayTitle,
   deriveYesProbability,
   fetchKalshiMarkets,
   fetchTopMarketForSeries,
   formatCloseLabel,
   formatVolume,
+  normalizeKalshiCandle,
   normalizeKalshiMarket,
+  normalizeKalshiTrade,
   parseKalshiNumber,
+  pickSpotlightMarket,
 } from "@/lib/kalshi/client";
-import type { KalshiRawMarket, KalshiSeriesSpec } from "@/lib/kalshi/types";
+import type {
+  KalshiMarket,
+  KalshiRawCandle,
+  KalshiRawMarket,
+  KalshiRawTrade,
+  KalshiSeriesSpec,
+} from "@/lib/kalshi/types";
 
 const CORN_SPEC: KalshiSeriesSpec = {
   seriesTicker: "KXCORNMON",
@@ -430,5 +440,210 @@ describe("KXFERT integration via normalize", () => {
     expect(m?.cadence).toBe("wildcard");
     expect(m?.title).toBe("Will fertilizer reach $1200/ton this year?");
     expect(m?.yesProbability).toBe(0.51);
+  });
+});
+
+// ─── Candlesticks ──────────────────────────────────────────────────────
+
+describe("normalizeKalshiCandle", () => {
+  // Real candle row shape captured 2026-04-29.
+  const REAL_CANDLE: KalshiRawCandle = {
+    end_period_ts: 1777356000,
+    open_interest_fp: "1942.74",
+    price: { previous_dollars: "0.9000" },
+    volume_fp: "12.50",
+    yes_ask: {
+      close_dollars: "0.9300",
+      high_dollars: "0.9300",
+      low_dollars: "0.9300",
+      open_dollars: "0.9300",
+    },
+    yes_bid: {
+      close_dollars: "0.5600",
+      high_dollars: "0.5600",
+      low_dollars: "0.4700",
+      open_dollars: "0.5500",
+    },
+  };
+
+  it("normalizes a real candle into our shape", () => {
+    const c = normalizeKalshiCandle(REAL_CANDLE);
+    expect(c).not.toBeNull();
+    expect(c?.endTs).toBe(1777356000);
+    expect(c?.yesBidClose).toBe(0.56);
+    expect(c?.yesAskClose).toBe(0.93);
+    expect(c?.volume).toBe(12.5);
+    expect(c?.openInterest).toBe(1942.74);
+  });
+
+  it("returns null when end_period_ts is missing", () => {
+    expect(
+      normalizeKalshiCandle({ yes_bid: { close_dollars: "0.5" } } as KalshiRawCandle),
+    ).toBeNull();
+  });
+
+  it("handles a candle with no bid/ask quotes", () => {
+    const c = normalizeKalshiCandle({
+      end_period_ts: 100,
+      volume_fp: "0",
+      open_interest_fp: "0",
+    });
+    expect(c).not.toBeNull();
+    expect(c?.yesBidClose).toBeNull();
+    expect(c?.yesAskClose).toBeNull();
+  });
+});
+
+describe("candleMidPrice", () => {
+  it("returns the average when both bid and ask are present", () => {
+    expect(
+      candleMidPrice({
+        endTs: 1,
+        yesBidClose: 0.5,
+        yesAskClose: 0.6,
+        volume: 0,
+        openInterest: 0,
+      }),
+    ).toBeCloseTo(0.55);
+  });
+
+  it("falls back to bid alone when ask is missing", () => {
+    expect(
+      candleMidPrice({
+        endTs: 1,
+        yesBidClose: 0.42,
+        yesAskClose: null,
+        volume: 0,
+        openInterest: 0,
+      }),
+    ).toBe(0.42);
+  });
+
+  it("falls back to ask alone when bid is missing", () => {
+    expect(
+      candleMidPrice({
+        endTs: 1,
+        yesBidClose: null,
+        yesAskClose: 0.71,
+        volume: 0,
+        openInterest: 0,
+      }),
+    ).toBe(0.71);
+  });
+
+  it("returns null when both sides are absent", () => {
+    expect(
+      candleMidPrice({
+        endTs: 1,
+        yesBidClose: null,
+        yesAskClose: null,
+        volume: 0,
+        openInterest: 0,
+      }),
+    ).toBeNull();
+  });
+});
+
+// ─── Recent trades ─────────────────────────────────────────────────────
+
+describe("normalizeKalshiTrade", () => {
+  const REAL_TRADE: KalshiRawTrade = {
+    trade_id: "f1c98fb0-3343-6a46-391d-673609131225",
+    ticker: "KXCORNMON-26APR3017-T455.99",
+    created_time: "2026-04-29T02:49:34.247148Z",
+    yes_price_dollars: "0.6600",
+    no_price_dollars: "0.3400",
+    taker_side: "yes",
+    count_fp: "1.00",
+  };
+
+  it("normalizes a YES-side trade to its yes_price directly", () => {
+    const t = normalizeKalshiTrade(REAL_TRADE);
+    expect(t?.yesPrice).toBe(0.66);
+    expect(t?.takerSide).toBe("yes");
+    expect(t?.count).toBe(1);
+    expect(t?.ticker).toBe("KXCORNMON-26APR3017-T455.99");
+  });
+
+  it("derives implied YES price from no_price when YES is absent", () => {
+    const t = normalizeKalshiTrade({
+      ticker: "X",
+      created_time: "2026-04-29T00:00:00Z",
+      yes_price_dollars: null,
+      no_price_dollars: "0.3000",
+      taker_side: "no",
+    });
+    expect(t?.yesPrice).toBeCloseTo(0.7);
+    expect(t?.takerSide).toBe("no");
+  });
+
+  it("returns null when the trade lacks a ticker / timestamp", () => {
+    expect(
+      normalizeKalshiTrade({ yes_price_dollars: "0.5" } as KalshiRawTrade),
+    ).toBeNull();
+  });
+
+  it("returns null when both prices are unparseable", () => {
+    expect(
+      normalizeKalshiTrade({
+        ticker: "X",
+        created_time: "2026-04-29T00:00:00Z",
+        yes_price_dollars: null,
+        no_price_dollars: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("defaults taker_side to 'yes' for unknown values", () => {
+    const t = normalizeKalshiTrade({
+      ticker: "X",
+      created_time: "2026-04-29T00:00:00Z",
+      yes_price_dollars: "0.4",
+      taker_side: "weird-value",
+    });
+    expect(t?.takerSide).toBe("yes");
+  });
+});
+
+// ─── Spotlight picker ─────────────────────────────────────────────────
+
+describe("pickSpotlightMarket", () => {
+  function mk(ticker: string, volume: number): KalshiMarket {
+    return {
+      ticker,
+      eventTicker: null,
+      seriesTicker: ticker,
+      title: ticker,
+      subtitle: null,
+      crop: "CORN",
+      cadence: "monthly",
+      status: "active",
+      yesBid: 0.5,
+      yesAsk: 0.6,
+      lastPrice: 0.55,
+      yesProbability: 0.55,
+      volume,
+      openInterest: 0,
+      closeTime: null,
+      closeLabel: "TBD",
+    };
+  }
+
+  it("returns null for an empty list", () => {
+    expect(pickSpotlightMarket([])).toBeNull();
+  });
+
+  it("returns the only entry when there's exactly one", () => {
+    expect(pickSpotlightMarket([mk("A", 10)])?.ticker).toBe("A");
+  });
+
+  it("picks the highest-volume market", () => {
+    const result = pickSpotlightMarket([mk("A", 10), mk("B", 100), mk("C", 50)]);
+    expect(result?.ticker).toBe("B");
+  });
+
+  it("keeps the first when volumes are tied", () => {
+    const result = pickSpotlightMarket([mk("A", 50), mk("B", 50)]);
+    expect(result?.ticker).toBe("A");
   });
 });
