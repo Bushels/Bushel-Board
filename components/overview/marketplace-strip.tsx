@@ -3,6 +3,18 @@
 // Kalshi data flows from lib/kalshi/client.ts — fetched per render with a
 // 5-minute in-memory cache. Falls back to a static snapshot if the API is
 // unreachable, so the page never goes blank.
+//
+// ── INTEGRATION POINT ───────────────────────────────────────────────────
+// This is the single bridge between the isolated Kalshi module
+// (lib/kalshi/*) and the Overview page. Keep the bridge thin:
+//   • imports only from lib/kalshi/* + lib/queries/overview-data
+//   • does not transform Kalshi data into stance/score concepts
+//   • does not feed Kalshi data back into market_analysis or any other
+//     internal pipeline
+// If/when Kalshi gets a richer integration (sponsored markets, deeper
+// drill-down, bull/bear cross-references), build it in its own module
+// first, then add a second bridge component — don't grow this file.
+// ────────────────────────────────────────────────────────────────────────
 
 import { fetchKalshiMarkets } from "@/lib/kalshi/client";
 import { formatVolume } from "@/lib/kalshi/client";

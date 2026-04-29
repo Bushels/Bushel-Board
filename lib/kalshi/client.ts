@@ -3,6 +3,21 @@
 // Caches results in-memory for 5 minutes to avoid hammering Kalshi on every
 // /overview render. Returns [] on any failure (graceful degradation; the
 // marketplace strip falls back to a static snapshot if we return nothing).
+//
+// ── ISOLATION FENCE ─────────────────────────────────────────────────────
+// This module is a self-contained Kalshi prediction-market client. It is
+// intentionally decoupled from:
+//   • the bull/bear grain desk pipeline (market_analysis, score_trajectory,
+//     grain-desk swarm, US desk, etc.)
+//   • the CGC import / weekly grain monitor pipeline
+//   • Supabase / Hermes / any internal data store
+// Kalshi data lives only on the Marketplace strip on /overview. Do NOT
+// import this client from grain-desk code paths, swarm prompts, or
+// stance-score writers — the Kalshi YES/NO probabilities are crowd-funded
+// price-prediction signals and are NOT the same thing as our internal
+// supply/demand stance scores. Keep them visually and structurally
+// separate until a deliberate, designed integration is approved.
+// ────────────────────────────────────────────────────────────────────────
 
 import type {
   KalshiCrop,

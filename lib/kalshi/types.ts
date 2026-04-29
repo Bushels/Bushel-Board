@@ -2,6 +2,15 @@
 // Shared Kalshi types — safe to import from client or server modules.
 // The Kalshi public API returns numeric fields as strings; we normalize
 // them to numbers in the client and surface the cleaned shape here.
+//
+// ── ISOLATION FENCE ─────────────────────────────────────────────────────
+// These types belong to the Kalshi prediction-market feature only.
+// Do NOT extend them with fields from market_analysis, score_trajectory,
+// CGC observations, or any other internal-pipeline shape. If you need to
+// join Kalshi YES probabilities with internal stance data, build a new
+// composition type in the consuming component — keep this file
+// Kalshi-only.
+// ────────────────────────────────────────────────────────────────────────
 
 export type KalshiCrop = "CORN" | "SOY" | "WHEAT" | "OTHER";
 
