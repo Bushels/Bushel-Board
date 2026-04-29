@@ -65,7 +65,6 @@ export function SeedingDashboard({ dashboards }: Props) {
         dashboards={dashboards}
         selectedCommodity={selectedCommodity}
         currentWeek={currentWeek}
-        onSelectCommodity={setSelectedCommodity}
       />
     </div>
   );

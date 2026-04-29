@@ -24,11 +24,18 @@ import { cn } from "@/lib/utils";
 const NDVI_SOURCE_ID = "ndvi-modis-8day";
 const NDVI_LAYER_ID = "ndvi-modis-8day-layer";
 
+const PINNED_STATE_ZOOM = 5.5;
+const PINNED_STATE_FLY_DURATION_MS = 500;
+
 interface Props {
   dashboards: CommodityDashboard[];
   selectedCommodity: string;
   currentWeek: string;
-  onSelectCommodity: (c: string) => void;
+  /** Kept for backwards-compatibility — callers may still pass it but the
+   *  focus map no longer renders its own commodity selector. The cards
+   *  above the scrubber are now the single source of truth for crop
+   *  selection. */
+  onSelectCommodity?: (c: string) => void;
 }
 
 interface TooltipState {
@@ -40,8 +47,6 @@ interface TooltipState {
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 const EASE = [0.16, 1, 0.3, 1] as const;
-
-const COMMODITY_ORDER = ["CORN", "SOYBEANS", "WHEAT", "BARLEY", "OATS"];
 
 const INITIAL_VIEW = {
   longitude: -93.5,
@@ -67,10 +72,6 @@ const CROP_FOCUS: Record<
 
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-}
-
-function swatchFor(commodity: string): string {
-  return commodity === "WHEAT" ? "#e8b96b" : "#c17f24";
 }
 
 function rowForWeek(
@@ -176,7 +177,6 @@ function SeedingFocusMapInner({
   dashboards,
   selectedCommodity,
   currentWeek,
-  onSelectCommodity,
   mapboxToken,
 }: Props & { mapboxToken: string }): JSX.Element {
   const reducedMotion = useReducedMotion() === true;
@@ -186,6 +186,7 @@ function SeedingFocusMapInner({
   const [mapReady, setMapReady] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [showNdvi, setShowNdvi] = useState(true);
+  const [pinnedStateCode, setPinnedStateCode] = useState<string | null>(null);
 
   const ndviCompositeDate = useMemo(() => {
     if (!currentWeek) return snapToModis8Day(new Date());
@@ -208,14 +209,6 @@ function SeedingFocusMapInner({
     () => activeDashboard?.rows ?? [],
     [activeDashboard],
   );
-
-  const commodityButtons = useMemo(() => {
-    const available = new Set(dashboards.map((dashboard) => dashboard.commodity));
-    const ordered = COMMODITY_ORDER.filter((commodity) =>
-      available.has(commodity),
-    );
-    return ordered.length > 0 ? ordered : COMMODITY_ORDER;
-  }, [dashboards]);
 
   const stateEntries = useMemo(() => {
     const grouped = groupByState(activeRows);
@@ -308,52 +301,113 @@ function SeedingFocusMapInner({
     [activeCommodity, currentWeek],
   );
 
+  // Show tooltip via lng/lat projection rather than DOM lookup — used by the
+  // state quick-jump pills, where we don't have a marker element in hand.
+  const showTooltipForLngLat = useCallback(
+    (rows: SeismographRow[]) => {
+      const row = rowForWeek(rows, currentWeek);
+      const container = mapShellRef.current?.getBoundingClientRect();
+      const map = mapRef.current?.getMap();
+      if (!row || !container || !map) return;
+      const point = map.project([row.centroid_lng, row.centroid_lat]);
+      setTooltip({
+        commodity: activeCommodity,
+        row,
+        anchor: { x: point.x, y: point.y },
+        containerSize: { width: container.width, height: container.height },
+      });
+    },
+    [activeCommodity, currentWeek],
+  );
+
+  const handleStatePillClick = useCallback(
+    (stateCode: string, stateRows: SeismographRow[]) => {
+      // Toggle off if already pinned
+      if (pinnedStateCode === stateCode) {
+        setPinnedStateCode(null);
+        setTooltip(null);
+        return;
+      }
+      setPinnedStateCode(stateCode);
+      const first = stateRows[0];
+      const map = mapRef.current?.getMap();
+      if (!first) return;
+
+      if (reducedMotion || !map) {
+        showTooltipForLngLat(stateRows);
+        return;
+      }
+
+      map.flyTo({
+        center: [first.centroid_lng, first.centroid_lat],
+        zoom: PINNED_STATE_ZOOM,
+        duration: PINNED_STATE_FLY_DURATION_MS,
+        curve: 1.2,
+        essential: false,
+      });
+      map.once("moveend", () => {
+        showTooltipForLngLat(stateRows);
+      });
+    },
+    [pinnedStateCode, reducedMotion, showTooltipForLngLat],
+  );
+
+  // Clear pinned state when commodity changes (different state set may apply)
+  useEffect(() => {
+    setPinnedStateCode(null);
+  }, [selectedCommodity]);
+
   return (
     <GlassCard elevation={2} hover={false} className="overflow-hidden p-4 sm:p-5">
       <header className="flex flex-col gap-3 border-b border-border/35 pb-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {commodityButtons.map((commodity) => {
-            const isActive = commodity === selectedCommodity;
+        {/* State quick-jump pills. The 5 commodities are selected via the
+            small-multiples cards above the scrubber — keeping this row free
+            of duplicate crop pills and instead using it for state focus. */}
+        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
+          <span
+            aria-hidden="true"
+            className="shrink-0 pr-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+          >
+            {titleCase(activeCommodity)} ·
+          </span>
+          {stateEntries.length === 0 && (
+            <span className="text-xs italic text-muted-foreground">
+              No state-level data this commodity
+            </span>
+          )}
+          {stateEntries.map(([stateCode, stateRows]) => {
+            const first = stateRows[0];
+            if (!first) return null;
+            const isPinned = pinnedStateCode === stateCode;
             return (
               <motion.button
-                key={commodity}
+                key={stateCode}
                 type="button"
-                onClick={() => onSelectCommodity(commodity)}
-                aria-pressed={isActive}
+                onClick={() => handleStatePillClick(stateCode, stateRows)}
+                aria-pressed={isPinned}
+                aria-label={`Focus on ${first.state_name}`}
                 className={cn(
-                  "inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-colors duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                  isActive
-                    ? "border-canola bg-canola text-white shadow-canola-glow ring-2 ring-canola/30"
-                    : "border-border/45 bg-card/50 text-muted-foreground hover:border-canola/45 hover:bg-canola/10 hover:text-foreground",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                  isPinned
+                    ? "border-canola bg-canola text-white shadow-sm ring-2 ring-canola/30"
+                    : "border-border/40 bg-card/50 text-muted-foreground hover:border-canola/40 hover:bg-canola/10 hover:text-foreground",
                 )}
-                animate={
-                  reducedMotion
-                    ? false
-                    : { scale: isActive ? 1.035 : 1, opacity: 1 }
-                }
                 whileHover={
-                  reducedMotion ? undefined : { scale: isActive ? 1.035 : 1.02 }
+                  reducedMotion ? undefined : { scale: isPinned ? 1.0 : 1.04 }
                 }
-                whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-                transition={{ duration: 0.12, ease: EASE }}
+                whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+                transition={{ duration: 0.1, ease: EASE }}
               >
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full border"
-                  style={{
-                    backgroundColor: swatchFor(commodity),
-                    borderColor: isActive
-                      ? "rgba(255,255,255,0.75)"
-                      : "transparent",
-                  }}
-                />
-                {titleCase(commodity)}
+                <span className="font-display text-[10px]">{stateCode}</span>
+                <span className="hidden font-medium sm:inline">
+                  {first.state_name}
+                </span>
               </motion.button>
             );
           })}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
             onClick={() => setShowNdvi((prev) => !prev)}
@@ -369,9 +423,6 @@ function SeedingFocusMapInner({
             <span aria-hidden="true">🛰</span>
             {showNdvi ? "NDVI on" : "NDVI off"}
           </button>
-          <p className="hidden text-sm font-medium text-muted-foreground sm:block">
-            Hover a state for details
-          </p>
         </div>
       </header>
 
