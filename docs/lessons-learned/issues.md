@@ -1,5 +1,38 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-29 — 7 Supabase migrations applied to production but never committed to git
+
+**Symptom:** While trying to push the new `predictive_market_briefs` migration from a worktree, `npx supabase db push` refused with `Remote migration versions not found in local migrations directory` and listed 7 migration timestamps the local tree was missing. The worktree was branched from `codex/grain-monitor-weekly-import` at base commit `ca3036f` and had no idea those 7 migrations existed.
+
+**Root cause:** The 7 SQL files (`20260418120000_bio_trial_vendor_rpcs_reconcile.sql` through `20260428020100_score_trajectory_allow_producer_cars.sql`) existed as **untracked files** in the main repo's `supabase/migrations/` directory. They had been authored by previous sessions, applied to remote Supabase via `npx supabase db push` (which doesn't require the file to be committed — it just needs to exist on disk), but `git add` + `git commit` was never run. `git log --all --diff-filter=A --follow -- supabase/migrations/<filename>` returned zero results for every one of them across every branch in the repo. They lived in `git status` as `??` lines that someone scrolled past.
+
+**Why this is dangerous:**
+1. **No audit trail.** No commit means no author, no date, no associated PR or feature track. If you ever need to know "why does this RPC exist?" the answer requires reading the SQL file directly — not the git log of the file (there is none).
+2. **Lost on a fresh clone.** Anyone cloning the repo onto a new machine would have a Supabase database with 7 RPCs/views/checks the local code doesn't know about. Their next `db push` would fail the same way.
+3. **Worktrees can't see them.** Git worktrees share the same `.git` directory but each has its own working tree. An untracked file in one working tree doesn't appear in another worktree's checkout. This is exactly how this drift was discovered.
+4. **It silently breaks the Definition of Done.** CLAUDE.md mandates "Lessons learned documented in `docs/lessons-learned/issues.md` if a non-obvious bug was encountered" and "STATUS.md updated if a new feature track was completed" — neither can happen for a migration that never got committed.
+
+**Fix shipped:**
+1. **Committed all 7 untracked migrations to the worktree branch** so this branch's PR carries them into git history. Codex confirmed all 7 exist on remote `schema_migrations` (so `db push` after the commit only applies the new `20260429100000_predictive_market_briefs.sql`).
+2. **Then ran `npx supabase db push` from the worktree** — applied only `20260429100000`, the other 7 were already-tracked no-ops.
+3. **Wrote this lessons-learned entry** so future sessions know to grep for untracked migrations before assuming the local tree matches reality.
+
+**Dos and don'ts — handling Supabase migrations:**
+
+- ✅ **DO** run `git status supabase/migrations/` after any session that authored a migration. Untracked migration files are a Definition-of-Done failure, not just a stylistic miss.
+- ✅ **DO** treat `npx supabase migration list --linked` as authoritative truth. The `LOCAL | REMOTE | TIMESTAMP` columns make drift visible: empty LOCAL = missing from your tree, empty REMOTE = not yet pushed.
+- ✅ **DO** include the migration filename in the same commit as any code that reads/writes the affected table or RPC. Phase 1 of Track 52 did this correctly: `lib/queries/predictive-market.ts` (which reads `predictive_market_briefs`) and the migration file landed in the same commit `386857c`.
+- ❌ **DON'T** run `db push` against production with uncommitted migration files in the tree. The push will succeed, the file will stay untracked, and the next session will hit the same drift wall. If the file has to ship right now, commit it FIRST then push.
+- ❌ **DON'T** assume "I can see the file in `ls` so git knows about it." Git tracks what you tell it to track. `git status` is the source of truth.
+
+**Detection query (pre-commit lint candidate):**
+```bash
+git status --short supabase/migrations/ | grep -E "^\?\? "
+```
+If this returns any rows, you have untracked migrations. Either commit them or move them out of `supabase/migrations/` before they get applied.
+
+---
+
 ## 2026-04-24 — V1 Grok pipeline kill switch (fail-closed)
 
 **Symptom:** A rogue V1 Grok run landed in `market_analysis` at 2026-04-24 19:08 UTC (13:08 MT) for Canola with `model_used='grok-4.20-reasoning'`. This was 5.5 hours before the Friday 6:47 PM MT V2 Claude Agent Desk swarm was scheduled to fire. CLAUDE.md explicitly designates V1 as "recovery fallback only" — no scheduled writer should have hit the old path. No caller was identified via Vercel routes, scripts, `pg_cron`, `pipeline_runs`, or Claude Desktop Routines; the write was happening but we could not find the trigger.
