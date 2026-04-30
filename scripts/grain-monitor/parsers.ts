@@ -397,6 +397,9 @@ export function parseCountryDeliveriesAndPortPerformance(page1Text: string, page
   );
   const fourWeekAverageTokens = takeTokensAfter(page3Flat, /4-Wk Avg\./i, 6, 1);
   const varToFourWeekAverageTokens = takeTokensAfter(page3Flat, /Var % to 4-Wk Avg\./i, 6, 1);
+  // Page 3's table (3-B Terminal Unloads by Port) is the source of truth for
+  // ytd_unloads_cars. Page 1's summary cell can disagree by 1 car (e.g. Week 36
+  // page 1 shows 331,779 but page 3 shows 331,778). Trust the detailed table.
   const ytdUnloadTokens = takeTokensAfter(
     page3Flat,
     /YTD Unloads \(cars\) Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
@@ -480,8 +483,12 @@ export function parseVesselsAndWeather(page1Text: string, page5Text: string) {
     throw new Error("Could not parse vessel lineup, cleared, or inbound metrics");
   }
 
+  // Quorum's PDF wraps the footnote mid-word — the line break between "5-" and
+  // "B" becomes a space after flattenText. Tolerate optional whitespace inside
+  // any of the section labels (5-A, 5-B, 5-C, 5-D) so the note matches whether
+  // or not the line wrap landed on a hyphen.
   const vesselTimingNoteMatch = page5Flat.match(
-    /Note: The 'Time in Port' measure for 5-A and 5-C is calculated as how long each vessel in the lineup has been in port as at Sunday 23:59 of that grain week\. The 'Avg Time in Port \(TIP\)' measure for 5-B and 5-D is the average number of days that all vessels which cleared that week were in port\./i,
+    /Note: The 'Time in Port' measure for 5-\s?A and 5-\s?C is calculated as how long each vessel in the lineup has been in port as at Sunday 23:59 of that grain week\. The 'Avg Time in Port \(TIP\)' measure for 5-\s?B and 5-\s?D is the average number of days that all vessels which cleared that week were in port\./i,
   );
 
   return {
@@ -495,7 +502,13 @@ export function parseVesselsAndWeather(page1Text: string, page5Text: string) {
     vessel_avg_one_year_vancouver: parseNumericToken(vancouverLineupMatch[3], { integer: true }),
     vessel_avg_one_year_prince_rupert: parseNumericToken(princeRupertLineupMatch[3], { integer: true }),
     weather_notes: weatherBullet,
-    vesselTimingNote: vesselTimingNoteMatch ? normalizeText(vesselTimingNoteMatch[0]).replace(/\s+/g, " ").trim() : null,
+    vesselTimingNote: vesselTimingNoteMatch
+      ? normalizeText(vesselTimingNoteMatch[0])
+          .replace(/\s+/g, " ")
+          // Stitch back wrap-artifact section labels: "5- B" -> "5-B" etc.
+          .replace(/(\d)-\s+([A-D])\b/g, "$1-$2")
+          .trim()
+      : null,
   };
 }
 

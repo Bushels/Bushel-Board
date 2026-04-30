@@ -178,6 +178,17 @@ describe("parseVesselsAndWeather", () => {
       weather_notes: null,
     });
   });
+
+  it("captures the standard Time in Port footnote from page 5", () => {
+    const week36Note = parseVesselsAndWeather(week36.page1, week36.page5).vesselTimingNote;
+    const week37Note = parseVesselsAndWeather(week37.page1, week37.page5).vesselTimingNote;
+    for (const note of [week36Note, week37Note]) {
+      expect(note).toEqual(expect.any(String));
+      expect(note).toContain("Time in Port");
+      expect(note).toContain("5-A and 5-C");
+      expect(note).toContain("5-B and 5-D");
+    }
+  });
 });
 
 describe("parseWeeklyReportFromPages", () => {
