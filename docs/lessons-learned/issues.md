@@ -1,5 +1,47 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-29 — Parking pattern: ship-but-don't-activate for unproven dependencies
+
+**Symptom:** After Phase 2 of Track 52 (predictive-market-desk swarm) shipped — 4 agent definitions, an orchestration prompt, and a Routine config ready to fire — the user wanted to NOT activate the swarm yet. The reason was sound: the underlying Kalshi data flow and grain-pricing freshness aren't yet validated, and a swarm that produces farmer-facing editorial content from unstable data would create bad-first-impression risk on a public surface.
+
+The temptation in moments like this is to either (a) revert the work ("we'll redo it when we're ready") or (b) ship and hope nobody notices ("the Routine isn't scheduled yet, what could go wrong"). Both are wrong.
+
+**Why neither is right:**
+- **Reverting** loses ~1300 lines of careful prompt engineering. Recreating it is wasted future effort, AND the act of throwing away thoughtful work damages trust that the team takes design seriously.
+- **Silent shipping** is how the V1 Grok kill-switch problem from 2026-04-24 happened: a paused-but-still-callable system can be activated by a stale crontab, a forgotten browser tab, or a future agent that follows old documentation.
+
+**The pattern that works — explicit parking:**
+
+1. **Visible 🟡 PARKED markers in every entry point.** Not just the design doc — every place a future session might land while looking for "how do I run this." For Track 52 Phase 2 that meant 4 files: design doc, orchestration prompt, desk chief agent, Routine config.
+2. **Prerequisites checklist in the design doc.** Concrete tickable items, not vague "make sure things work first." Track 52's checklist names specific tables (`grain_prices`), specific behaviors (Kalshi 24h delta honest), and specific code paths (Yahoo gap on Canola). A future operator can read the list and know if they're ready.
+3. **Refuse-to-run guard in the dispatch agent itself.** The desk chief's PARKED block tells the agent what to do if it gets dispatched anyway: write a `pipeline_runs` failure row with `reason='swarm_parked_pending_data_validation'` and abort. Belt-and-braces — even if a future Claude misses the doc, the agent itself refuses.
+4. **Reactivation-by-deletion path.** Every PARKED block ends with "remove this header to reactivate." The reactivating session doesn't have to write any new code — just delete the warning blocks. One PR, fully reviewable, with the prereqs listed in the commit message.
+
+**Anti-patterns to avoid:**
+- ❌ Marking parking only in the design doc. The design doc is read by humans, not by agents searching for "how to fire this swarm."
+- ❌ Using "TODO" or "FIXME" comments. These get scrolled past. Use a 🟡 emoji + bold "PARKED" so the eye catches it.
+- ❌ Using `if (false)` or commented-out code as "parking." Future code review tools will flag it as dead code; a maintenance pass will delete it.
+- ❌ Tying parking only to time ("park for 2 weeks"). Tie parking to **data conditions** — that way the team knows when un-parking is appropriate, instead of just waiting out a clock.
+
+**Detection (find existing parked work):**
+
+```bash
+# Find all PARKED markers across the repo
+grep -rn "🟡 PARKED" docs/ .claude/ 2>/dev/null
+```
+
+If grep returns rows you don't expect, those are dormant features waiting for un-parking. Read the design doc each one points to and decide: still valid? Still parked? Forgotten?
+
+**When un-parking, the reactivation PR should:**
+1. Search-and-replace remove every PARKED marker.
+2. Verify the prerequisites checklist is all green (paste evidence into the PR description).
+3. Update STATUS.md with the parking duration ("Track 52 Phase 2 parked 2026-04-29 → reactivated YYYY-MM-DD").
+4. Add a "what changed during parking" note — were the prereqs satisfied as expected, or did the team learn something new during the wait?
+
+This pattern is now precedent for any future "ship infrastructure but defer activation" decision in this codebase.
+
+---
+
 ## 2026-04-29 — 7 Supabase migrations applied to production but never committed to git
 
 **Symptom:** While trying to push the new `predictive_market_briefs` migration from a worktree, `npx supabase db push` refused with `Remote migration versions not found in local migrations directory` and listed 7 migration timestamps the local tree was missing. The worktree was branched from `codex/grain-monitor-weekly-import` at base commit `ca3036f` and had no idea those 7 migrations existed.

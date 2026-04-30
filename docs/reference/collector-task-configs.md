@@ -27,11 +27,11 @@ THU  9:03 AM MT (11:03 AM ET) — USDA Export Sales
 THU  3:33 PM MT (5:33 PM ET) — CGC Weekly Grain Stats (Vercel proxy → import-cgc-weekly EF)
 FRI 12:33 PM MT (2:33 PM ET)  — USDA WASDE (monthly only, 10th-14th)
 FRI  2:00 PM MT (4:00 PM ET)  — CFTC COT (triggers existing Edge Function)
-FRI  6:00 PM MT (8:00 PM ET)  — prediction-market-weekly SWARM (Track 52 — reads PRIOR week's CAD/US + this Friday's Kalshi close)
+FRI  6:00 PM MT (8:00 PM ET)  — [🟡 RESERVED] prediction-market-weekly (Track 52 — PARKED, no Routine yet)
 FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected data)
 ```
 
-> **Timing note for prediction-market-weekly:** Fires BEFORE the CAD desk swarm,
+> **Timing note for prediction-market-weekly (when it un-parks):** Fires BEFORE the CAD desk swarm,
 > intentionally. The brief compares Friday's Kalshi market close against our
 > most recently published CAD + US stance (typically from the prior week, since
 > CAD writes Friday 6:47 PM MT). The Phase 0.2 freshness check in
@@ -128,25 +128,43 @@ The phase-2 `opus_review_*` rows feed the Friday swarm as "weekday signal accumu
 
 ## Weekly Swarm — `prediction-market-weekly` (Track 52, added 2026-04-29)
 
+> ### 🟡 PARKED — DEFINED but NOT SCHEDULED (2026-04-29)
+>
+> The agent definitions, orchestration prompt, and config below are committed,
+> but **the Claude Desktop Routine has NOT been created**. Do not create it
+> yet. See parking notice in
+> `docs/plans/2026-04-29-predictive-market-tab-design.md` for the
+> prerequisites that must be ticked before un-parking:
+>
+> 1. Kalshi marketplace strip rendering correctly + 24h delta honest
+> 2. CBOT spot prices fresh and consistent in `grain_prices`
+> 3. Canola / Spring Wheat price source decision made (Yahoo gap)
+> 4. `/markets` page final layout designed (Phase 3)
+> 5. STATUS.md Track 52 entry written
+>
+> The Friday timeline diagram in this doc shows the swarm slot (6:00 PM MT)
+> for future reference — that slot is RESERVED, not active. The 6:47 PM MT
+> CAD `grain-desk-weekly` continues to fire as normal.
+
 The 6 daily collectors above feed the CAD + US grain-desk swarms. The
 **prediction-market-weekly** swarm is a separate weekly Routine that does NOT
 write to `score_trajectory` and does NOT feed the grain desks. It is a
 read-from-many, write-to-one editorial layer over Kalshi prediction markets.
 
-### Routine Config
+### Routine Config (DEFINED, not yet created in Claude Desktop)
 
-| Field | Value |
-|---|---|
-| **Routine name** | `prediction-market-weekly` |
-| **Cron (local / MT)** | `0 18 * * 5` |
-| **Day** | Friday |
-| **Time (MT)** | 6:00 PM |
-| **Time (ET, DST)** | 8:00 PM |
-| **Model** | `claude-opus-4-7` (Opus only — non-negotiable per `feedback_grain_desk_uses_opus.md`) |
-| **Prompt source** | `docs/reference/prediction-market-desk-swarm-prompt.md` |
-| **Read sources** | Kalshi public API (`api.elections.kalshi.com`), `market_analysis`, `us_market_analysis` |
-| **Write target** | `predictive_market_briefs` only (UNIQUE on `week_ending`) |
-| **Sub-agents** | `kalshi-state-scout` (Haiku), `divergence-scout` (Haiku), `macro-scout` (Sonnet, REUSED), `prediction-market-analyst` (Sonnet) |
+| Field | Value | Status |
+|---|---|---|
+| **Routine name** | `prediction-market-weekly` | 🟡 not created |
+| **Cron (local / MT)** | `0 18 * * 5` | reserved |
+| **Day** | Friday | — |
+| **Time (MT)** | 6:00 PM | — |
+| **Time (ET, DST)** | 8:00 PM | — |
+| **Model** | `claude-opus-4-7` (Opus only — non-negotiable per `feedback_grain_desk_uses_opus.md`) | — |
+| **Prompt source** | `docs/reference/prediction-market-desk-swarm-prompt.md` | written |
+| **Read sources** | Kalshi public API (`api.elections.kalshi.com`), `market_analysis`, `us_market_analysis` | — |
+| **Write target** | `predictive_market_briefs` only (UNIQUE on `week_ending`) | table exists; no rows yet |
+| **Sub-agents** | `kalshi-state-scout` (Haiku), `divergence-scout` (Haiku), `macro-scout` (Sonnet, REUSED), `prediction-market-analyst` (Sonnet) | all 4 written |
 
 ### Timing Rationale
 

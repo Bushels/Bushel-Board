@@ -1,5 +1,23 @@
 # Prediction Market Desk Weekly Swarm — Orchestration Prompt
 
+> ## 🟡 PARKED — do not create the Routine yet
+>
+> As of **2026-04-29**, this swarm is documented but NOT scheduled. The user
+> wants Kalshi data flow + grain pricing freshness validated first. Do not
+> create the `prediction-market-weekly` Routine in Claude Desktop until the
+> prerequisites in `docs/plans/2026-04-29-predictive-market-tab-design.md`
+> (top "Parking Notice" section) are all ticked.
+>
+> If you're reading this prompt because someone asked you to "fire the
+> prediction market swarm," STOP and confirm with Kyle that the design doc's
+> parking checklist has been worked through. The swarm cannot produce a
+> useful brief if the underlying Kalshi or grain-price data is unstable.
+>
+> The prompt below remains version-controlled so reactivation is one
+> search-and-replace ("remove the PARKED block") instead of a rewrite.
+
+---
+
 > **Purpose:** This is the Friday evening Claude Desktop Routine prompt for the
 > **prediction-market-desk** swarm (Track 52). It IS the desk chief.
 > Saved here for version control — the actual Routine reads this prompt.

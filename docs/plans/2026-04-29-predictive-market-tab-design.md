@@ -1,10 +1,82 @@
 # Predictive Market Tab — Design Doc
 
-**Status:** Approved direction · awaiting implementation
+**Status:** 🟡 **PARKED after Phase 2 — do not activate the swarm yet**
 **Date:** 2026-04-29
 **Owner:** Kyle
 **Predecessor:** Track 51 (Editorial Trading Floor on `/overview` Marketplace)
 **Estimated effort:** 2–3 sessions
+
+---
+
+## 🟡 Parking Notice (added 2026-04-29)
+
+Phase 1 (route + migration) and Phase 2 (swarm definitions + Routine prompt)
+are committed and the migration is applied to remote Supabase. **Phase 2 is
+NOT wired up to a Claude Desktop Routine.** The swarm files exist in
+`.claude/agents/` and the orchestration prompt sits in `docs/reference/`,
+but no scheduled task fires them.
+
+This is intentional. The user (Kyle) wants to be confident the underlying
+data sources are stable before adding an editorial layer that depends on
+them. Activating the swarm now would produce briefs whose quality is
+gated by data we haven't fully validated — bad first impressions are hard
+to recover from on a public surface.
+
+### Prerequisites — must be solid before un-parking the swarm
+
+Tick each box before creating the `prediction-market-weekly` Routine:
+
+- [ ] **Kalshi marketplace strip rendering correctly on `/markets` AND the
+  `/overview` teaser** — all 7 markets load, fallback snapshot triggers
+  cleanly when the public API is unreachable, no console errors over a
+  full week of natural traffic.
+- [ ] **Kalshi 24h delta is honest** — `previousLastPrice` parsing
+  correctly treats `0.0000` as null (not a fake "moved from 0¢ to X¢"
+  delta). Verified at least once per spotlight rotation.
+- [ ] **CBOT spot prices fresh and consistent** — `grain_prices` table is
+  updated daily by the `import-prices` workflow; `/overview`'s
+  `<SpotPriceRail>` shows the right settlement price + change% +
+  change-amount. No stale-by-3-days entries during normal trading days.
+- [ ] **Grain price source coverage decision made** — Yahoo Finance
+  doesn't carry Canola or Spring Wheat per memory
+  `project_yahoo_finance_prices.md`. Either accept gap on those two
+  contracts on the spot rail OR pick the Phase B replacement (Barchart)
+  before the swarm starts citing prices. The brief shouldn't cite
+  prices we don't trust.
+- [ ] **`/markets` page final layout decided** — Phase 3 will replace the
+  current `BriefPlaceholder` with `<EditorialBrief>` + per-market take
+  overlays. The placement of brief-vs-spotlight-vs-roll on the page
+  needs to be designed before the swarm produces content optimized
+  against it. Run a paper sketch / Figma pass first.
+- [ ] **STATUS.md Track 52 entry written** — currently no entry exists
+  because Phase 3 hasn't shipped. When un-parking, the entry should
+  capture: tracks 1-2-3 dates, parking duration, what changed during
+  parking.
+
+### What "un-parking" looks like (reference for the future session)
+
+When all prerequisites tick:
+
+1. Remove the 🟡 PARKED headers from:
+   - This design doc (top of file)
+   - `docs/reference/prediction-market-desk-swarm-prompt.md` (top warning block)
+   - `.claude/agents/prediction-market-desk-chief.md` (top warning block)
+   - `docs/reference/collector-task-configs.md` (Routine config row status)
+2. Create the `prediction-market-weekly` Routine in Claude Desktop using
+   the prompt at `docs/reference/prediction-market-desk-swarm-prompt.md`.
+3. Test-fire the Routine once manually. Verify the brief writes correctly
+   to `predictive_market_briefs` and the `/markets` page surface renders
+   it (assumes Phase 3 has shipped).
+4. Update Status to "Active — running every Friday."
+
+### Why park instead of revert?
+
+Reverting Phase 2 (deleting the agent files) would lose ~1300 lines of
+prompt engineering that took meaningful design time. Parking preserves
+the work, keeps it under git history, and lets a future session reactivate
+in a single PR. The cost of dormant `.md` files in `.claude/agents/` is
+zero — they're only loaded when Claude Desktop dispatches them by name,
+and nothing in the codebase imports them.
 
 ---
 
