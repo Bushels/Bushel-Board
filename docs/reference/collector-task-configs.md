@@ -27,8 +27,18 @@ THU  9:03 AM MT (11:03 AM ET) — USDA Export Sales
 THU  3:33 PM MT (5:33 PM ET) — CGC Weekly Grain Stats (Vercel proxy → import-cgc-weekly EF)
 FRI 12:33 PM MT (2:33 PM ET)  — USDA WASDE (monthly only, 10th-14th)
 FRI  2:00 PM MT (4:00 PM ET)  — CFTC COT (triggers existing Edge Function)
+FRI  6:00 PM MT (8:00 PM ET)  — prediction-market-weekly SWARM (Track 52 — reads PRIOR week's CAD/US + this Friday's Kalshi close)
 FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected data)
 ```
+
+> **Timing note for prediction-market-weekly:** Fires BEFORE the CAD desk swarm,
+> intentionally. The brief compares Friday's Kalshi market close against our
+> most recently published CAD + US stance (typically from the prior week, since
+> CAD writes Friday 6:47 PM MT). The Phase 0.2 freshness check in
+> `prediction-market-desk-swarm-prompt.md` records the lag and surfaces it in
+> the lede when relevant ("our CAD desk hasn't posted this week's stance yet").
+> If a future operator wants same-day CAD/US stance in the brief, move this
+> swarm to ≥7:45 PM MT (≥9:45 PM ET) so both desks finish first.
 
 ### CGC Timing Rationale
 
@@ -115,3 +125,65 @@ collect-wasde          → usda_wasde_estimates     → macro-scout reads
 ```
 
 The phase-2 `opus_review_*` rows feed the Friday swarm as "weekday signal accumulator" — the desk chief checks cumulative stance drift vs the Friday anchor and prioritizes markets where drift is largest.
+
+## Weekly Swarm — `prediction-market-weekly` (Track 52, added 2026-04-29)
+
+The 6 daily collectors above feed the CAD + US grain-desk swarms. The
+**prediction-market-weekly** swarm is a separate weekly Routine that does NOT
+write to `score_trajectory` and does NOT feed the grain desks. It is a
+read-from-many, write-to-one editorial layer over Kalshi prediction markets.
+
+### Routine Config
+
+| Field | Value |
+|---|---|
+| **Routine name** | `prediction-market-weekly` |
+| **Cron (local / MT)** | `0 18 * * 5` |
+| **Day** | Friday |
+| **Time (MT)** | 6:00 PM |
+| **Time (ET, DST)** | 8:00 PM |
+| **Model** | `claude-opus-4-7` (Opus only — non-negotiable per `feedback_grain_desk_uses_opus.md`) |
+| **Prompt source** | `docs/reference/prediction-market-desk-swarm-prompt.md` |
+| **Read sources** | Kalshi public API (`api.elections.kalshi.com`), `market_analysis`, `us_market_analysis` |
+| **Write target** | `predictive_market_briefs` only (UNIQUE on `week_ending`) |
+| **Sub-agents** | `kalshi-state-scout` (Haiku), `divergence-scout` (Haiku), `macro-scout` (Sonnet, REUSED), `prediction-market-analyst` (Sonnet) |
+
+### Timing Rationale
+
+Fires BEFORE the CAD `grain-desk-weekly` swarm (6:47 PM MT). The brief compares
+**Friday's Kalshi market close** against our **most recently published** CAD +
+US stance — typically last week's, since the CAD desk writes its new stance
+~47 min after this swarm. That's by design: the editorial point is "what is
+the crowd paying for vs the most recent published view our farmers have read?"
+
+If you want same-week CAD/US stance in the brief, move this swarm to
+≥7:45 PM MT (after both desks finish writing). The orchestration prompt's
+Phase 0.2 freshness check records the lag and surfaces it in the brief's
+lede when stance is from a prior week.
+
+### Data Flow (One-Way)
+
+```
+[Kalshi public API]          ──┐
+[market_analysis]            ───┼──► swarm ──► predictive_market_briefs ──► /markets page
+[us_market_analysis]         ───┘                  (UNIQUE on week_ending)
+```
+
+No write to `market_analysis`, `us_market_analysis`, `score_trajectory`,
+`us_score_trajectory`, or any user-scoped table. The isolation fence is
+enforced in every sub-agent definition; violations should write a failure
+row to `pipeline_runs` and abort.
+
+### Failure-Mode Reference (see swarm prompt for full table)
+
+- Wrong model (Sonnet/Haiku): abort in Phase 0.0
+- Both CAD + US desks >48h stale: abort in Phase 0.2
+- Kalshi API outage: abort if all 7 markets unavailable; partial outage proceeds
+- Upsert fails: retry once with same `week_ending`; second failure logs and exits
+
+### Output Surface
+
+Empty until first run completes. The `/markets` page (Phase 1 of Track 52,
+shipped 2026-04-29) renders an "early days" placeholder via
+`getLatestPredictiveMarketBrief()` returning null. First successful swarm
+run replaces the placeholder with the real headline + lede + per-market takes.
