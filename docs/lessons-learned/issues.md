@@ -1,5 +1,54 @@
 # Bushel Board - Lessons Learned
 
+## 2026-04-30 — Grain Monitor Week 37 parser regression + autonomy charter
+
+**Symptom:** Tuesday 2026-04-29's `collect-grain-monitor` Claude Desktop Routine ran the weekly importer (`scripts/import-grain-monitor-weekly.ts`) against Quorum's Week 37 PDF (`GMPGOCWeek202537.pdf`) and threw `Could not parse vessel lineup, cleared, or inbound metrics` from `parseVesselsAndWeather`. The agent correctly diagnosed it as a script-side parser regression (Week 36 dry-ran cleanly, so the regression was week-specific) but stopped at "report and recommend human follow-up" — defeating the value proposition of an AI-scheduled task.
+
+**Root cause — two regex deltas in Week 37:**
+1. **Singular "vessel" when count is 1.** Quorum's Page 1 vessel bullet read *"Prince Rupert vessel lineup for Week 38 2025-26 decreased to 1 vessel..."* — singular. The regex hard-coded the plural `vessels`.
+2. **pdf-parse split-letter month artifact.** Quorum's text reads *"...to May 03, 2026..."* in the PDF, but `pdf-parse` extracts it as *"to M ay 03, 2026"* (a space inserted inside the word). The regex `[A-Za-z]+ \d{1,2}, \d{4}` couldn't bridge the space — `[A-Za-z]+` matched only "M" and the date pattern failed.
+
+The same split-letter artifact also silently broke `parsePageMetadata` for Week 37, dropping the `inboundPeriod` and `inboundWeek` fields from `source_notes` (cosmetic provenance loss only — discrete columns were unaffected).
+
+**Fix shipped (commits 620a648, d8f0d66, 95c75d5 on `codex/grain-monitor-weekly-import`):**
+1. **Regex patches.** `vessels` → `vessels?` for both lineup count groups. `[A-Za-z]+` → `[A-Za-z]+(?:\s[A-Za-z]+)?` for both Vessels Inbound month tokens (in `parseVesselsAndWeather` AND `parsePageMetadata`). The pattern catches "M ay", "S ept", "A ug", etc. without being permissive enough to over-match.
+2. **Parser extraction.** All 6 parsers (`parsePageMetadata`, `parseStocks`, `parseCountryDeliveriesAndPortPerformance`, `parseShipments`, `parseVesselsAndWeather`, `parseWeeklyReportFromPages`) plus their helpers and types moved from the shebang-bearing `scripts/import-grain-monitor-weekly.ts` into a new pure-parser module at `scripts/grain-monitor/parsers.ts`. The importer keeps only IO/CLI/Supabase concerns. This unblocks Vitest, which previously couldn't import any parser without Vite's SSR transform choking on `#!/usr/bin/env node`.
+3. **Vitest seatbelt.** Two test files at `lib/__tests__/grain-monitor-weekly-parser.test.ts` (synthetic edge cases) and `lib/__tests__/grain-monitor-weekly-full-parser.test.ts` (full fixtures), 9 tests / 92 assertions covering all 6 parsers across both Week 36 (plural baseline) and Week 37 (singular + split-month). 8 page-text fixture files committed at `lib/__tests__/fixtures/grain-monitor/week{36,37}-page{1,2,3,5}.txt`, captured with the production `pdf-parse` library so they reflect exactly what the runtime parsers see.
+4. **Tiered autonomy charter.** `docs/hermes/skills/import-grain-monitor.md` rewritten with explicit Tier 1 / Tier 2 / Tier 3 rules so the next regression self-heals.
+5. **Live backfill.** Week 37 row upserted into `grain_monitor_snapshots` with all 38 fields populated and complete `source_notes` (including the previously-dropped inbound section).
+
+**Expectations going forward — what we expect from `collect-grain-monitor`:**
+
+- **Tier 1 (always):** diagnose the failure, identify whether it's source-side (PDF missing) or script-side (parsing failed), confirm no partial DB write, and dry-run the immediately prior week as a regression cross-check. Print all of this in the run summary.
+- **Tier 2 (auto-fix when seatbelt holds):** if the failure is a parser-side regex regression mechanically derivable from a one-token PDF wording delta (singular/plural, split-letter month artifact, whitespace/punctuation drift), AND the prior week's PDF still parses cleanly with the proposed patch, AND a new Vitest fixture covering the new wording is added, AND `npm run test` passes, AND the dry-run output passes a sanity sniff (vessel counts 0–100, OCT 0–50%, country stocks 1,000–15,000 kt, total unloads 0–25,000, report_date within 14 days of today) — then commit on the current branch with a `fix(grain-monitor):` prefix and run the live backfill. No remote push, no PR, no merge to master from Tier 2.
+- **Tier 3 (always escalate):** schema-level changes (new field, dropped column, type drift), structural PDF reorg (page count change, missing section, layout reshuffle), authentication/network/DB errors, sanity-sniff failures, multi-week regressions, ambiguous diagnosis after two passes.
+
+**Hard guardrails — never violate, even under pressure:**
+- Never relax a regex to be permissive enough to match unrelated text. Tight constructs (`vessels?`, `[A-Za-z]+(?:\s[A-Za-z]+)?`) are correct by design.
+- Never skip Vitest. If `npm run test` fails on the parser file, abort the self-fix.
+- Never fall back to the monthly Excel workbook. A stale-but-clean row beats a rich-but-wrong row.
+- Never `git push --force`, `--no-verify`, or bypass hooks.
+- Never delete or overwrite a prior week's row. Upsert on `(crop_year, grain_week)` is the only write mode.
+- Never run live backfill if dry-run output mismatches the prior week's pattern (terminal stocks jump >25% WoW with no congestion bullet, vessel queue triples with no event in the bullets) — that signals parser drift, not data shift.
+
+**Why this works:** autonomous self-healing only becomes safe once the agent has a verifiable success criterion that runs in seconds. For deterministic parsers, that's a fixture-based test suite. The Vitest seatbelt added in this incident is what makes Tier 2 trustworthy; without it, "AI can fix it" reduces to "AI can guess and hope," which is worse than escalating to a human because failures get committed quietly. The charter is only as safe as the suite the agent must pass before committing — broaden the suite, broaden Tier 2's reach.
+
+**Tags:** #grain-monitor #pdf-parse #regex #autonomy-charter #self-healing #vitest #seatbelt #parser-extraction #lessons-on-lessons
+
+---
+
+## 2026-04-27 — Producer Cars shipment-distribution worksheet name mismatch
+
+**Symptom:** A freshness check for `worksheet='Producer Cars Shipment Distribution'` returned 0 rows for CGC week 37. A local CSV audit found the same thing across every cached CGC CSV from 2020 through the current `gsw-shg-en.csv`: that worksheet name does not appear at all.
+
+**Root cause:** CGC does not publish a separate `Producer Cars Shipment Distribution` worksheet in the long-format CSV. Producer-car data lands under `worksheet='Producer Cars'` with metrics including `Shipments`, `Shipment Distribution`, and `Shipment Destinations`. The phrase "Producer Cars Shipment Distribution" in older docs was a human label, not the exact CSV worksheet value.
+
+**Importer finding:** `supabase/functions/import-cgc-weekly/index.ts` does not filter out the worksheet; it parses every CSV row and upserts to `cgc_observations`. The zero-row result is therefore a source/name mismatch, not an importer filter bug.
+
+**Impact:** Do not query `worksheet='Producer Cars Shipment Distribution'`. For producer-car export/flow logic, use `worksheet='Producer Cars'` plus the relevant shipment metric/region. Existing SQL that uses `Producer Cars`.`Shipment Distribution` is on the right shape; docs and prompts must not reintroduce the nonexistent worksheet name.
+
+**Tags:** #cgc #producer-cars #worksheet-name #shipment-distribution #source-contract
+
 ## 2026-04-24 — V1 Grok pipeline kill switch (fail-closed)
 
 **Symptom:** A rogue V1 Grok run landed in `market_analysis` at 2026-04-24 19:08 UTC (13:08 MT) for Canola with `model_used='grok-4.20-reasoning'`. This was 5.5 hours before the Friday 6:47 PM MT V2 Claude Agent Desk swarm was scheduled to fire. CLAUDE.md explicitly designates V1 as "recovery fallback only" — no scheduled writer should have hit the old path. No caller was identified via Vercel routes, scripts, `pg_cron`, `pipeline_runs`, or Claude Desktop Routines; the write was happening but we could not find the trigger.

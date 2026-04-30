@@ -1,5 +1,19 @@
 # Grain Monitor Import Fix Handoff
 
+> **STATUS: COMPLETED 2026-04-30.** The work this doc described — replacing the
+> monthly Excel workbook collector with a deterministic weekly Quorum PDF
+> importer that writes a full row to `grain_monitor_snapshots` — has shipped
+> and is operational. The canonical importer is `scripts/import-grain-monitor-weekly.ts`
+> with parsers at `scripts/grain-monitor/parsers.ts`, scheduled by the
+> `collect-grain-monitor` Claude Desktop Routine. Live operating expectations
+> (Tier 1 / Tier 2 / Tier 3 autonomy, hard guardrails, sanity sniff) live in
+> `docs/hermes/skills/import-grain-monitor.md`. The Week 37 incident that
+> produced the autonomy charter is documented in
+> `docs/lessons-learned/issues.md` (2026-04-30 entry).
+>
+> This document is preserved for design-context history. Do not use it as the
+> source of operating procedure — the skill doc is authoritative.
+
 ## TL;DR
 
 Fix the Grain Monitor collector so it becomes a **weekly PDF-based logistics importer** that writes a **full weekly row** into `grain_monitor_snapshots`.
