@@ -1,38 +1,44 @@
 # Bushel Board — Prairie Grain Market Intelligence Dashboard
 
 ## Project Overview
-A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC) weekly data and displays grain statistics for prairie farmers (AB, SK, MB). MVP phase: real data pipeline, grain dashboard, email/password auth.
+Bushel Board is a Next.js + Supabase dashboard that helps prairie farmers understand grain market flow, supply pressure, price context, and AI-generated market thesis work. Core users are AB, SK, and MB farmers.
 
 ## Collaboration Preferences
-- The project owner is a non-coder. Explain technical work in plain language aimed at roughly a first-year computer science student.
-- Define important jargon briefly when first used.
-- When describing a system change, connect it to the practical outcome for the farmer or for the product.
-- Avoid assuming deep knowledge of infrastructure, AI orchestration, or database internals.
-- Raw knowledge books and derived distillation artifacts are local-only and must live outside the Git repo. Use `BUSHEL_KNOWLEDGE_HOME` or the default local path under the user profile.
-
-## Current Status
-**Phase:** MVP + Intelligence — data pipeline, AI narratives, dashboard all operational
-**Design Doc:** `docs/plans/2026-03-04-bushel-board-mvp-design.md`
-**Implementation Plans:**
-- MVP: `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` (15 tasks)
-- Intelligence: `docs/plans/2026-03-06-grain-intelligence-implementation.md` (19 tasks, complete)
-- X Feed: `docs/plans/2026-03-10-x-feed-relevance-design.md` (Phases 1-4 complete)
+- The project owner is a non-coder. Explain technical work in plain language, roughly first-year computer science level.
+- Define important jargon briefly the first time it matters.
+- Connect system changes to farmer/product outcomes.
+- Avoid assuming deep infrastructure, AI orchestration, or database knowledge.
+- Raw knowledge books and derived distillation artifacts are local-only and must live outside the repo. Use `BUSHEL_KNOWLEDGE_HOME` or the default local user-profile path.
+- Public-facing claims must be tight. Flag legal, factual, data-source, or reputation risk before publishing.
 
 ## Tech Stack
-- **Frontend:** Next.js 16 (App Router) + TypeScript, deployed on Vercel
-- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions) + Vercel Cron ingress
-- **UI:** shadcn/ui + Tailwind CSS (custom wheat palette)
-- **Charts:** Recharts
-- **Fonts:** DM Sans (body) + Fraunces (display)
-- **Supabase Project:** ibgsloyjxdopkvwqcqwh
+- Frontend: Next.js 16 App Router + TypeScript, deployed on Vercel.
+- Backend: Supabase PostgreSQL, Auth, Edge Functions, and manual/Claude Desktop Routine triggers. Vercel crons are disabled for active pipeline automation.
+- UI: shadcn/ui + Tailwind CSS using the custom wheat/canola/prairie palette.
+- Charts: Recharts.
+- Fonts: DM Sans body + Fraunces display.
+- Supabase project: `ibgsloyjxdopkvwqcqwh`.
 
 ## Key Directories
-- `docs/plans/` — Design docs, implementation plans, and `STATUS.md` feature tracker
-- `docs/reference/` — CGC Excel map, data sources, intelligence framework
-- `docs/lessons-learned/` — Bug writeups and data issues log
-- `.Codex/agents/` — Agent definitions (9 agents)
-- `data/CGC Weekly/` — Reference CGC CSV + Excel data (gsw-shg-en.csv, gsw-shg-{week}-en.xlsx)
-- `components/dashboard/wow-comparison.tsx` — Week-over-Week comparison card with composite metric system
+- `app/` — Next.js App Router pages, layouts, route handlers, and server actions.
+- `components/` — Reusable UI and dashboard components.
+- `lib/` — Query helpers, auth helpers, utilities, and shared business logic.
+- `scripts/` — Local import, audit, collector, and maintenance scripts.
+- `supabase/` — Migrations, tests, and Edge Functions.
+- `docs/plans/` — Design docs, implementation plans, and `STATUS.md`.
+- `docs/reference/` — Data sources, collector configs, framework notes, and source maps.
+- `docs/lessons-learned/` — Bug writeups and operational lessons.
+- `docs/journal/` — Append-only month-rollup history (cleanup passes, structural changes).
+- `.claude/agents/` — Claude Agent Desk definitions, approximately 38 agents.
+- `.claude/skills/` — Project-specific skills only. Cross-cutting skills live in `~/.claude/skills/`.
+- `data/CGC Weekly/` — CGC source/reference files and local import artifacts.
+- `components/dashboard/wow-comparison.tsx` — Week-over-week comparison card and composite metric system.
+
+## Truth Files (rules vs activity)
+- `AGENTS.md` (this file) and `CLAUDE.md` — rules-only. Do NOT add status, phase, recent-changes, or session notes.
+- `PROJECT_STATE.md` — current truth: last verified commit, active task, known blockers, next action.
+- `docs/journal/YYYY-MM.md` — append-only history of structural changes and cleanup passes.
+- `docs/plans/STATUS.md` — feature track ledger.
 
 ## Agent Team
 | Agent | Role | Color | Model |
@@ -47,118 +53,74 @@ A Next.js + Supabase dashboard that auto-imports Canadian Grain Commission (CGC)
 | auth-engineer | Supabase Auth, middleware, security | Orange | Inherit |
 | data-audit | Data integrity, Excel/CSV/Supabase verification | Amber | Inherit |
 | security-auditor | Security review, workflow hardening, release guardrails | Slate | Inherit |
+| qc-crawler | Post-deploy/import site verification and freshness checks | Lime | Inherit |
+| Claude Agent Desk scouts/analysts | Canada and US weekly market desk swarm | Mixed | Haiku/Sonnet/Opus |
 
 ## Data Source
-CGC weekly grain statistics CSV from grainscanada.gc.ca
-- Updates every Thursday ~1pm MST
-- Format: Crop Year, Grain Week, Week Ending Date, worksheet, metric, period, grain, grade, Region, Ktonnes
-- 16 Canadian grain types, 12 worksheets, 19 metrics, 27 regions
-- 33 distinct worksheet/metric combinations exist in cgc_observations
-- Key worksheets: Primary, Process, Terminal Receipts, Terminal Exports, Summary, Primary Shipment Distribution
-- Stored in Supabase as long-format observations (one row per measurement)
+CGC weekly grain statistics CSV from grainscanada.gc.ca:
+- Updates Thursday around 1 PM Mountain time.
+- Schema: Crop Year, Grain Week, Week Ending Date, worksheet, metric, period, grain, grade, Region, Ktonnes.
+- Covers 16 Canadian grain types, 12 worksheets, 19 metrics, and 27 regions.
+- Stored in Supabase as long-format observations: one row per measurement.
+- Key worksheets: Primary, Process, Terminal Receipts, Terminal Exports, Summary, Primary Shipment Distribution, Producer Cars.
 
-### CGC Data Nuances
-- **Exports:** CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Export Destinations" (direct exports bypassing terminals)
-- **Producer Deliveries:** Use the country-level CGC formula: `Primary.Deliveries` (AB, SK, MB, BC, `grade=''`) + `Process.Producer Deliveries` (national, `grade=''`) + `Producer Cars.Shipments` (AB, SK, MB, `grade=''`). Anything less is incomplete.
-- **Domestic Disappearance:** A residual calculation, not a separate CSV metric
-- **FULL OUTER JOIN required:** When combining Primary + Process data, not all grains appear in both worksheets. Always use FULL OUTER JOIN to avoid dropping data.
-- **Forward-fill for cumulative series:** Different CGC worksheets (Primary, Terminal Exports, Process) may report up to different grain weeks. When merging `period: "Crop Year"` data across worksheets, missing weeks must carry forward the last known cumulative value — NOT default to 0. See `getCumulativeTimeSeries()` in `lib/queries/observations.ts`.
-- **PostgREST max_rows=1000 limit:** Supabase silently truncates query results exceeding 1,000 rows — no error returned. Terminal Receipts has ~3,648 rows per grain (20 grades × 6 ports × 30 weeks) and Terminal Exports ~1,050 rows. Always use server-side RPC with `SUM() GROUP BY` for these worksheets. Client `.limit()` does NOT override the server cap.
-- **No grade='' aggregates for Terminal Receipts/Exports:** Unlike Primary worksheet (which has pre-aggregated `grade=''` rows), Terminal Receipts and Terminal Exports only have per-grade rows. Must sum all grades in SQL.
-- **Aggregate row guardrail:** For Primary, Process producer deliveries, and Producer Cars shipments, filter `grade=''` whenever you want the pre-aggregated total. Omitting that filter can double-count grade rows.
+## CGC Data Rules
+- Exports: CGC Summary exports equal terminal exports plus direct export-destination flows, including relevant Producer Cars destination rows.
+- Producer deliveries: use `Primary.Deliveries` for AB/SK/MB/BC with `grade=''`, plus `Process.Producer Deliveries` national with `grade=''`, plus `Producer Cars.Shipments` for AB/SK/MB with `grade=''`.
+- Domestic disappearance is residual math, not a standalone CSV metric.
+- Use FULL OUTER JOIN when combining worksheets that may not contain the same grains.
+- Forward-fill cumulative crop-year series when worksheets report through different grain weeks; do not default missing cumulative values to zero.
+- PostgREST silently truncates large result sets at 1,000 rows. Use server-side RPCs with `SUM()` and `GROUP BY` for large worksheet aggregates.
+- Terminal Receipts and Terminal Exports do not have `grade=''` aggregate rows. Sum grades in SQL.
+- For Primary, Process producer deliveries, and Producer Cars shipments, filter `grade=''` when the pre-aggregated total is required.
 
-## Design Tokens
-- Background: wheat-50 (#f5f3ee) / wheat-900 (#2a261e) dark
-- Primary: canola (#c17f24)
-- Success: prairie (#437a22)
-- Warning: amber (#d97706)
-- Province AB: #2e6b9e, BC: #2f8f83, SK: #6d9e3a, MB: #b37d24
-- Easing: cubic-bezier(0.16, 1, 0.3, 1)
-- Animation stagger: 40ms between siblings
-
-## Commands
-- `npm run dev` — Start dev server
-- `npm run build` — Production build
-- `npm run backfill` — Load historical CGC data into Supabase
-- `npm run seed-supply` — Seed AAFC supply/disposition data
-- `npm run audit-data` — Run CGC data audit (Excel ↔ CSV ↔ Supabase)
-- `npm run test` — Run tests
-- `npx supabase db push` — Apply migrations
-- `npx supabase functions deploy <name>` — Deploy Edge Functions
-
-## Intelligence Pipeline
-- **Automation status:** Public cron-triggered import/scan routes are intentionally paused during Advisor validation to avoid accidental pipeline runs.
-- **Target v2 production chain when automation is re-enabled:** Vercel cron `GET /api/cron/import-cgc` → `validate-import` → `search-x-intelligence` → `analyze-grain-market` → `generate-farm-summary`
-- **Legacy fallback:** `import-cgc-weekly`, `analyze-market-data`, and `generate-intelligence` remain in-repo as deprecated fallback/recovery paths, not the target production chain
-- **Batch processing:** `search-x-intelligence` runs 2 grains per pulse batch and 1 grain per deep batch, `analyze-grain-market` processes 1 grain per invocation, and `generate-farm-summary` processes 50 users per batch.
-- **Model:** `grok-4-1-fast-reasoning` via xAI Grok Responses API with `x_search` for real-time X/Twitter agriculture sentiment (~$0.04/weekly run)
-- **Tables:** `grain_intelligence` (per-grain market analysis), `farm_summaries` (per-user weekly narratives + percentiles), `x_market_signals` (X/Twitter post scores per grain/week), `validation_reports` (post-import anomaly checks), `signal_feedback` (farmer relevance votes per X signal)
-- **Function:** `calculate_delivery_percentiles()` — PERCENT_RANK over user deliveries by grain
-- **Views:** `v_country_producer_deliveries` (canonical country-level producer-delivery formula), `v_grain_yoy_comparison` (YoY metrics built from that delivery view + terminal receipts/exports/stocks), `v_supply_pipeline` (AAFC balance sheet), `v_signal_relevance_scores` (blended relevance: 60% Grok AI + 40% farmer consensus when votes >= 3)
-- **RPC functions:** `get_pipeline_velocity(p_grain, p_crop_year)` (aggregates 5 pipeline metrics server-side, bypasses PostgREST 1000-row limit), `get_market_overview_snapshot(p_crop_year, p_grain_week)` (canonical all-grain overview totals server-side), `get_signals_with_feedback()` (frontend, user-scoped LEFT JOIN), `get_signals_for_intelligence()` (Edge Function, service role)
-- **UI:** ThesisBanner, IntelligenceKpis, SupplyPipeline, InsightCards on grain detail pages; XSignalFeed horizontal card strip with vote buttons (Relevant/Not for me), optimistic UI, "Your impact" summary bar; FarmSummaryCard + percentile badges on My Farm
-- **Query layer:** `lib/queries/intelligence.ts` (getGrainIntelligence, getSupplyPipeline, getFarmSummary), `lib/queries/grains.ts` (`getGrainOverviewBySlug` — corrected KPI data), `lib/queries/observations.ts` (composite metric type system for WoW comparisons + `getCumulativeTimeSeries` via `get_pipeline_velocity` RPC), `lib/queries/x-signals.ts` (getXSignalsWithFeedback, getUserFeedStats)
-- **Server action:** `app/(dashboard)/grain/[slug]/signal-actions.ts` — `voteSignalRelevance()`
-- **Auth for chain triggers:** Public cron routes still require `CRON_SECRET`, but mutating cron routes are intentionally paused during Advisor validation. Internal-only Edge Functions use `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining.
-
-## Pipeline Monitoring
-- Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)
-- Import audit: `SELECT * FROM cgc_imports ORDER BY imported_at DESC LIMIT 5;`
-- Data freshness: `SELECT * FROM v_latest_import;`
-- Validation: `SELECT * FROM validation_reports ORDER BY created_at DESC LIMIT 5;`
-- X signals: `SELECT grain, grain_week, COUNT(*) FROM x_market_signals GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 20;`
-- Intelligence: `SELECT grain, grain_week, generated_at FROM grain_intelligence ORDER BY generated_at DESC LIMIT 5;`
-- Farm summaries: `SELECT user_id, grain_week, generated_at FROM farm_summaries ORDER BY generated_at DESC LIMIT 5;`
-- pg_net responses: `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5;`
-- Delivery audit (country producer deliveries): `SELECT grain, total_kt FROM v_country_producer_deliveries WHERE crop_year='2025-2026' AND grain_week=30 AND period='Current Week' ORDER BY grain;`
-- Overview snapshot RPC: `SELECT * FROM get_market_overview_snapshot('2025-2026', 30);`
-- Terminal Receipts check: `SELECT grain, ktonnes FROM cgc_observations WHERE worksheet='Terminal Receipts' AND metric='Receipts' AND period='Current Week' AND grain_week=30 AND crop_year='2025-2026';`
-- Signal feedback: `SELECT grain, grain_week, COUNT(*) FROM signal_feedback GROUP BY grain, grain_week ORDER BY grain_week DESC LIMIT 10;`
-- Blended scores: `SELECT signal_id, grain, blended_relevance, total_votes, farmer_relevance_pct FROM v_signal_relevance_scores ORDER BY blended_relevance DESC LIMIT 10;`
-- Pipeline velocity (per-grain): `SELECT * FROM get_pipeline_velocity('Wheat', '2025-2026') WHERE grain_week IN (10, 20, 30);`
-- Row count audit (check for PostgREST truncation): `SELECT worksheet, metric, COUNT(*) FROM cgc_observations WHERE grain='Wheat' AND crop_year='2025-2026' AND period='Crop Year' GROUP BY worksheet, metric HAVING COUNT(*) > 900;`
+## Definition of Done
+Every completed change must satisfy:
+1. `npm run build` passes.
+2. Relevant tests pass or the unrun test gap is stated clearly.
+3. No browser console errors on affected pages.
+4. User-facing UI changes are visually checked.
+5. Data/RPC/Edge Function changes receive data-audit review.
+6. Auth, RLS, grants, secrets, or role-boundary changes receive security review.
+7. `docs/lessons-learned/issues.md` is updated for non-obvious bugs.
+8. `docs/plans/STATUS.md` is updated when a feature track is completed.
+9. Destructive changes are verified with search before deletion.
+10. Production/deploy proof is separated from local proof.
 
 ## Critical Framework Patterns
+Prefer retrieval-led reasoning over memory for Next.js, Supabase, Tailwind, and repo-specific behavior.
 
-**Prefer retrieval-led reasoning over pre-training-led reasoning for all Next.js, Supabase, and Tailwind tasks.**
+### Next.js 16
+- `params` is a Promise: `const { slug } = await params;`.
+- `cookies()` is async: `const cookieStore = await cookies();`.
+- Server Components are default. Add `"use client"` only when browser state, effects, or event handlers are required.
+- Client components cannot import server-only modules, including `@/lib/supabase/server`.
 
-### Next.js 16 Patterns (upgraded from 15)
-- `params` is now a Promise: `const { slug } = await params;`
-- `cookies()` is async: `const cookieStore = await cookies();`
-- Server Components are default — add `"use client"` only when needed
-- Use `@supabase/ssr` (not `@supabase/auth-helpers-nextjs` which is deprecated)
+### Client/Server Boundary
+- Split mixed logic into client-safe utilities and server-only query modules.
+- Pattern: `foo-utils.ts` for types and pure functions; `foo.ts` for Supabase/server queries.
+- Client components import from `-utils`; server code may import either.
 
-### Supabase SSR Pattern
-- Server client: `createServerClient()` with cookie getAll/setAll from `next/headers`
-- Browser client: `createBrowserClient()` — only in `"use client"` components
-- Middleware: refresh session on every request via `supabase.auth.getUser()`
-- Service role: NEVER expose to browser. Only in Edge Functions and server-side scripts.
-- Farmer-only writes: enforce in both server actions and RLS. UI gating alone is never sufficient.
-- User-scoped RPCs: derive identity from `auth.uid()`. Never accept a caller-supplied user ID.
+### Supabase SSR
+- Server client: `createServerClient()` with async cookie get/set from `next/headers`.
+- Browser client: `createBrowserClient()` only inside client components.
+- Middleware refreshes sessions with `supabase.auth.getUser()`.
+- Never expose service-role keys to browser code.
+- Enforce farmer-only writes in both server actions and RLS.
+- User-scoped RPCs must derive identity from `auth.uid()`, not caller-supplied user IDs.
 
 ### Script Conventions
-All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnostics to stderr, be idempotent, pin dependency versions.
+All scripts in `scripts/` must:
+- Accept `--help`.
+- Output machine-readable JSON to stdout when practical.
+- Send diagnostics to stderr.
+- Be idempotent.
+- Pin or document external dependency versions.
 
-## Jules Guardrails
-- Jules sessions must start from pushed GitHub state only. If local changes exist in overlapping files, push first or do not use Jules for that task.
-- Prefer one narrow Jules session per concern. Do not mix lint cleanup, query logic, UI work, and auth changes in the same run.
-- For lint-only or type-only tasks, keep runtime behavior unchanged. Fix only the verified diagnostics named in the prompt.
-- Never satisfy lint by casting partial SQL or RPC rows to richer domain types just to fit a shared helper or formatter.
-- Before changing types around SQL or RPC data, read the source-of-truth shape first: the migration, RPC definition, or query helper that defines the returned columns.
-- Before reusing a shared formatter or builder, verify the input data contains every field that helper expects. If not, either transform from the raw source with the existing builder or keep a local formatter typed to the reduced shape.
-- If the safe fix requires broader refactoring than the task scope, stop and report the mismatch instead of guessing.
-- Reject any Jules plan that introduces `as unknown as` on database rows, rewrites large blocks for a small lint fix, or touches files outside the stated scope.
-- Example guardrail: `get_cot_positioning()` returns a reduced RPC shape. Do not cast those rows directly to `CotPosition`. If `CotPositioningResult` is needed, build it from raw `cftc_cot_positions` rows with `buildCotPositioningResult()` or keep a formatter typed to the reduced RPC row.
-
-## Reference Files
-- `docs/reference/jules-playbook.md` - Repo-specific Jules workflow, sequencing, and review gates
-- `docs/reference/jules-prompts.md` - Reusable Jules prompt templates and rejection checklist
-- `.Codex/agents/AGENTS.md` — Detailed framework patterns, Supabase code samples, design tokens, CGC schema
-- `docs/plans/STATUS.md` — Feature completion tracker (13 tracks)
-- `docs/plans/2026-03-04-bushel-board-mvp-design.md` — Approved MVP design
-- `docs/plans/2026-03-04-bushel-board-mvp-implementation.md` — 15-task MVP implementation plan
-- `docs/plans/2026-03-06-grain-intelligence-design.md` — Intelligence feature design doc
-- `docs/plans/2026-03-06-grain-intelligence-implementation.md` — 19-task intelligence plan (complete)
-- `docs/plans/2026-03-10-x-feed-relevance-design.md` — X Feed & Relevance Scoring design doc
-- `docs/reference/cgc-excel-map.md` — CGC Excel spreadsheet structure map (14 sheets)
-- `docs/lessons-learned/issues.md` — Data bugs and root cause analyses
+## Cleanup And Git Guardrails
+- Do not modify unrelated dirty files.
+- Do not merge `CLAUDE.md` into this file. `CLAUDE.md` remains the comprehensive source of truth; this file is the short landing brief.
+- On Windows/Git Bash, avoid case-only renames unless explicitly staged and verified.
+- Do not ignore `.claude/agents/`; those agent definitions are project source.
+- Folder-level ignore rules must be anchored at repo root with a leading `/`.
+- Status, phase, plan-link bullets, and dated activity belong in `PROJECT_STATE.md` or `docs/journal/`, not in this file.
