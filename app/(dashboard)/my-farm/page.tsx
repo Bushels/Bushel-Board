@@ -14,9 +14,11 @@ import { FarmSummaryCard } from "@/components/dashboard/farm-summary-card";
 import { DeliveryPaceCard } from "@/components/dashboard/delivery-pace-card";
 import { YourImpact } from "@/components/dashboard/your-impact";
 import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
 import { GrainStorageCard } from "@/components/dashboard/grain-storage-card";
 import { getGrainStorageComparison } from "@/lib/queries/grain-storage-comparison";
+import { GlassCard } from "@/components/ui/glass-card";
 import { convertKtToTonnes } from "@/lib/utils/grain-units";
 import { MyFarmClient, type MarketSupplyData } from "./client";
 import { Wheat } from "lucide-react";
@@ -175,8 +177,12 @@ export default async function MyFarmPage() {
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* HERO */}
-      <div className="rounded-2xl border border-canola/15 bg-gradient-to-br from-canola/5 to-background p-6">
+      {/* HERO — GlassCard with the wheat-gradient overlay preserved via className. */}
+      <GlassCard
+        elevation={1}
+        hover={false}
+        className="border-canola/15 bg-gradient-to-br from-canola/5 to-background p-6"
+      >
         <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
           <Wheat className="h-8 w-8 text-canola" />
           My Farm
@@ -184,7 +190,7 @@ export default async function MyFarmPage() {
         <p className="text-base text-muted-foreground mt-2 max-w-2xl">
           Your grain. Your decisions.
         </p>
-      </div>
+      </GlassCard>
 
       {/* WEEKLY SUMMARY */}
       <section className="space-y-4">
@@ -192,11 +198,16 @@ export default async function MyFarmPage() {
           title="Weekly Summary"
           subtitle="Your personalized farm brief"
         />
-        <FarmSummaryCard
-          summary={farmSummary}
-          hasPlans={plans.length > 0}
-          hasLoggedDeliveries={hasLoggedDeliveries}
-        />
+        <SectionBoundary
+          title="Weekly summary unavailable"
+          message="Your personalized farm brief is temporarily unavailable. Try refreshing in a minute."
+        >
+          <FarmSummaryCard
+            summary={farmSummary}
+            hasPlans={plans.length > 0}
+            hasLoggedDeliveries={hasLoggedDeliveries}
+          />
+        </SectionBoundary>
       </section>
 
       {/* MARKET SENTIMENT — paused; will be redeployed once peer-comparison
@@ -211,21 +222,26 @@ export default async function MyFarmPage() {
             title="Grain in your bin"
             subtitle="Update your total and what's left — see how it stacks up against other farmers."
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {plans.map((plan) => (
-              <GrainStorageCard
-                key={plan.grain}
-                grain={plan.grain}
-                initialTotalTonnes={convertKtToTonnes(
-                  Number(plan.starting_grain_kt ?? 0)
-                )}
-                initialRemainingTonnes={convertKtToTonnes(
-                  Number(plan.volume_left_to_sell_kt ?? 0)
-                )}
-                comparison={storageComparisonByGrain.get(plan.grain) ?? null}
-              />
-            ))}
-          </div>
+          <SectionBoundary
+            title="Storage tracker unavailable"
+            message="Your grain storage cards couldn't load. Refresh the page to try again."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {plans.map((plan) => (
+                <GrainStorageCard
+                  key={plan.grain}
+                  grain={plan.grain}
+                  initialTotalTonnes={convertKtToTonnes(
+                    Number(plan.starting_grain_kt ?? 0)
+                  )}
+                  initialRemainingTonnes={convertKtToTonnes(
+                    Number(plan.volume_left_to_sell_kt ?? 0)
+                  )}
+                  comparison={storageComparisonByGrain.get(plan.grain) ?? null}
+                />
+              ))}
+            </div>
+          </SectionBoundary>
         </section>
       )}
 
@@ -236,17 +252,22 @@ export default async function MyFarmPage() {
             title="Your Recommendations"
             subtitle="AI-powered guidance for your grains"
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recommendations.map((rec, i) => (
-              <RecommendationCard
-                key={rec.grainSlug}
-                grainName={rec.grainName}
-                grainSlug={rec.grainSlug}
-                recommendation={rec.recommendation}
-                deliveredPct={rec.deliveredPct}
-              />
-            ))}
-          </div>
+          <SectionBoundary
+            title="Recommendations unavailable"
+            message="Your grain recommendations couldn't load. Try refreshing in a minute."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendations.map((rec, i) => (
+                <RecommendationCard
+                  key={rec.grainSlug}
+                  grainName={rec.grainName}
+                  grainSlug={rec.grainSlug}
+                  recommendation={rec.recommendation}
+                  deliveredPct={rec.deliveredPct}
+                />
+              ))}
+            </div>
+          </SectionBoundary>
         </section>
       )}
 
@@ -256,12 +277,17 @@ export default async function MyFarmPage() {
           title="Your Grains"
           subtitle="Manage crop plans, log deliveries, and track progress"
         />
-        <MyFarmClient
-          currentPlans={plans}
-          percentiles={percentiles}
-          role={role}
-          marketSupply={marketSupply}
-        />
+        <SectionBoundary
+          title="Crop plans unavailable"
+          message="Your grain plans couldn't load. Refresh the page to try again."
+        >
+          <MyFarmClient
+            currentPlans={plans}
+            percentiles={percentiles}
+            role={role}
+            marketSupply={marketSupply}
+          />
+        </SectionBoundary>
       </section>
 
       {/* DELIVERY PACE + YOUR IMPACT */}
@@ -271,12 +297,17 @@ export default async function MyFarmPage() {
             title="Delivery Pace"
             subtitle="How your marketing compares to other prairie farmers"
           />
-          <DeliveryPaceCard
-            plans={plans}
-            percentiles={percentiles}
-            analytics={analytics}
-          />
-          <YourImpact variant="farm" />
+          <SectionBoundary
+            title="Delivery pace unavailable"
+            message="Peer-comparison data is temporarily unavailable. Try refreshing in a minute."
+          >
+            <DeliveryPaceCard
+              plans={plans}
+              percentiles={percentiles}
+              analytics={analytics}
+            />
+            <YourImpact variant="farm" />
+          </SectionBoundary>
         </section>
       )}
 

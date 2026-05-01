@@ -6,6 +6,7 @@
 // Data: all real from Supabase — no mocks except the Kalshi cards.
 
 import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SpotPriceRail } from "@/components/overview/spot-price-rail";
 import { HeroThesis } from "@/components/overview/hero-thesis";
@@ -82,6 +83,10 @@ export default async function OverviewPage() {
             </h2>
           </div>
 
+          <SectionBoundary
+            title="Market thesis unavailable"
+            message="The hero thesis is temporarily unavailable. New analysis releases Friday evenings."
+          >
           {heroGrain ? (
             <HeroThesis
               grain={heroGrain}
@@ -102,6 +107,7 @@ export default async function OverviewPage() {
               />
             </div>
           )}
+          </SectionBoundary>
         </section>
 
         {SECTION_DIVIDER}
@@ -112,6 +118,10 @@ export default async function OverviewPage() {
             title="All markets"
             subtitle="Every grain, every market — Canada and US side by side."
           />
+          <SectionBoundary
+            title="Stance grid unavailable"
+            message="The Canadian and US stance grid is temporarily unavailable. Try refreshing in a minute."
+          >
           <div style={{ marginTop: 32 }}>
             {hasAny ? (
               <div
@@ -134,20 +144,31 @@ export default async function OverviewPage() {
               />
             )}
           </div>
+          </SectionBoundary>
         </section>
 
         {SECTION_DIVIDER}
 
         {/* ── Section 3: Seeding Progress ───────────────────────────────── */}
         <section style={{ marginTop: 64, marginBottom: 64 }}>
-          <SeedingStrip />
+          <SectionBoundary
+            title="Seeding progress unavailable"
+            message="The seeding progress strip is temporarily unavailable. Visit /seeding for the full map."
+          >
+            <SeedingStrip />
+          </SectionBoundary>
         </section>
 
         {SECTION_DIVIDER}
 
         {/* ── Section 4: Marketplace ────────────────────────────────────── */}
         <section style={{ marginTop: 64, marginBottom: 64 }}>
-          <MarketplaceStrip spotPrices={spotPrices} />
+          <SectionBoundary
+            title="Marketplace unavailable"
+            message="Spot prices and marketplace listings are temporarily unavailable. Try refreshing in a minute."
+          >
+            <MarketplaceStrip spotPrices={spotPrices} />
+          </SectionBoundary>
         </section>
 
         {/* Footer note */}
