@@ -16,6 +16,10 @@ interface BullBearCardsProps {
   // Structured reasoning for two-column layout
   bullReasoning?: Array<ReasoningRow> | null;
   bearReasoning?: Array<ReasoningRow> | null;
+  // Optional US-specific context (renders as a prelude above the bull/bear grid).
+  // CAD grain detail does not pass these; US market detail does.
+  initialThesis?: string;
+  trackedCall?: string;
 }
 
 function getStanceLabel(score: number): string {
@@ -86,7 +90,7 @@ function ReasoningTable({
   );
 }
 
-export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, stanceScore, finalAssessment, bullReasoning, bearReasoning }: BullBearCardsProps) {
+export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore, stanceScore, finalAssessment, bullReasoning, bearReasoning, initialThesis, trackedCall }: BullBearCardsProps) {
   // Strip leading bullets: ASCII dash, Unicode bullet (•), triangular bullet (‣), middle dot (·), em dash (—), asterisk
   const stripBullet = (s: string) => s.replace(/^[\s\-–—•‣·*]+\s*/, '').trim();
   const bullPoints = bullCase.split(/\n/).map(stripBullet).filter(Boolean);
@@ -104,6 +108,33 @@ export function BullBearCards({ bullCase, bearCase, confidence, confidenceScore,
 
   return (
     <div className="space-y-4">
+      {/* Optional US-specific prelude: initial thesis + tracked call.
+          Renders only when supplied (CAD grain detail leaves these blank). */}
+      {(initialThesis || trackedCall) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {initialThesis && (
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Initial Thesis
+              </span>
+              <p className="mt-2 text-sm leading-snug text-foreground">
+                {initialThesis}
+              </p>
+            </div>
+          )}
+          {trackedCall && (
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Tracked Call
+              </span>
+              <p className="mt-2 text-sm leading-snug text-foreground">
+                {trackedCall}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Bull Case */}
         <div className="rounded-lg border border-prairie/20 bg-prairie/5 p-4">

@@ -296,6 +296,19 @@ What landed in this PR:
 - **`/us` subtitle voice** ([app/(dashboard)/us/page.tsx:27](app/(dashboard)/us/page.tsx)): desk-shaped → *"US grain markets this week — what's selling and what's stuck."*
 - **[components/dashboard/CLAUDE.md](components/dashboard/CLAUDE.md) full rewrite** — descriptive section rhythms, complete component lifecycle table, voice rule examples, P2 backlog cross-referenced, `sentiment-poll` retirement decision documented, `x-signal-feed` self-contradiction resolved.
 
+## Sweep 4 — Shipped 2026-05-01
+
+`/us/[market]` adopts `BullBearCards`. The two thesis surfaces — CAD `/grain/[slug]` and US `/us/[market]` — now render bull/bear/stance through the same component. What landed:
+
+- **`BullBearCards` extended** with two optional US-specific props: `initialThesis?: string` and `trackedCall?: string`. Renders a Context prelude above the bull/bear grid when supplied. CAD grain detail does not pass these (no behavior change for CAD).
+- **`/us/[market]` refactored** to drop the inline 4-card grid (Initial thesis / Tracked call / Bull case / Bear case) and replace it with `<BullBearCards>` carrying the same data plus `stanceScore`, `confidence`, `confidenceScore`. Now both surfaces benefit when `BullBearCards` improves.
+- **`SectionBoundary` applied** to all 3 sections on `/us/[market]` (Market Thesis, Top Signals, Data Freshness) — picks up Sweep 3's pattern on this surface as well.
+- **`final_assessment` retained in the page hero** — not duplicated into `BullBearCards` to avoid showing it twice.
+
+Type fix: `detail.trajectory.trigger` is `string | null` in the US trajectory shape; coerced via `?? undefined` at the call site since `BullBearCards` props use `string | undefined`.
+
+`npm run build` clean.
+
 ## Sweep 3 — Shipped 2026-05-01
 
 Mechanical hygiene PR — low review burden, no behavior change for the happy path. What landed:
@@ -315,7 +328,7 @@ Mechanical hygiene PR — low review burden, no behavior change for the happy pa
 | **Sweep 2** | `sentiment-poll` decision | ~3 hr | ✅ Resolved (decision: leave retired) |
 | **Sweep 2b** | `percentile-graph` decision | ~3 hr | ⏸ Deferred pending My Farm value review |
 | **Sweep 3** | Mechanical hygiene (P2.1, P2.2, P2.3, P2.5) | ~2 hr | ✅ Shipped 2026-05-01 |
-| **Sweep 4** | `/us/[market]` adopts `BullBearCards` (P2.4) | ~2 hr | Not yet started — green-light when ready |
+| **Sweep 4** | `/us/[market]` adopts `BullBearCards` (P2.4) | ~2 hr | ✅ Shipped 2026-05-01 |
 
 ---
 
