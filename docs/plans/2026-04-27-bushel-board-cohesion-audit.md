@@ -296,6 +296,17 @@ What landed in this PR:
 - **`/us` subtitle voice** ([app/(dashboard)/us/page.tsx:27](app/(dashboard)/us/page.tsx)): desk-shaped → *"US grain markets this week — what's selling and what's stuck."*
 - **[components/dashboard/CLAUDE.md](components/dashboard/CLAUDE.md) full rewrite** — descriptive section rhythms, complete component lifecycle table, voice rule examples, P2 backlog cross-referenced, `sentiment-poll` retirement decision documented, `x-signal-feed` self-contradiction resolved.
 
+## Sweep 3 — Shipped 2026-05-01
+
+Mechanical hygiene PR — low review burden, no behavior change for the happy path. What landed:
+
+- **P2.1 `SectionBoundary` applied uniformly** on `/overview` (4 sections), `/my-farm` (5 sections), `/us` (2 sections). Each data-dependent section now degrades gracefully to a `SectionStateCard` if the data fetch or render fails, instead of crashing the page.
+- **P2.2 `/advisor` redirect destination** — was silent redirect to `/`, now redirects to `/chat` (the modern Bushy chat surface, which is the legitimate intent of any `/advisor` link).
+- **P2.3 `/my-farm` hero refactor** — replaced the raw `<div className="rounded-2xl border border-canola/15 bg-gradient-to-br ...">` with `<GlassCard elevation={1} hover={false}>`, preserving the wheat-gradient overlay via `className`. The hero now follows the same elevation system as every other surface.
+- **P2.5 `/digest` error state** — replaced the raw `<h1>` and red-text error with `<SectionHeader>` + `<SectionStateCard>`, matching the convention across all data-dependent surfaces.
+
+`npm run build` clean. The 24 modified-but-uncommitted working-tree files from prior sessions are unchanged by this sweep.
+
 ## Outstanding Sweeps (not yet shipped)
 
 | Sweep | Scope | Effort | Status |
@@ -303,7 +314,7 @@ What landed in this PR:
 | **Sweep 1** | Doc + copy PR | ~2 hr | ✅ Shipped 2026-04-27 |
 | **Sweep 2** | `sentiment-poll` decision | ~3 hr | ✅ Resolved (decision: leave retired) |
 | **Sweep 2b** | `percentile-graph` decision | ~3 hr | ⏸ Deferred pending My Farm value review |
-| **Sweep 3** | Mechanical hygiene (P2.1, P2.2, P2.3, P2.5) | ~2 hr | Not yet started — green-light when ready |
+| **Sweep 3** | Mechanical hygiene (P2.1, P2.2, P2.3, P2.5) | ~2 hr | ✅ Shipped 2026-05-01 |
 | **Sweep 4** | `/us/[market]` adopts `BullBearCards` (P2.4) | ~2 hr | Not yet started — green-light when ready |
 
 ---

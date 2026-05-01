@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { GlassCard } from "@/components/ui/glass-card";
 import { formatRecommendationLabel, toUsMarketSlug } from "@/lib/constants/us-markets";
@@ -36,6 +37,10 @@ export default async function UsOverviewPage() {
           )}
         </SectionHeader>
 
+        <SectionBoundary
+          title="US market view unavailable"
+          message="The US grain thesis cards are temporarily unavailable. Try refreshing in a minute."
+        >
         {overview.stances.length === 0 ? (
           <SectionStateCard
             title="US market view is being prepared"
@@ -87,6 +92,7 @@ export default async function UsOverviewPage() {
             ))}
           </div>
         )}
+        </SectionBoundary>
       </section>
 
       <section className="space-y-4">
@@ -94,7 +100,10 @@ export default async function UsOverviewPage() {
           title="US Weekly Thesis Cards"
           subtitle="Farmer-facing summary cards for the first US thesis lane"
         />
-
+        <SectionBoundary
+          title="US thesis cards unavailable"
+          message="The detailed weekly thesis cards are temporarily unavailable. Try refreshing in a minute."
+        >
         <div className="grid gap-4 lg:grid-cols-2">
           {details.map((detail, index) => {
             const stance = overview.stances.find((s) => s.market === detail.marketName);
@@ -153,6 +162,7 @@ export default async function UsOverviewPage() {
             );
           })}
         </div>
+        </SectionBoundary>
       </section>
     </div>
   );
