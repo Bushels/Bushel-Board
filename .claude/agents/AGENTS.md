@@ -65,18 +65,16 @@ Deno.serve(async (req) => {
 });
 ```
 
-### Intelligence Pipeline — v2 Senior Analyst (current)
-The canonical production pipeline is now:
+### Intelligence Pipeline - Current
+The canonical production pattern is now:
 ```
-Vercel cron → import-cgc → validate-import → analyze-grain-market (v2, single-pass) → generate-farm-summary → validate-site-health
+Codex CGC importer -> cgc_observations -> Claude/Codex desk workflow -> market_analysis / farm_summaries -> validate-site-health
 ```
-- `analyze-grain-market` uses xAI Responses API with native `web_search` + `x_search` tools
-- Pre-computed analyst ratios + shipping calendar injected into prompt (LLM interprets, not calculates)
-- Self-batching: BATCH_SIZE=1, chains via `enqueue_internal_function` RPC
-- `grain_week` resolved from `MAX(grain_week) FROM cgc_observations` — NOT calendar week
-- Shared modules live in both `lib/` (Next.js/Vitest) and `supabase/functions/_shared/` (Deno Edge Functions)
-- **Key lesson:** When transitioning pipeline versions, clean up stale data from the old version. See `docs/lessons-learned/issues.md`
-- **Design doc:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-design.md`
+- Grok/xAI analysis functions (`analyze-grain-market`, `search-x-intelligence`, `analyze-market-data`, `generate-intelligence`, `generate-farm-summary`) are tombstoned.
+- `/api/pipeline/run` is also tombstoned and must not be used for CGC import or analysis recovery.
+- `grain_week` resolved from `MAX(grain_week) FROM cgc_observations` - NOT calendar week.
+- Direct X API v2 can be added later as an input lane for `x_market_signals`; do not revive Grok `x_search`.
+- **Key lesson:** When transitioning pipeline versions, clean up stale data from the old version. See `docs/lessons-learned/issues.md`.
 
 ### LLM Prompt Engineering Lessons
 - **Lead with the actionable number.** LLMs anchor on the first numeric value in a sequence. Put "5 Kt still in bins" before "of 10 Kt starting" — not the reverse.

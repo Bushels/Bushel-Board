@@ -94,22 +94,6 @@ describe("calculateCost", () => {
     expect(cost).toBe(0);
   });
 
-  it("handles grok-4.20-reasoning (no cache discount — rate equals input)", () => {
-    // xAI Responses API currently bills cached input at full rate. Treat
-    // cachedInputPerToken === inputPerToken so cost is invariant to cache
-    // hits — don't over-credit.
-    const flat = calculateCost("grok-4.20-reasoning", {
-      promptTokens: 1000,
-      completionTokens: 500,
-      cachedTokens: 0,
-    });
-    const withCache = calculateCost("grok-4.20-reasoning", {
-      promptTokens: 1000,
-      completionTokens: 500,
-      cachedTokens: 500,
-    });
-    expect(withCache).toBeCloseTo(flat, 10);
-  });
 });
 
 describe("MODEL_PRICING table", () => {

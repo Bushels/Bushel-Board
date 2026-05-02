@@ -10,57 +10,215 @@ Most dashboard numbers come from one of these root sources:
 
 1. `cgc_observations` for Canadian Grain Commission weekly grain data.
 2. `supply_disposition` and `v_supply_disposition_current` for AAFC-style balance sheet data.
-3. `x_market_signals` for Grok-scored X and web signals.
+3. `x_market_signals` for sentiment-scout output from the X API v2 gateway.
 4. `grain_sentiment_votes` and `metric_sentiment_votes` for farmer voting.
 5. `crop_plans` and `crop_plan_deliveries` for farmer-specific data.
 6. `grain_monitor_snapshots` and `producer_car_allocations` for logistics context.
+7. `usda_export_sales`, `usda_wasde_estimates`, `usda_crop_progress` for US market context.
+8. `cftc_cot_positions` for disaggregated fund/commercial positioning.
 
 The main pattern is:
 
 `source -> raw table -> SQL view/RPC -> lib/queries/* -> page.tsx -> component card`
 
-## 1. Weekly Production Chain
+## Current Layered System Map
+
+Use this map first. It separates raw facts, generated analysis, runtime chat,
+and quality/ops. That split matters because source data can be current while
+the Friday thesis layer is still one grain week behind.
 
 ```mermaid
 flowchart TD
-  A["CGC weekly CSV"] --> B["GET /api/cron/import-cgc"]
-  B --> C["parseCgcCsv()"]
-  C --> D["cgc_observations"]
-  B --> E["cgc_imports"]
-  D --> F["validate-import"]
-  F --> G["validation_reports"]
+  S["External Sources"] --> I["Collectors / Importers"]
 
-  F -->|pass| H["search-x-intelligence"]
-  H --> I["x_market_signals"]
-  H --> J["signal_scan_log"]
+  S1["CGC weekly stats"] --> I
+  S2["CGC producer cars"] --> I
+  S3["Grain Monitor weekly PDF"] --> I
+  S4["USDA crop progress / export sales / WASDE"] --> I
+  S5["CFTC COT"] --> I
+  S6["Futures prices"] --> I
 
-  I --> K["analyze-market-data"]
-  D --> K
-  L["v_supply_pipeline"] --> K
-  M["get_sentiment_overview()"] --> K
-  N["get_delivery_analytics()"] --> K
-  O["get_logistics_snapshot()"] --> K
-  K --> P["market_analysis"]
+  I --> R["Supabase Source Tables"]
+  R --> R1["cgc_observations"]
+  R --> R2["producer_car_allocations"]
+  R --> R3["grain_monitor_snapshots"]
+  R --> R4["usda_crop_progress"]
+  R --> R5["usda_export_sales"]
+  R --> R6["usda_wasde_raw / usda_wasde_mapped"]
+  R --> R7["cftc_cot_positions"]
+  R --> R8["grain_prices"]
 
-  P --> Q["generate-intelligence"]
-  I --> Q
-  D --> Q
-  L --> Q
-  M --> Q
-  Q --> R["grain_intelligence"]
+  R --> DB["Views + RPCs"]
+  DB --> DB1["v_grain_overview"]
+  DB --> DB2["v_supply_pipeline"]
+  DB --> DB3["get_pipeline_velocity()"]
+  DB --> DB4["get_logistics_snapshot()"]
+  DB --> DB5["get_seeding_seismograph()"]
+  DB --> DB6["get_usda_*_context()"]
 
-  R --> S["generate-farm-summary"]
-  T["crop_plans"] --> S
-  U["calculate_delivery_percentiles()"] --> S
-  N --> S
-  S --> V["farm_summaries"]
+  R --> A["Analysis Layer"]
+  DB --> A
+  A --> A1["Canadian desk swarm"]
+  A --> A2["US desk swarm"]
+  A --> A3["Collector heartbeats / soft reviews"]
+  A1 --> O1["market_analysis"]
+  A1 -. legacy archive only .-> O2["grain_intelligence"]
+  A2 --> O3["us_market_analysis"]
+  A2 --> O4["us_grain_intelligence"]
+  A3 --> O5["score_trajectory"]
+  A3 --> O6["us_score_trajectory"]
 
-  V --> W["validate-site-health"]
-  D --> W
-  R --> W
-  V --> W
-  W --> X["health_checks"]
+  U["Farmer Input"] --> U1["profiles"]
+  U --> U2["crop_plans"]
+  U --> U3["crop_plan_deliveries"]
+  U --> U4["farmer_memory"]
+  U --> U5["local_market_intel"]
+  U --> U6["posted_prices"]
+
+  U1 --> P["Personalization Layer"]
+  U2 --> P
+  U3 --> P
+  U4 --> P
+  U5 --> P
+  U6 --> P
+  O1 --> P
+  DB --> P
+  P --> FS["farm_summaries"]
+  P --> CH["chat context"]
+  CH --> CT["chat_threads / chat_messages"]
+
+  I --> Q["Quality + Ops"]
+  A --> Q
+  Q --> Q1["cgc_imports"]
+  Q --> Q2["validation_reports"]
+  Q --> Q3["health_checks"]
+  Q --> Q4["prediction_scorecard"]
+  Q --> Q5["daily_digests"]
+
+  R --> L["Next.js Query Helpers"]
+  DB --> L
+  O1 --> L
+  O2 --> L
+  O3 --> L
+  O4 --> L
+  O5 --> L
+  O6 --> L
+  FS --> L
+  P --> L
+
+  L --> UI["App Pages"]
+  UI --> UI1["/overview"]
+  UI --> UI2["/grain/[slug]"]
+  UI --> UI3["/my-farm"]
+  UI --> UI4["/seeding"]
+  UI --> UI5["/us + /us/[market]"]
+  UI --> UI6["/chat"]
+  UI --> UI7["/advisor"]
+  UI --> UI8["/digest"]
 ```
+
+### CGC routine note
+
+As of 2026-05-02, the Codex CGC importer is:
+
+`npm run import-cgc`
+
+That script fetches the live CGC page/CSV from the local Codex runtime, forwards
+the raw CSV to `import-cgc-weekly` with `csv_data`, verifies
+`cgc_observations`, and writes 16 `collector_cgc` heartbeat rows into
+`score_trajectory`. It does not call `/api/cron/import-cgc`, does not call the
+V1 Grok analysis chain, and does not trigger the Friday swarm.
+
+Dry-run command: `npm run import-cgc:dry`.
+
+## 1. Weekly Production Chain (Current — V2 Claude Agent Desk)
+
+The live weekly pipeline is the Claude/Codex desk workflow. All Vercel crons
+are disabled (2026-03-17). Routine data collection is now script/agent driven.
+The Grok/xAI thesis-writing chain is retired and cannot be used as recovery.
+
+```mermaid
+flowchart TD
+  A["CGC weekly CSV"] --> B["Codex routine: npm run import-cgc"]
+  B --> C["import-cgc-weekly (Edge Function)"]
+  C --> D["cgc_observations"]
+  C --> E["cgc_imports (status in success/partial/failed)"]
+  C --> F["validate-import"]
+  F --> G["validation_reports"]
+  B --> X["score_trajectory collector_cgc heartbeats"]
+
+  H["Claude Desktop Routine: grain-desk-weekly (Fri 6:47 PM ET)"] --> I["CAD swarm"]
+  H2["Claude Desktop Routine: us-desk-weekly (Fri 7:30 PM ET)"] --> I2["US swarm"]
+
+  I --> J["6 Haiku scouts (supply/demand/basis/sentiment/logistics/macro)"]
+  J --> K["3 Sonnet specialists (export/domestic/risk)"]
+  K --> L["Opus desk chief"]
+  L --> M["market_analysis + score_trajectory"]
+
+  I2 --> J2["8 Haiku scouts (supply/demand/export/price/cot/wasde/conditions/macro)"]
+  J2 --> K2["4 Sonnet specialists (export/domestic/price/risk) + planted-area (Mar-Sep)"]
+  K2 --> L2["Opus desk chief"]
+  L2 --> M2["us_market_analysis + us_score_trajectory"]
+
+  D --> J
+  X --> J
+  D --> J2
+  N["Anthropic web_search_20250305"] --> J
+  O["search-x-signals Edge Function (X API v2)"] --> J
+
+  M --> P["Claude/Codex farm summary writer"]
+  Q["crop_plans"] --> P
+  R["calculate_delivery_percentiles()"] --> P
+  P --> S["farm_summaries"]
+
+  S --> T["validate-site-health"]
+  D --> T
+  M --> T
+  T --> U["health_checks"]
+
+  L --> V["Opus meta-reviewer (Sat)"]
+  V --> W["desk_performance_reviews"]
+  L2 --> V2["Opus meta-reviewer (Sat)"]
+  V2 --> W2["us_desk_performance_reviews"]
+```
+
+### Daily data collectors (feed the weekly swarm)
+
+6 Claude Desktop Routines drop data into Supabase throughout the week:
+
+| Routine | Cadence | Writes to |
+| --- | --- | --- |
+| `collect-crop-progress` | Mon | `usda_crop_progress` + `score_trajectory` (scan_type=`collector_crop_progress`) |
+| `collect-grain-monitor` | Wed | `grain_monitor_snapshots` + `score_trajectory` (scan_type=`collector_grain_monitor`) |
+| `collect-export-sales` | Thu AM | `usda_export_sales` + `score_trajectory` (scan_type=`collector_export_sales`) |
+| `collect-cgc` | Thu PM | `cgc_observations` (via `import-cgc-weekly`) + `score_trajectory` (scan_type=`collector_cgc`) |
+| `collect-cftc-cot` | Fri PM | `cftc_cot_positions` + `score_trajectory` (scan_type=`collector_cftc_cot`) |
+| `collect-wasde` | Fri monthly | `usda_wasde_estimates` + `score_trajectory` (scan_type=`collector_wasde`) |
+
+Friday's weekly anchor is written by the desk chief with `scan_type='weekly_debate'`
+and `model_source='claude-opus-desk-chief-v2'`.
+
+## 1b. Retired Grok Analysis Chain
+
+The old Grok/xAI chain is deprecated. Its runtime entrypoints now return
+HTTP 410 tombstones and must not write to `market_analysis`,
+`grain_intelligence`, `score_trajectory`, or `farm_summaries`.
+
+```mermaid
+flowchart TD
+  A["CGC CSV"] --> B["import-cgc-weekly"]
+  B --> C["cgc_observations / cgc_imports"]
+  C --> D["validate-import"]
+  D -. retired .-> E["search-x-intelligence tombstone"]
+  E -. no writes .-> F["x_market_signals"]
+  D -. retired .-> G["analyze-grain-market tombstone"]
+  G -. no writes .-> H["market_analysis"]
+  D -. retired .-> I["analyze-market-data / generate-intelligence tombstones"]
+  I -. no writes .-> J["grain_intelligence"]
+```
+
+Future X analysis should use the direct X API v2 lane, then store vetted
+signals into `x_market_signals`. Do not revive Grok `x_search` as the bridge.
 
 ## 2. Grain Detail Page Call Map
 
@@ -75,8 +233,7 @@ flowchart LR
   P --> Q5["getStorageBreakdown()"]
   P --> Q6["getGradeDistribution()"]
   P --> Q7["getDeliveryChannelBreakdown()"]
-  P --> Q8["getGrainIntelligence()"]
-  P --> Q9["getMarketAnalysis()"]
+  P --> Q8["getMarketAnalysis()"]
   P --> Q10["getLogisticsSnapshot()"]
   P --> Q11["getCotPositioning()"]
   P --> Q12["getProcessorCapacity()"]
@@ -99,8 +256,7 @@ flowchart LR
   Q7 --> T1
   Q7 --> T2["producer_car_allocations"]
 
-  Q8 --> T3["grain_intelligence"]
-  Q9 --> T4["market_analysis"]
+  Q8 --> T4["market_analysis"]
 
   Q10 --> R2["get_logistics_snapshot()"]
   R2 --> T5["grain_monitor_snapshots"]
@@ -125,7 +281,7 @@ flowchart LR
   P --> Q2["getDeliveryAnalytics()"]
   P --> Q3["getSupplyDispositionForGrains()"]
   P --> Q4["getGrainOverview()"]
-  P --> Q5["getGrainIntelligence()"]
+  P --> Q5["getMarketAnalysis()"]
   P --> Q6["getSentimentOverview()"]
   P --> Q7["getUserSentimentVote()"]
   P --> Q8["crop_plans query"]
@@ -142,7 +298,7 @@ flowchart LR
   V2 --> V3["v_country_producer_deliveries"]
   V3 --> T5["cgc_observations"]
 
-  Q5 --> T6["grain_intelligence"]
+  Q5 --> T6["market_analysis"]
   Q6 --> R2["get_sentiment_overview()"]
   R2 --> T7["grain_sentiment_votes"]
   Q7 --> T7
@@ -177,7 +333,7 @@ flowchart LR
 | Overview terminal receipts | `getMarketOverviewSnapshot()` | direct aggregation | `cgc_observations` |
 | Overview exports | `getMarketOverviewSnapshot()` | direct aggregation | `cgc_observations` |
 | Overview commercial stocks | `getMarketOverviewSnapshot()` | direct aggregation | `cgc_observations` |
-| Grain hero thesis | `getGrainIntelligence()` | direct table read | `grain_intelligence` |
+| Grain hero thesis | `getMarketAnalysis()` | direct table read | `market_analysis` |
 | Grain bull/bear cards | `getMarketAnalysis()` | direct table read | `market_analysis` |
 | Grain key metrics row | `getWeekOverWeekComparison()` | in-code composite math | `cgc_observations` |
 | Grain net balance chart | `getCumulativeTimeSeries()` | `get_pipeline_velocity()` | `v_country_producer_deliveries` + `cgc_observations` |
@@ -192,8 +348,8 @@ flowchart LR
 | Grain metric voting badges | `getMetricSentiment()` | `get_metric_sentiment()` | `metric_sentiment_votes` |
 | My Farm weekly summary | `getFarmSummary()` | direct table read | `farm_summaries` |
 | My Farm delivery pace | `getDeliveryAnalytics()` | `get_delivery_analytics()` | `crop_plans` |
-| My Farm percentiles | `generate-farm-summary` | `calculate_delivery_percentiles()` | `crop_plans` |
-| My Farm recommendations | derived in page code | mixed | `grain_intelligence` + `v_supply_disposition_current` + `v_grain_overview` + `crop_plans` |
+| My Farm percentiles | `getFarmSummary()` | direct table read | `farm_summaries` |
+| My Farm recommendations | derived in page code | mixed | `market_analysis` + `v_supply_disposition_current` + `v_grain_overview` + `crop_plans` |
 | Overview community pulse | `getSentimentOverview()` | `get_sentiment_overview()` | `grain_sentiment_votes` |
 | Overview signal strip | `getLatestXSignals()` | direct table read | `x_market_signals` |
 
@@ -234,19 +390,19 @@ It combines:
 
 Then `lib/queries/observations.ts` forward-fills missing cumulative weeks so a lagging worksheet does not incorrectly look like zero.
 
-### Grain Intelligence
+### Published Market Analysis
 
-The final intelligence shown to farmers is not generated directly from the CGC import.
+The weekly thesis shown to farmers is not generated directly from the CGC import.
 
 It is:
 
-`cgc_observations + v_supply_pipeline + sentiment RPC + logistics RPC + x_market_signals + market_analysis -> grain_intelligence`
+`cgc_observations + v_supply_pipeline + logistics RPC + X API v2 signals + Claude/Codex desk workflow -> market_analysis`
 
 ### Farm Summary
 
 The farmer summary is a separate personalized layer:
 
-`crop_plans + delivery percentiles + community analytics + X search context -> farm_summaries`
+`crop_plans + delivery percentiles + community analytics + Claude/Codex desk context -> farm_summaries`
 
 ## 7. How To Read The System Quickly
 

@@ -55,8 +55,8 @@ BushelBoard/
       ElevatorPricingSheet.swift  # Nearby elevator prices
       BasisComparisonView.swift   # Basis heat map
 
-  Intelligence/
-    IntelligenceService.swift     # Fetch grain_intelligence, market_analysis
+    Intelligence/
+      IntelligenceService.swift     # Fetch market_analysis; grain_intelligence is legacy archive
     SignalService.swift           # X signal feed + voting
     SentimentService.swift        # Sentiment aggregates + vote submission
 
@@ -127,9 +127,9 @@ func observeAuthState() -> AsyncStream<AuthChangeEvent> {
 ### Queries
 
 ```swift
-// Fetch grain intelligence
+// Fetch published market analysis
 let intelligence: [GrainIntelligence] = try await supabase
-    .from("grain_intelligence")
+    .from("market_analysis")
     .select()
     .eq("grain", value: grain)
     .eq("crop_year", value: "2025-2026")

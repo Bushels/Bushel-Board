@@ -2,10 +2,10 @@ import { VIKING_L0 } from "./viking-knowledge.ts";
 
 export const MARKET_INTELLIGENCE_VERSIONS = {
   searchSignals: "search-signals-v3",
-  analyzeMarketData: "analyze-market-data-v7",
-  generateIntelligence: "generate-intelligence-v7",
-  analyzeGrainMarket: "analyze-grain-market-v1",
-  generateFarmSummary: "generate-farm-summary-v4",
+  analyzeMarketData: "retired-grok-tombstone",
+  generateIntelligence: "retired-grok-tombstone",
+  analyzeGrainMarket: "retired-grok-tombstone",
+  generateFarmSummary: "retired-grok-tombstone",
   knowledgeBase: "grain-knowledge-v3",
 } as const;
 
@@ -44,7 +44,7 @@ const TEMPORAL_AWARENESS = `CRITICAL - Data timing and week awareness:
 
 const CGC_DATA_GUARDRAILS = `Critical CGC and balance-sheet rules:
 - Total producer deliveries require Primary.Deliveries plus Process.Producer Deliveries plus Producer Cars.Shipments. Primary alone is incomplete.
-- Total exports require THREE components: Terminal Exports (summed across grades) plus Primary Shipment Distribution "Export Destinations" (direct cross-border from elevators) plus Producer Cars Shipment Distribution "Export" (farmer railcars direct to US).
+- Total exports require THREE components: Terminal Exports (summed across grades) plus Primary Shipment Distribution "Export Destinations" (direct cross-border from elevators) plus Producer Cars worksheet shipment distribution/destination rows (farmer railcars direct to US).
 - Summary worksheet is reliable for visible commercial stocks, not as a single source for deliveries or exports.
 - "Crop Year" values are cumulative; "Current Week" values are weekly snapshots. Stocks are point-in-time snapshots.
 - When making year-over-year comparisons, compare the same grain week, not nearby dates.

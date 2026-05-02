@@ -49,8 +49,9 @@ Environment variables (from .env.local):
   SUPABASE_SERVICE_ROLE_KEY     Service role key (never expose to browser)
 
 Source strategy:
-  Yahoo Finance chart API:
-    ZW=F, KE=F, ZC=F, ZS=F, ZO=F
+  Yahoo Finance chart API (yahooSymbol keeps =F for the API call; stored contract
+  symbol is canonical without suffix):
+    ZW, KE, ZC, ZS, ZO, ZL, ZM
 
   Barchart fallback (latest close only):
     RSK26  Canola (ICE)
@@ -84,7 +85,17 @@ function loadEnvFile(filePath: string) {
       const eqIndex = trimmed.indexOf("=");
       if (eqIndex === -1) continue;
       const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
+      let value = trimmed.slice(eqIndex + 1).trim();
+      // Strip surrounding double or single quotes (Next.js accepts quoted values
+      // in .env.local, but our naive parser would otherwise keep the quote chars
+      // as part of the value — producing URLs like `"https://..."` that fail
+      // URL validation).
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
       if (!process.env[key]) {
         process.env[key] = value;
       }
@@ -110,7 +121,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const GRAIN_SPECS: GrainPriceSpec[] = [
   {
     grain: "Wheat",
-    contract: "ZW=F",
+    contract: "ZW",
     yahooSymbol: "ZW=F",
     exchange: "CBOT",
     currency: "USD",
@@ -119,7 +130,7 @@ const GRAIN_SPECS: GrainPriceSpec[] = [
   },
   {
     grain: "Corn",
-    contract: "ZC=F",
+    contract: "ZC",
     yahooSymbol: "ZC=F",
     exchange: "CBOT",
     currency: "USD",
@@ -128,7 +139,7 @@ const GRAIN_SPECS: GrainPriceSpec[] = [
   },
   {
     grain: "Oats",
-    contract: "ZO=F",
+    contract: "ZO",
     yahooSymbol: "ZO=F",
     exchange: "CBOT",
     currency: "USD",
@@ -137,7 +148,7 @@ const GRAIN_SPECS: GrainPriceSpec[] = [
   },
   {
     grain: "Soybeans",
-    contract: "ZS=F",
+    contract: "ZS",
     yahooSymbol: "ZS=F",
     exchange: "CBOT",
     currency: "USD",
@@ -146,12 +157,36 @@ const GRAIN_SPECS: GrainPriceSpec[] = [
   },
   {
     grain: "HRW Wheat",
-    contract: "KE=F",
+    contract: "KE",
     yahooSymbol: "KE=F",
     exchange: "KCBT",
     currency: "USD",
     unit: "$/bu",
     centsToBase: true,
+  },
+  {
+    // Soybean Oil — needed for US soy crush margin:
+    //   crush_margin = (ZL_cents_per_lb × 11) + (ZM_$_per_short_ton × 0.0485) − ZS_$_per_bu
+    // Yahoo quotes ZL in cents/lb. We keep raw cents (no base conversion) so the
+    // crush formula in us-price-analyst matches industry convention.
+    grain: "Soybean Oil",
+    contract: "ZL",
+    yahooSymbol: "ZL=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "cents/lb",
+    centsToBase: false,
+  },
+  {
+    // Soybean Meal — needed for US soy crush margin (see ZL note).
+    // Yahoo quotes ZM directly in USD per short ton — no conversion needed.
+    grain: "Soybean Meal",
+    contract: "ZM",
+    yahooSymbol: "ZM=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/short ton",
+    centsToBase: false,
   },
   {
     grain: "Canola",

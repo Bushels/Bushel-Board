@@ -27,7 +27,7 @@ const CORE_AGENT_TEAM: BushelAgentDefinition[] = [
     weeklyQuestion: "What should the farmer actually do this week if cash flow is normal?",
     priority: "core",
     signalWeight: "primary",
-    dataSources: ["market_analysis", "grain_intelligence", "grain_prices", "viking-l1 summaries"],
+    dataSources: ["market_analysis", "grain_prices", "viking-l1 summaries"],
   },
   {
     id: "flow_balance",

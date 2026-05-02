@@ -80,7 +80,7 @@ describe("buildRowsForGrain", () => {
   it("still converts CBOT quotes from cents to dollars", () => {
     const wheatSpec: GrainPriceSpec = {
       grain: "Wheat",
-      contract: "ZW=F",
+      contract: "ZW",
       exchange: "CBOT",
       currency: "USD",
       unit: "$/bu",

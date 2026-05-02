@@ -5,7 +5,7 @@ import { getLatestImportedWeek } from "@/lib/queries/data-freshness";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getRecentPrices } from "@/lib/queries/grain-prices";
 import { getXSignalsForGrain } from "@/lib/queries/x-signals";
-import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
+import { getMarketAnalysis } from "@/lib/queries/intelligence";
 import { getSentimentOverview } from "@/lib/queries/sentiment";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
@@ -110,7 +110,7 @@ export function buildStorageDecisionSupport(
 
 /**
  * Build the complete farmer context for a chat message.
- * Fetches crop plans, intelligence, sentiment, and knowledge in parallel.
+ * Fetches crop plans, published market analysis, sentiment, and knowledge in parallel.
  * Reuses existing query functions - no new product data queries needed.
  */
 export async function buildChatContext(
@@ -129,10 +129,7 @@ export async function buildChatContext(
 
   const grainContexts: FarmerGrainContext[] = await Promise.all(
     cropPlans.map(async (plan) => {
-      const [intelligence, marketAnalysis] = await Promise.all([
-        getGrainIntelligence(plan.grain),
-        getMarketAnalysis(plan.grain),
-      ]);
+      const marketAnalysis = await getMarketAnalysis(plan.grain);
 
       const sentiment = sentimentData?.find((entry: { grain: string }) => entry.grain === plan.grain);
       const totalDelivered = (plan.deliveries ?? []).reduce((sum, delivery) => sum + delivery.amount_kt, 0);
@@ -171,13 +168,16 @@ export async function buildChatContext(
         platform_neutral_pct: Number(sentiment?.pct_neutral ?? 0),
         platform_vote_count: Number(sentiment?.vote_count ?? 0),
         intelligence_stance:
-          intelligence?.kpi_data?.market_stance != null ? String(intelligence.kpi_data.market_stance) : null,
-        recommendation:
-          intelligence?.kpi_data?.recommendation_signal != null
-            ? String(intelligence.kpi_data.recommendation_signal)
+          marketAnalysis?.stance_score != null
+            ? marketAnalysis.stance_score >= 20
+              ? "bullish"
+              : marketAnalysis.stance_score <= -20
+                ? "bearish"
+                : "neutral"
             : null,
-        thesis_title: intelligence?.thesis_title ?? null,
-        thesis_body: intelligence?.thesis_body ?? null,
+        recommendation: null,
+        thesis_title: marketAnalysis?.initial_thesis ?? null,
+        thesis_body: marketAnalysis?.final_assessment ?? null,
         bull_case: marketAnalysis?.bull_case ?? null,
         bear_case: marketAnalysis?.bear_case ?? null,
       };

@@ -1,5 +1,5 @@
 // WS2 Task 2.1 — Bushy chat harness
-// LLM adapter interface + shared types. Every provider (Anthropic, xAI,
+// LLM adapter interface + shared types. Every provider (Anthropic,
 // OpenAI, OpenRouter) implements LLMAdapter behind getAdapter() factory
 // dispatching by model_id prefix.
 //
@@ -15,7 +15,7 @@ export interface ChatMessage {
   content: string;
   /**
    * When role === 'tool', this is the ID of the tool call this message is
-   * responding to. Required by OpenAI/xAI; Anthropic uses a different shape
+   * responding to. Required by OpenAI; Anthropic uses a different shape
    * internally but the adapter maps it.
    */
   tool_call_id?: string;
@@ -24,7 +24,7 @@ export interface ChatMessage {
 /**
  * OpenAI-style tool definition. All adapters translate this into their
  * provider-native format internally (Anthropic uses { name, description,
- * input_schema }, xAI follows OpenAI's shape directly).
+ * input_schema }).
  */
 export interface ToolDefinition {
   type: "function";

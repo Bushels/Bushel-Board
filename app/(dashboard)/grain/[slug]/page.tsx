@@ -9,8 +9,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { MarketStanceBadge } from "@/components/ui/market-stance-badge";
 import { Button } from "@/components/ui/button";
 import { PriceSparkline } from "@/components/dashboard/price-sparkline";
-import { getGrainBySlug, getGrainOverviewBySlug } from "@/lib/queries/grains";
-import { getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
+import { getGrainBySlug } from "@/lib/queries/grains";
+import { getMarketAnalysis } from "@/lib/queries/intelligence";
 import { getRecentPrices } from "@/lib/queries/grain-prices";
 import { GrainBushyChat } from "@/components/bushy/grain-bushy-chat";
 import { GrainFarmProgress } from "@/components/dashboard/grain-farm-progress";
@@ -111,19 +111,26 @@ export default async function GrainDetailPage({ params }: Props) {
     pricesResult,
   ] = await Promise.all([
     safeQuery("Market intelligence", async () => {
-      const [intelligence, grainOverview, marketAnalysis] = await Promise.all([
-        getGrainIntelligence(grain.name),
-        getGrainOverviewBySlug(grain.slug),
-        getMarketAnalysis(grain.name),
-      ]);
-      return { intelligence, grainOverview, marketAnalysis };
+      const marketAnalysis = await getMarketAnalysis(grain.name);
+      return { marketAnalysis };
     }),
     safeQuery("Recent prices", () => getRecentPrices(grain.name)),
   ]);
 
   const marketCore = marketCoreResult.error ? null : marketCoreResult.data;
-  const intelligence = marketCore?.intelligence ?? null;
   const marketAnalysis = marketCore?.marketAnalysis ?? null;
+  const heroTitle = marketAnalysis?.initial_thesis?.trim() || null;
+  const heroBody =
+    [
+      marketAnalysis?.bull_case ? `- Bull case: ${marketAnalysis.bull_case}` : null,
+      marketAnalysis?.bear_case ? `- Bear case: ${marketAnalysis.bear_case}` : null,
+      marketAnalysis?.final_assessment
+        ? `- Call: ${marketAnalysis.final_assessment}`
+        : null,
+    ]
+      .filter((line): line is string => Boolean(line?.trim()))
+      .join("\n") ||
+    null;
   // Compute recommendation from crop plan data
   const totalKt = Number(userPlan.planned_kt ?? 0);
   const deliveredKt = Number(userPlan.delivered_kt ?? 0);
@@ -161,7 +168,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                   {grain.name}
                 </h1>
-                {(intelligence || marketAnalysis) && (
+                {marketAnalysis && (
                   <MarketStanceBadge
                     stance={
                       marketAnalysis?.stance_score != null
@@ -170,20 +177,20 @@ export default async function GrainDetailPage({ params }: Props) {
                           : marketAnalysis.stance_score <= -20
                             ? "bearish"
                             : "neutral"
-                        : deriveStanceFromThesis(intelligence?.thesis_title ?? "")
+                        : deriveStanceFromThesis(heroTitle ?? "")
                     }
                     size="lg"
                   />
                 )}
               </div>
-              {intelligence?.thesis_title && (
+              {heroTitle && (
                 <p className="text-lg font-display font-semibold text-foreground/90">
-                  {intelligence.thesis_title}
+                  {heroTitle}
                 </p>
               )}
-              {intelligence?.thesis_body && (
+              {heroBody && (
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
-                  {parseToBullets(intelligence.thesis_body).map((bullet, i) => (
+                  {parseToBullets(heroBody).map((bullet, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-canola mt-0.5">&#9656;</span>
                       <span>{bullet}</span>
@@ -191,10 +198,10 @@ export default async function GrainDetailPage({ params }: Props) {
                   ))}
                 </ul>
               )}
-              {!intelligence && (
+              {!heroTitle && !heroBody && (
                 <SectionStateCard
-                  title="Intelligence is generating"
-                  message="Check back after the next Thursday data update."
+                  title="Market thesis is pending"
+                  message="Check back after the next published desk update."
                 />
               )}
               <p className="text-xs text-muted-foreground mt-3 flex items-center gap-2 flex-wrap">

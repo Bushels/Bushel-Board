@@ -10,17 +10,16 @@ Fetch USDA NASS weekly Crop Progress reports and upsert to `usda_crop_progress` 
 
 ## Commodity Mapping
 
-| USDA NASS Commodity | CGC Grain | Season |
+| USDA NASS source | Canonical row written to `usda_crop_progress` | Season |
 |---|---|---|
-| WHEAT, SPRING, (EXCL DURUM) | Wheat | Apr-Sep |
-| WHEAT, WINTER | Wheat | Sep-Jul (condition from Apr) |
-| WHEAT, DURUM | Amber Durum | Apr-Sep |
-| CORN, GRAIN | Corn | Apr-Nov |
-| SOYBEANS | Canola (proxy) | May-Nov |
-| BARLEY | Barley | Apr-Sep |
-| OATS | Oats | Apr-Aug |
+| `WHEAT` + `WINTER` | `commodity='WHEAT'`, `cgc_grain='Wheat'` | Sep-Jul |
+| `WHEAT` + `SPRING, (EXCL DURUM)` | `commodity='WHEAT'`, `cgc_grain='Wheat'` | Apr-Sep |
+| `CORN` | `commodity='CORN'`, `cgc_grain='Corn'` | Apr-Nov |
+| `SOYBEANS` | `commodity='SOYBEANS'`, `cgc_grain='Soybeans'` | May-Nov |
+| `BARLEY` | `commodity='BARLEY'`, `cgc_grain='Barley'` | Apr-Sep |
+| `OATS` | `commodity='OATS'`, `cgc_grain='Oats'` | Apr-Aug |
 
-**Note:** Spring wheat is the direct competitor to Canadian CWRS. Winter wheat conditions matter for global supply but less directly for Canadian farmers.
+**Important:** Do not write Canadian proxy mappings into this source table. If Canola needs a soybean crop-condition proxy, resolve that in the query or consumer layer.
 
 ## API Details
 
@@ -58,18 +57,19 @@ format=JSON
 1. Check if current date is within growing season (Apr 1 - Nov 30):
    - If not, log "Off-season — skipping crop progress import" and exit
 
-2. For each commodity in mapping table:
-   a. Fetch CONDITION data for current year, national level
-   b. Fetch PROGRESS data for current year, national level
-   c. For each week_ending in response:
-      - Parse condition percentages (VP, P, F, G, E)
-      - Compute good_excellent_pct = good + excellent
-      - Compute condition_index = (VP*1 + P*2 + F*3 + G*4 + E*5) / 100
-      - Parse progress percentages (planted, emerged, headed, harvested)
-   d. Fetch same-week-last-year G/E% for YoY comparison:
-      - ge_pct_yoy_change = current_ge - prior_year_ge
-   e. Fetch 5-year average planting pace for vs-average comparison
-   f. Upsert to usda_crop_progress
+2. For each canonical market in mapping table:
+   a. Fetch current-year QuickStats rows for each required source variant
+      - Example: Wheat pulls both WINTER and SPRING, (EXCL DURUM)
+   b. Pivot raw QuickStats metric rows into one canonical row per
+      - `(commodity, state, week_ending)`
+   c. Populate denormalized market-facing columns:
+      - progress stages (planted/emerged/headed/blooming/setting pods/turning color/mature/harvested)
+      - condition buckets (VP/P/F/G/E)
+      - `good_excellent_pct`
+      - `condition_index`
+      - `ge_pct_yoy_change`
+      - `planted_pct_vs_avg`
+   d. Upsert on `(commodity, state, week_ending)`
 
 3. Log import results
 ```
@@ -84,15 +84,16 @@ format=JSON
 - **Harvest pace behind by >15 points** = quality risk + delayed delivery. Can tighten near-term supply.
 
 **Canadian impact channel:**
-- Poor US spring wheat condition → bullish for CWRS (competing origin constrained)
-- Poor US soybean condition → bullish for canola (oilseed complex lifts all boats)
+- Poor US spring or winter wheat condition → bullish input for the v1 US wheat lane
+- Poor US soybean condition → available as a canola proxy in the consumer/query layer
 - US corn condition is less direct but affects feed grain substitution (barley, oats)
 
 ## Supabase Write Pattern
 
 ```python
 row = {
-    "commodity": "WHEAT, SPRING, (EXCL DURUM)",
+    "market_name": "Wheat",
+    "commodity": "WHEAT",
     "cgc_grain": "Wheat",
     "state": "US TOTAL",
     "week_ending": "2026-04-12",
@@ -108,7 +109,7 @@ row = {
     "condition_index": 3.79,
     "ge_pct_yoy_change": -3.0,
     "planted_pct_vs_avg": -5.0,
-    "source": "USDA-NASS"
+    "source": "usda_nass_quickstats"
 }
 
 supabase.table("usda_crop_progress").upsert(

@@ -8,7 +8,6 @@
 // Provider notes:
 // - Anthropic: prompt-cache hits bill at 10% of input.
 // - OpenAI: prompt-cache discount is ~50% of input for 4o/4.1.
-// - xAI Grok: no cache discount as of writing — cached rate equals input.
 // - OpenRouter: we let OpenRouter's usage.cost field drive actual billing;
 //   this table is a fallback estimator only.
 //
@@ -53,13 +52,6 @@ export const MODEL_PRICING: Record<string, Pricing> = {
     inputPerToken: 2 / 1_000_000,
     outputPerToken: 8 / 1_000_000,
     cachedInputPerToken: 0.5 / 1_000_000, // ~25% of input per OpenAI tier
-  },
-
-  // xAI (no cache discount)
-  "grok-4.20-reasoning": {
-    inputPerToken: 5 / 1_000_000,
-    outputPerToken: 15 / 1_000_000,
-    cachedInputPerToken: 5 / 1_000_000,
   },
 };
 

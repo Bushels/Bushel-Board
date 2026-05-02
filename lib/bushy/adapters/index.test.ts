@@ -24,7 +24,6 @@ vi.mock("openai", () => {
 
 beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "anth-test";
-  process.env.XAI_API_KEY = "xai-test";
   process.env.OPENAI_API_KEY = "openai-test";
   process.env.OPENROUTER_API_KEY = "or-test";
 });
@@ -34,7 +33,6 @@ describe("getAdapter", () => {
     ["claude-sonnet-4.6", "anthropic"],
     ["claude-opus-4.7", "anthropic"],
     ["claude-haiku-4.6", "anthropic"],
-    ["grok-4.20-reasoning", "xai"],
     ["gpt-4o", "openai"],
     ["gpt-4.1", "openai"],
     ["o1-preview", "openai"],
@@ -47,6 +45,11 @@ describe("getAdapter", () => {
     const adapter = getAdapter(modelId);
     expect(adapter.provider).toBe(expectedProvider);
     expect(adapter.modelId).toBe(modelId);
+  });
+
+  it("rejects retired grok model IDs", async () => {
+    const { getAdapter } = await import("./index");
+    expect(() => getAdapter("grok-4.20-reasoning")).toThrow(/retired/i);
   });
 
   it("re-exports TurnResult-related types and pricing utilities", async () => {

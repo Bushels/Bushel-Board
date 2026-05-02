@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getFarmSummary, getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
+import { getFarmSummary, getMarketAnalysis } from "@/lib/queries/intelligence";
 import type { MarketAnalysis } from "@/lib/queries/intelligence";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
@@ -22,20 +22,6 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { convertKtToTonnes } from "@/lib/utils/grain-units";
 import { MyFarmClient, type MarketSupplyData } from "./client";
 import { Wheat } from "lucide-react";
-
-function deriveStanceFromThesis(
-  thesis: string | null | undefined
-): "bullish" | "bearish" | "neutral" {
-  if (!thesis) return "neutral";
-  const lower = thesis.toLowerCase();
-  if (lower.includes("bullish") || lower.includes("upside") || lower.includes("rally")) {
-    return "bullish";
-  }
-  if (lower.includes("bearish") || lower.includes("downside") || lower.includes("pressure")) {
-    return "bearish";
-  }
-  return "neutral";
-}
 
 export default async function MyFarmPage() {
   const supabase = await createClient();
@@ -67,7 +53,7 @@ export default async function MyFarmPage() {
 
   const grainSlugs = plans.map((p) => grainSlug(p.grain));
 
-  // AAFC supply data, market intelligence, market analysis, and per-grain
+  // AAFC supply data, published market analysis, and per-grain
   // storage peer comparisons fetched in parallel. (Sentiment fetches were
   // removed when the per-grain voting block was paused — the components
   // and DB tables remain so voting can be redeployed later.)
@@ -75,35 +61,24 @@ export default async function MyFarmPage() {
     supplyData,
     grainOverviewData,
     storageComparisons,
-    ...intelligenceAndAnalysis
+    marketAnalyses,
   ] = await Promise.all([
     grainSlugs.length > 0
       ? getSupplyDispositionForGrains(grainSlugs)
       : Promise.resolve([]),
     getGrainOverview(),
     Promise.all(plans.map((p) => getGrainStorageComparison(p.grain))),
-    ...plans.flatMap((p) => [
-      getGrainIntelligence(p.grain),
-      getMarketAnalysis(p.grain),
-    ]),
+    Promise.all(plans.map((p) => getMarketAnalysis(p.grain))),
   ]);
 
   const storageComparisonByGrain = new Map(
     plans.map((p, i) => [p.grain, storageComparisons[i] ?? null])
   );
 
-  // Parse intelligence + market analysis from the interleaved tail
-  // (2 entries per plan: [intel, ma, intel, ma, ...]).
-  const intelligenceMap: Record<string, Awaited<ReturnType<typeof getGrainIntelligence>>> = {};
   const marketAnalysisMap: Record<string, MarketAnalysis | null> = {};
 
   for (let i = 0; i < plans.length; i++) {
-    const intel = intelligenceAndAnalysis[i * 2] as Awaited<
-      ReturnType<typeof getGrainIntelligence>
-    >;
-    const ma = intelligenceAndAnalysis[i * 2 + 1] as MarketAnalysis | null;
-    intelligenceMap[plans[i].grain] = intel;
-    marketAnalysisMap[plans[i].grain] = ma;
+    marketAnalysisMap[plans[i].grain] = marketAnalyses[i] ?? null;
   }
 
   // Build market supply map
@@ -138,11 +113,10 @@ export default async function MyFarmPage() {
   }> = [];
 
   for (const plan of plans) {
-    const intel = intelligenceMap[plan.grain];
     const ma = marketAnalysisMap[plan.grain];
     const marketStance = ma?.stance_score != null
       ? (ma.stance_score >= 20 ? "bullish" : ma.stance_score <= -20 ? "bearish" : "neutral")
-      : deriveStanceFromThesis(intel?.thesis_body);
+      : "neutral";
     const startingGrain = Number(plan.starting_grain_kt ?? 0);
     const remainingToSell = Number(plan.volume_left_to_sell_kt ?? 0);
     const contracted = Number(plan.contracted_kt ?? 0);
@@ -257,7 +231,7 @@ export default async function MyFarmPage() {
             message="Your grain recommendations couldn't load. Try refreshing in a minute."
           >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recommendations.map((rec, i) => (
+              {recommendations.map((rec) => (
                 <RecommendationCard
                   key={rec.grainSlug}
                   grainName={rec.grainName}

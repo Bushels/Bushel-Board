@@ -55,7 +55,7 @@ All 4 US markets get **MAJOR** treatment — there is no MID/MINOR tiering in th
 > - `grain_prices` date column is `price_date` (NOT `settlement_date`).
 > - `grain_prices.contract` is stored without exchange suffix: `ZC`, `ZS`, `ZW`, `KE`, `ZO`, `ZL`, `ZM` for CBOT/KCBT; `MWK26` for MGEX Spring Wheat (Barchart-sourced, K26 month code included).
 > - `cftc_cot_positions.commodity` values are UPPERCASE: `CORN`, `SOYBEANS`, `SOYBEAN OIL`, `SOYBEAN MEAL`, plus three wheat classes: `WHEAT-SRW`, `WHEAT-HRW`, `WHEAT-HRSpring`. **There is no single "WHEAT" row — scouts must pick the class.**
-> - `usda_crop_progress.commodity` values are UPPERCASE: `CORN`, `SOYBEANS`, `WHEAT`, `OATS`. `cgc_grain` column may be NULL — filter by `commodity` instead.
+> - `usda_crop_progress.commodity` values are canonical UPPERCASE: `CORN`, `SOYBEANS`, `WHEAT`, `BARLEY`, `OATS`. `cgc_grain` is populated on canonical rows; `get_usda_crop_conditions('Canola', ...)` resolves the soybean proxy in the query layer, not in the source table.
 > - `usda_wasde_estimates` is **empty/deprecated** — do not query it directly. Use `get_usda_wasde_context('Corn'|'Soybeans'|'Wheat'|'Oats', n_months)` RPC, which reads from `usda_wasde_mapped` (sourced from `usda_wasde_raw`). `revision_direction` and `stocks_change_mmt` are NULL for the oldest report in the series.
 
 ```sql
@@ -83,7 +83,7 @@ SELECT
 |--------|-----|-----|
 | WASDE (`usda_wasde_estimates.report_date`) | ≤ 35 days | Monthly release; 35d covers one full cycle + buffer |
 | Export sales (`usda_export_sales.week_ending`) | ≤ 10 days | Weekly release Thu 8:30 AM ET |
-| CBOT prices (`grain_prices.settlement_date`) | ≤ 4 calendar days | Weekends/holidays tolerated |
+| CBOT prices (`grain_prices.price_date`) | ≤ 4 calendar days | Weekends/holidays tolerated |
 | CFTC COT (`cftc_cot_positions.report_date`) | ≤ 10 days | Weekly release Fri 3:30 PM ET, Tuesday snapshot |
 | Crop progress (`usda_crop_progress.week_ending`) | ≤ 10 days during Apr–Nov; skip check Dec–Mar | NASS seasonality gate |
 
@@ -527,14 +527,16 @@ VALUES (NULL, NULL, 'failed', 'us-desk-weekly',
   'claude-agent-us-desk');
 ```
 
-**Step 5.2:** Upsert to `us_market_analysis` (use whichever unique constraint exists on `(market_name, crop_year, market_year)` — confirm via `list_tables` before writing):
+**Step 5.2:** Upsert to `us_market_analysis`.
+
+> **Unique constraint is three columns.** Per migration `20260414003500_create_us_thesis_storage.sql:19`, the natural key is `UNIQUE (market_name, crop_year, market_year)` — no partial predicate. The ON CONFLICT tuple MUST match all three. Do not trim to `(market_name, crop_year)` or add a `WHERE` clause — either will 400 with `no unique or exclusion constraint matching the ON CONFLICT specification`.
 
 ```sql
 INSERT INTO us_market_analysis (market_name, crop_year, market_year, initial_thesis, bull_case, bear_case,
   final_assessment, stance_score, confidence_score, recommendation, data_confidence,
   key_signals, data_freshness, llm_metadata, model_used)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14::jsonb, $15)
-ON CONFLICT (market_name, crop_year) WHERE crop_year = $2
+ON CONFLICT (market_name, crop_year, market_year)
 DO UPDATE SET stance_score = EXCLUDED.stance_score, confidence_score = EXCLUDED.confidence_score,
   data_confidence = EXCLUDED.data_confidence, initial_thesis = EXCLUDED.initial_thesis,
   bull_case = EXCLUDED.bull_case, bear_case = EXCLUDED.bear_case,
@@ -543,8 +545,6 @@ DO UPDATE SET stance_score = EXCLUDED.stance_score, confidence_score = EXCLUDED.
   llm_metadata = EXCLUDED.llm_metadata, model_used = EXCLUDED.model_used,
   generated_at = now();
 ```
-
-> If no unique constraint exists yet for `(market_name, crop_year)`, fall back to DELETE-then-INSERT within a transaction keyed on `(market_name, crop_year, generated_at::date)`.
 
 **Step 5.3:** Insert `us_score_trajectory` rows (one per market). Schema: `(market_name, crop_year, market_year, recorded_at, scan_type, stance_score, conviction_pct, recommendation, trigger, evidence, data_freshness, model_source)`.
 

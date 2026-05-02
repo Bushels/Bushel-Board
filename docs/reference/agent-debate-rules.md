@@ -38,11 +38,11 @@ Don't default to "watch — need 2-3 more weeks to confirm." If 2 out of 3 recen
 ## Thesis Quality Rules
 
 ### Rule 5: Never Publish Contradictory Models Without Resolution
-If Claude says bearish and Grok says bullish (or vice versa), the moderator's job is to RESOLVE the contradiction explicitly using the evidence chain. The farmer must never receive two opposite recommendations.
+If two Claude/Codex reviewers disagree, the moderator's job is to RESOLVE the contradiction explicitly using the evidence chain. The farmer must never receive two opposite recommendations.
 
-**Template:** "Claude scored this [X] based on [evidence]. Grok challenged to [Y] because [counter-evidence]. The resolved thesis is [direction] with [confidence] because [decisive factor]."
+**Template:** "Reviewer A scored this [X] based on [evidence]. Reviewer B challenged to [Y] because [counter-evidence]. The resolved thesis is [direction] with [confidence] because [decisive factor]."
 
-**Protocol (manual debate):** Claude forms independent thesis first → sends to Grok via xAI API → Grok responds AGREE or CHALLENGE → Claude moderates any disagreements using Rules 1-4 + Basis Signal Matrix → final score published.
+**Protocol (manual debate):** Claude/Codex reviewer forms independent thesis first -> second reviewer responds AGREE or CHALLENGE -> moderator resolves disagreements using Rules 1-4 + Basis Signal Matrix -> final score published.
 
 ### Rule 6: Always Provide a Timeline
 "Hold patient" is not actionable. "Hold for 2-3 weeks while Vancouver vessel queue (currently 26, avg 20) clears" IS actionable. Every hold/sell/wait recommendation must include:
@@ -160,8 +160,8 @@ If neither is present, the COT move is flagged "ambiguous" and excluded from the
 ### Procedure
 1. **Claude loads context:** Knowledge chunks, commodity framework, X signals, COT data, current prices (2 sources)
 2. **Claude forms independent thesis:** Score all 10 grains with full evidence chain including price action
-3. **Send to Grok:** Via xAI API (prefer Responses API with x_search/web_search; fallback to Chat Completions)
-4. **Grok responds:** AGREE or CHALLENGE each grain with its own score + evidence
+3. **Second review:** Claude/Codex reviewer responds AGREE or CHALLENGE each grain with its own score + evidence
+4. **No Grok fallback:** Do not use xAI/Grok for the debate step
 5. **Claude moderates disagreements:** Apply Rules 1-15, Basis Signal Matrix, and book knowledge frameworks
 6. **Resolution:** Final score = evidence-weighted blend. Document which rules decided the outcome.
 7. **Price accountability:** Record cash + futures prices at time of debate for next-week accuracy check.

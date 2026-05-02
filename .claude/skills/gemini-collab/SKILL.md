@@ -166,7 +166,7 @@ Step 1: @supabase/functions/_shared/market-intelligence-config.ts
         What guardrails are missing from the CGC_DATA_GUARDRAILS section that could cause
         the AI to produce incorrect grain market analysis?
 
-Step 2: @supabase/functions/generate-intelligence/prompt-template.ts
+Step 2: Retired. Do not review `generate-intelligence` prompt templates except as historical context.
         Where could this prompt template allow the AI to produce misleading output?
         Focus on data misinterpretation risks.
 
@@ -277,7 +277,7 @@ Gemini's responses are advisory input, not authoritative. Always:
 |------|------------------|
 | `supabase/functions/_shared/commodity-knowledge.ts` | Knowledge gaps, incorrect rules, missing frameworks |
 | `supabase/functions/_shared/market-intelligence-config.ts` | Prompt quality, guardrail completeness, persona tuning |
-| `supabase/functions/generate-intelligence/prompt-template.ts` | Data misinterpretation risks, output format issues |
-| `supabase/functions/analyze-market-data/index.ts` | Data pipeline completeness, missing data sources |
+| Claude/Codex desk prompts | Data misinterpretation risks, output format issues |
+| `market_analysis` desk workflow | Data pipeline completeness, missing data sources |
 | `docs/reference/agent-debate-rules.md` | Rule gaps, contradictions, missing grain-specific rules |
-| `supabase/functions/search-x-intelligence/search-queries.ts` | Query coverage, missing hashtags, seasonal gaps |
+| Direct X API v2 query plan | Future query coverage, missing hashtags, seasonal gaps |

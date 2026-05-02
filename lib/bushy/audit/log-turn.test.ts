@@ -153,7 +153,7 @@ describe("providerForModel", () => {
   it.each([
     ["claude-sonnet-4.6", "anthropic"],
     ["claude-opus-4.7", "anthropic"],
-    ["grok-4.20-reasoning", "xai"],
+    ["grok-4.20-reasoning", "retired"],
     ["gpt-4o", "openai"],
     ["gpt-4.1", "openai"],
     ["o1-preview", "openai"],

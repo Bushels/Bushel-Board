@@ -1,6 +1,11 @@
 # Jules Playbook for Bushel Board
 
-Last updated: 2026-03-16
+Last updated: 2026-05-02
+
+> Grok/xAI intelligence functions are retired. Any task touching
+> `search-x-intelligence`, `analyze-market-data`, `analyze-grain-market`,
+> `generate-intelligence`, or `generate-farm-summary` should preserve tombstones,
+> not repair the old workflow.
 
 ## Why this exists
 
@@ -12,9 +17,7 @@ Checked locally on 2026-03-16:
 
 - `npm run build` passes
 - `npm run test` fails with 1 timeout in `lib/advisor/__tests__/context-builder.test.ts`
-- `npx eslint .` fails with 2 errors:
-  - `supabase/functions/analyze-market-data/index.ts`
-  - `supabase/functions/generate-intelligence/prompt-template.ts`
+- Old baseline referenced retired Grok files. Do not use the March 16 lint scope as current truth.
 
 Implication: the first Jules task should be repo hygiene, not feature work.
 
@@ -76,7 +79,6 @@ Minimum likely set:
 
 Only enable these for tasks that need them:
 
-- `XAI_API_KEY`
 - `CRON_SECRET`
 
 If a task is pure TypeScript, lint, test, or UI work, keep secret exposure minimal.
@@ -95,8 +97,7 @@ Fix the current baseline failures in this repo and nothing else.
 Scope:
 - lib/advisor/__tests__/context-builder.test.ts
 - lib/advisor/context-builder.ts
-- supabase/functions/analyze-market-data/index.ts
-- supabase/functions/generate-intelligence/prompt-template.ts
+- retired Grok functions only if preserving tombstones
 
 Goals:
 1. Make npm run test pass.

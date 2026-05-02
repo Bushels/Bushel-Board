@@ -53,7 +53,7 @@ Usage:
 Flags:
   --email <value>              Email address to update (required)
   --enabled <true|false>       Set exclude_from_ai. Default: true
-  --refresh-current-ai         Queue current-week intelligence regeneration
+  --refresh-current-ai         Deprecated; no longer queues the retired Grok writer
   --help                       Show this help
 
 Environment variables (from .env.local):
@@ -189,25 +189,8 @@ async function main() {
       error: null,
     };
 
-    console.error(
-      `Queueing generate-intelligence for ${cropYear} week ${grainWeek}...`
-    );
-    const { error: enqueueError } = await supabase.rpc(
-      "enqueue_internal_function",
-      {
-        p_function_name: "generate-intelligence",
-        p_body: {
-          crop_year: cropYear,
-          grain_week: grainWeek,
-        },
-      }
-    );
-
-    if (enqueueError) {
-      refresh.error = enqueueError.message;
-    } else {
-      refresh.enqueued = true;
-    }
+    refresh.error =
+      "generate-intelligence is retired. Refresh weekly analysis through the Claude/Codex desk workflow.";
   }
 
   process.stdout.write(

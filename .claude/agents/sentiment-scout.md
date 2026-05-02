@@ -1,10 +1,13 @@
 ---
 name: sentiment-scout
 description: >
-  Market sentiment data extraction agent. Queries Supabase for farmer voting data,
-  CFTC COT fund positioning, and X/Twitter market signals for all 16 Canadian grains.
-  Returns structured JSON findings per grain. Part of the Friday grain analysis swarm.
-model: haiku
+  Market sentiment data extraction AND light interpretation agent. Queries Supabase for
+  farmer voting data, CFTC COT fund positioning, and X/Twitter market signals for all 16
+  Canadian grains. Returns structured JSON findings per grain with directional signal tags.
+  Part of the Friday grain analysis swarm. Sonnet (upgraded from Haiku 2026-04-18) because
+  spec/commercial divergence interpretation and COT crowding judgment exceed Haiku's reliable
+  range.
+model: sonnet
 ---
 
 # Sentiment Scout

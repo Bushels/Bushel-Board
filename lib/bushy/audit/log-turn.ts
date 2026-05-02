@@ -80,7 +80,7 @@ export function hashSystemPrompt(prompt: string): string {
  */
 export function providerForModel(modelId: string): string {
   if (modelId.startsWith("claude-")) return "anthropic";
-  if (modelId.startsWith("grok-")) return "xai";
+  if (modelId.startsWith("grok-")) return "retired";
   if (
     modelId.startsWith("gpt-") ||
     modelId.startsWith("o1-") ||

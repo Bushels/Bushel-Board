@@ -86,11 +86,11 @@ Farmer question
 
 **Current status:** Infrastructure exists (tables, RPC, trigger) but `knowledge_chunks` is likely empty. Needs `npm run ingest-knowledge` to populate. The system gracefully degrades — if L2 returns nothing, only L0+L1 are used.
 
-**When loaded:** Advisor chat only. The pipeline (analyze-grain-market) does NOT use L2 because it already has its own data brief with specific CGC numbers.
+**When loaded:** Advisor chat and Claude/Codex desk workflows. The retired `analyze-grain-market` Edge Function no longer consumes this context.
 
 ## Two Consumers, Two Entry Points
 
-### Pipeline (Edge Function: `analyze-grain-market`)
+### Desk Workflow (replaces retired `analyze-grain-market`)
 
 ```
 buildVikingPipelineContext(grain)
@@ -101,7 +101,7 @@ buildVikingPipelineContext(grain)
   → ~2,500-3,500 tokens
 ```
 
-The pipeline analyzes each of the 16 grains weekly. It gets the same L0 worldview plus grain-relevant L1 topics. No L2 because the pipeline's data brief already contains the specific CGC numbers.
+The desk workflow analyzes each of the 16 grains weekly. It gets the same L0 worldview plus grain-relevant L1 topics. No L2 by default because the desk data brief already contains the specific CGC numbers.
 
 ### Advisor Chat (Next.js: `lib/advisor/context-builder.ts`)
 
