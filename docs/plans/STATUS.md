@@ -1,6 +1,6 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-04-28
+Last updated: 2026-05-02
 
 ## Feature Tracks
 
@@ -11,10 +11,10 @@ Last updated: 2026-04-28
 | 3 | Grain Dashboard (overview, detail, all grains) | Complete | 2026-03-05 | `app/(dashboard)/overview/`, `app/(dashboard)/grain/[slug]/` |
 | 4 | Email/Password Auth + Middleware | Complete | 2026-03-11 | `app/(auth)/`, `components/auth/`, `lib/auth/auth-scene.ts`, `lib/supabase/`, `proxy.ts` |
 | 5 | Supply/Disposition Balance Sheets | Complete | 2026-03-06 | `scripts/seed-supply-disposition.ts`, `lib/queries/intelligence.ts`, `lib/queries/supply-disposition.ts` |
-| 6 | AI Grain Intelligence (Grok + x_search) | Complete | 2026-03-07 | `supabase/functions/generate-intelligence/`, `components/dashboard/thesis-banner.tsx` |
+| 6 | AI Grain Intelligence (Grok + x_search) | **Retired 2026-05-02** | 2026-03-07 | `supabase/functions/generate-intelligence/` is tombstoned; live thesis reads use `market_analysis` |
 | 7 | Week-over-Week Comparison (composite metrics) | Complete | 2026-03-08 | `components/dashboard/wow-comparison.tsx`, `lib/queries/observations.ts` |
-| 8 | X/Twitter Signal Feed + Relevance Voting | Complete | 2026-03-09 | `supabase/functions/search-x-intelligence/`, `components/dashboard/x-signal-feed.tsx` |
-| 9 | Farm Summary (per-user AI narratives + percentiles) | Complete | 2026-03-11 | `supabase/functions/generate-farm-summary/`, `components/dashboard/farm-summary-card.tsx` |
+| 8 | X/Twitter Signal Feed + Relevance Voting | **Retired 2026-05-02** | 2026-03-09 | Grok-backed `search-x-intelligence` is tombstoned; future work is direct X API v2 |
+| 9 | Farm Summary (per-user AI narratives + percentiles) | Needs Claude/Codex writer | 2026-03-11 | `supabase/functions/generate-farm-summary/` is tombstoned; `components/dashboard/farm-summary-card.tsx` still displays stored summaries |
 | 10 | My Farm (crop plans, delivery tracking, inventory percentages) | Complete | 2026-03-11 | `app/(dashboard)/my-farm/`, `lib/queries/crop-plans.ts`, `supabase/migrations/20260312110000_crop_inventory_marketing_tracking.sql` |
 | 11 | Pipeline Velocity Chart (RPC-based) | Complete | 2026-03-10 | `components/dashboard/gamified-grain-chart.tsx`, `supabase/migrations/20260310200000_pipeline_velocity_rpc.sql` |
 | 12 | Import Validation (post-import anomaly detection) | Complete | 2026-03-07 | `supabase/functions/validate-import/` |
@@ -35,19 +35,19 @@ Last updated: 2026-04-28
 | 26 | Dashboard Redesign V2 — Wave 4: Advanced Intelligence | Complete | 2026-03-14 | `supabase/migrations/20260314500000_*`, `components/dashboard/crush-utilization-gauge.tsx`, `components/dashboard/price-sparkline.tsx`, `lib/queries/processor-capacity.ts`, `lib/queries/grain-prices.ts` |
 | 27 | Delivery Pace Chart (YoY Cumulative Gap, Dual Y-Axis) | Complete | 2026-03-15 | `components/dashboard/delivery-gap-chart.tsx`, `lib/utils/delivery-gap.ts`, `tests/lib/utils/delivery-gap.test.ts`, `app/(dashboard)/grain/[slug]/page.tsx` |
 | 28 | Terminal Net Flow Visualization | Complete | 2026-03-16 | `components/dashboard/terminal-flow-chart.tsx`, `components/dashboard/logistics-banner.tsx`, `components/dashboard/logistics-stat-pill.tsx`, `lib/queries/logistics-utils.ts`, `lib/queries/logistics.ts`, `supabase/migrations/20260316120000_weekly_terminal_flow_rpc.sql` |
-| 29 | Unified Grok 4.1 Fast Migration | Complete | 2026-03-16 | `supabase/functions/analyze-market-data/index.ts`, `supabase/functions/generate-intelligence/index.ts`, `lib/advisor/openrouter-client.ts`, `app/api/advisor/chat/route.ts`, `lib/advisor/system-prompt.ts` |
+| 29 | Unified Grok 4.1 Fast Migration | **Retired 2026-05-02** | 2026-03-16 | Runtime Grok/xAI writers and advisor fallback tombstoned |
 | 30 | Stance Spectrum Meter & Confidence Gauge | Complete | 2026-03-16 | `components/dashboard/bull-bear-cards.tsx`, `components/dashboard/recommendation-card.tsx`, `lib/utils/recommendations.ts`, `supabase/migrations/20260316130000_add_stance_score.sql` |
-| 31 | Pipeline v2: Senior Analyst (single-pass) | Complete | 2026-03-17 | `supabase/functions/analyze-grain-market/`, `lib/shipping-calendar.ts`, `lib/data-brief.ts`, `lib/analyst-prompt.ts` |
+| 31 | Pipeline v2: Senior Analyst (single-pass) | **Retired 2026-05-02** | 2026-03-17 | `supabase/functions/analyze-grain-market/` is tombstoned |
 | 32 | Live Grain Futures Prices (Phase A) | Complete | 2026-03-18 | `scripts/import-grain-prices.ts`, `lib/queries/grain-prices.ts`, `supabase/migrations/20260318120000_add_grain_prices_unit.sql` |
 | 33 | Viking Knowledge System (L0/L1/L2) | Complete | 2026-03-19 | `lib/knowledge/viking-l0.ts`, `lib/knowledge/viking-l1.ts`, `lib/knowledge/viking-retrieval.ts`, `supabase/functions/_shared/viking-knowledge.ts` |
-| 34 | Grok 4.20 Upgrade + Parallel Debate Architecture | Complete | 2026-03-21 | `supabase/functions/analyze-grain-market/index.ts`, `scripts/parallel-debate.ts`, `scripts/debate-grok-round2.ts` |
+| 34 | Grok 4.20 Upgrade + Parallel Debate Architecture | **Retired 2026-05-02** | 2026-03-21 | Debate scripts deleted; use Claude/Codex review |
 | 35 | Hermes Pipeline Design + US Thesis Lane | Complete | 2026-04-11 | `docs/hermes/SOUL.md`, `supabase/migrations/20260412100*`, `lib/us-market-context.ts`, `docs/plans/2026-03-28-hermes-pipeline-design.md` |
 | 36 | Chat-First iOS Pivot + Bushy Persona | Complete | 2026-04-14 | `docs/plans/2026-04-13-chat-first-ios-design.md`, `BushelBoard/`, `.claude/agents/chat-architect.md`, `supabase/functions/chat-completion/` |
 | 37 | Web Alpha — Bushy Chat | Complete | 2026-04-14 | `app/(dashboard)/chat/page.tsx`, `components/bushy/`, `supabase/functions/_shared/chat-tools.ts`, `supabase/functions/_shared/chat-context-builder.ts` |
 | 38 | Operational Feedback Loop | Design Only | 2026-04-14 | Design doc committed, not yet implemented |
 | 39 | Unified Pricing Board | Complete | 2026-04-14 | `supabase/migrations/20260418100100_unified_pricing_board.sql`, `supabase/functions/_shared/chat-tools.ts`, `components/auth/signup-form.tsx` |
 | 40 | Parallel Pipeline Orchestrator | Design Only | 2026-04-15 | `docs/plans/2026-04-15-parallel-pipeline-orchestrator-design.md` |
-| 41 | Claude Agent Desk | Complete | 2026-04-15 | `.claude/agents/{supply,demand,basis,sentiment,logistics,macro}-scout.md`, `.claude/agents/{export,domestic,risk}-analyst.md`, `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md`, `scripts/xai-search.ts` |
+| 41 | Claude Agent Desk | Complete | 2026-04-15 | `.claude/agents/{supply,demand,basis,sentiment,logistics,macro}-scout.md`, `.claude/agents/{export,domestic,risk}-analyst.md`, `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md` |
 | 42 | Hermes Chat Agent — Tiered Memory | 2026-04-15 | Design + skeleton: 6 tables, classification engine, supersession engine, X API v2 client, compression engine, Hermes server, Vercel proxy, 4 RPCs |
 | 43 | Grain Detail Simplification | 2026-04-15 | Strip grain detail page to 3 sections: Market Thesis (two-column reasoning), Ask Bushy (embedded chat), My Farm (progress + recommendation). Fix stale week display. |
 | 44 | Overview Bull/Bear Unification | 2026-04-16 | Single `UnifiedMarketStanceChart` grouped by region (CA 10 grains + US 4 markets), accordion rows expand to two-column bull/bear bullet panels with recommendation + detail link. CGC snapshot grid, Logistics Banner, and Community Pulse removed from Overview. `lib/queries/us-market-stance.ts`, `lib/queries/market-stance.ts` extended with `bullPoints`/`bearPoints`/`region`/`detailHref`. |
@@ -56,6 +56,7 @@ Last updated: 2026-04-28
 | 47 | Public-First Auth + Nav Reorder + Landing Retirement | Complete | 2026-04-28 | `lib/supabase/middleware.ts` (allowlist → denylist; only `/my-farm` gated), `app/page.tsx` (one-line `redirect("/overview")`), `app/(dashboard)/my-farm/page.tsx` (explicit `redirect("/login")` defense-in-depth), `components/layout/desktop-nav-links.tsx` (My Farm pulled out of central pill), `components/layout/my-farm-nav-link.tsx` (new — anchored to right cluster), `components/layout/nav.tsx` (wires the new link), `components/layout/mobile-nav.tsx` (My Farm moved to bottom of primary nav block). **Deletions:** `components/landing/` directory, `app/api/trial-notify/route.ts`. Verified: `/`, `/overview`, `/grain/[slug]`, `/us`, `/seeding` all 200 OK without auth; `/my-farm` 307 → `/login`. |
 | 48 | My Farm Storage Tracker — "Grain in your bin" | Complete | 2026-04-28 | Headline `/my-farm` surface. Two inputs (total tonnes + remaining tonnes) per tracked grain, peer comparison "X% of farmers have more in the bin than you". Reuses existing `crop_plans.starting_grain_kt` + `volume_left_to_sell_kt` columns (no schema migration). New: `components/dashboard/grain-storage-card.tsx`, `lib/queries/grain-storage-comparison.ts`, server action `updateGrainStorage()` in `app/(dashboard)/my-farm/actions.ts`, RPC migration `supabase/migrations/20260428100000_grain_storage_comparison.sql` (≥5-farmer privacy gate, `SECURITY INVOKER`, derives caller from `auth.uid()`). **Sentiment voting paused as part of this pivot** — `multi-grain-sentiment.tsx` and `sentiment-banner.tsx` no longer rendered on `/my-farm` but retained in repo + DB for future restoration. |
 | 49 | Overview Hybrid Editorial+Terminal Redesign | Complete | 2026-04-28 | Full `/overview` redesign: Direction A wheat/canola palette + Fraunces typography + Direction B chart density + trajectory graphs + tabular-nums stance scores. New: `components/overview/spot-price-rail.tsx` (CBOT futures ticker), `components/overview/hero-thesis.tsx` (strongest-move editorial card + trajectory chart), `components/overview/trajectory-chart.tsx` (client SVG, Friday-reset weekly drift), `components/overview/grain-stance-grid.tsx` (CA + US grouped), `components/overview/grain-stance-row.tsx` (per-row stance bar + score + WoW delta), `components/overview/seeding-strip.tsx` (US choropleth from `usda_crop_progress`, Canada placeholder → /seeding), `components/overview/marketplace-strip.tsx` (Kalshi mock cards + real spot price tiles), `lib/queries/overview-data.ts` (parallel fetch orchestrator + `pickStrongestMove()` + `computeWow()` helpers). Tests: `lib/__tests__/overview-utils.test.ts`, `components/__tests__/grain-stance-row.test.tsx`, `components/__tests__/spot-price-rail.test.tsx` (32 tests total). Kalshi API wiring deferred — cards are mock stubs with explicit TODO comment. |
+| 50 | Data Layer Foundation V1 | Planning | 2026-05-02 | `docs/plans/2026-05-02-data-layer-foundation-plan.md`. Canada + US source truth first; limited international context only. P0 backlog: `source_runs`, grain/market mapping registry, source freshness view, USDA export-sales freshness, CFTC/price freshness, and Canada/US thesis packet contracts. |
 
 ### 2026-04-18 — Bio Trial Signup (Track 45)
 
@@ -102,10 +103,10 @@ Last updated: 2026-04-28
 - 3 specialist agent definitions: export-analyst, domestic-analyst, risk-analyst (all Sonnet)
 - Friday swarm orchestration prompt (`grain-desk-weekly` scheduled task, Fri 6:47 PM ET): 7-phase desk chief that dispatches scouts in parallel, compiles briefs, dispatches specialists, resolves divergence using all 15 debate rules + Viking L0/L1/L2, writes to `market_analysis`
 - 6 daily data collector scheduled tasks: crop-progress (Mon), grain-monitor (Wed), export-sales (Thu AM), cgc (Thu PM), cftc-cot (Fri PM), wasde (Fri monthly)
-- xAI search helper script (`scripts/xai-search.ts`) for macro-scout web_search/x_search via grok-3-mini-fast
+- Claude-native macro search guidance; the old `scripts/xai-search.ts` helper is retired
 - Reference docs: `docs/reference/grain-desk-swarm-prompt.md`, `docs/reference/collector-task-configs.md`
 - Integration verified: build passes, 214 tests pass, all RPCs return data for Wheat Week 35
-- Grok pipeline (`analyze-grain-market`) retained as fallback
+- Grok pipeline (`analyze-grain-market`) retired; not a fallback
 
 ### 2026-04-14 — Unified Pricing Board (Track 39)
 
@@ -140,17 +141,17 @@ Last updated: 2026-04-28
 - Xcode project skeleton with chat UI, auth, SSE client
 - Bushy persona: grain analyst buddy, prairie farmer vocabulary, conversational tone
 - chat-architect agent definition for prompt engineering and tool design
-- LLM adapter layer for model-agnostic architecture (Grok primary, swappable)
+- LLM adapter layer for model-agnostic architecture; Grok primary path retired
 - Rebrand: iOS app is "Bushels", agent is "Bushy", gamified data exchange
 
 ### 2026-03-17 — Pipeline v2: Senior Analyst Single-Pass Architecture (Track 31)
 
 **What was delivered:**
-- New `analyze-grain-market` Edge Function replacing the dual-LLM chain (`analyze-market-data` + `generate-intelligence`) with a single-pass Senior Analyst using xAI Responses API with native `web_search` + `x_search` tools
+- New `analyze-grain-market` Edge Function replacing the dual-LLM chain (`analyze-market-data` + `generate-intelligence`) with a single-pass Senior Analyst. Retired 2026-05-02.
 - **Dynamic Shipping Calendar** (`lib/shipping-calendar.ts`) — temporal context module computing data lag, seasonal context, and week-aware framing for LLM injection (6 seasonal buckets, RangeError validation)
 - **Pre-computed Analyst Ratios** (`lib/data-brief.ts`) — server-side arithmetic (export pace, stocks-to-use, crush utilization, delivery/export vs 5yr avg, managed money positioning) so LLM interprets rather than calculates
 - **Analyst Prompt Builder** (`lib/analyst-prompt.ts`) — research-tier system (major 4+4 queries, mid 2+2, minor 1+1) with commodity knowledge injection, data hygiene rules, and structured output schema
-- Self-batching with BATCH_SIZE=1, self-triggers via `enqueue_internal_function` RPC, chains to `generate-farm-summary` after all grains complete
+- Historical self-batching with BATCH_SIZE=1. The chain to `generate-farm-summary` is retired.
 - 27 new unit tests across 3 modules (shipping-calendar: 10, data-brief: 8, analyst-prompt: 9)
 - Deno-compatible copies in `supabase/functions/_shared/` for Edge Function runtime
 
@@ -159,7 +160,7 @@ Last updated: 2026-04-28
 - Flaxseed: v1 stance=+25 → v2 stance=+20 (Partial — web search found offsetting factors: firm $16-17/bu cash bids, low commercial stocks tempering the bearish 17% export pace signal)
 - Canola: v1 stance=-45 → v2 stance=+45 (Bonus — web search enriched thesis with real-time context)
 
-**Architecture change:** Single xAI API call with tool use replaces 2 sequential LLM calls + separate X signal search. The model autonomously decides when/how to use web_search and x_search based on research tier guidance.
+**Historical architecture change:** Single xAI API call with tool use replaced 2 sequential LLM calls + separate X signal search. Retired 2026-05-02.
 
 **Design doc:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-design.md`
 **Implementation plan:** `docs/plans/2026-03-17-pipeline-v2-senior-analyst-implementation.md` (7 tasks)
@@ -180,9 +181,9 @@ Last updated: 2026-04-28
 ### 2026-03-16 — Unified Grok 4.1 Fast Migration (Track 29)
 
 **What was delivered:**
-- All AI systems migrated from mixed OpenRouter/xAI to unified `grok-4-1-fast-reasoning` via xAI API
-- `analyze-market-data` Edge Function switched from OpenRouter (Step 3.5 Flash) to xAI Responses API with structured JSON schema
-- Advisor chat switched to xAI Responses API with `x_search` tool for real-time price lookups
+- Historical migration from mixed OpenRouter/xAI to unified Grok. Retired 2026-05-02.
+- `analyze-market-data` is now a tombstone and must not write analysis.
+- Advisor chat Grok fallback is removed; it now requires the Claude/Hermes path.
 - X market signals added to advisor context for richer market awareness
 - Full pipeline re-run completed — all 16 grains regenerated with Grok 4.1 Fast
 
@@ -367,9 +368,9 @@ Last updated: 2026-04-28
 - Producer car data is cumulative forward-looking, not weekly. RPC returns latest available week ≤ grain_week + 3 to prevent allocations from aging out mid-analysis.
 
 **Edge Function deployments (2026-03-13):**
-- `analyze-market-data` v10 — ACTIVE (logistics snapshot integration)
-- `generate-intelligence` v31 — ACTIVE (logistics in Grok prompt)
-- `generate-farm-summary` v21 — ACTIVE (updated shared config with v4 version bumps)
+- `analyze-market-data` - RETIRED/TOMBSTONED 2026-05-02
+- `generate-intelligence` - RETIRED/TOMBSTONED 2026-05-02
+- `generate-farm-summary` - RETIRED/TOMBSTONED 2026-05-02
 
 **What remains (future work):**
 - Automated PDF scraping from Government Grain Monitor and CGC Producer Car reports
@@ -400,25 +401,22 @@ Last updated: 2026-04-28
 
 ## Intelligence Pipeline
 
-### v2 (Current — Track 31)
+### Current
 ```text
-GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-grain-market -> generate-farm-summary -> validate-site-health
+Codex CGC importer -> cgc_observations -> Claude/Codex desk workflow -> market_analysis / farm_summaries
 ```
 
-- Single-pass Senior Analyst: `analyze-grain-market` — Grok 4.1 Fast with native `web_search` + `x_search` tools, pre-computed ratios, shipping calendar context
-- Model: `grok-4-1-fast-reasoning` (xAI Responses API)
-- Batch size: 1 grain per invocation (self-triggers for remaining), 50 users for farm summaries
-- Version: `analyze-grain-market-v1`
+- `npm run import-cgc` is the active CGC import path.
+- `market_analysis` is the live thesis table.
+- Direct X API v2 is future input work; do not revive Grok `x_search`.
 
-### v1 (Legacy — Tracks 17/29)
+### Retired Grok Chains
 ```text
-GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-market-data -> generate-intelligence -> generate-farm-summary -> validate-site-health
+search-x-intelligence -> analyze-market-data/analyze-grain-market -> generate-intelligence -> generate-farm-summary
 ```
 
-- Round 1: `analyze-market-data` — data-driven thesis, bull/bear cases, historical context
-- Round 2: `generate-intelligence` — reviews/challenges with X signals and farmer sentiment
-- Model: `grok-4-1-fast-reasoning` (xAI) for both rounds
-- Batch sizes: 4 grains per invocation for analysis/intelligence, 50 users for farm summaries
+- Runtime entrypoints return tombstones.
+- Do not use `XAI_API_KEY` for analysis recovery.
 
 ## Database Tables
 
@@ -430,9 +428,9 @@ GET /api/cron/import-cgc -> validate-import -> search-x-intelligence -> analyze-
 | `crop_plans` | varies | User crop plans with starting grain, live remaining inventory, and contract splits |
 | `crop_plan_deliveries` | varies | Append-only farmer delivery ledger with idempotency keys and sale classification |
 | `profiles` | varies | User profiles with farm metadata and role |
-| `market_analysis` | ~16/week | Step 3.5 Flash data-driven thesis, bull/bear, historical context |
-| `grain_intelligence` | ~16/week | AI-generated grain narratives and KPIs (Grok round 2) |
-| `farm_summaries` | ~users/week | Per-user weekly AI farm summaries |
+| `market_analysis` | ~16/week | Published Claude/Codex desk thesis, bull/bear, historical context |
+| `grain_intelligence` | historical | Retired Grok narrative archive; read-only |
+| `farm_summaries` | varies | Per-user weekly summaries; needs Claude/Codex writer after Grok retirement |
 | `x_market_signals` | ~80/week | X/Twitter posts scored per grain/week |
 | `validation_reports` | 1/import | Post-import anomaly detection results |
 | `signal_feedback` | varies | Farmer relevance votes on X signals |
