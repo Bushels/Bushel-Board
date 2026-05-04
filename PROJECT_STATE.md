@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified commit:** `60413e6` on branch `codex/grain-monitor-weekly-import` (= last cleanup-pass commit, journal entry)
+**Last verified commit:** `18a0935` on branch `codex/data-layer-foundation-v1` (= Data Layer Foundation local contracts pushed to GitHub)
 **As of:** 2026-05-03
 
 ## Active task
@@ -10,7 +10,7 @@ CGC Week 38 source data is now imported via the new Codex routine path (`npm run
 
 Grok/xAI analysis workflow is retired. Claude/Codex owns analysis; future X API work is a data-input lane only.
 
-Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, and a data-layer validator. Local SQL rollback check and `npm run build` passed; live Supabase apply is still blocked by remote migration-history drift.
+Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, and a data-layer validator. Commit `18a0935` is pushed to GitHub. Local SQL rollback check and `npm run build` passed; live Supabase apply is still blocked by remote migration-history drift.
 
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board` with default branch `master`.
 
@@ -22,11 +22,12 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 ## Next action
 1. Resolve Supabase migration-history drift around remote-only `20260429100000`; do not blindly push until the drift is understood.
 2. Apply Data Layer Foundation migrations to Supabase after drift is resolved, then run `npm run validate-data-layer`.
-3. Push the authenticated GitHub branch and open a PR once DB migration status is clean.
+3. After DB migration status is clean, apply the migrations and open a PR for `codex/data-layer-foundation-v1`.
 4. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data.
 5. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-03: Data Layer Foundation V1 contracts committed and pushed to GitHub on `codex/data-layer-foundation-v1` as `18a0935` (`Add data layer foundation contracts`). Working tree was clean after push.
 - 2026-05-03: GitHub CLI authenticated successfully as `Bushels` using HTTPS. `gh repo view` resolves to `Bushels/Bushel-Board`, default branch `master`, with usable `repo` and `workflow` scopes.
 - 2026-05-03: Data Layer Foundation V1 local integration started on `codex/data-layer-foundation-v1`: `source_runs`, `grain_market_mappings`, source freshness, Canada/US thesis packet RPC migrations, importer run-summary hooks, validator script, and seeding-drill price-query contract fix. Local SQL rollback check and `npm run build` passed; live DB push remains blocked by remote migration-history drift.
 - 2026-05-02: CGC Week 38 imported via new Codex deterministic importer. Added `scripts/import-cgc-weekly-codex.mjs`, `npm run import-cgc`, Codex automation `cgc-weekly-grain-stats-import`, data-lineage map updates, collector docs, and journal note. Supabase verification: 4,313 Week 38 rows, validation pass, 16 `collector_cgc` heartbeats.

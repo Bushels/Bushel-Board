@@ -1,5 +1,23 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-03 - Supabase migration history drift blocks data-layer deploy
+
+**Symptom:** Data Layer Foundation V1 migrations parsed successfully in a linked Supabase `BEGIN` / `ROLLBACK` check, but `supabase db push --dry-run --linked` would not produce a clean deploy plan.
+
+**Root cause:** The live Supabase migration ledger contains remote-only migration version `20260429100000`, while the local repo does not. That means the database and repository disagree about migration history. Treating that as a warning would risk applying new data contracts on top of an unreviewed schema-history gap.
+
+**Fix status:** Branch `codex/data-layer-foundation-v1` is committed and pushed as `18a0935`, but live DB apply is intentionally held. Next session must reconcile or document remote migration `20260429100000` before running the Data Layer Foundation migrations.
+
+**Prevention:**
+- Run `supabase migration list --linked` before major DB work, not only at deployment time.
+- Treat remote-only migrations as a release gate until their DDL is recovered, duplicated locally, or explicitly marked as repaired.
+- Keep SQL rollback parsing as a syntax/schema check only; it does not prove migration-history health.
+- Separate GitHub push proof from Supabase deploy proof in handoffs.
+
+**Tags:** #supabase #migration-history #data-layer #release-gate #deployment-proof
+
+---
+
 ## 2026-04-30 — Grain Monitor Week 37 parser regression + autonomy charter
 
 **Symptom:** Tuesday 2026-04-29's `collect-grain-monitor` Claude Desktop Routine ran the weekly importer (`scripts/import-grain-monitor-weekly.ts`) against Quorum's Week 37 PDF (`GMPGOCWeek202537.pdf`) and threw `Could not parse vessel lineup, cleared, or inbound metrics` from `parseVesselsAndWeather`. The agent correctly diagnosed it as a script-side parser regression (Week 36 dry-ran cleanly, so the regression was week-specific) but stopped at "report and recommend human follow-up" — defeating the value proposition of an AI-scheduled task.
