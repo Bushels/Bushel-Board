@@ -36,9 +36,11 @@ For Canadian market reads, weekly CGC movement data outranks slower compiled or 
 2. `grain_monitor_weekly` and `cgc_producer_cars` - logistics explanation around the CGC movement.
 3. `cftc_cot` and `grain_prices` - futures positioning and price context, with proxy labels where mapping is not direct.
 4. `aafc_statscan_supply` - crop-size and balance-sheet baseline, useful but slower and sometimes compiled from upstream grain-flow records.
-5. Weather, drought, satellite, and GEE-derived lanes - context only until individually admitted.
+5. `canola_council_markets_stats` - Canola-specific public aggregator, useful for discovery and display, but its underlying source label decides whether it can act as source truth.
+6. Weather, drought, satellite, and GEE-derived lanes - context only until individually admitted.
 
 AAFC / Statistics Canada supply-disposition data can set the seasonal balance sheet, but it must not replace fresh CGC weekly flow when the question is what is moving now.
+Canola Council tables can speed up Canola-specific coverage, but scraped values must preserve the table's own source label, update date, unit, and period. If the underlying source is Statistics Canada, CGC, COPA, AAFC, GlobalData, or LMC, Bushel Board should store both the Canola Council page and the upstream source.
 
 ## Tier 1 Sources
 
@@ -50,6 +52,7 @@ These are the sources that must be solid before Bushel Board becomes a live thes
 | `cgc_producer_cars` | Canada | Canadian Grain Commission producer car CSV | `producer_car_allocations` | `node scripts/import-producer-cars.mjs` | Weekly, Thursday | `crop_year`, `grain_week` | Cars / allocation counts by grain and destination | Grain-name mismatches, cumulative forward-looking semantics | Logistics and farmer-direct rail pressure |
 | `grain_monitor_weekly` | Canada | Quorum Grain Monitor weekly PDF | `grain_monitor_snapshots` | `npm run import-grain-monitor:weekly` | Weekly, Wednesday routine | Report week / real `report_date` | Mixed logistics metrics; store source units explicitly | PDF layout drift, 1-2 week natural lag vs CGC | Logistics context: port capacity, unloads, vessel timing, stocks |
 | `aafc_statscan_supply` | Canada | AAFC / Statistics Canada supply-disposition | `supply_disposition`, `v_supply_disposition_current` | Manual/periodic seed path, not yet strong enough | Periodic / annual crop-year updates | `crop_year`, source release date | Kt / MMT depending source; normalize before display | Stale source label risk, manual update gap | Production, total supply, carry-in, carry-out, stocks-to-use |
+| `canola_council_markets_stats` | Canada / Canola | Canola Council of Canada Markets & Stats | Future source-normalized Canola market stats tables, not yet created | Not yet built | Varies by page and upstream source | Calendar year, crop year, month, or market profile depending table | Acres, tonnes, CAD, CAD/tonne, percent, country/region | Dynamic table scraping drift, mixed upstream sources, page update date not always equal to upstream release date | Canola-specific discovery and dashboard coverage for production, supply/disposition, processing/crush, exports, oil/meal, top markets, and prices. Not source truth unless upstream provenance is captured. |
 | `usda_crop_progress` | US | USDA NASS QuickStats / Crop Progress | `usda_crop_progress` | `npm run import-usda-crop-progress` | Weekly during season | `week_ending`, `market_year` | Percent progress / condition | API auth/key failure, raw-row vs canonical-row drift | US seeding/harvest/condition context |
 | `usda_export_sales` | US / global demand | USDA FAS Export Sales | `usda_export_sales` | `npm run import-usda` | Weekly Thursday | `week_ending`, `market_year` | Metric tonnes / bushels by source convention; normalize in query layer | Freshness lag, commodity mapping errors | US demand and export pace context |
 | `usda_wasde` | US / world | USDA WASDE / PSD | `usda_wasde_raw`, `usda_wasde_mapped` | `npm run import-usda-wasde`, archive backfill | Monthly | Report month, marketing year | USDA source units, mapped per attribute | Latest-vs-archive ambiguity, revision history loss | Balance-sheet context for US and world supply/demand |
@@ -68,6 +71,30 @@ These are farmer-value sources, but they should wait until Tier 1 freshness and 
 | `fx_rates` | Canada/US price context | FX table/importer | Present as supporting lane | Use for price translation, not standalone thesis prose. |
 | `x_market_signals` | Social/sentiment | `x_market_signals` | Legacy/archive mixed `x` and `web` sources | Keep as archive until direct X API v2 lane is rebuilt and provenance is tight. |
 | `kalshi` | Prediction-market validation | `predictive_market_briefs` / future live market table | Editorial context, not source truth | Keep in validation/comparison lane. Do not feed it back into market-analysis writers. |
+
+## Canola Public Baseline Facts
+
+These are the first crop-size facts to seed or verify before the Canola read is promoted beyond deterministic V1. They are not a replacement for weekly CGC flow; they set the crop-year denominator for pace and stocks-to-use math.
+
+| Fact | Current value to seed / verify | Source | Notes |
+| --- | --- | --- | --- |
+| 2025 final canola production | 21.804 million tonnes | Statistics Canada, The Daily, 2025-12-04; Table 32-10-0359-01 | November Field Crop Survey final estimate, subject to revision for two years. |
+| 2025 national canola yield | 44.7 bu/ac | Statistics Canada, The Daily, 2025-12-04; Table 32-10-0359-01 | Farmer-facing yield unit; keep metric-tonne/hectare conversions explicit if used. |
+| 2025 final seeded acres | 21.617 million acres | Canola Council production page citing Statistics Canada Table 32-10-0359-01 | Use Statistics Canada table as upstream truth when loading DB rows. |
+| 2025 final harvested acres | 21.490 million acres | Canola Council production page citing Statistics Canada Table 32-10-0359-01 | Use for production/yield checks; keep distinct from seeded acres. |
+| 2026 intended seeded acres | 21.839 million acres | Statistics Canada, The Daily, 2026-03-05; Table 32-10-0359-01 | Preliminary seeding-intention estimate. Replace with June seeded-area survey when released. |
+
+Useful public source URLs:
+
+- Statistics Canada final 2025 production release: https://www150.statcan.gc.ca/n1/daily-quotidien/251204/dq251204a-eng.htm
+- Statistics Canada final 2025 production table: https://www150.statcan.gc.ca/n1/daily-quotidien/251204/t001a-eng.htm
+- Statistics Canada 2026 seeding-intentions release: https://www150.statcan.gc.ca/n1/daily-quotidien/260305/dq260305a-eng.htm
+- Statistics Canada 2026 seeding-intentions table: https://www150.statcan.gc.ca/n1/daily-quotidien/260305/t001a-eng.htm
+- Canola Council production page: https://www.canolacouncil.org/markets-stats/production/
+- Canola Council supply/disposition page: https://www.canolacouncil.org/markets-stats/supply-disposition/
+- Canola Council exports page: https://www.canolacouncil.org/markets-stats/exports/
+- Canola Council processing page: https://www.canolacouncil.org/markets-stats/processing/
+- Canola Council top markets page: https://www.canolacouncil.org/markets-stats/top-markets/
 
 ## Candidate Agroclimate Watchlist
 

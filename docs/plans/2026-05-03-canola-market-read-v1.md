@@ -118,6 +118,28 @@ Current status, 2026-05-04:
 - `npm run canola-market-read -- markdown` renders the required sections from `get_canada_thesis_packet('Canola', ...)`, including empty/stale/lagged/proxy warnings.
 - No LLM thesis writer or new source lane has been added.
 
+## Next Source Admission Order
+
+This is the next-session order for making the deterministic Canola read more complete. It is intentionally source-first, not UI-first.
+
+1. Producer Cars / railcar staging: verify `scripts/import-producer-cars.mjs`, current table freshness, and whether the packet/RPC exposes the right producer-car facts. Treat as logistics context beside CGC, not as a replacement for weekly CGC movement.
+2. CFTC COT: verify `collect-cftc-cot.py`, the `import-cftc-cot` Edge Function, `cftc_cot_positions`, and `get_cot_positioning()`. Canola direct ICE rows should be labelled direct; soybean oil/meal rows stay proxy/context.
+3. Crop-size baseline: seed or update the Canola 2025 final production/yield/seeded acres/harvested acres and the 2026 intended seeded acres from Statistics Canada Table 32-10-0359-01. These values set the denominator for pace, supply, and stocks-to-use math.
+4. Supply/disposition: refresh the AAFC / Statistics Canada supply row and make the source date visible in the packet. If AAFC forecasts and Statistics Canada final production differ, preserve both and label forecast vs final.
+5. Canola Council Markets & Stats: inventory and scrape only after each table's upstream source, update date, period, and unit are captured. Useful pages include production, supply/disposition, processing, exports, and top markets.
+6. Price and FX context: fix thin/stale `grain_prices` before using futures as follow-through. Keep CAD/USD translation as context, not a standalone thesis.
+7. Weather, drought, satellite, cash bids, AIS, Kalshi, and social lanes remain out of Canola V1 until individually admitted in the source registry.
+
+Primary public values to seed first:
+
+| Metric | Value | Source / period |
+| --- | --- | --- |
+| 2025 final canola production | 21.804 million tonnes | Statistics Canada final 2025 production release, 2025-12-04 |
+| 2025 final canola yield | 44.7 bu/ac | Statistics Canada final 2025 production release, 2025-12-04 |
+| 2025 final seeded acres | 21.617 million acres | Canola Council production page citing Statistics Canada Table 32-10-0359-01 |
+| 2025 final harvested acres | 21.490 million acres | Canola Council production page citing Statistics Canada Table 32-10-0359-01 |
+| 2026 intended seeded acres | 21.839 million acres | Statistics Canada seeding-intentions release, 2026-03-05 |
+
 ## Public-Facing Bar
 
 Canola is the public credibility pilot. Any chart, post, or thesis from this read must preserve:

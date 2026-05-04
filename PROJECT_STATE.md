@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified commit:** `b6110ce` on branch `codex/data-layer-foundation-v1` (= Viking knowledge routing cleanup after CGC market mechanics contract)
+**Last verified baseline commit:** `8e72613` on branch `codex/data-layer-foundation-v1` (= normalized scanned grain knowledge distillations before the Canola source-admission handoff)
 **As of:** 2026-05-04
 
 ## Active task
@@ -16,6 +16,8 @@ Sprint-1 pivot toward a source-truth grain intelligence spine is active. Local w
 
 Live Supabase deploy proof: Data Layer Foundation migrations `20260502213837` through `20260502213840` and freshness optimization `20260504021340` are applied on project `ibgsloyjxdopkvwqcqwh`. `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passes. `npm run canola-market-read -- markdown` renders the deterministic read from the live Canola packet. `source_runs` exists; the CGC Codex importer now has source-run hooks, but the latest hardening pass was verified with dry-run only so no live source-run row was written by that pass. PR #12 is open: https://github.com/Bushels/Bushel-Board/pull/12
 
+Canola source-admission handoff is documented in `docs/plans/2026-05-04-canola-source-admission-handoff.md`. Next session should verify/import Producer Cars and CFTC COT first, then update the Canola crop-size baseline from Statistics Canada, then inventory Canola Council Markets & Stats pages without treating scraped aggregator values as source truth until provenance is captured.
+
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board` with default branch `master`.
 
 ## Known blockers
@@ -28,11 +30,12 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 2. Populate `source_runs` by rerunning or naturally waiting for the hardened CGC importer and other patched collectors; then rerun the validator.
 3. Add deterministic CGC relationship checks from `docs/reference/cgc-market-mechanics-v1.md`: country producer deliveries, export movement, terminal grade summing, current-week vs crop-year separation, and missing-row flags.
 4. Review the deterministic Canola read warnings before any public post: empty `posted_prices` / `weather_cache`, stale-risk `grain_prices` / CFTC, lagged Grain Monitor, proxy CFTC rows, and AAFC supply-year mismatch.
-5. Work through source admission in operating order: CGC weekly stats, Grain Monitor weekly logistics, producer cars / railcar staging, COT and price context, AAFC/StatsCan crop-size baseline, then weather/satellite/GEE layers.
+5. Work through Canola source admission in order: Producer Cars / railcar staging, COT positioning, AAFC/StatsCan crop-size baseline, price/FX context, then Canola Council Markets & Stats inventory.
 6. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data.
 7. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-04: Documented the next Canola source-admission pass. The source registry now adds Canola Council Markets & Stats as a Canola-specific aggregator, records first public baseline facts to seed (2025 final production/yield/seeded/harvested acres and 2026 intended seeded acres), and adds a paste-ready next-session handoff at `docs/plans/2026-05-04-canola-source-admission-handoff.md`.
 - 2026-05-04: Normalized the scanned Ferris and Norwood/Lusk grain-knowledge path. `scripts/gemini-ocr-distill.py` now resolves the `raw/Grain Knowledge` folder, runs Gemini CLI without the broken Bash shim path, supports `--force`, and emits `.distilled.json` metadata. Local weak Step-era outputs were archived, live Supabase was re-ingested, and stale legacy knowledge rows/chunks were removed so retrieval sees only current source paths plus normalized redistillations.
 - 2026-05-04: Refreshed the Viking knowledge architecture away from retired Grok/xAI assumptions. Advisor prompts now state the current-data boundary explicitly instead of claiming `x_search` access, and the knowledge docs record the quick quality audit of the local Grain Knowledge distillations.
 - 2026-05-04: Added `docs/reference/cgc-market-mechanics-v1.md` as the first source-specific relationship and interpretation contract. It defines CGC row identity, country producer-delivery math, export math, terminal grade-summing rules, source/interpretation/speculation boundaries, outside-source requirements, training example format, and a live Canola Week 38 grounding snapshot.
