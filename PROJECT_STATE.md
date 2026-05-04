@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified commit:** `d961d9e` on branch `codex/data-layer-foundation-v1` (= source spine, Canola read, `/source-spine`, and CGC automation hardening)
+**Last verified commit:** `3760eff` on branch `codex/data-layer-foundation-v1` (= CGC market mechanics contract after source spine, Canola read, `/source-spine`, and CGC automation hardening)
 **As of:** 2026-05-04
 
 ## Active task
@@ -10,7 +10,7 @@ CGC Week 38 source data is now imported via the new Codex routine path (`npm run
 
 Grok/xAI analysis workflow is retired. Claude/Codex owns analysis; future X API work is a data-input lane only.
 
-Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, a data-layer validator, a deterministic Canola Market Read V1 generator, `/source-spine`, and CGC automation hardening. Commits `18a0935`, `cd7bbda`, `2419e6b`, and `d961d9e` are pushed to GitHub.
+Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, a data-layer validator, a deterministic Canola Market Read V1 generator, `/source-spine`, CGC automation hardening, and the CGC market mechanics contract. Commits `18a0935`, `cd7bbda`, `2419e6b`, `d961d9e`, and `3760eff` are pushed to GitHub.
 
 Sprint-1 pivot toward a source-truth grain intelligence spine is active. Local working tree now includes source-registry, canonical grain fact model, canola market-read V1 contract, CGC market-mechanics contract, `/source-spine` source-watch dashboard, a local mirror of remote migration `20260429100000_predictive_market_briefs.sql`, follow-up migration `20260504021340_optimize_thesis_freshness.sql`, and `scripts/generate-canola-market-read.ts`.
 
@@ -33,6 +33,7 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 7. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-04: Refreshed the Viking knowledge architecture away from retired Grok/xAI assumptions. Advisor prompts now state the current-data boundary explicitly instead of claiming `x_search` access, and the knowledge docs record the quick quality audit of the local Grain Knowledge distillations.
 - 2026-05-04: Added `docs/reference/cgc-market-mechanics-v1.md` as the first source-specific relationship and interpretation contract. It defines CGC row identity, country producer-delivery math, export math, terminal grade-summing rules, source/interpretation/speculation boundaries, outside-source requirements, training example format, and a live Canola Week 38 grounding snapshot.
 - 2026-05-04: Hardened `scripts/import-cgc-weekly-codex.mjs` for the Thursday CGC routine. The importer now derives crop year from the live CGC CSV instead of a fixed year, attributes post-import verification to a same-run `cgc_imports` row, writes failure summaries to `source_runs` when failures occur outside dry-run, and includes dynamic crop-year evidence in collector heartbeats. Verified with `npm run import-cgc:dry`; no live import was triggered during this hardening pass.
 - 2026-05-04: Added `/source-spine` source-watch dashboard and source registry operating precedence. The board now leads with CGC weekly stats, Grain Monitor, producer cars / railcar staging, COT, and AAFC/StatsCan crop-size baseline before the AAFC drought, Agroclimate, VegDRI, SMOS satellite soil moisture, NASA/SERVIR ESI, and future GEE derived drought watchlist. Weather/satellite layers remain watch/proxy/research lanes and are not admitted Canola V1 thesis inputs.

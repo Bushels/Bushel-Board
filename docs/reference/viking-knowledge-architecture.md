@@ -1,183 +1,177 @@
 # Viking Knowledge Architecture
 
-How distilled book knowledge reaches the AI advisor and pipeline.
+How distilled grain-marketing book knowledge reaches Bushel Board advisor and desk workflows.
 
 ## Overview
 
-The Viking system extracts actionable knowledge from 8 grain marketing textbooks and makes it available to Grok (the AI model) at query time. The design goal: **give Grok the expertise of 8 books in ~3,000-5,000 tokens**, loaded dynamically based on what the farmer is actually asking.
+The Viking system extracts durable grain-marketing knowledge from 8 source books and makes it available to Claude/Codex advisor and desk workflows at query time. The design goal is simple: give the model the parts of the books that matter for the farmer's question without letting book knowledge pretend to be live market data.
 
 ```
-Farmer question
-    │
-    ▼
-┌─────────────────────────────────┐
-│  Our code (pre-assembly layer)  │
-│                                 │
-│  1. Regex intent detection      │
-│  2. Grain-based topic inference │
-│  3. L2 RPC query (advisor only) │
-└─────────┬───────────────────────┘
-          │  Assembled flat text
-          ▼
-┌─────────────────────────────────┐
-│  Grok system prompt             │
-│                                 │
-│  - Farmer card (their data)     │
-│  - L0 worldview (always)        │
-│  - L1 topic summaries (matched) │
-│  - L2 specific chunks (if any)  │
-│  - Live data sections           │
-│  - Voice/format rules           │
-└─────────────────────────────────┘
+Farmer question or desk run
+    |
+    v
++-----------------------------------+
+| Bushel Board pre-assembly layer   |
+|                                   |
+| 1. Regex intent detection         |
+| 2. Grain-based topic inference    |
+| 3. L2 RPC query where appropriate |
++-----------------------------------+
+    |
+    | assembled plain text
+    v
++-----------------------------------+
+| Advisor / desk prompt             |
+|                                   |
+| - Farmer or grain context         |
+| - L0 worldview                    |
+| - L1 topic summaries              |
+| - L2 retrieved chunks if any      |
+| - Verified live data sections     |
+| - Voice and output rules          |
++-----------------------------------+
 ```
 
-**Key insight:** Grok never decides which knowledge to load. Our code detects intents and assembles the context BEFORE Grok sees anything. Grok receives flat text and is told: *"Apply frameworks ONLY if they appear in the Retrieved Book Knowledge section above."*
+**Key insight:** the model does not decide which book knowledge to load. Bushel Board code detects intent and assembles context before the model sees it. The model receives flat text and is told to apply frameworks only when they appear in the retrieved book-knowledge section.
 
 ## The Three Tiers
 
-### L0 — Core Worldview (~420 tokens, always loaded)
+### L0 - Core Worldview (~420 tokens, always loaded)
 
-**What:** A compressed analyst personality distilled from all 8 books. Think of it as "how a grain market expert thinks" — not specific formulas, but the mental model.
+**What:** A compressed analyst personality distilled from all 8 books. It is the mental model for grain marketing, not a source of current prices or current production estimates.
 
 **Where it lives:**
 - Next.js: `lib/knowledge/viking-l0.ts`
-- Deno (Edge Functions): embedded in `supabase/functions/_shared/viking-knowledge.ts`
+- Deno Edge Function copy: `supabase/functions/_shared/viking-knowledge.ts`
 
-**When loaded:** Every single request — both pipeline analysis and advisor chat. It's cheap enough to always include.
+**When loaded:** Every advisor request and every desk workflow that uses Viking context. It is cheap enough to always include.
 
-**Contains:** Worldview principles like "basis tells the local story that futures miss", seasonal rhythm awareness, risk-first thinking, Canadian prairie context.
+**Contains:** principles like basis telling the local story that futures miss, seasonal rhythm awareness, risk-first thinking, and Canadian prairie context.
 
-### L1 — Topic Summaries (~750 tokens each, loaded by intent)
+### L1 - Topic Summaries (~750 tokens each, loaded by intent)
 
-**What:** 7 cross-book topic compilations. Each synthesizes relevant knowledge from ALL 8 books into a single coherent summary for one domain (basis, storage, hedging, etc.).
-
-**Where it lives:**
-- Next.js: `lib/knowledge/viking-l1.ts` (TypeScript constants + intent patterns)
-- Deno: `supabase/functions/_shared/viking-knowledge.ts` (content only, no intent detection)
-
-**The 7 topics:**
-
-| Topic | Key Frameworks | Tokens |
-|-------|---------------|--------|
-| `basis_pricing` | Basis Signal Matrix, Bull/Bear 3-of-5 checklist, seasonal patterns | ~800 |
-| `storage_carry` | Storage Decision Algorithm, True Carrying Cost Formula, pre-harvest trap | ~800 |
-| `hedging_contracts` | Strategic Pricing Decision Matrix, HTA vs Basis selection, synthetic minimum price | ~800 |
-| `logistics_exports` | Terminal flow, rail disruption, producer cars, vessel queue signals | ~650 |
-| `market_structure` | Subsidy capitalization, oligopsony defense, COT interpretation, currency effects | ~750 |
-| `risk_management` | Cobweb trap, yield skewness, demand destruction, margin call handling | ~800 |
-| `grain_specifics` | Canadian grading, IP premiums, input optimization, crush economics | ~750 |
-
-**How topics are selected (two mechanisms working together):**
-
-1. **Regex intent detection** — Pattern matching on the farmer's message text. Example: "basis is -45 under" triggers `basis_pricing`; "margin call" triggers `risk_management`. See `VIKING_INTENT_PATTERNS` in `viking-l1.ts`.
-
-2. **Grain-based inference** — The grain name itself triggers relevant topics. Every grain gets `grain_specifics`. Major traded grains add `market_structure`. Crush crops (canola, soybean, flax) add `risk_management`. Thin-futures crops (peas, lentils) also add `risk_management`. See `inferGrainTopics()` in `viking-retrieval.ts`.
-
-**Typical load:** 2-4 topics = ~1,600-3,200 L1 tokens + 420 L0 = **~2,000-3,600 total**.
-
-### L2 — Specific Chunks (via Supabase RPC, advisor chat only)
-
-**What:** PostgreSQL full-text search against ingested book passages. Returns up to 3 specific chunks that match the farmer's query + grain + detected topics.
+**What:** 7 cross-book topic compilations. Each summary combines the relevant parts of all 8 books for one domain.
 
 **Where it lives:**
-- Tables: `knowledge_documents` + `knowledge_chunks` (with tsvector trigger)
+- Next.js: `lib/knowledge/viking-l1.ts`
+- Deno Edge Function copy: `supabase/functions/_shared/viking-knowledge.ts`
+
+| Topic | Key Frameworks | Approx. Tokens |
+|-------|----------------|----------------|
+| `basis_pricing` | Basis Signal Matrix, Bull/Bear 3-of-5 checklist, seasonal patterns | 800 |
+| `storage_carry` | Storage Decision Algorithm, True Carrying Cost Formula, pre-harvest trap | 800 |
+| `hedging_contracts` | Strategic Pricing Decision Matrix, HTA vs basis selection, synthetic minimum price | 800 |
+| `logistics_exports` | Terminal flow, rail disruption, producer cars, vessel queue signals | 650 |
+| `market_structure` | Subsidy capitalization, oligopsony defense, COT interpretation, currency effects | 750 |
+| `risk_management` | Cobweb trap, yield skewness, demand destruction, margin-call handling | 800 |
+| `grain_specifics` | Canadian grading, IP premiums, input optimization, crush economics | 750 |
+
+**How topics are selected:**
+
+1. **Regex intent detection:** pattern matching on the farmer's message text. Example: "basis is -45 under" triggers `basis_pricing`.
+2. **Grain-based inference:** the grain name adds default topics. Canola adds grain specifics, market structure, and risk management because crush, futures, and margin risk matter.
+
+**Typical load:** 2-4 topics plus L0, usually ~2,000-3,600 tokens.
+
+### L2 - Specific Chunks (via Supabase RPC)
+
+**What:** PostgreSQL full-text retrieval against ingested book passages. It returns specific chunks that match the query, grain, and detected topics.
+
+**Where it lives:**
+- Tables: `knowledge_documents` and `knowledge_chunks`
 - RPC: `get_knowledge_context(p_query, p_grain, p_topics, p_limit)`
-- Called from: `fetchL2Chunks()` in `lib/knowledge/viking-retrieval.ts`
+- Caller: `fetchL2Chunks()` in `lib/knowledge/viking-retrieval.ts`
 
-**Current status:** Infrastructure exists (tables, RPC, trigger) but `knowledge_chunks` is likely empty. Needs `npm run ingest-knowledge` to populate. The system gracefully degrades — if L2 returns nothing, only L0+L1 are used.
+**Current status:** live Supabase had 21 `knowledge_documents` and 2026 `knowledge_chunks` when checked on 2026-05-04. Re-check before relying on this as current production state.
 
-**When loaded:** Advisor chat and Claude/Codex desk workflows. The retired `analyze-grain-market` Edge Function no longer consumes this context.
+**When loaded:** advisor chat can use L2. Desk workflows normally use L0+L1 only because the desk data brief already carries the specific CGC/source numbers.
 
-## Two Consumers, Two Entry Points
+## Consumers
 
-### Desk Workflow (replaces retired `analyze-grain-market`)
+### Desk Market-Read Workflow
 
 ```
 buildVikingPipelineContext(grain)
-  → L0 (always)
-  → L1: basis_pricing + storage_carry + logistics_exports (defaults)
-       + grain-inferred topics (grain_specifics, market_structure, etc.)
-  → NO L2
-  → ~2,500-3,500 tokens
+  -> L0 always
+  -> L1 basis_pricing + storage_carry + logistics_exports
+     + grain-inferred topics
+  -> no L2 by default
 ```
 
-The desk workflow analyzes each of the 16 grains weekly. It gets the same L0 worldview plus grain-relevant L1 topics. No L2 by default because the desk data brief already contains the specific CGC numbers.
+The Claude/Codex desk workflow gets durable market-structure context plus grain-relevant L1 topics. It should still ground facts in source packets such as CGC, Grain Monitor, AAFC/StatsCan, COT, prices, and other admitted live sources.
 
-### Advisor Chat (Next.js: `lib/advisor/context-builder.ts`)
+### Advisor Chat
 
 ```
 buildVikingAdvisorContext({ messageText, grain, supabase })
-  → L0 (always)
-  → L1: intent-detected topics from message + grain-inferred topics
-  → L2: up to 3 chunks from knowledge_chunks (if populated)
-  → ~2,000-5,000 tokens depending on query complexity
+  -> L0 always
+  -> L1 from message intent + grain inference
+  -> L2 up to 3 chunks when `knowledge_chunks` returns matches
 ```
 
-The advisor chat responds to individual farmer questions. Intent detection on the message text determines which L1 topics to load. L2 adds specificity if the knowledge_chunks table has data.
+The advisor responds to individual farmer questions. L2 adds source-book specificity when useful, but the answer must still separate book frameworks from current facts.
 
 ## Where Knowledge Gets Injected
 
 In `lib/advisor/system-prompt.ts`:
 
-1. **Line 48-49:** L1 context injected as `## Grain Marketing Knowledge (from 8 source books)`
-2. **Line 90:** L0 injected separately (always present, acts as baseline worldview)
-3. **Line 101:** The critical instruction: *"Apply frameworks ONLY if they appear in the Retrieved Book Knowledge section above. Do not invent or hallucinate frameworks."*
+1. L1/L2 context is injected as `## Grain Marketing Knowledge (from 8 source books)`.
+2. L0 is injected separately as the baseline worldview.
+3. The prompt instructs the advisor to apply frameworks only when they appear in the retrieved book-knowledge section.
 
-## Conflict Resolution: Viking vs Grok's Pre-Training
+## Conflict Resolution
 
-Grok has its own pre-trained knowledge about grain markets. When Viking book knowledge and Grok's training disagree:
+When Viking book knowledge, model pre-training, and live source data disagree:
 
-- **Frameworks and formulas:** Viking wins. The system prompt says "Apply frameworks ONLY if they appear in the Retrieved Book Knowledge section." Grok should use the Basis Signal Matrix from the books, not invent its own.
-- **Current market conditions:** Grok wins. Viking knowledge is from textbooks (some decades old). Grok's `x_search` tool provides real-time market data. Current prices, tariffs, weather — always defer to live data.
-- **General principles:** They usually agree. Both understand basis, carry, hedging fundamentals. Viking adds Canadian prairie specificity that Grok's training may lack.
+- **Frameworks and formulas:** Viking wins if the framework or formula appears in retrieved book knowledge.
+- **Current market conditions:** verified live data wins. Books are durable principles, not live facts. Current conditions must come from admitted source lanes such as CGC, Grain Monitor, prices, COT, AAFC/StatsCan, weather, or a direct X API signal lane once wired.
+- **General principles:** Viking should shape the prairie framing, especially basis, carry, hedging, storage, logistics, and risk language.
 
-## Dual-Module Sync Requirement
+Never use Grok/xAI `x_search` as a fallback. The retired Grok analysis workflow is no longer an operating path.
 
-The L0/L1 content exists in TWO places that must be kept in sync manually:
+## Sync Requirement
 
-| Module | Runtime | Used By |
-|--------|---------|---------|
-| `lib/knowledge/viking-l0.ts` | Next.js (Node) | Advisor chat |
-| `lib/knowledge/viking-l1.ts` | Next.js (Node) | Advisor chat (intent detection + content) |
-| `supabase/functions/_shared/viking-knowledge.ts` | Deno (Edge Functions) | Pipeline analysis (content only) |
+The compact L0/L1 content exists in two runtime surfaces:
 
-**Why two copies?** Deno Edge Functions cannot import from Next.js `lib/`. They need their own copy. The Deno copy has content only (no intent detection) because the pipeline uses grain-based inference, not message-based intent detection.
+| Module | Runtime | Used By | Git Status |
+|--------|---------|---------|------------|
+| `lib/knowledge/viking-l0.ts` | Next.js | Advisor chat | tracked |
+| `lib/knowledge/viking-l1.ts` | Next.js | Advisor chat | tracked |
+| `supabase/functions/_shared/viking-knowledge.ts` | Deno Edge Functions | Desk workflow copy | gitignored local file |
 
-**Sync process:** After editing `viking-l1.ts`, manually update the corresponding section in `viking-knowledge.ts`. The SKILL.md playbook (`distill-knowledge`) documents this step.
+**Why two copies?** Deno Edge Functions cannot import from the Next.js `lib/` tree. They need a local Deno-compatible copy.
 
-## Security: Gitignored Content
+**Sync process:** after editing `viking-l1.ts`, manually update the corresponding Deno copy before deploying any Edge Function path that uses Viking context.
 
-All knowledge content files are gitignored (proprietary distillations from copyrighted books):
+## Local Knowledge Boundary
+
+Raw books and derived distillation artifacts are local-only:
 
 ```
-lib/knowledge/viking-l0.ts          # L0 worldview
-lib/knowledge/viking-l1.ts          # L1 topic summaries + intent patterns
-supabase/functions/_shared/viking-knowledge.ts    # Deno copy
-supabase/functions/_shared/commodity-knowledge.ts  # Legacy commodity knowledge
+data/Knowledge/
+supabase/functions/_shared/viking-knowledge.ts
+supabase/functions/_shared/commodity-knowledge.ts
 ```
 
-The retrieval orchestration (`lib/knowledge/viking-retrieval.ts`) IS tracked in git — it contains only code logic, no proprietary content.
+The source books and full distillations must not be committed. The retrieval orchestration in `lib/knowledge/viking-retrieval.ts` is tracked because it contains code logic, not raw book content.
 
-**Clone requirement:** New developers need local copies of the gitignored files. The distill-knowledge skill documents how to regenerate them from source PDFs.
+## Current Quality Read (2026-05-04)
+
+Quick audit of `data/Knowledge/raw/Grain Knowledge`:
+
+- 8 raw grain-knowledge sources are present.
+- 6 of 8 sources extract cleanly with the current dry-run ingestion path.
+- 2 large scanned PDFs, Ferris and Norwood/Lusk, produce very low text yield under normal extraction. Treat original distillations from those two as suspect unless using the later redistilled outputs.
+- Existing original distillation metadata is old (`step-distillation-v1`) and lacks the current tiered L0/L1/L2 metadata shape.
+- The later `knowledge-redistilled-ferris` and `knowledge-redistilled-norwood` outputs are materially stronger and usable as framework input after cleanup, but they should be regenerated or normalized under the current pipeline before being treated as production-grade.
+
+Practical verdict: Viking is useful now as a framework layer for internal analysis. It is not enough by itself for public, source-cited claims or exact thresholds until the weak-scan sources are reprocessed and the distillation metadata is brought up to the current standard.
 
 ## Token Efficiency
 
 | System | Books | Tokens per query | How |
-|--------|-------|-----------------|-----|
-| Old (commodity-knowledge.ts) | 3 | ~7,000 (always loaded) | Static blob, everything every time |
-| New (Viking L0/L1/L2) | 8 | ~2,000-5,000 (intent-loaded) | Only load what's relevant |
+|--------|-------|------------------|-----|
+| Old static commodity blob | 3 | ~7,000 always loaded | everything every time |
+| Viking L0/L1/L2 | 8 | ~2,000-5,000 intent-loaded | only load what is relevant |
 
-More books, fewer tokens, better relevance. The intent detection ensures a farmer asking about basis doesn't waste tokens on hedging contract details.
-
-## Quality Scores (Gemini Review, 2026-03-20)
-
-| Topic | Score | Strongest Aspect |
-|-------|-------|-----------------|
-| basis_pricing | 4.9/5.0 | Bull/Bear 3-of-5 checklist |
-| storage_carry | 4.85/5.0 | Pre-harvest trap + carrying cost formula |
-| hedging_contracts | 4.85/5.0 | Strategic Pricing Decision Matrix |
-| logistics_exports | 4.35/5.0 | Weakest — needs ocean freight detail |
-| market_structure | 4.6/5.0 | Subsidy capitalization + oligopsony defense |
-| risk_management | 5.0/5.0 | Cobweb trap, yield skewness, demand destruction |
-| grain_specifics | 5.0/5.0 | Canadian grading + IP premiums + input optimization |
-| **Overall** | **4.79/5.0** | Production ready |
+More books can mean fewer tokens if the retrieval layer is deterministic and topic-scoped.

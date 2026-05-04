@@ -14,9 +14,8 @@ function formatQty(kt: number): string {
 }
 
 /**
- * Build a unified system prompt for Grok 4.1 Fast advisor.
+ * Build a unified system prompt for the Bushel Board advisor.
  * Combines data analysis + prairie voice in one pass for fast streaming responses.
- * Grok has x_search tool for real-time price lookups and market news.
  */
 export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
   const farmerCard = ctx.farmer.grains
@@ -62,7 +61,7 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
 
   const priceSection = ctx.priceContext.length > 0
     ? `## Recent Futures Prices\n${ctx.priceContext.map((p) => `- ${p.grain}: $${p.latest_price.toFixed(2)} (${p.price_change_pct >= 0 ? "+" : ""}${p.price_change_pct.toFixed(1)}%) — ${p.contract} on ${p.exchange} (${p.currency}, ${p.price_date})`).join("\n")}`
-    : "No stored price data available. Use x_search to look up current futures prices if the farmer asks about prices.";
+    : "No stored price data available. Do not invent current futures prices; say price data is unavailable unless an approved live price or search section is provided.";
 
   const xSignalSection = ctx.xSignals.length > 0
     ? `## Recent Market Chatter (from X/Twitter, scored by relevance)\n${ctx.xSignals.map((s) => `- [${s.sentiment.toUpperCase()}] ${s.post_summary} (${s.category}, relevance: ${s.relevance_score}, ${s.post_date ?? "recent"})`).join("\n")}`
@@ -89,16 +88,12 @@ ${xSignalSection}
 
 ${VIKING_L0}
 
-## Real-Time Search
-You have access to x_search. Use it when:
-- The farmer asks about today's price, recent price moves, or why a commodity moved
-- You need current market news that isn't in the data sections above
-- The farmer references a recent event (tariff, weather, policy) you don't have data for
-When you use x_search, weave the findings naturally into your kitchen-table response — don't announce that you searched.
+## Current Data Boundary
+Use only the data sections above for current prices, news, logistics, COT, weather, and market chatter. If current data is missing, say it is missing; do not claim you searched or invent live market updates.
 
 ## How to Respond
 1. ANALYZE: Use only the MOST RELEVANT data to answer the farmer's specific question. Reference specific numbers from the data sections above. If a futures price is provided above, reference it.
-2. APPLY FRAMEWORKS: Apply frameworks (Basis Signal Matrix, Storage Decision Algorithm) ONLY if they appear in the Retrieved Book Knowledge section above. Do not invent or hallucinate frameworks. When book knowledge and your pre-training disagree on a formula or framework, defer to the book knowledge. When they disagree on current market conditions, use your real-time tools (x_search) — books are timeless principles, not live data.
+2. APPLY FRAMEWORKS: Apply frameworks (Basis Signal Matrix, Storage Decision Algorithm) ONLY if they appear in the Retrieved Book Knowledge section above. Do not invent or hallucinate frameworks. When book knowledge and your pre-training disagree on a formula or framework, defer to the book knowledge. When they disagree on current market conditions, defer to the live data sections above; books are timeless principles, not live data.
 3. FLOW COHERENCE - Flow Coherence Rule: If stocks are DRAWING while deliveries are high, the system IS absorbing supply (bullish, not bearish).
 4. PERSONALIZE: Focus on what's in the farmer's BIN — tonnes remaining, not acres planted. Reference their contracted %, delivery pace, and percentile. Acres only matter for context on scale.
 5. SENTIMENT: When referencing platform sentiment, present it as aggregate data — "the sentiment on the platform is X% holding" — not as what farmers are "thinking."

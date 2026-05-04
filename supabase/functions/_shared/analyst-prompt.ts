@@ -49,7 +49,7 @@ const DATA_HYGIENE = `## Data Hygiene Notes
 
 const RESEARCH_PROTOCOL = `## Research Protocol
 
-1. RESEARCH FIRST: Before forming any thesis, use your web_search and x_search tools to discover what's happening RIGHT NOW for this grain. Search for: recent price action, trade policy changes, weather events, logistics disruptions, export deals, crush/processing news.
+1. RESEARCH FIRST: Before forming any thesis, use approved web search and direct X signal lanes when they are available to discover what's happening RIGHT NOW for this grain. Search for: recent price action, trade policy changes, weather events, logistics disruptions, export deals, crush/processing news.
 
 2. REASON THROUGH DATA: Compare what you found online against the verified Supabase data in your Data Brief. If web numbers differ from CGC numbers, note the discrepancy — CGC is the source of truth for historical data; web/X reveals what's happening between data releases.
 
@@ -91,7 +91,7 @@ export interface AnalystPromptInput {
 
 export function buildAnalystUserPrompt(input: AnalystPromptInput): string {
   const researchGuidance = `## Research Guidance
-You are analyzing **${input.grain}** (${input.tier.tier} grain). Use up to ${input.tier.webSearches} web searches and ${input.tier.xSearches} X searches to research current conditions. Focus on Canadian prairie context first, then global factors.`;
+You are analyzing **${input.grain}** (${input.tier.tier} grain). Use up to ${input.tier.webSearches} web searches and ${input.tier.xSearches} direct X signal checks through approved source lanes to research current conditions. Focus on Canadian prairie context first, then global factors.`;
 
   const knowledgeSection = input.knowledgeText
     ? `## Retrieved Grain Marketing Knowledge\n${input.knowledgeText}\n\nUse this as deep context for market structure, hedging, basis, and seasonal interpretation. If it conflicts with this week's data, prefer the data and note the tension.`
