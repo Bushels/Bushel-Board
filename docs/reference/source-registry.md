@@ -4,6 +4,8 @@ Purpose: this is the human-readable source contract for the grain intelligence s
 
 This file is not a status log. Current run health belongs in Supabase `source_runs`.
 
+See also `docs/reference/cgc-market-mechanics-v1.md` for CGC accounting, movement relationships, and interpretation guardrails.
+
 ## V1 Rule
 
 No new major data source enters Bushel Board until these fields are known:

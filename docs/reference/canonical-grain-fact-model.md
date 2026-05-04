@@ -2,6 +2,8 @@
 
 Purpose: define the shape of a grain fact before the LLM or UI interprets it. The goal is not to flatten every source into one giant table immediately. The goal is to force every thesis packet, chart, and public claim to carry the same identity, time, unit, source, and confidence rules.
 
+See also `docs/reference/cgc-market-mechanics-v1.md` for the first source-specific relationship map and interpretation guardrails.
+
 ## Mental Model
 
 ```text
