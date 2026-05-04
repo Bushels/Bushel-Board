@@ -82,7 +82,7 @@ Farmer question or desk run
 - RPC: `get_knowledge_context(p_query, p_grain, p_topics, p_limit)`
 - Caller: `fetchL2Chunks()` in `lib/knowledge/viking-retrieval.ts`
 
-**Current status:** live Supabase had 21 `knowledge_documents` and 2026 `knowledge_chunks` when checked on 2026-05-04. Re-check before relying on this as current production state.
+**Current status:** live Supabase had 19 `knowledge_documents` and 2019 `knowledge_chunks` after the 2026-05-04 scanned-book normalization. Re-check before relying on this as current production state.
 
 **When loaded:** advisor chat can use L2. Desk workflows normally use L0+L1 only because the desk data brief already carries the specific CGC/source numbers.
 
@@ -161,11 +161,13 @@ Quick audit of `data/Knowledge/raw/Grain Knowledge`:
 
 - 8 raw grain-knowledge sources are present.
 - 6 of 8 sources extract cleanly with the current dry-run ingestion path.
-- 2 large scanned PDFs, Ferris and Norwood/Lusk, produce very low text yield under normal extraction. Treat original distillations from those two as suspect unless using the later redistilled outputs.
-- Existing original distillation metadata is old (`step-distillation-v1`) and lacks the current tiered L0/L1/L2 metadata shape.
-- The later `knowledge-redistilled-ferris` and `knowledge-redistilled-norwood` outputs are materially stronger and usable as framework input after cleanup, but they should be regenerated or normalized under the current pipeline before being treated as production-grade.
+- 2 large scanned PDFs, Ferris and Norwood/Lusk, produce very low text yield under normal extraction and must use Gemini native PDF vision.
+- `knowledge-redistilled-ferris` and `knowledge-redistilled-norwood` were regenerated from cached Gemini vision page batches on 2026-05-04 and normalized with `.distilled.json` metadata.
+- The two weak Step-era Ferris/Norwood distillation files were archived locally under `data/Knowledge/tmp/deprecated-distillations/2026-05-04/` and removed from the live retrieval corpus.
+- Live Supabase retrieval cleanup removed 2 stale weak distillation document rows, 8 legacy raw path rows, and 1843 total stale chunks. The only live Ferris/Norwood sources are the normalized redistilled documents.
+- Repeatable command: `python scripts/gemini-ocr-distill.py --book ferris --force` or `python scripts/gemini-ocr-distill.py --book norwood --force` for a full current-model re-OCR; omit `--force` to reuse cached page batches and re-merge.
 
-Practical verdict: Viking is useful now as a framework layer for internal analysis. It is not enough by itself for public, source-cited claims or exact thresholds until the weak-scan sources are reprocessed and the distillation metadata is brought up to the current standard.
+Practical verdict: Viking is useful now as a framework layer for internal analysis. It is still not enough by itself for public, source-cited claims; exact claims should trace back to source pages or admitted live data.
 
 ## Token Efficiency
 

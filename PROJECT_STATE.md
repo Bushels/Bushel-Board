@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified commit:** `3760eff` on branch `codex/data-layer-foundation-v1` (= CGC market mechanics contract after source spine, Canola read, `/source-spine`, and CGC automation hardening)
+**Last verified commit:** `b6110ce` on branch `codex/data-layer-foundation-v1` (= Viking knowledge routing cleanup after CGC market mechanics contract)
 **As of:** 2026-05-04
 
 ## Active task
@@ -33,6 +33,7 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 7. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-04: Normalized the scanned Ferris and Norwood/Lusk grain-knowledge path. `scripts/gemini-ocr-distill.py` now resolves the `raw/Grain Knowledge` folder, runs Gemini CLI without the broken Bash shim path, supports `--force`, and emits `.distilled.json` metadata. Local weak Step-era outputs were archived, live Supabase was re-ingested, and stale legacy knowledge rows/chunks were removed so retrieval sees only current source paths plus normalized redistillations.
 - 2026-05-04: Refreshed the Viking knowledge architecture away from retired Grok/xAI assumptions. Advisor prompts now state the current-data boundary explicitly instead of claiming `x_search` access, and the knowledge docs record the quick quality audit of the local Grain Knowledge distillations.
 - 2026-05-04: Added `docs/reference/cgc-market-mechanics-v1.md` as the first source-specific relationship and interpretation contract. It defines CGC row identity, country producer-delivery math, export math, terminal grade-summing rules, source/interpretation/speculation boundaries, outside-source requirements, training example format, and a live Canola Week 38 grounding snapshot.
 - 2026-05-04: Hardened `scripts/import-cgc-weekly-codex.mjs` for the Thursday CGC routine. The importer now derives crop year from the live CGC CSV instead of a fixed year, attributes post-import verification to a same-run `cgc_imports` row, writes failure summaries to `source_runs` when failures occur outside dry-run, and includes dynamic crop-year evidence in collector heartbeats. Verified with `npm run import-cgc:dry`; no live import was triggered during this hardening pass.

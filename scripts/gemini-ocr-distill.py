@@ -12,11 +12,13 @@ Usage:
     python scripts/gemini-ocr-distill.py --book ferris     # Full distillation
     python scripts/gemini-ocr-distill.py --book norwood --pages 41-80
     python scripts/gemini-ocr-distill.py --book norwood --dry-run
+    python scripts/gemini-ocr-distill.py --book ferris --force  # Re-run vision OCR, ignore cache
 
 Output: JSON summary to stdout, diagnostics to stderr.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -32,7 +34,7 @@ except ImportError:
     sys.exit(1)
 
 WORKSPACE_ROOT = Path(__file__).parent.parent
-KNOWLEDGE_RAW = WORKSPACE_ROOT / "data" / "Knowledge" / "raw"
+KNOWLEDGE_RAW = WORKSPACE_ROOT / "data" / "Knowledge" / "raw" / "Grain Knowledge"
 DISTILLATION_DIR = WORKSPACE_ROOT / "data" / "Knowledge" / "distillations"
 CACHE_DIR = WORKSPACE_ROOT / "data" / "Knowledge" / "tmp" / "gemini-ocr"
 # Gemini CLI respects .gitignore, so we copy PDFs here (outside any git repo)
@@ -127,27 +129,17 @@ def call_gemini_cli(prompt: str, pdf_path: str, timeout_sec: int = 300) -> str:
 
     The PDF must be in a non-gitignored location for Gemini CLI to read it.
     """
-    # Build the command: pipe prompt via stdin, reference PDF with @
-    full_prompt = f"@{pdf_path}\n\n{prompt}"
+    full_prompt = f"@{pdf_path}\n\n{prompt}" if pdf_path else prompt
 
-    # Write prompt to a temp file and pipe it
-    prompt_file = GEMINI_WORK_DIR / f"prompt-{int(time.time())}.txt"
-    prompt_file.write_text(full_prompt, encoding="utf-8")
-
-    cmd = f'cat "{str(prompt_file).replace(chr(92), "/")}" | gemini -p ""'
+    gemini_cmd = shutil.which("gemini.cmd") or shutil.which("gemini") or "gemini"
     result = subprocess.run(
-        ["bash", "-c", cmd],
+        [gemini_cmd, "-p", ""],
+        input=full_prompt,
         capture_output=True,
         text=True,
         timeout=timeout_sec,
         cwd=str(GEMINI_WORK_DIR),  # Run from the work dir so @ paths resolve
     )
-
-    # Clean up prompt file
-    try:
-        prompt_file.unlink()
-    except OSError:
-        pass
 
     if result.returncode != 0:
         raise RuntimeError(f"Gemini CLI failed (exit {result.returncode}): {result.stderr[:500]}")
@@ -172,13 +164,14 @@ Books:
 Prerequisites:
   - Gemini CLI installed and authenticated (gemini -p works)
   - PyMuPDF installed (pip install pymupdf)
-  - Source PDFs in data/Knowledge/raw/
+  - Source PDFs in data/Knowledge/raw/Grain Knowledge/
 """
     )
     parser.add_argument("--book", choices=list(BOOKS.keys()), help="Book to process")
     parser.add_argument("--pages", type=str, help="Page range (e.g., 1-40, 41-80)")
     parser.add_argument("--test", action="store_true", help="Test with pages 13-22 of Norwood")
     parser.add_argument("--dry-run", action="store_true", help="Show batch plan only")
+    parser.add_argument("--force", action="store_true", help="Ignore cached batch markdown and re-run Gemini vision")
     parser.add_argument("--timeout", type=int, default=300, help="Timeout per batch in seconds (default: 300)")
     args = parser.parse_args()
 
@@ -218,6 +211,7 @@ Prerequisites:
     print(f"Pages: {start}-{end} ({end - start + 1} pages)", file=sys.stderr)
     print(f"Batches: {len(batches)} ({batch_size} pages each)", file=sys.stderr)
     print(f"Timeout: {args.timeout}s per batch", file=sys.stderr)
+    print(f"Force refresh: {args.force}", file=sys.stderr)
     print(file=sys.stderr)
 
     if args.dry_run:
@@ -237,6 +231,7 @@ Prerequisites:
 
     # Process each chunk
     batch_results = []
+    cache_hits = 0
     for i, chunk in enumerate(chunks):
         batch_start = chunk["start_page"]
         batch_end = chunk["end_page"]
@@ -244,11 +239,12 @@ Prerequisites:
 
         # Check for cached result
         cache_file = CACHE_DIR / f"{args.book}-pages-{batch_start:03d}-{batch_end:03d}.md"
-        if cache_file.exists():
+        if cache_file.exists() and not args.force:
             cached = cache_file.read_text(encoding="utf-8")
-            if len(cached) > 100 and "[EXTRACTION FAILED" not in cached:
+            if (len(cached) > 100 or cached.strip() == "[NO_ACTIONABLE_CONTENT]") and "[EXTRACTION FAILED" not in cached:
                 print(f"  Using cached result ({len(cached)} chars)", file=sys.stderr)
                 batch_results.append({"start": batch_start, "end": batch_end, "content": cached})
+                cache_hits += 1
                 continue
 
         # Call Gemini CLI
@@ -290,31 +286,12 @@ Prerequisites:
         )
         merge_input = f"{MERGE_PROMPT}\n\n---\n\nBatch Extractions:\n\n{all_content}"
 
-        merge_file = GEMINI_WORK_DIR / "merge-prompt.txt"
-        merge_file.write_text(merge_input, encoding="utf-8")
-
         try:
-            cmd = f'cat "{str(merge_file).replace(chr(92), "/")}" | gemini -p ""'
-            result = subprocess.run(
-                ["bash", "-c", cmd],
-                capture_output=True, text=True,
-                timeout=args.timeout,
-                cwd=str(GEMINI_WORK_DIR),
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                merged = result.stdout.strip()
-                print(f"  Merged: {len(merged)} chars", file=sys.stderr)
-            else:
-                print(f"  Merge failed, concatenating instead", file=sys.stderr)
-                merged = all_content
+            merged = call_gemini_cli(merge_input, "", timeout_sec=args.timeout)
+            print(f"  Merged: {len(merged)} chars", file=sys.stderr)
         except Exception as e:
             print(f"  Merge error: {e}, concatenating instead", file=sys.stderr)
             merged = all_content
-
-        try:
-            merge_file.unlink()
-        except OSError:
-            pass
     elif len(actionable) == 1:
         merged = actionable[0]["content"]
     else:
@@ -324,6 +301,9 @@ Prerequisites:
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%S")
     slug = f"knowledge-redistilled-{args.book}"
     output_path = DISTILLATION_DIR / f"{slug}.distilled.md"
+    metadata_path = DISTILLATION_DIR / f"{slug}.distilled.json"
+    source_path = f"knowledge/raw/Grain Knowledge/{book['filename']}"
+    source_file_hash = hashlib.sha256(Path(pdf_path).read_bytes()).hexdigest()
 
     final_md = f"""# Distilled Grain Knowledge - {book['title']}
 
@@ -342,7 +322,36 @@ Extraction Method: Gemini CLI native PDF vision (scanned book OCR)
 """
 
     output_path.write_text(final_md, encoding="utf-8")
+    metadata = {
+        "source_path": source_path,
+        "source_title": book["title"],
+        "source_file_sha256": source_file_hash,
+        "prompt_version": "gemini-ocr-distill-v2",
+        "model_used": "Gemini CLI native PDF vision",
+        "source_metadata": {
+            "page_count": book["total_pages"],
+            "page_range": f"{start}-{end}",
+            "filename": book["filename"],
+            "extraction_method": "gemini_cli_native_pdf_vision",
+            "ocr_used": True,
+            "ocr_page_count": end - start + 1,
+        },
+        "packet_count": len(batch_results),
+        "distillation_mode": "gemini_pdf_vision_batches",
+        "cache_hits": cache_hits,
+        "force_refresh": args.force,
+        "successful_batches": len(successful),
+        "actionable_batches": len(actionable),
+        "warnings": [
+            "source_pdf_requires_vision_ocr",
+            "normal_pdf_text_extraction_is_low_yield",
+        ],
+        "generated_at": timestamp,
+        "output_markdown_path": str(output_path).replace("\\", "/"),
+    }
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     print(f"\nOutput: {output_path}", file=sys.stderr)
+    print(f"Metadata: {metadata_path}", file=sys.stderr)
 
     # Clean up work directory
     try:
@@ -358,8 +367,11 @@ Extraction Method: Gemini CLI native PDF vision (scanned book OCR)
         "batches_total": len(batch_results),
         "batches_successful": len(successful),
         "batches_actionable": len(actionable),
+        "cache_hits": cache_hits,
+        "force_refresh": args.force,
         "merged_chars": len(merged),
         "output_path": str(output_path).replace("\\", "/"),
+        "metadata_path": str(metadata_path).replace("\\", "/"),
     }, indent=2))
 
 

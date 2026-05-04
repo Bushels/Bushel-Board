@@ -22,9 +22,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { spawnSync } from "child_process";
 import { resolve } from "path";
+import { createHash } from "crypto";
 
 const WORKSPACE_ROOT = resolve(__dirname, "..");
-const KNOWLEDGE_RAW = resolve(WORKSPACE_ROOT, "data/Knowledge/raw");
+const KNOWLEDGE_RAW = resolve(WORKSPACE_ROOT, "data/Knowledge/raw/Grain Knowledge");
 const DISTILLATION_DIR = resolve(WORKSPACE_ROOT, "data/Knowledge/distillations");
 const TMP_DIR = resolve(WORKSPACE_ROOT, "data/Knowledge/tmp/gemini-redistill");
 
@@ -108,23 +109,16 @@ function callGeminiCli(prompt: string, pdfPath?: string): string {
     ? `@${pdfPath.replace(/\\/g, "/")}\n\n${prompt}`
     : prompt;
 
-  // Write to temp file, pipe via stdin with -p "" (empty -p tells Gemini to read stdin)
-  // This is the same pattern used by distill-knowledge.ts
-  const promptFile = resolve(TMP_DIR, `prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
-  writeFileSync(promptFile, fullPrompt, "utf-8");
-
   console.error(`  Calling Gemini CLI (prompt: ${fullPrompt.length} chars)...`);
 
-  const cmd = `cat "${promptFile.replace(/\\/g, "/")}" | gemini -p ""`;
-  const result = spawnSync("bash", ["-c", cmd], {
+  const geminiCommand = process.platform === "win32" ? "gemini.cmd" : "gemini";
+  const result = spawnSync(geminiCommand, ["-p", ""], {
+    input: fullPrompt,
     encoding: "utf-8",
     timeout: 300_000, // 5 min per batch
     maxBuffer: 10 * 1024 * 1024,
     cwd: resolve(__dirname, ".."),
   });
-
-  // Clean up temp file
-  try { require("fs").unlinkSync(promptFile); } catch { /* ignore */ }
 
   if (result.error) {
     throw new Error(`Gemini CLI error: ${result.error.message}`);
@@ -179,7 +173,7 @@ Books:
 
 Prerequisites:
   - Gemini CLI installed and authenticated (gemini -p works)
-  - Source PDFs in data/Knowledge/raw/
+  - Source PDFs in data/Knowledge/raw/Grain Knowledge/
 
 The script sends chapter-sized PDF batches to Gemini Pro's native vision,
 then merges batch results into the standard .distilled.md format.
@@ -281,6 +275,7 @@ async function main() {
   const timestamp = new Date().toISOString();
   const slug = `knowledge-redistilled-${book.id}`;
   const outputMd = resolve(DISTILLATION_DIR, `${slug}.distilled.md`);
+  const outputJson = resolve(DISTILLATION_DIR, `${slug}.distilled.json`);
 
   const finalMd = `# Distilled Grain Knowledge - ${book.title}
 
@@ -297,7 +292,43 @@ ${mergedContent}
 `;
 
   writeFileSync(outputMd, finalMd, "utf-8");
+  const sourceFileHash = createHash("sha256").update(readFileSync(pdfPath)).digest("hex");
+  writeFileSync(
+    outputJson,
+    JSON.stringify(
+      {
+        source_path: `knowledge/raw/Grain Knowledge/${book.filename}`,
+        source_title: book.title,
+        source_file_sha256: sourceFileHash,
+        prompt_version: "gemini-redistillation-v1",
+        model_used: "Gemini CLI native PDF vision",
+        source_metadata: {
+          page_count: book.totalPages,
+          page_range: pageFilter ?? `1-${book.totalPages}`,
+          filename: book.filename,
+          extraction_method: "gemini_cli_native_pdf_vision",
+          ocr_used: true,
+          ocr_page_count: pageFilter
+            ? ranges.reduce((sum, range) => sum + (range.end - range.start + 1), 0)
+            : book.totalPages,
+        },
+        packet_count: batchOutputs.length,
+        distillation_mode: "gemini_pdf_vision_batches",
+        successful_batches: batchOutputs.filter((b) => !b.content.startsWith("[EXTRACTION FAILED")).length,
+        warnings: [
+          "source_pdf_requires_vision_ocr",
+          "normal_pdf_text_extraction_is_low_yield",
+        ],
+        generated_at: timestamp,
+        output_markdown_path: outputMd.replace(/\\/g, "/"),
+      },
+      null,
+      2,
+    ) + "\n",
+    "utf-8",
+  );
   console.error(`\nFinal output: ${outputMd}`);
+  console.error(`Metadata: ${outputJson}`);
 
   const summary = {
     book: book.id,
@@ -307,6 +338,7 @@ ${mergedContent}
     successful_batches: batchOutputs.filter((b) => !b.content.startsWith("[EXTRACTION FAILED")).length,
     total_chars: mergedContent.length,
     output_path: outputMd.replace(/\\/g, "/"),
+    metadata_path: outputJson.replace(/\\/g, "/"),
   };
 
   console.log(JSON.stringify(summary, null, 2));
