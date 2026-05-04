@@ -1,7 +1,7 @@
 # Bushel Board - Current State
 
-**Last verified commit:** `0289fd4` on branch `codex/data-layer-foundation-v1` (= sprint-1 source spine, live data-layer deploy, and Canola validator pass)
-**As of:** 2026-05-03
+**Last verified commit:** `2419e6b` on branch `codex/data-layer-foundation-v1` (= sprint-1 source spine, live data-layer deploy, and Canola validator pass)
+**As of:** 2026-05-04
 
 ## Active task
 Grain Monitor weekly importer - Week 37 parser regressions resolved on the codex branch (vessel-timing line wrap, "M ay" split-month artifact, singular "vessel" wording). All four parsers now have a Vitest seatbelt. Pending merge into `main`. The MPS portfolio cleanup pass also landed on this branch (6 cleanup commits, see `docs/journal/2026-05.md`).
@@ -10,11 +10,11 @@ CGC Week 38 source data is now imported via the new Codex routine path (`npm run
 
 Grok/xAI analysis workflow is retired. Claude/Codex owns analysis; future X API work is a data-input lane only.
 
-Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, and a data-layer validator. Commits `18a0935`, `cd7bbda`, and `0289fd4` are pushed to GitHub.
+Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, a data-layer validator, and a deterministic Canola Market Read V1 generator. Commits `18a0935`, `cd7bbda`, and `2419e6b` are pushed to GitHub.
 
-Sprint-1 pivot toward a source-truth grain intelligence spine is active. Local working tree now includes source-registry, canonical grain fact model, canola market-read V1 contract, a local mirror of remote migration `20260429100000_predictive_market_briefs.sql`, and follow-up migration `20260504021340_optimize_thesis_freshness.sql`.
+Sprint-1 pivot toward a source-truth grain intelligence spine is active. Local working tree now includes source-registry, canonical grain fact model, canola market-read V1 contract, `/source-spine` source-watch dashboard, a local mirror of remote migration `20260429100000_predictive_market_briefs.sql`, follow-up migration `20260504021340_optimize_thesis_freshness.sql`, and `scripts/generate-canola-market-read.ts`.
 
-Live Supabase deploy proof: Data Layer Foundation migrations `20260502213837` through `20260502213840` and freshness optimization `20260504021340` are applied on project `ibgsloyjxdopkvwqcqwh`. `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passed. `source_runs` exists but currently has 0 rows until patched collectors write to it. PR #12 is open: https://github.com/Bushels/Bushel-Board/pull/12
+Live Supabase deploy proof: Data Layer Foundation migrations `20260502213837` through `20260502213840` and freshness optimization `20260504021340` are applied on project `ibgsloyjxdopkvwqcqwh`. `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passes. `npm run canola-market-read -- markdown` renders the deterministic read from the live Canola packet. `source_runs` exists; the CGC Codex importer now has source-run hooks, but the latest hardening pass was verified with dry-run only so no live source-run row was written by that pass. PR #12 is open: https://github.com/Bushels/Bushel-Board/pull/12
 
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board` with default branch `master`.
 
@@ -25,12 +25,16 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 
 ## Next action
 1. Review/merge PR #12 after confirming the branch diff matches the live Supabase state.
-2. Populate `source_runs` by rerunning or naturally waiting for patched collectors; then rerun the validator.
-3. Build the deterministic Canola Market Read V1 on top of `get_canada_thesis_packet('Canola', ...)`.
-4. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data.
-5. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
+2. Populate `source_runs` by rerunning or naturally waiting for the hardened CGC importer and other patched collectors; then rerun the validator.
+3. Review the deterministic Canola read warnings before any public post: empty `posted_prices` / `weather_cache`, stale-risk `grain_prices` / CFTC, lagged Grain Monitor, proxy CFTC rows, and AAFC supply-year mismatch.
+4. Work through source admission in operating order: CGC weekly stats, Grain Monitor weekly logistics, producer cars / railcar staging, COT and price context, AAFC/StatsCan crop-size baseline, then weather/satellite/GEE layers.
+5. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data.
+6. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-04: Hardened `scripts/import-cgc-weekly-codex.mjs` for the Thursday CGC routine. The importer now derives crop year from the live CGC CSV instead of a fixed year, attributes post-import verification to a same-run `cgc_imports` row, writes failure summaries to `source_runs` when failures occur outside dry-run, and includes dynamic crop-year evidence in collector heartbeats. Verified with `npm run import-cgc:dry`; no live import was triggered during this hardening pass.
+- 2026-05-04: Added `/source-spine` source-watch dashboard and source registry operating precedence. The board now leads with CGC weekly stats, Grain Monitor, producer cars / railcar staging, COT, and AAFC/StatsCan crop-size baseline before the AAFC drought, Agroclimate, VegDRI, SMOS satellite soil moisture, NASA/SERVIR ESI, and future GEE derived drought watchlist. Weather/satellite layers remain watch/proxy/research lanes and are not admitted Canola V1 thesis inputs.
+- 2026-05-04: Deterministic Canola Market Read V1 generator built on the live Canola packet RPC. Added `lib/canola-market-read.ts`, `scripts/generate-canola-market-read.ts`, focused Vitest coverage, and `npm run canola-market-read`. The read separates facts, interpretation, speculation, watch items, freshness, quality warnings, and source links without using `market_analysis` prose or an LLM.
 - 2026-05-03: Sprint-1 grain-intelligence pivot started locally and Data Layer Foundation migrations applied live. Added source-registry, canonical fact model, canola market-read V1 contract, recovered the missing remote predictive-market migration into local migrations, added freshness optimization, and verified `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passes.
 - 2026-05-03: Data Layer Foundation V1 handoff docs committed and pushed as `cd7bbda` (`Document data layer foundation handoff`).
 - 2026-05-03: Data Layer Foundation V1 contracts committed and pushed to GitHub on `codex/data-layer-foundation-v1` as `18a0935` (`Add data layer foundation contracts`). Working tree was clean after push.

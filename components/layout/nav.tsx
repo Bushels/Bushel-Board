@@ -49,10 +49,7 @@ export async function Nav() {
                   Bushel Board
                 </span>
               </Link>
-              <DesktopNavLinks
-                allGrains={ALL_GRAINS}
-                unlockedGrains={unlockedGrains}
-              />
+              <DesktopNavLinks />
             </div>
             <div className="flex items-center gap-2">
               <MyFarmNavLink />

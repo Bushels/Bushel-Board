@@ -26,6 +26,18 @@ freshness proof
 
 If one of those fields is unknown, the source can be discussed in planning but it cannot drive a farmer-facing recommendation.
 
+## Operating Precedence
+
+For Canadian market reads, weekly CGC movement data outranks slower compiled or modelled releases.
+
+1. `cgc_weekly_stats` - primary weekly Canada grain movement truth.
+2. `grain_monitor_weekly` and `cgc_producer_cars` - logistics explanation around the CGC movement.
+3. `cftc_cot` and `grain_prices` - futures positioning and price context, with proxy labels where mapping is not direct.
+4. `aafc_statscan_supply` - crop-size and balance-sheet baseline, useful but slower and sometimes compiled from upstream grain-flow records.
+5. Weather, drought, satellite, and GEE-derived lanes - context only until individually admitted.
+
+AAFC / Statistics Canada supply-disposition data can set the seasonal balance sheet, but it must not replace fresh CGC weekly flow when the question is what is moving now.
+
 ## Tier 1 Sources
 
 These are the sources that must be solid before Bushel Board becomes a live thesis engine.
@@ -54,6 +66,19 @@ These are farmer-value sources, but they should wait until Tier 1 freshness and 
 | `fx_rates` | Canada/US price context | FX table/importer | Present as supporting lane | Use for price translation, not standalone thesis prose. |
 | `x_market_signals` | Social/sentiment | `x_market_signals` | Legacy/archive mixed `x` and `web` sources | Keep as archive until direct X API v2 lane is rebuilt and provenance is tight. |
 | `kalshi` | Prediction-market validation | `predictive_market_briefs` / future live market table | Editorial context, not source truth | Keep in validation/comparison lane. Do not feed it back into market-analysis writers. |
+
+## Candidate Agroclimate Watchlist
+
+These sources are useful for Canola, but they sit below the weekly CGC / Grain Monitor / producer-car / COT spine. They are not admitted Canola Market Read V1 inputs until each lane has a collector/API path, units, geography, lag, and freshness proof. They may be displayed as watched, stale, proxy, or research-only sources.
+
+| Source ID | Lane | Official / Primary Source | Cadence / Dating | Likely Use | V1 Boundary |
+| --- | --- | --- | --- | --- | --- |
+| `aafc_canadian_drought_monitor` | Official drought benchmark | AAFC Canadian Drought Monitor ArcGIS ImageServer / Open Canada dataset | Monthly, usually by the 10th for the previous month | Official drought-class context for yield risk | Too lagged for live stress detection. Display lag explicitly. |
+| `aafc_agroclimate_maps` | Weather/agroclimate context | AAFC Agroclimate Maps and linked Open Canada layers | Near-real-time weather observations assembled within about 12 hours; map products use fixed or rolling windows | Precipitation, temperature, GDD, SPI, SPEI, soil moisture, drought-index context | Do not admit the whole map family. Admit one layer at a time with units and time window pinned. |
+| `aafc_vegdri` | Vegetation drought stress | AAFC Vegetation Drought Response Index ImageServer / Open Canada dataset | Weekly model product at 1 km according to service metadata | Drought-driven vegetation stress context beyond raw NDVI | Research-only until freshness is proven. On 2026-05-04, the AAFC image service metadata observed by Codex ended at 2025-08-30. |
+| `aafc_smos_soil_moisture` | Satellite surface soil moisture | Open Canada dataset `c0ea8c27-e62e-45bc-b64c-d475650d84a2`; AAFC ImageServer | Created daily from SMOS and averaged weekly, biweekly, or monthly | Surface moisture anomaly for drought/waterlogging/seeding context | Strong candidate, but coarse 0.25 degree grid and top-soil semantics must be labelled. |
+| `nasa_servir_esi` | Evaporative stress proxy | NASA/SERVIR ESI via Drought.gov / SERVIR downloads | 4-week and 12-week rasters | Early flash-drought signal from ET/LST anomalies | Proxy source, not AAFC. Canadian coverage and access path must be proven before use. |
+| `gee_derived_drought_stack` | Derived near-live proxy | Google Earth Engine over MODIS NDVI, MODIS LST, SMAP/SMOS-style soil moisture, precipitation inputs | Depends on selected ingredients | Fast proxy beside official AAFC products | Derived model, not source truth. Requires formulas, back-test, and explicit proxy label. |
 
 ## Source Admission Checklist
 

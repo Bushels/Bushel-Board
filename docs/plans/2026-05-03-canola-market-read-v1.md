@@ -109,12 +109,14 @@ Canola Market Read V1 is done when:
 6. The read shows unavailable/stale sources instead of hiding them.
 7. No new weather, cash-bid, satellite, AIS, or social-data lane is added before this works.
 
-Current status, 2026-05-03:
+Current status, 2026-05-04:
 
-- Items 1-5 are in place at the data-layer level.
+- Items 1-7 are in place for the deterministic, non-LLM layer.
 - The validator passes for Canola after live migration apply.
 - `source_runs` is live but empty until collectors write run summaries.
-- The deterministic Canola read generator is not built yet.
+- The deterministic generator is built in `lib/canola-market-read.ts` and `scripts/generate-canola-market-read.ts`.
+- `npm run canola-market-read -- markdown` renders the required sections from `get_canada_thesis_packet('Canola', ...)`, including empty/stale/lagged/proxy warnings.
+- No LLM thesis writer or new source lane has been added.
 
 ## Public-Facing Bar
 

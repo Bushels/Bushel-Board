@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import {
   Caveat,
   Cutive_Mono,
@@ -76,6 +76,11 @@ export const metadata: Metadata = {
     ],
     apple: "/wheat-mark.svg",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

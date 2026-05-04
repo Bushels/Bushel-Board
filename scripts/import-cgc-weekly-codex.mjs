@@ -31,7 +31,6 @@ const CGC_WEEKLY_PAGE_URL =
   "https://www.grainscanada.gc.ca/en/grain-research/statistics/grain-statistics-weekly/";
 const CGC_ORIGIN = "https://www.grainscanada.gc.ca";
 const EDGE_FUNCTION_NAME = "import-cgc-weekly";
-const CROP_YEAR = "2025-2026";
 
 const CAD_GRAINS = [
   "Amber Durum",
@@ -139,6 +138,14 @@ function requiredEnv(name, ...alternates) {
     if (value) return value;
   }
   throw new Error(`Missing required env var: ${[name, ...alternates].join(" or ")}`);
+}
+
+function readEnvConfig() {
+  return {
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? null,
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? null,
+    internalSecret: process.env.BUSHEL_INTERNAL_FUNCTION_SECRET ?? null,
+  };
 }
 
 function extractCurrentCgcCsvUrl(pageHtml) {
@@ -254,11 +261,11 @@ async function fetchCgcCsv() {
   };
 }
 
-async function getBaselineWeek(supabase) {
+async function getBaselineWeek(supabase, cropYear) {
   const { data, error } = await supabase
     .from("cgc_observations")
     .select("grain_week")
-    .eq("crop_year", CROP_YEAR)
+    .eq("crop_year", cropYear)
     .order("grain_week", { ascending: false })
     .limit(1);
   if (error) throw new Error(`Preflight latest_week failed: ${error.message}`);
@@ -275,11 +282,24 @@ async function getRecentImports(supabase, limit = 3) {
   return data ?? [];
 }
 
-async function getLatestValidation(supabase, grainWeek) {
+async function getImportForRun(supabase, { grainWeek, runStartedAt }) {
+  const { data, error } = await supabase
+    .from("cgc_imports")
+    .select("imported_at,grain_week,status,rows_inserted,error_message")
+    .eq("grain_week", grainWeek)
+    .gte("imported_at", runStartedAt)
+    .order("imported_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw new Error(`Post-import cgc_imports attribution failed: ${error.message}`);
+  return data?.[0] ?? null;
+}
+
+async function getLatestValidation(supabase, cropYear, grainWeek) {
   const { data, error } = await supabase
     .from("validation_reports")
     .select("created_at,crop_year,grain_week,status,checks")
-    .eq("crop_year", CROP_YEAR)
+    .eq("crop_year", cropYear)
     .eq("grain_week", grainWeek)
     .order("created_at", { ascending: false })
     .limit(1);
@@ -322,10 +342,10 @@ async function callImportEdgeFunction({
   return { httpStatus: res.status, ok: res.ok, body };
 }
 
-function writeHeartbeat({ grain, grainWeek, weekEndingDate }) {
+function writeHeartbeat({ grain, cropYear, grainWeek, weekEndingDate }) {
   const evidence = {
     collector: "import-cgc-weekly-codex",
-    crop_year: CROP_YEAR,
+    crop_year: cropYear,
     grain_week: grainWeek,
     week_ending_date: weekEndingDate,
   };
@@ -369,129 +389,310 @@ function writeHeartbeat({ grain, grainWeek, weekEndingDate }) {
   };
 }
 
+async function writeFailureSourceRun(context, error) {
+  if (context.args?.dryRun) {
+    return null;
+  }
+
+  const { supabaseUrl, serviceKey } = readEnvConfig();
+  if (!supabaseUrl || !serviceKey) {
+    return {
+      ok: false,
+      error: "source_run_not_written_missing_supabase_env",
+    };
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey);
+  const message = error instanceof Error ? error.message : String(error);
+  const source = context.source;
+  const latestSourceLabel =
+    source && context.targetWeek ? `${source.cropYear} wk ${context.targetWeek}` : null;
+
+  return await writeSourceRun(supabase, {
+    source_name: "cgc_observations",
+    source_lane: "canada",
+    collector_name: "import-cgc-weekly-codex",
+    status: "failed",
+    source_period_end: source?.weekEndingDate ?? null,
+    latest_source_label: latestSourceLabel,
+    rows_inserted: 0,
+    error_message: message,
+    source_url: source?.csvUrl ?? CGC_WEEKLY_PAGE_URL,
+    started_at: context.runStartedAt,
+    metadata: {
+      stage: context.stage,
+      baseline_week: context.baselineWeek,
+      target_week: context.targetWeek,
+      source_crop_year: source?.cropYear ?? null,
+      source_latest_week: source?.latestWeek ?? null,
+      source_rows_for_latest_week: source?.rowsForLatestWeek ?? null,
+      stack: error instanceof Error ? error.stack?.slice(0, 2000) : null,
+    },
+  });
+}
+
 async function main() {
   const runStartedAt = new Date().toISOString();
   const args = parseArgs(process.argv.slice(2));
   loadEnv();
 
-  const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
-  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const internalSecret = requiredEnv("BUSHEL_INTERNAL_FUNCTION_SECRET");
-  const supabase = createClient(supabaseUrl, serviceKey);
-
-  const [baselineWeek, recentImports, source] = await Promise.all([
-    getBaselineWeek(supabase),
-    getRecentImports(supabase, 3),
-    fetchCgcCsv(),
-  ]);
-
-  const targetWeek = args.week ?? source.latestWeek;
-  const baseSummary = {
-    baseline_week: baselineWeek,
-    target_week: targetWeek,
-    source_latest_week: source.latestWeek,
-    source_crop_year: source.cropYear,
-    source_week_ending: source.weekEndingDate,
-    source_rows_for_latest_week: source.rowsForLatestWeek,
-    source_csv_url: source.csvUrl,
-    source_bytes: source.bytes,
-    recent_imports: recentImports,
+  const context = {
+    runStartedAt,
+    args,
+    stage: "env",
+    source: null,
+    targetWeek: null,
+    baselineWeek: null,
   };
 
-  if (args.dryRun) {
-    console.log(
-      JSON.stringify(
-        {
-          ...baseSummary,
-          dry_run: true,
-          import_status: "dry_run",
-          verdict: "DRY_RUN",
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
+  try {
+    const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
+    const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const internalSecret = requiredEnv("BUSHEL_INTERNAL_FUNCTION_SECRET");
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-  if (baselineWeek !== null && targetWeek <= baselineWeek) {
+    context.stage = "source_fetch";
+    const source = await fetchCgcCsv();
+    context.source = source;
+
+    const targetWeek = args.week ?? source.latestWeek;
+    context.targetWeek = targetWeek;
+
+    context.stage = "preflight";
+    const [baselineWeek, recentImports] = await Promise.all([
+      getBaselineWeek(supabase, source.cropYear),
+      getRecentImports(supabase, 3),
+    ]);
+    context.baselineWeek = baselineWeek;
+
+    const baseSummary = {
+      baseline_week: baselineWeek,
+      target_week: targetWeek,
+      source_latest_week: source.latestWeek,
+      source_crop_year: source.cropYear,
+      source_week_ending: source.weekEndingDate,
+      source_rows_for_latest_week: source.rowsForLatestWeek,
+      source_csv_url: source.csvUrl,
+      source_bytes: source.bytes,
+      recent_imports: recentImports,
+    };
+
+    if (args.dryRun) {
+      console.log(
+        JSON.stringify(
+          {
+            ...baseSummary,
+            dry_run: true,
+            import_status: "dry_run",
+            verdict: "DRY_RUN",
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+
+    if (baselineWeek !== null && targetWeek <= baselineWeek) {
+      const sourceRun = await writeSourceRun(supabase, {
+        source_name: "cgc_observations",
+        source_lane: "canada",
+        collector_name: "import-cgc-weekly-codex",
+        status: "skipped",
+        source_period_end: source.weekEndingDate,
+        latest_source_label: `${source.cropYear} wk ${targetWeek}`,
+        rows_skipped: source.rowsForLatestWeek,
+        source_url: source.csvUrl,
+        started_at: runStartedAt,
+        metadata: {
+          reason: "already_current",
+          baseline_week: baselineWeek,
+          target_week: targetWeek,
+          source_crop_year: source.cropYear,
+          source_latest_week: source.latestWeek,
+          source_rows_for_latest_week: source.rowsForLatestWeek,
+        },
+      });
+      console.log(
+        JSON.stringify(
+          {
+            ...baseSummary,
+            new_latest_week: baselineWeek,
+            delta: 0,
+            import_status: "skipped_already_current",
+            rows_inserted: 0,
+            error_message: null,
+            source_run: sourceRun,
+            verdict: "ALREADY_CURRENT",
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+
+    context.stage = "edge_import";
+    console.error(`Importing CGC week ${targetWeek} via ${EDGE_FUNCTION_NAME}...`);
+    const importResponse = await callImportEdgeFunction({
+      supabaseUrl,
+      serviceKey,
+      internalSecret,
+      csvText: source.csvText,
+      targetWeek,
+      cropYear: source.cropYear,
+    });
+
+    if (!importResponse.ok) {
+      const errorMessage = JSON.stringify(importResponse.body).slice(0, 1000);
+      const sourceRun = await writeSourceRun(supabase, {
+        source_name: "cgc_observations",
+        source_lane: "canada",
+        collector_name: "import-cgc-weekly-codex",
+        status: "failed",
+        source_period_end: source.weekEndingDate,
+        latest_source_label: `${source.cropYear} wk ${targetWeek}`,
+        rows_inserted: 0,
+        error_message: errorMessage,
+        source_url: source.csvUrl,
+        started_at: runStartedAt,
+        metadata: {
+          stage: context.stage,
+          http_status: importResponse.httpStatus,
+          baseline_week: baselineWeek,
+          target_week: targetWeek,
+          source_crop_year: source.cropYear,
+          source_latest_week: source.latestWeek,
+          edge_function_body: importResponse.body,
+        },
+      });
+      console.log(
+        JSON.stringify(
+          {
+            ...baseSummary,
+            http_status: importResponse.httpStatus,
+            new_latest_week: baselineWeek,
+            delta: 0,
+            import_status: "failed",
+            rows_inserted: 0,
+            error_message: errorMessage,
+            source_run: sourceRun,
+            verdict: "FAILED",
+          },
+          null,
+          2,
+        ),
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    context.stage = "post_import_verify";
+    const [newLatestWeek, attributedImport] = await Promise.all([
+      getBaselineWeek(supabase, source.cropYear),
+      getImportForRun(supabase, { grainWeek: targetWeek, runStartedAt }),
+    ]);
+    const delta =
+      typeof baselineWeek === "number" && typeof newLatestWeek === "number"
+        ? newLatestWeek - baselineWeek
+        : null;
+    const attributionError =
+      attributedImport == null
+        ? `No cgc_imports row found for grain_week ${targetWeek} at or after ${runStartedAt}`
+        : null;
+    const importStatus = attributedImport?.status ?? "failed";
+
+    let heartbeatResults = [];
+    if (delta !== null && delta >= 1 && importStatus === "success" && !args.noHeartbeats) {
+      console.error("Writing collector_cgc heartbeats...");
+      heartbeatResults = CAD_GRAINS.map((grain) =>
+        writeHeartbeat({
+          grain,
+          cropYear: source.cropYear,
+          grainWeek: newLatestWeek,
+          weekEndingDate: source.weekEndingDate,
+        }),
+      );
+    }
+
+    const latestValidation =
+      typeof newLatestWeek === "number"
+        ? await getLatestValidation(supabase, source.cropYear, newLatestWeek)
+        : { error: "new_latest_week_unavailable", row: null };
+
+    const verdict =
+      importStatus === "partial"
+        ? "PARTIAL_IMPORT"
+        : importStatus === "success" && delta !== null && delta >= 1
+          ? "NEW_WEEK_IMPORTED"
+          : importStatus === "success" && delta === 0
+            ? "ALREADY_CURRENT"
+            : "FAILED";
+
+    const sourceRunStatus =
+      importStatus === "partial" ? "partial" : importStatus === "success" ? "success" : "failed";
     const sourceRun = await writeSourceRun(supabase, {
       source_name: "cgc_observations",
       source_lane: "canada",
       collector_name: "import-cgc-weekly-codex",
-      status: "skipped",
+      status: sourceRunStatus,
       source_period_end: source.weekEndingDate,
-      latest_source_label: `${source.cropYear} wk ${targetWeek}`,
-      rows_skipped: source.rowsForLatestWeek,
+      latest_source_label: `${source.cropYear} wk ${newLatestWeek ?? targetWeek}`,
+      rows_inserted: attributedImport?.rows_inserted ?? 0,
+      rows_skipped: 0,
+      error_message: attributedImport?.error_message ?? attributionError,
       source_url: source.csvUrl,
       started_at: runStartedAt,
       metadata: {
-        reason: "already_current",
         baseline_week: baselineWeek,
         target_week: targetWeek,
+        source_crop_year: source.cropYear,
         source_latest_week: source.latestWeek,
         source_rows_for_latest_week: source.rowsForLatestWeek,
-      },
-    });
-    console.log(
-      JSON.stringify(
-        {
-          ...baseSummary,
-          new_latest_week: baselineWeek,
-          delta: 0,
-          import_status: "skipped_already_current",
-          rows_inserted: 0,
-          error_message: null,
-          source_run: sourceRun,
-          verdict: "ALREADY_CURRENT",
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  console.error(`Importing CGC week ${targetWeek} via ${EDGE_FUNCTION_NAME}...`);
-  const importResponse = await callImportEdgeFunction({
-    supabaseUrl,
-    serviceKey,
-    internalSecret,
-    csvText: source.csvText,
-    targetWeek,
-    cropYear: source.cropYear,
-  });
-
-  if (!importResponse.ok) {
-    const sourceRun = await writeSourceRun(supabase, {
-      source_name: "cgc_observations",
-      source_lane: "canada",
-      collector_name: "import-cgc-weekly-codex",
-      status: "failed",
-      source_period_end: source.weekEndingDate,
-      latest_source_label: `${source.cropYear} wk ${targetWeek}`,
-      rows_inserted: 0,
-      error_message: JSON.stringify(importResponse.body).slice(0, 1000),
-      source_url: source.csvUrl,
-      started_at: runStartedAt,
-      metadata: {
-        http_status: importResponse.httpStatus,
-        baseline_week: baselineWeek,
-        target_week: targetWeek,
-        source_latest_week: source.latestWeek,
         edge_function_body: importResponse.body,
+        attributed_import: attributedImport,
+        heartbeat_results: heartbeatResults,
+        latest_validation: latestValidation,
+        verdict,
       },
     });
+
     console.log(
       JSON.stringify(
         {
           ...baseSummary,
           http_status: importResponse.httpStatus,
-          new_latest_week: baselineWeek,
-          delta: 0,
+          edge_function_body: importResponse.body,
+          new_latest_week: newLatestWeek,
+          delta,
+          import_status: importStatus,
+          rows_inserted: attributedImport?.rows_inserted ?? null,
+          error_message: attributedImport?.error_message ?? attributionError,
+          attributed_import: attributedImport,
+          heartbeat_results: heartbeatResults,
+          latest_validation: latestValidation,
+          source_run: sourceRun,
+          verdict,
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const sourceRun = await writeFailureSourceRun(context, err);
+    console.log(
+      JSON.stringify(
+        {
+          baseline_week: context.baselineWeek,
+          target_week: context.targetWeek,
+          source_crop_year: context.source?.cropYear ?? null,
+          source_latest_week: context.source?.latestWeek ?? null,
+          source_week_ending: context.source?.weekEndingDate ?? null,
+          stage: context.stage,
           import_status: "failed",
           rows_inserted: 0,
-          error_message: JSON.stringify(importResponse.body).slice(0, 1000),
+          error_message: message,
           source_run: sourceRun,
           verdict: "FAILED",
         },
@@ -500,90 +701,7 @@ async function main() {
       ),
     );
     process.exitCode = 1;
-    return;
   }
-
-  const [newLatestWeek, latestImports] = await Promise.all([
-    getBaselineWeek(supabase),
-    getRecentImports(supabase, 1),
-  ]);
-  const latestImport = latestImports[0] ?? null;
-  const delta =
-    typeof baselineWeek === "number" && typeof newLatestWeek === "number"
-      ? newLatestWeek - baselineWeek
-      : null;
-  const importStatus = latestImport?.status ?? "failed";
-
-  let heartbeatResults = [];
-  if (delta !== null && delta >= 1 && importStatus === "success" && !args.noHeartbeats) {
-    console.error("Writing collector_cgc heartbeats...");
-    heartbeatResults = CAD_GRAINS.map((grain) =>
-      writeHeartbeat({
-        grain,
-        grainWeek: newLatestWeek,
-        weekEndingDate: source.weekEndingDate,
-      }),
-    );
-  }
-
-  const latestValidation =
-    typeof newLatestWeek === "number"
-      ? await getLatestValidation(supabase, newLatestWeek)
-      : { error: "new_latest_week_unavailable", row: null };
-
-  const verdict =
-    importStatus === "partial"
-      ? "PARTIAL_IMPORT"
-      : importStatus === "success" && delta !== null && delta >= 1
-        ? "NEW_WEEK_IMPORTED"
-        : importStatus === "success" && delta === 0
-          ? "ALREADY_CURRENT"
-          : "FAILED";
-
-  const sourceRun = await writeSourceRun(supabase, {
-    source_name: "cgc_observations",
-    source_lane: "canada",
-    collector_name: "import-cgc-weekly-codex",
-    status: importStatus === "partial" ? "partial" : importStatus === "success" ? "success" : "failed",
-    source_period_end: source.weekEndingDate,
-    latest_source_label: `${source.cropYear} wk ${newLatestWeek ?? targetWeek}`,
-    rows_inserted: latestImport?.rows_inserted ?? 0,
-    rows_skipped: 0,
-    error_message: latestImport?.error_message ?? null,
-    source_url: source.csvUrl,
-    started_at: runStartedAt,
-    metadata: {
-      baseline_week: baselineWeek,
-      target_week: targetWeek,
-      source_latest_week: source.latestWeek,
-      source_rows_for_latest_week: source.rowsForLatestWeek,
-      edge_function_body: importResponse.body,
-      heartbeat_results: heartbeatResults,
-      latest_validation: latestValidation,
-      verdict,
-    },
-  });
-
-  console.log(
-    JSON.stringify(
-      {
-        ...baseSummary,
-        http_status: importResponse.httpStatus,
-        edge_function_body: importResponse.body,
-        new_latest_week: newLatestWeek,
-        delta,
-        import_status: importStatus,
-        rows_inserted: latestImport?.rows_inserted ?? null,
-        error_message: latestImport?.error_message ?? null,
-        heartbeat_results: heartbeatResults,
-        latest_validation: latestValidation,
-        source_run: sourceRun,
-        verdict,
-      },
-      null,
-      2,
-    ),
-  );
 }
 
 main().catch((err) => {
