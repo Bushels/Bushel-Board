@@ -83,6 +83,12 @@ Checked against the live Supabase project on 2026-05-02.
 
 ## Source catalog
 
+Sprint-1 operating contracts now live in:
+
+- `docs/reference/source-registry.md`
+- `docs/reference/canonical-grain-fact-model.md`
+- `docs/plans/2026-05-03-canola-market-read-v1.md`
+
 ### Tier 1 - must be solid before thesis v1
 
 | Source | Country/lane | Purpose | Current status | Action |

@@ -6,7 +6,7 @@
 
 **Root cause:** The live Supabase migration ledger contains remote-only migration version `20260429100000`, while the local repo does not. That means the database and repository disagree about migration history. Treating that as a warning would risk applying new data contracts on top of an unreviewed schema-history gap.
 
-**Fix status:** Branch `codex/data-layer-foundation-v1` is committed and pushed as `18a0935`, but live DB apply is intentionally held. Next session must reconcile or document remote migration `20260429100000` before running the Data Layer Foundation migrations.
+**Fix status:** Branch `codex/data-layer-foundation-v1` is committed and pushed as `18a0935`, with handoff commit `cd7bbda` pushed after it. On 2026-05-03, remote migration `20260429100000` was recovered from `supabase_migrations.schema_migrations` and mirrored locally as `supabase/migrations/20260429100000_predictive_market_briefs.sql`. The four Data Layer Foundation migrations and follow-up freshness optimization are now applied live, and the Canola validator passes.
 
 **Prevention:**
 - Run `supabase migration list --linked` before major DB work, not only at deployment time.

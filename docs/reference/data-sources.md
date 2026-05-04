@@ -1,5 +1,10 @@
 # Bushel Board Data Source Precedence
 
+See also:
+
+- `docs/reference/source-registry.md` - source admission contract, cadence, units, lag, and failure modes.
+- `docs/reference/canonical-grain-fact-model.md` - identity/time/unit/source rules for thesis packets and market reads.
+
 ## Canonical Sources
 
 | Data Category | Canonical Source | Table/View | Scope |

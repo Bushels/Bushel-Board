@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified commit:** `18a0935` on branch `codex/data-layer-foundation-v1` (= Data Layer Foundation local contracts pushed to GitHub)
+**Last verified commit:** `0289fd4` on branch `codex/data-layer-foundation-v1` (= sprint-1 source spine, live data-layer deploy, and Canola validator pass)
 **As of:** 2026-05-03
 
 ## Active task
@@ -10,23 +10,29 @@ CGC Week 38 source data is now imported via the new Codex routine path (`npm run
 
 Grok/xAI analysis workflow is retired. Claude/Codex owns analysis; future X API work is a data-input lane only.
 
-Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, and a data-layer validator. Commit `18a0935` is pushed to GitHub. Local SQL rollback check and `npm run build` passed; live Supabase apply is still blocked by remote migration-history drift.
+Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation-v1`. Local work now includes source-run ledger migrations, grain/market mappings, freshness RPC, Canada/US facts-only thesis packet RPCs, importer source-run hooks, and a data-layer validator. Commits `18a0935`, `cd7bbda`, and `0289fd4` are pushed to GitHub.
+
+Sprint-1 pivot toward a source-truth grain intelligence spine is active. Local working tree now includes source-registry, canonical grain fact model, canola market-read V1 contract, a local mirror of remote migration `20260429100000_predictive_market_briefs.sql`, and follow-up migration `20260504021340_optimize_thesis_freshness.sql`.
+
+Live Supabase deploy proof: Data Layer Foundation migrations `20260502213837` through `20260502213840` and freshness optimization `20260504021340` are applied on project `ibgsloyjxdopkvwqcqwh`. `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passed. `source_runs` exists but currently has 0 rows until patched collectors write to it. PR #12 is open: https://github.com/Bushels/Bushel-Board/pull/12
 
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board` with default branch `master`.
 
 ## Known blockers
 - `/api/pipeline/run` is permanently tombstoned as `grok_workflow_deprecated`; do not use it for CGC imports or analysis recovery.
 - Grok-backed farm summary generation is tombstoned; personalized summary refresh needs a Claude/Codex replacement writer before it is current again.
-- Supabase migration dry-run is blocked by remote-only migration version `20260429100000`; resolve migration-history drift before pushing Data Layer Foundation migrations.
+- `supabase migration list --linked` may still fail intermittently with a `SUPABASE_DB_PASSWORD` auth error in this shell. The live migration ledger was confirmed with `supabase_migrations.schema_migrations` via `supabase db query --linked`.
 
 ## Next action
-1. Resolve Supabase migration-history drift around remote-only `20260429100000`; do not blindly push until the drift is understood.
-2. Apply Data Layer Foundation migrations to Supabase after drift is resolved, then run `npm run validate-data-layer`.
-3. After DB migration status is clean, apply the migrations and open a PR for `codex/data-layer-foundation-v1`.
+1. Review/merge PR #12 after confirming the branch diff matches the live Supabase state.
+2. Populate `source_runs` by rerunning or naturally waiting for patched collectors; then rerun the validator.
+3. Build the deterministic Canola Market Read V1 on top of `get_canada_thesis_packet('Canola', ...)`.
 4. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data.
 5. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-03: Sprint-1 grain-intelligence pivot started locally and Data Layer Foundation migrations applied live. Added source-registry, canonical fact model, canola market-read V1 contract, recovered the missing remote predictive-market migration into local migrations, added freshness optimization, and verified `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passes.
+- 2026-05-03: Data Layer Foundation V1 handoff docs committed and pushed as `cd7bbda` (`Document data layer foundation handoff`).
 - 2026-05-03: Data Layer Foundation V1 contracts committed and pushed to GitHub on `codex/data-layer-foundation-v1` as `18a0935` (`Add data layer foundation contracts`). Working tree was clean after push.
 - 2026-05-03: GitHub CLI authenticated successfully as `Bushels` using HTTPS. `gh repo view` resolves to `Bushels/Bushel-Board`, default branch `master`, with usable `repo` and `workflow` scopes.
 - 2026-05-03: Data Layer Foundation V1 local integration started on `codex/data-layer-foundation-v1`: `source_runs`, `grain_market_mappings`, source freshness, Canada/US thesis packet RPC migrations, importer run-summary hooks, validator script, and seeding-drill price-query contract fix. Local SQL rollback check and `npm run build` passed; live DB push remains blocked by remote migration-history drift.
