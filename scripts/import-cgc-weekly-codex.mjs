@@ -21,6 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { writeSourceRun } from "./source-run.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -369,6 +370,7 @@ function writeHeartbeat({ grain, grainWeek, weekEndingDate }) {
 }
 
 async function main() {
+  const runStartedAt = new Date().toISOString();
   const args = parseArgs(process.argv.slice(2));
   loadEnv();
 
@@ -413,6 +415,24 @@ async function main() {
   }
 
   if (baselineWeek !== null && targetWeek <= baselineWeek) {
+    const sourceRun = await writeSourceRun(supabase, {
+      source_name: "cgc_observations",
+      source_lane: "canada",
+      collector_name: "import-cgc-weekly-codex",
+      status: "skipped",
+      source_period_end: source.weekEndingDate,
+      latest_source_label: `${source.cropYear} wk ${targetWeek}`,
+      rows_skipped: source.rowsForLatestWeek,
+      source_url: source.csvUrl,
+      started_at: runStartedAt,
+      metadata: {
+        reason: "already_current",
+        baseline_week: baselineWeek,
+        target_week: targetWeek,
+        source_latest_week: source.latestWeek,
+        source_rows_for_latest_week: source.rowsForLatestWeek,
+      },
+    });
     console.log(
       JSON.stringify(
         {
@@ -422,6 +442,7 @@ async function main() {
           import_status: "skipped_already_current",
           rows_inserted: 0,
           error_message: null,
+          source_run: sourceRun,
           verdict: "ALREADY_CURRENT",
         },
         null,
@@ -442,6 +463,25 @@ async function main() {
   });
 
   if (!importResponse.ok) {
+    const sourceRun = await writeSourceRun(supabase, {
+      source_name: "cgc_observations",
+      source_lane: "canada",
+      collector_name: "import-cgc-weekly-codex",
+      status: "failed",
+      source_period_end: source.weekEndingDate,
+      latest_source_label: `${source.cropYear} wk ${targetWeek}`,
+      rows_inserted: 0,
+      error_message: JSON.stringify(importResponse.body).slice(0, 1000),
+      source_url: source.csvUrl,
+      started_at: runStartedAt,
+      metadata: {
+        http_status: importResponse.httpStatus,
+        baseline_week: baselineWeek,
+        target_week: targetWeek,
+        source_latest_week: source.latestWeek,
+        edge_function_body: importResponse.body,
+      },
+    });
     console.log(
       JSON.stringify(
         {
@@ -452,6 +492,7 @@ async function main() {
           import_status: "failed",
           rows_inserted: 0,
           error_message: JSON.stringify(importResponse.body).slice(0, 1000),
+          source_run: sourceRun,
           verdict: "FAILED",
         },
         null,
@@ -499,6 +540,30 @@ async function main() {
           ? "ALREADY_CURRENT"
           : "FAILED";
 
+  const sourceRun = await writeSourceRun(supabase, {
+    source_name: "cgc_observations",
+    source_lane: "canada",
+    collector_name: "import-cgc-weekly-codex",
+    status: importStatus === "partial" ? "partial" : importStatus === "success" ? "success" : "failed",
+    source_period_end: source.weekEndingDate,
+    latest_source_label: `${source.cropYear} wk ${newLatestWeek ?? targetWeek}`,
+    rows_inserted: latestImport?.rows_inserted ?? 0,
+    rows_skipped: 0,
+    error_message: latestImport?.error_message ?? null,
+    source_url: source.csvUrl,
+    started_at: runStartedAt,
+    metadata: {
+      baseline_week: baselineWeek,
+      target_week: targetWeek,
+      source_latest_week: source.latestWeek,
+      source_rows_for_latest_week: source.rowsForLatestWeek,
+      edge_function_body: importResponse.body,
+      heartbeat_results: heartbeatResults,
+      latest_validation: latestValidation,
+      verdict,
+    },
+  });
+
   console.log(
     JSON.stringify(
       {
@@ -512,6 +577,7 @@ async function main() {
         error_message: latestImport?.error_message ?? null,
         heartbeat_results: heartbeatResults,
         latest_validation: latestValidation,
+        source_run: sourceRun,
         verdict,
       },
       null,

@@ -11,6 +11,7 @@ import {
   type ParsedWeeklyReportRow,
   type WeeklyReportMetadata,
 } from "./grain-monitor/parsers";
+import { writeSourceRun } from "./source-run";
 
 const GRAIN_MONITOR_BASE_URL = "https://grainmonitor.ca/";
 const WEEKLY_REPORTS_PATH = "Downloads/WeeklyReports";
@@ -587,6 +588,36 @@ export async function runImport(options: CliOptions) {
     }
   }
 
+  let sourceRun: Awaited<ReturnType<typeof writeSourceRun>> | null = null;
+  if (!options.dryRun && SUPABASE_URL && SERVICE_ROLE_KEY) {
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    sourceRun = await writeSourceRun(supabase, {
+      source_name: "grain_monitor_snapshots",
+      source_lane: "canada",
+      collector_name: "import-grain-monitor-weekly",
+      status: "success",
+      source_period_start: parseResult.metadata.coveredPeriodStart ?? row.report_date,
+      source_period_end: parseResult.metadata.coveredPeriodEnd ?? row.report_date,
+      latest_source_label: `${row.crop_year} wk ${row.grain_week}`,
+      rows_inserted: 1,
+      source_url: discovery.url,
+      metadata: {
+        crop_year: row.crop_year,
+        grain_week: row.grain_week,
+        report_date: row.report_date,
+        report_crop_year: parseResult.metadata.reportCropYear,
+        pdf_filename: discovery.filename,
+        discovery_strategy: discovery.strategy,
+        missing_fields: parseResult.missingFields,
+        latest_cgc_week: latestWeeks.latestCgcWeek,
+        trajectory,
+        warnings,
+      },
+    });
+  }
+
   return {
     action: options.dryRun ? "dry_run" : "upserted",
     report: {
@@ -610,6 +641,7 @@ export async function runImport(options: CliOptions) {
       row,
       verification,
       trajectory,
+      source_run: sourceRun,
       ...(warnings.length > 0 ? { warnings } : {}),
     },
   };

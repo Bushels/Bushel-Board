@@ -128,12 +128,12 @@ export async function getStateDrillData(
   const futuresPromise = ticker
     ? supabase
         .from("grain_prices")
-        .select("price_date,settle_price")
-        .eq("symbol", ticker)
+        .select("price_date,settlement_price")
+        .eq("contract", ticker)
         .gte("price_date", cutoff.toISOString().slice(0, 10))
         .order("price_date", { ascending: true })
     : Promise.resolve({
-        data: [] as Array<{ price_date: string; settle_price: number | string }>,
+        data: [] as Array<{ price_date: string; settlement_price: number | string }>,
         error: null,
       });
 
@@ -190,11 +190,11 @@ export async function getStateDrillData(
     .sort((a, b) => a.week_ending.localeCompare(b.week_ending));
 
   // Futures
-  type FuturesRaw = { price_date: string; settle_price: number | string };
+  type FuturesRaw = { price_date: string; settlement_price: number | string };
   const points: FuturesPoint[] = ((futuresRes.data ?? []) as FuturesRaw[]).map(
     (r) => ({
       date: String(r.price_date),
-      settle: Number(r.settle_price),
+      settle: Number(r.settlement_price),
     }),
   );
   const last_settle = points.at(-1)?.settle ?? null;

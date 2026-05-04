@@ -35,6 +35,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 NASS_BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 SUPABASE_TIMEOUT_SECONDS = 60
 USDA_TIMEOUT_SECONDS = 60
@@ -282,6 +284,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str]) -> int:
+    run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     args = parse_args(argv)
     load_env_files()
 
@@ -351,8 +354,38 @@ def main(argv: list[str]) -> int:
     eprint(f"Deduped {len(all_rows)} -> {len(deduped_rows)} unique upsert rows")
 
     upserted = 0
+    source_run: dict[str, Any] | None = None
     if not args.dry_run and deduped_rows:
         upserted = upsert_rows(supabase_url, service_key, deduped_rows)
+        release_dates = [
+            row.get("source_release_date")
+            for row in deduped_rows
+            if row.get("source_release_date")
+        ]
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_key,
+                source_name="crop_acreage_estimates",
+                source_lane="us",
+                collector_name="import-usda-acreage",
+                status="success" if not errors else "partial",
+                source_period_start=min(release_dates) if release_dates else None,
+                source_period_end=max(release_dates) if release_dates else None,
+                latest_source_label=f"{args.year} acreage",
+                rows_inserted=upserted,
+                started_at=run_started_at,
+                metadata={
+                    "year": args.year,
+                    "markets": [m["market_name"] for m in markets],
+                    "rows_fetched": len(all_rows),
+                    "rows_deduped": len(deduped_rows),
+                    "summary": summary,
+                    "errors": errors,
+                },
+            )
+        except SourceRunError as exc:
+            errors.append(f"source_runs write failed: {exc}")
 
     print(json.dumps({
         "year": args.year,
@@ -364,6 +397,7 @@ def main(argv: list[str]) -> int:
         "errors": errors,
         "sample_rows": deduped_rows[:3],
         "dry_run": args.dry_run,
+        "source_run": source_run,
     }, indent=2))
 
     return 0 if not errors else 1

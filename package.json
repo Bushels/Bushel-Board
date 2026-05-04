@@ -28,6 +28,7 @@
     "import-usda-wasde": "python3 scripts/import-usda-wasde.py",
     "import-usda-wasde-metadata": "python3 scripts/import-usda-wasde-metadata.py",
     "evaluate-predictions": "npx tsx scripts/evaluate-predictions.ts",
+    "validate-data-layer": "npx tsx scripts/validate-data-layer-foundation.ts",
     "backfill-score-trajectory": "npx tsx scripts/backfill-score-trajectory.ts",
     "test": "vitest run",
     "test:watch": "vitest"

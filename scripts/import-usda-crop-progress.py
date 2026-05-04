@@ -28,6 +28,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 NASS_BASE_URL = "https://quickstats.nass.usda.gov/api/api_GET/"
 SUPABASE_TIMEOUT_SECONDS = 60
 USDA_TIMEOUT_SECONDS = 60
@@ -926,10 +928,37 @@ def verification_warning(verification: dict[str, Any]) -> str | None:
 
 
 def main() -> None:
+    run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     load_env_files()
     args = parse_args()
 
     if not args.years and not season_active():
+        source_run: dict[str, Any] | None = None
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_key,
+                source_name="usda_crop_progress",
+                source_lane="us",
+                collector_name="import-usda-crop-progress",
+                status="skipped",
+                source_period_start=min((row["week_ending"] for row in all_rows), default=None),
+                source_period_end=latest_source_week,
+                latest_source_label=latest_source_week,
+                rows_inserted=0,
+                rows_skipped=len(all_rows),
+                started_at=run_started_at,
+                metadata={
+                    "reason": "no_new_data",
+                    "season_active": season_active(),
+                    "years": years,
+                    "markets": [market["market_name"] for market in markets],
+                    "skipped_markets": skipped_markets,
+                    "verification": verification,
+                },
+            )
+        except SourceRunError as exc:
+            warnings.append(f"source_runs write failed: {exc}")
         print(
             json.dumps(
                 {
@@ -1150,6 +1179,7 @@ def main() -> None:
                     "warnings": warnings,
                     "errors": errors,
                     "verification": verification,
+                    "source_run": source_run,
                 },
                 indent=2,
             )
@@ -1184,6 +1214,34 @@ def main() -> None:
         eprint(f"trajectory write failed: {exc}")
 
     status = "success" if not errors else "partial"
+    source_run: dict[str, Any] | None = None
+    try:
+        source_run = write_source_run(
+            supabase_url,
+            service_key,
+            source_name="usda_crop_progress",
+            source_lane="us",
+            collector_name="import-usda-crop-progress",
+            status=status,
+            source_period_start=min((row["week_ending"] for row in rows_to_write), default=None),
+            source_period_end=latest_source_week,
+            latest_source_label=latest_source_week,
+            rows_inserted=upserted,
+            rows_skipped=len(skipped_markets),
+            started_at=run_started_at,
+            metadata={
+                "season_active": season_active(),
+                "years": years,
+                "markets": [market["market_name"] for market in markets],
+                "summary": summary,
+                "verification": verification,
+                "trajectory": trajectory_result,
+                "warnings": warnings,
+                "errors": errors,
+            },
+        )
+    except SourceRunError as exc:
+        warnings.append(f"source_runs write failed: {exc}")
     print(
         json.dumps(
             {
@@ -1200,6 +1258,7 @@ def main() -> None:
                 "errors": errors,
                 "verification": verification,
                 "trajectory": trajectory_result,
+                "source_run": source_run,
             },
             indent=2,
         )

@@ -34,6 +34,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 FAS_BASE_URL = "https://apps.fas.usda.gov/OpenData/api/esr"
 SUPABASE_TIMEOUT_SECONDS = 60
 USDA_TIMEOUT_SECONDS = 60
@@ -539,6 +541,7 @@ def build_and_write_heartbeats(
 
 def main() -> None:
     start = time.time()
+    run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     load_env_files()
     args = parse_args()
 
@@ -655,6 +658,33 @@ def main() -> None:
 
     duration_ms = round((time.time() - start) * 1000)
     status = "success" if not errors else "partial"
+    source_run: dict[str, Any] | None = None
+    if all_rows:
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_role_key,
+                source_name="usda_export_sales",
+                source_lane="us",
+                collector_name="import-usda-export-sales",
+                status=status,
+                source_period_start=min(row["week_ending"] for row in all_rows),
+                source_period_end=latest_week,
+                latest_source_label=f"{format_market_year(market_years[0])} / {latest_week}",
+                rows_inserted=upserted,
+                rows_skipped=0,
+                started_at=run_started_at,
+                metadata={
+                    "commodities_imported": commodities_imported,
+                    "market_years": [str(y) for y in market_years],
+                    "commodity_filters": args.commodity,
+                    "warnings": warnings,
+                    "errors": errors,
+                    "trajectory": heartbeat_result,
+                },
+            )
+        except SourceRunError as exc:
+            warnings.append(f"source_runs write failed: {exc}")
     summary = {
         "status": status,
         "commodities_imported": commodities_imported,
@@ -665,6 +695,7 @@ def main() -> None:
         "errors": errors,
         "verification": verification,
         "trajectory": heartbeat_result,
+        "source_run": source_run,
         "duration_ms": duration_ms,
     }
     print(json.dumps(summary, indent=2))

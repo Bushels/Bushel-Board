@@ -28,6 +28,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 EDGE_FUNCTION_NAME = "import-cftc-cot"
 HEARTBEAT_CLI = Path(__file__).with_name("write-collector-heartbeat.py")
 TRAJECTORY_SCAN_TYPE = "collector_cftc_cot"
@@ -252,6 +254,7 @@ def build_and_emit(report_date: str, rows: list[dict[str, Any]], dry_run: bool) 
 
 
 def main() -> None:
+    run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     load_env_files()
     args = parse_args()
 
@@ -275,11 +278,47 @@ def main() -> None:
     except Exception as exc:
         warnings.append(f"heartbeat_write_failed: {exc!s}"[:500])
 
+    source_run: dict[str, Any] | None = None
+    if not args.dry_run:
+        edge_rows_inserted = 0
+        if isinstance(ef_response, dict):
+            edge_rows_inserted = int(
+                ef_response.get("rows_inserted")
+                or ef_response.get("inserted")
+                or ef_response.get("rows_upserted")
+                or 0
+            )
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_key,
+                source_name="cftc_cot_positions",
+                source_lane="cross_border",
+                collector_name="collect-cftc-cot",
+                status="skipped" if args.skip_ef else "success",
+                source_period_start=report_date,
+                source_period_end=report_date,
+                latest_source_label=report_date,
+                rows_inserted=edge_rows_inserted,
+                rows_updated=len(rows),
+                started_at=run_started_at,
+                metadata={
+                    "skip_ef": args.skip_ef,
+                    "ef_response": ef_response,
+                    "rows_considered": len(rows),
+                    "trajectory": trajectory,
+                    "warnings": warnings,
+                },
+            )
+        except SourceRunError as exc:
+            warnings.append(f"source_runs write failed: {exc}")
+
     payload = {
         "status": "success",
         "dry_run": args.dry_run,
         "ef_response": ef_response,
         "trajectory": trajectory,
+        "source_run": source_run,
     }
     if warnings:
         payload["warnings"] = warnings

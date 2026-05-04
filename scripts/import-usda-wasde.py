@@ -27,6 +27,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 PSD_BASE_URL = "https://apps.fas.usda.gov/OpenData/api/psd"
 SUPABASE_TIMEOUT_SECONDS = 60
 USDA_TIMEOUT_SECONDS = 60
@@ -299,6 +301,7 @@ def write_heartbeats(previews: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main() -> None:
+    run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     load_env_files()
     args = parse_args()
     supabase_url = require_env('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL')
@@ -376,6 +379,37 @@ def main() -> None:
         except Exception as exc:  # never fail parent on heartbeat issues
             warnings.append(f"heartbeat_write_failed: {exc!s}"[:500])
 
+    source_run: dict[str, Any] | None = None
+    if not args.dry_run:
+        period_dates = [
+            _wasde_source_week_ending(row['calendar_year'], row['month'])
+            for row in all_rows
+        ]
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_key,
+                source_name="usda_wasde_raw",
+                source_lane="international",
+                collector_name="import-usda-wasde",
+                status="success",
+                source_period_start=min(period_dates) if period_dates else None,
+                source_period_end=max(period_dates) if period_dates else None,
+                latest_source_label=max(period_dates) if period_dates else None,
+                rows_inserted=len(all_rows),
+                started_at=run_started_at,
+                metadata={
+                    "market_years": market_years if legacy_market_year_mode else None,
+                    "report_months": [m.strftime('%Y-%m') for m in report_months] if report_months else None,
+                    "markets": [m['market_name'] for m in markets],
+                    "summary": summary,
+                    "trajectory": trajectory,
+                    "warnings": warnings,
+                },
+            )
+        except SourceRunError as exc:
+            warnings.append(f"source_runs write failed: {exc}")
+
     payload: dict[str, Any] = {
         'status': 'success',
         'dry_run': args.dry_run,
@@ -385,6 +419,7 @@ def main() -> None:
         'rows_total': len(all_rows),
         'summary': summary,
         'trajectory': trajectory,
+        'source_run': source_run,
     }
     if warnings:
         payload['warnings'] = warnings

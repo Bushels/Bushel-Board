@@ -31,6 +31,7 @@ import {
   type GrainPriceSpec,
   type PriceRow,
 } from "@/lib/grain-price-sources";
+import { writeSourceRun } from "./source-run";
 
 const args = process.argv.slice(2);
 
@@ -232,6 +233,8 @@ async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<Pri
 
 async function main() {
   const startTime = Date.now();
+  const runStartedAt = new Date().toISOString();
+  const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
   let grainsFetched = 0;
   let grainsSkipped = 0;
   const allRows: PriceRow[] = [];
@@ -290,6 +293,21 @@ async function main() {
   if (grainsFetched === 0) {
     console.error("ERROR: All symbols failed to fetch. Exiting.");
     const duration_ms = Date.now() - startTime;
+    const sourceRun = await writeSourceRun(supabase, {
+      source_name: "grain_prices",
+      source_lane: "cross_border",
+      collector_name: "import-grain-prices",
+      status: "failed",
+      rows_inserted: 0,
+      rows_skipped: grainsSkipped,
+      error_message: "All symbols failed to fetch",
+      started_at: runStartedAt,
+      metadata: {
+        days: DAYS,
+        grains_fetched: 0,
+        grains_skipped: grainsSkipped,
+      },
+    });
     console.log(
       JSON.stringify(
         {
@@ -299,6 +317,7 @@ async function main() {
           rows_upserted: 0,
           errors: grainsSkipped,
           duration_ms,
+          source_run: sourceRun,
         },
         null,
         2,
@@ -307,7 +326,6 @@ async function main() {
     process.exit(1);
   }
 
-  const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
   const BATCH_SIZE = 50;
   let upserted = 0;
   let errors = 0;
@@ -359,6 +377,27 @@ async function main() {
   }
 
   const duration_ms = Date.now() - startTime;
+  const sortedDates = allRows.map((row) => row.price_date).sort();
+  const sourceRun = await writeSourceRun(supabase, {
+    source_name: "grain_prices",
+    source_lane: "cross_border",
+    collector_name: "import-grain-prices",
+    status: errors > 0 ? "partial" : "success",
+    source_period_start: sortedDates[0] ?? null,
+    source_period_end: sortedDates.at(-1) ?? null,
+    latest_source_label: sortedDates.at(-1) ?? null,
+    rows_inserted: upserted,
+    rows_skipped: grainsSkipped,
+    started_at: runStartedAt,
+    metadata: {
+      days: DAYS,
+      grains_fetched: grainsFetched,
+      grains_skipped: grainsSkipped,
+      all_rows: allRows.length,
+      cad_normalization: cadNormalization,
+      errors,
+    },
+  });
   const result = {
     dry_run: false,
     grains_fetched: grainsFetched,
@@ -366,6 +405,7 @@ async function main() {
     rows_upserted: upserted,
     errors,
     cad_normalization: cadNormalization,
+    source_run: sourceRun,
     duration_ms,
   };
 

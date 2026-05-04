@@ -9,6 +9,18 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { writeSourceRun } from "./source-run.mjs";
+
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  console.log(`Usage: node scripts/import-producer-cars.mjs [options]
+
+Options:
+  --help    Show this help.
+
+Fetches the CGC Producer Car CSV, parses it, and upserts producer_car_allocations.
+Output is human-readable diagnostics plus a source_run JSON block.`);
+  process.exit(0);
+}
 
 // -- Config --
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,6 +67,7 @@ function classifyDestination(destination, country) {
 }
 
 async function main() {
+  const runStartedAt = new Date().toISOString();
   const cropYear = getCurrentCropYear();
   console.log(`Fetching CGC Producer Car CSV for ${cropYear}...`);
 
@@ -215,6 +228,29 @@ async function main() {
     console.log(`\nLatest rows (top 20):`);
     console.table(verify);
   }
+
+  const latestWeek = result.reduce((max, row) => Math.max(max, row.grain_week), 0);
+  const sourceRun = await writeSourceRun(supabase, {
+    source_name: "producer_car_allocations",
+    source_lane: "canada",
+    collector_name: "import-producer-cars",
+    status: errors.length > 0 ? "partial" : "success",
+    latest_source_label: `${cropYear} wk ${latestWeek}`,
+    rows_inserted: upserted,
+    rows_skipped: Math.max(result.length - upserted, 0),
+    source_url: url,
+    started_at: runStartedAt,
+    metadata: {
+      crop_year: cropYear,
+      latest_grain_week: latestWeek,
+      rows_parsed: result.length,
+      grains,
+      errors,
+      verification_error: verifyErr?.message ?? null,
+    },
+  });
+  console.log("\nSource run:");
+  console.log(JSON.stringify(sourceRun, null, 2));
 }
 
 main().catch((err) => {
