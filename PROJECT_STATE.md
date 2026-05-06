@@ -1,7 +1,7 @@
 # Bushel Board - Current State
 
-**Last verified baseline commit:** `8e72613` on branch `codex/data-layer-foundation-v1` (= normalized scanned grain knowledge distillations before the Canola source-admission handoff)
-**As of:** 2026-05-04
+**Last verified baseline commit:** `0f7bcdc` on branch `codex/data-layer-foundation-v1` (= Canola source-admission handoff before automation implementation)
+**As of:** 2026-05-06
 
 ## Active task
 Grain Monitor weekly importer - Week 37 parser regressions resolved on the codex branch (vessel-timing line wrap, "M ay" split-month artifact, singular "vessel" wording). All four parsers now have a Vitest seatbelt. Pending merge into `main`. The MPS portfolio cleanup pass also landed on this branch (6 cleanup commits, see `docs/journal/2026-05.md`).
@@ -14,9 +14,9 @@ Data Layer Foundation V1 integration is underway on `codex/data-layer-foundation
 
 Sprint-1 pivot toward a source-truth grain intelligence spine is active. Local working tree now includes source-registry, canonical grain fact model, canola market-read V1 contract, CGC market-mechanics contract, `/source-spine` source-watch dashboard, a local mirror of remote migration `20260429100000_predictive_market_briefs.sql`, follow-up migration `20260504021340_optimize_thesis_freshness.sql`, and `scripts/generate-canola-market-read.ts`.
 
-Live Supabase deploy proof: Data Layer Foundation migrations `20260502213837` through `20260502213840` and freshness optimization `20260504021340` are applied on project `ibgsloyjxdopkvwqcqwh`. `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passes. `npm run canola-market-read -- markdown` renders the deterministic read from the live Canola packet. `source_runs` exists; the CGC Codex importer now has source-run hooks, but the latest hardening pass was verified with dry-run only so no live source-run row was written by that pass. PR #12 is open: https://github.com/Bushels/Bushel-Board/pull/12
+Live Supabase deploy proof: Data Layer Foundation migrations `20260502213837` through `20260502213840`, freshness optimization `20260504021340`, Canola source-admission migrations `20260505135913`, `20260505140849`, `20260505141007`, `20260505141102`, `20260505143000`, `20260505144500`, `20260505145500`, grant hardening migration `20260506180718`, and packet supply-year selection fix `20260506181223` are applied on project `ibgsloyjxdopkvwqcqwh`. `npx tsx scripts/validate-data-layer-foundation.ts --grain Canola --market Canola` passes. `npm run canola-market-read -- markdown` renders the deterministic read from the live Canola packet, including the 2025-2026 Canola crop baseline fields. `source_runs` now has successful live runs for Producer Cars, CFTC COT, StatsCan crop baseline, Canola Council inventory, FX rates, and grain prices. PR #12 is open: https://github.com/Bushels/Bushel-Board/pull/12
 
-Canola source-admission handoff is documented in `docs/plans/2026-05-04-canola-source-admission-handoff.md`. Next session should verify/import Producer Cars and CFTC COT first, then update the Canola crop-size baseline from Statistics Canada, then inventory Canola Council Markets & Stats pages without treating scraped aggregator values as source truth until provenance is captured.
+Canola source admission is now implemented locally and applied live on Supabase. Producer Cars, Grain Monitor, CFTC COT, StatsCan crop baseline, price/FX freshness, and Canola Council inventory all have deterministic import paths and active Codex automations. Producer Cars, CFTC COT, StatsCan crop baseline, price/FX freshness, and Canola Council inventory have successful live `source_runs`; Grain Monitor automation should be watched on the 2026-05-06 report cycle. Barchart OnDemand intraday Canola quote support is wired with `grain_price_intraday` and a paused hourly Codex automation; Kyle has requested the Barchart key and the lane remains paused until `BARCHART_ONDEMAND_API_KEY` is available. Canola Council remains inventory-only until each scraped value has upstream provenance, unit, period, and update-date review.
 
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board` with default branch `master`.
 
@@ -26,15 +26,18 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 - `supabase migration list --linked` may still fail intermittently with a `SUPABASE_DB_PASSWORD` auth error in this shell. The live migration ledger was confirmed with `supabase_migrations.schema_migrations` via `supabase db query --linked`.
 
 ## Next action
-1. Review/merge PR #12 after confirming the branch diff matches the live Supabase state.
-2. Populate `source_runs` by rerunning or naturally waiting for the hardened CGC importer and other patched collectors; then rerun the validator.
-3. Add deterministic CGC relationship checks from `docs/reference/cgc-market-mechanics-v1.md`: country producer deliveries, export movement, terminal grade summing, current-week vs crop-year separation, and missing-row flags.
-4. Review the deterministic Canola read warnings before any public post: empty `posted_prices` / `weather_cache`, stale-risk `grain_prices` / CFTC, lagged Grain Monitor, proxy CFTC rows, and AAFC supply-year mismatch.
-5. Work through Canola source admission in order: Producer Cars / railcar staging, COT positioning, AAFC/StatsCan crop-size baseline, price/FX context, then Canola Council Markets & Stats inventory.
-6. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data.
+1. Review/merge PR #12 after confirming the branch diff matches the live Supabase state, including the new Canola source-admission migrations.
+2. When the Barchart key arrives, add `BARCHART_ONDEMAND_API_KEY` to `.env.local`, run `npx tsx scripts/import-barchart-canola-intraday.ts --dry-run`, then unpause `barchart-canola-intraday-quote-import`.
+3. Watch the 2026-05-06 Grain Monitor automation and confirm it reports the expected `source_run` row, report week/date, and lag versus CGC.
+4. Add deterministic CGC relationship checks from `docs/reference/cgc-market-mechanics-v1.md`: country producer deliveries, export movement, terminal grade summing, current-week vs crop-year separation, and missing-row flags.
+5. Review the deterministic Canola read warnings before any public post: empty `posted_prices` / `weather_cache`, lagged Grain Monitor, proxy CFTC rows, and Canola Council inventory-only status.
+6. Keep the Codex CGC Thursday routine active; Friday CAD swarm can now read Week 38 source data and the new Canola source-run freshness rows.
 7. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-06: Hardened the FX CAD recalculation RPC grant boundary. Migration `20260506180718` is applied live and restricts `public.recalculate_grain_prices_cad(date, date)` execution to `service_role`; live grant verification shows only `postgres` and `service_role` have `EXECUTE`.
+- 2026-05-06: Fixed the Canada thesis packet supply-row selector. Migration `20260506181223` is applied live and makes `get_canada_thesis_packet('Canola','2025-2026', ...)` prefer the requested packet crop year before falling back to older balance-sheet context. The deterministic Canola read now shows 2025-2026 production, seeded acres, harvested acres, yield, and 2026 intended seeded acres from the live packet.
+- 2026-05-05: Implemented and live-verified the Canola source-admission automation pass. New live paths cover Producer Cars rail staging, CFTC COT positioning, StatsCan final/intended-acre baseline, price/FX freshness, and Canola Council Markets & Stats inventory. Codex automations now refresh those sources plus Grain Monitor weekly logistics on expected cadences, and `source_runs` has successful rows for the live-verified lanes.
 - 2026-05-04: Documented the next Canola source-admission pass. The source registry now adds Canola Council Markets & Stats as a Canola-specific aggregator, records first public baseline facts to seed (2025 final production/yield/seeded/harvested acres and 2026 intended seeded acres), and adds a paste-ready next-session handoff at `docs/plans/2026-05-04-canola-source-admission-handoff.md`.
 - 2026-05-04: Normalized the scanned Ferris and Norwood/Lusk grain-knowledge path. `scripts/gemini-ocr-distill.py` now resolves the `raw/Grain Knowledge` folder, runs Gemini CLI without the broken Bash shim path, supports `--force`, and emits `.distilled.json` metadata. Local weak Step-era outputs were archived, live Supabase was re-ingested, and stale legacy knowledge rows/chunks were removed so retrieval sees only current source paths plus normalized redistillations.
 - 2026-05-04: Refreshed the Viking knowledge architecture away from retired Grok/xAI assumptions. Advisor prompts now state the current-data boundary explicitly instead of claiming `x_search` access, and the knowledge docs record the quick quality audit of the local Grain Knowledge distillations.

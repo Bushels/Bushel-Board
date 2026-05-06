@@ -9,6 +9,8 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { writeSourceRun } from "./source-run.mjs";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -23,6 +25,30 @@ Output is human-readable diagnostics plus a source_run JSON block.`);
 }
 
 // -- Config --
+function loadEnvFile(filePath) {
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#") || !line.includes("=")) continue;
+      const index = line.indexOf("=");
+      const key = line.slice(0, index).trim();
+      let value = line.slice(index + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] ||= value;
+    }
+  } catch {
+    // Env may already be provided by the runner.
+  }
+}
+
+loadEnvFile(resolve(process.cwd(), ".env.local"));
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

@@ -503,6 +503,35 @@ function buildFacts(
     });
   }
 
+  for (const [key, label, unit, flags] of [
+    ["seeded_area_acres", "StatsCan final seeded area", "acres", []],
+    ["harvested_area_acres", "StatsCan final harvested area", "acres", []],
+    ["yield_bu_per_acre", "StatsCan final yield", "bu/ac", []],
+    [
+      "intended_seeded_area_acres",
+      "StatsCan intended seeded area",
+      "acres",
+      ["preliminary_intentions"],
+    ],
+  ] as const) {
+    addFact(facts, {
+      label,
+      value: numberValue(supply, key) ?? "",
+      unit,
+      period: supplyPeriod,
+      source_name: "supply_disposition",
+      source_table: "v_supply_disposition_current",
+      source_row_key: `${supplyCropYear ?? "unknown"}:${grain}:${key}`,
+      scope: "Canada crop-size baseline",
+      confidence: supplyConfidence,
+      quality_flags: [...supplyFlags, ...flags],
+      notes:
+        key === "intended_seeded_area_acres"
+          ? "Preliminary seeding-intention estimate. Replace with final seeded area when released."
+          : undefined,
+    });
+  }
+
   const gmStatus = sourceStatus(freshnessBySource, "grain_monitor_snapshots");
   const gmWeek = numberValue(grainMonitor, "grain_week");
   const gmLagged = grainWeek !== null && gmWeek !== null && gmWeek < grainWeek;

@@ -31,6 +31,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 YAHOO_BASE_URL = "https://query2.finance.yahoo.com/v8/finance/chart"
 SUPABASE_TIMEOUT_SECONDS = 60
 YAHOO_TIMEOUT_SECONDS = 60
@@ -328,6 +330,36 @@ def main() -> None:
     upserted = upsert_fx_rows(supabase_url, service_role_key, rows)
     recalculation = recalculate_cad_prices(supabase_url, service_role_key, start_date, end_date)
     verification = fetch_verification_rows(supabase_url, service_role_key, start_date)
+    source_run: dict[str, Any] | None = None
+    warnings: list[str] = []
+    try:
+        source_run = write_source_run(
+            supabase_url,
+            service_role_key,
+            source_name="fx_rates",
+            source_lane="cross_border",
+            collector_name="import-fx-rates",
+            status="success",
+            source_period_start=start_date,
+            source_period_end=end_date,
+            latest_source_label=f"{PAIR} through {end_date}",
+            rows_inserted=upserted,
+            rows_updated=recalculation["usd_rows_updated"] + recalculation["cad_rows_updated"],
+            source_url=f"{YAHOO_BASE_URL}/{symbol_used}",
+            metadata={
+                "pair": PAIR,
+                "symbol_used": symbol_used,
+                "inverted": inverted,
+                "days": args.days,
+                "cad_backfill": recalculation,
+                "verification_sample_counts": {
+                    "fx_rates": len(verification.get("fx_rates", [])),
+                    "grain_prices": len(verification.get("grain_prices", [])),
+                },
+            },
+        )
+    except SourceRunError as exc:
+        warnings.append(f"source_runs write failed: {exc}")
 
     summary = {
         "status": "success",
@@ -338,6 +370,8 @@ def main() -> None:
         "date_range": {"start": start_date, "end": end_date},
         "cad_backfill": recalculation,
         "verification": verification,
+        "source_run": source_run,
+        "warnings": warnings,
         "duration_ms": round((time.time() - start_time) * 1000),
     }
     print(json.dumps(summary, indent=2))

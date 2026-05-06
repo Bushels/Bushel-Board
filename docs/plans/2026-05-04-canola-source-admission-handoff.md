@@ -1,6 +1,7 @@
 # Canola Source Admission Handoff
 
 Date: 2026-05-04
+Updated: 2026-05-06
 
 Purpose: hand off the next Bushel Board session after the deterministic Canola Market Read V1 and knowledge-normalization work. The next session should import and verify source data before adding another thesis writer or dashboard claim.
 
@@ -9,37 +10,41 @@ Purpose: hand off the next Bushel Board session after the deterministic Canola M
 - Branch: `codex/data-layer-foundation-v1`
 - PR: https://github.com/Bushels/Bushel-Board/pull/12
 - Deterministic Canola Market Read V1 exists and reads from `get_canada_thesis_packet('Canola', ...)`.
-- `source_runs` exists, but each collector still needs live run summaries before source freshness becomes complete.
+- `source_runs` now has successful live run summaries for Producer Cars, CFTC COT, StatsCan crop baseline, Canola Council inventory, FX rates, and grain prices.
+- Active Codex automations now refresh Producer Cars, CFTC COT, StatsCan baseline, price/FX, and Canola Council inventory on their source cadence.
+- Barchart OnDemand intraday Canola quote support is wired and paused until `BARCHART_ONDEMAND_API_KEY` is available.
+- FX CAD recalculation is restricted to service-role collectors after migration `20260506180718`.
+- `get_canada_thesis_packet()` now prefers the requested packet crop year for supply rows after migration `20260506181223`; the live Canola read shows the 2025-2026 crop baseline facts.
 - No new weather, cash-bid, satellite, AIS, Kalshi, or social-data lane has been admitted for Canola V1.
 
-## What Is Left For Canola Data
+## Admission Order And 2026-05-05 Outcome
 
 Immediate import/admission order:
 
 1. `cgc_producer_cars`
    - Existing script: `scripts/import-producer-cars.mjs`.
    - Why it matters: direct farmer rail demand and allocation pressure.
-   - Need next: dry-run/live verification, table freshness check, source-run summary, and packet/RPC visibility.
+   - Outcome: live import succeeded, `producer_car_allocations` has current Canola rows, `source_runs` is populated, and Codex automation runs after the weekly CGC import.
 
 2. `cftc_cot`
    - Existing script/function: `scripts/collect-cftc-cot.py` and Supabase Edge Function `import-cftc-cot`.
    - Why it matters: futures positioning pressure.
-   - Need next: verify latest CFTC import, confirm `CANOLA (ICE)` direct rows, keep soybean oil/meal as proxy/context, and show COT lag by design.
+   - Outcome: live import succeeded, direct `CANOLA` rows are present, soybean oil/meal remain secondary proxy/context rows, and Codex automation runs after the Friday CFTC release.
 
 3. `aafc_statscan_supply`
-   - Existing script: `scripts/seed-supply-disposition.ts`.
+   - Existing script: `scripts/import-canola-crop-baseline.ts` for Canola baseline; `scripts/seed-supply-disposition.ts` remains the broader seed path.
    - Why it matters: crop-size denominator for delivery pace, export pace, stocks-to-use, and supply pressure.
-   - Need next: update Canola baseline rows with final 2025 crop size and 2026 intended acres.
+   - Outcome: final 2025 production/yield/seeded/harvested acres and 2026 intended seeded acres are stored in `supply_disposition` and exposed through `v_supply_disposition_current`.
 
 4. `grain_prices`
    - Existing lane is thin/stale risk.
    - Why it matters: price follow-through after movement/supply facts.
-   - Need next: verify current Canola futures/price feed, sample timestamp, unit, contract, and CAD/USD handling.
+   - Outcome: FX and grain price importers write `source_runs`; USD-linked price rows receive CAD normalization from the latest available USD/CAD rate on or before the price date.
 
 5. `canola_council_markets_stats`
-   - New candidate registry source, not yet a DB lane.
+   - Inventory DB lane now exists: `canola_council_market_stats_inventory`.
    - Why it matters: Canola Council has useful Canola-specific tables for production, processing, supply/disposition, exports, top markets, and prices.
-   - Need next: scrape inventory first, not ingestion. Capture page URL, table title, upstream source, update date, period, units, and whether the value is raw source truth or a Council-compiled display.
+   - Outcome: inventory scraper captures page URL, table title, upstream source, update date, period hints, unit hints, headers, and sample rows. Values are not admitted into metric tables yet.
 
 Deferred for later: weather/drought/satellite/GEE, local cash bids, AIS/shipping, Kalshi, and social/X signal lanes.
 
@@ -80,7 +85,7 @@ Read first:
 5. docs/plans/2026-05-04-canola-source-admission-handoff.md
 
 Task:
-Start with Producer Cars and CFTC COT. Verify/import deterministically, write source_runs where the collectors support it, and confirm what the live Canola packet can see. Then seed or prepare the Statistics Canada 2025 final Canola production/yield/acres and 2026 intended seeded acres. Inventory Canola Council Markets & Stats pages, but do not admit scraped values until source label, update date, period, and units are explicit.
+Watch the 2026-05-06 Grain Monitor automation, then verify the first scheduled Codex automation runs for Producer Cars, CFTC COT, StatsCan crop baseline, price/FX, and Canola Council inventory. Confirm each writes or preserves a current `source_run`, and confirm the live Canola packet can see the admitted facts. Do not admit Canola Council scraped values beyond inventory until source label, update date, period, and units are explicit. When the Barchart key arrives, add `BARCHART_ONDEMAND_API_KEY`, dry-run `scripts/import-barchart-canola-intraday.ts`, then unpause the hourly Barchart automation.
 
 Rules:
 - Facts, interpretation, and speculation stay separate.
