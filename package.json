@@ -43,6 +43,7 @@
     "canola-market-read": "npx tsx scripts/generate-canola-market-read.ts",
     "backfill-score-trajectory": "npx tsx scripts/backfill-score-trajectory.ts",
     "test": "vitest run",
+    "test:forecast": "vitest run lib/__tests__/forecast-experiments-schema.test.ts lib/__tests__/forecast-experiments-scoring.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
