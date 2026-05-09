@@ -4,13 +4,15 @@
 **As of:** 2026-05-09
 
 ## Active task
-Current Codex `/goal` track: Canola predictive harness workflow. Phase 0 review packet, Gemini-reviewed results packet, Phase 1A sidecar harness, Phase 1B deterministic snapshot builder, Phase 1C approval brief, and Patch Set 1C local-export/read-boundary implementation are committed or staged on `codex/data-layer-foundation-v1`.
+Current Codex `/goal` track: Canola predictive harness workflow. Phase 0 review packet, Gemini-reviewed results packet, Phase 1A sidecar harness, Phase 1B deterministic snapshot builder, Phase 1C local-export/read-boundary implementation, and Phase 1D local run-artifact builder are committed or staged on `codex/data-layer-foundation-v1`.
 
 Patch Set 1A landed in `a70ed68` (`feat: add forecast experiment sidecar harness`) with sidecar-only `experimental.forecast_experiment_*` migration, `canola-forecast-v1` schema, pure scoring helpers, and focused tests. No live Supabase migration was applied, no DeepSeek/Hermes automation was started, and no dashboard or production read paths were changed.
 
 Patch Set 1B landed locally in `bbce003` (`feat: add canola forecast snapshot builder`). It adds `lib/forecast-experiments/snapshot.ts`, `scripts/build-canola-forecast-snapshot.ts`, `lib/__tests__/forecast-experiments-snapshot.test.ts`, `test:forecast:snapshot`, and `forecast:canola:snapshot`. The builder is local-file only: no live Supabase reads, no sidecar writes, no model/API calls, no Hermes automation, and no dashboard reads. Gemini 3.1 Pro Preview twice audited the compiler/CLI and final re-audit returned no blockers.
 
 Patch Set 1C approval brief landed in `41a666f` (`docs: add predictive harness phase 1c approval brief`). Kyle later gave standing approval for all future harness phases and patches in-thread. Patch Set 1C implementation keeps the read adapter in local-export mode: `lib/forecast-experiments/source-records.ts`, `lib/forecast-experiments/read-adapter.ts`, `scripts/build-canola-forecast-source-records.ts`, focused tests, and package scripts. It does not use Supabase, service-role credentials, live reads, sidecar writes, model calls, Hermes automation, dashboard imports, or production integration.
+
+Patch Set 1D adds a local-only run artifact builder: `lib/forecast-experiments/run-artifact.ts`, `scripts/build-canola-forecast-run-artifact.ts`, focused tests, and package scripts. It packages a deterministic snapshot plus a validated `canola-forecast-v1` JSON output into a hashed run artifact. It does not call models, read Supabase, write sidecar tables, start Hermes, or connect production UI.
 
 Bull/Bear Thesis Board V1 is ready to commit on `codex/data-layer-foundation-v1`. `/thesis` now renders Canada and US thesis packets from the facts-only packet spine instead of legacy Grok/grain-intelligence prose, with stance, confidence, freshness warnings, update timestamps, packet metrics, source provenance, and per-grain bull/bear evidence. Desktop and mobile nav both expose the Thesis tab.
 
@@ -32,7 +34,7 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 - Barchart OnDemand intraday Canola remains paused until `BARCHART_ONDEMAND_API_KEY` is available.
 
 ## Next action
-1. For the predictive harness `/goal`, proceed to the next sidecar phase using Kyle's standing approval, while preserving review-before-production-integration. Candidate Patch Set 1D is sidecar persistence/model-runner planning unless 1C evidence proves a better next slice.
+1. For the predictive harness `/goal`, proceed to the next sidecar phase using Kyle's standing approval, while preserving review-before-production-integration. Candidate Patch Set 1E is either local prompt-pack generation for manual model calls or sidecar persistence planning, depending on whether we want model output first or DB storage first.
 2. Commit, push, and deploy the thesis/seeding/data-spine release candidate when that track resumes.
 3. Point scheduled collector routines at the new `npm run collect:*` commands so `/thesis` cache refresh follows successful source imports.
 4. Verify the deployed `/thesis`, `/overview`, and `/seeding` pages after Vercel deploy.
@@ -40,6 +42,7 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 6. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-09: Canola predictive harness Patch Set 1D implemented as a local run-artifact builder. Added deterministic snapshot+forecast artifact hashing, snapshot/forecast field matching, forecast evidence-clock cutoff checks, model-training-cutoff future-taint blocking, local run-artifact CLI, focused tests, and package scripts. No model/API calls, Supabase reads, sidecar writes, Hermes automation, dashboard imports, or production integration were added. Gemini final re-audit returned no blockers; `npm run test:forecast` and `npm run build` passed locally.
 - 2026-05-09: Canola predictive harness Patch Set 1C implemented in local-export mode after Kyle gave standing approval for future phases. Added source-record conversion, a mockable read-boundary adapter, local source-record CLI, source-record/read-adapter tests, and package scripts. Guardrails cover missing/future clocks, mutable-row ingestion/update proof, future observed periods, timezone-less clocks, forbidden source families, grain price cutoff/market-close handling, untrusted contract mappings, and `canola_market_read` cutoff support. Gemini final re-audit returned no blockers; `npm run test:forecast` and `npm run build` passed locally.
 - 2026-05-09: Canola predictive harness Phase 1C approval brief added and pushed. It is a review gate only: no read adapter, live Supabase reads, sidecar writes, model calls, Hermes automation, dashboard work, or production integration were added. Gemini 3.1 Pro Preview reviewed the brief; its blockers around mutable-row leakage, observed-period timing, timezone normalization, read-only client risk, and current-state helper leakage were incorporated.
 - 2026-05-09: Canola predictive harness Phase 1B deterministic snapshot builder implemented locally. Added stable canonical hashing, source-clock freshness, future `available_at` / `published_at` blocking, revision-taint marking, blocked forecast/score source keys, local-file CLI, focused CLI/compiler tests, and package scripts. Gemini final re-audit found no blockers; `npm run test:forecast` and `npm run build` passed locally.
