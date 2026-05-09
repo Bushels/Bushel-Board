@@ -1,9 +1,15 @@
 # Bushel Board - Current State
 
 **Last verified baseline commit:** `0f7bcdc` on branch `codex/data-layer-foundation-v1` (= pre-release baseline before the May 8 thesis/seeding/data-spine package)
-**As of:** 2026-05-08
+**As of:** 2026-05-09
 
 ## Active task
+Current Codex `/goal` track: Canola predictive harness workflow. Phase 0 review packet, Gemini-reviewed results packet, Phase 1A sidecar harness, and Phase 1B approval brief are committed and pushed on `codex/data-layer-foundation-v1`.
+
+Predictive harness current pushed head: `6dffd8f` (`docs: add predictive harness phase 1b approval brief`). Patch Set 1A landed in `a70ed68` (`feat: add forecast experiment sidecar harness`) with sidecar-only `experimental.forecast_experiment_*` migration, `canola-forecast-v1` schema, pure scoring helpers, and focused tests. No live Supabase migration was applied, no DeepSeek/Hermes automation was started, and no dashboard or production read paths were changed.
+
+Patch Set 1B is awaiting Kyle approval before implementation. The approval brief is `docs/plans/2026-05-09-hermes-predictive-harness-phase1b-approval.md`; the required approval phrase is `Approve Patch Set 1B.` 1B is limited to a local deterministic snapshot builder and CLI over local files only.
+
 Bull/Bear Thesis Board V1 is ready to commit on `codex/data-layer-foundation-v1`. `/thesis` now renders Canada and US thesis packets from the facts-only packet spine instead of legacy Grok/grain-intelligence prose, with stance, confidence, freshness warnings, update timestamps, packet metrics, source provenance, and per-grain bull/bear evidence. Desktop and mobile nav both expose the Thesis tab.
 
 The thesis packet cache is live in Supabase. Migration `20260509033204_add_thesis_packet_cache.sql` creates `thesis_packet_cache` and `get_thesis_board_cached()`. `scripts/refresh-thesis-packet-cache.ts` warmed 21 cache items: 16 Canada grains and 5 US markets. Relevant collectors now have `npm run collect:*` wrapper commands that run the source importer first, then refresh the thesis cache only after success.
@@ -15,6 +21,7 @@ Seeding V1 and overview source-spine updates are in the same release candidate. 
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board`, default branch `master`.
 
 ## Known blockers
+- Predictive harness Patch Set 1B must not start until Kyle approves the 1B brief. The current gate forbids DeepSeek calls, Hermes automation, live Supabase reads, sidecar writes, dashboard work, and production integration.
 - `/api/pipeline/run` is permanently tombstoned as `grok_workflow_deprecated`; do not use it for CGC imports or analysis recovery.
 - Grok-backed farm summary generation is tombstoned; personalized summary refresh needs a Claude/Codex replacement writer before it is current again.
 - `supabase migration list --linked` may still fail intermittently with a `SUPABASE_DB_PASSWORD` auth error in this shell. The live migration ledger was confirmed with `supabase_migrations.schema_migrations` via `supabase db query --linked`.
@@ -23,13 +30,15 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 - Barchart OnDemand intraday Canola remains paused until `BARCHART_ONDEMAND_API_KEY` is available.
 
 ## Next action
-1. Commit, push, and deploy this release candidate.
-2. Point scheduled collector routines at the new `npm run collect:*` commands so `/thesis` cache refresh follows successful source imports.
-3. Verify the deployed `/thesis`, `/overview`, and `/seeding` pages after Vercel deploy.
-4. When the Barchart key arrives, add `BARCHART_ONDEMAND_API_KEY` to `.env.local`, run `npx tsx scripts/import-barchart-canola-intraday.ts --dry-run`, then unpause `barchart-canola-intraday-quote-import`.
-5. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
+1. For the predictive harness `/goal`, wait for Kyle to approve or revise Patch Set 1B. Do not implement it without the explicit approval phrase.
+2. Commit, push, and deploy the thesis/seeding/data-spine release candidate when that track resumes.
+3. Point scheduled collector routines at the new `npm run collect:*` commands so `/thesis` cache refresh follows successful source imports.
+4. Verify the deployed `/thesis`, `/overview`, and `/seeding` pages after Vercel deploy.
+5. When the Barchart key arrives, add `BARCHART_ONDEMAND_API_KEY` to `.env.local`, run `npx tsx scripts/import-barchart-canola-intraday.ts --dry-run`, then unpause `barchart-canola-intraday-quote-import`.
+6. Define the replacement Claude/Codex farm-summary writer before promising fresh `farm_summaries`.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-09: Canola predictive harness Phase 1A and 1B review gate landed. Phase 1A committed sidecar-only experiment tables under `experimental`, strict `canola-forecast-v1` validation, pure scoring helpers, focused tests, and `test:forecast`; `npm run test:forecast` and `npm run build` passed locally. Phase 1B approval brief was Gemini-reviewed and now waits for Kyle approval before any snapshot-builder implementation.
 - 2026-05-08: Built Bull/Bear Thesis Board V1 on the cached Canada/US thesis packet spine. `/thesis` renders cached facts-only packets, nav links expose the tab, `thesis_packet_cache` is live and warmed, collector wrappers refresh cache after successful source imports, and Gemini 3.1 Pro Preview audited the wrapper failure modes.
 - 2026-05-08: Expanded Seeding V1 with public USDA/Canada seeding progress, spring-wheat pulse drilldown, planted-acre badges, and prior-year progress context. Overview now includes source-backed delivery bins and price/source freshness improvements.
 - 2026-05-06: Hardened the FX CAD recalculation RPC grant boundary. Migration `20260506180718` is applied live and restricts `public.recalculate_grain_prices_cad(date, date)` execution to `service_role`; live grant verification shows only `postgres` and `service_role` have `EXECUTE`.
