@@ -6,6 +6,8 @@
 
 **2026-05-09 operating correction:** Do not use Hermes automation for this harness. Codex Automation owns the scheduled no-write review path through `canola-predictive-harness-no-write-review`. Keep this file as the source-timing, sidecar, and scoring-risk review packet; use `docs/plans/2026-05-09-codex-automation-predictive-harness-ops.md` for the active operating path.
 
+**2026-05-09 thesis-review correction:** The first learning loop is weekly thesis review, not price-only backtesting. Freeze the bull/bear thesis at Week N, reveal only next-week evidence, judge whether the drivers held up, and adjust before moving to Week N+1. Price scoring is useful when trustworthy price history exists, but incomplete price data must not block the thesis-review loop.
+
 ---
 
 ## Executive Verdict
@@ -18,7 +20,7 @@ Fix these before implementation:
 
 - Create sidecar experiment storage instead of writing to `market_analysis`, `grain_intelligence`, or dashboard reads.
 - Prove a no-future-leakage replay protocol before running any model backtest.
-- Confirm Canola outcome price availability and settlement semantics for 1-week and 4-week scoring.
+- Confirm Canola outcome price availability and settlement semantics before making price-skill claims.
 - Define an explicit futures contract roll policy before using any price outcome.
 - Treat historical LLM backtests before the model's training cutoff as pretraining-tainted unless proven otherwise.
 - Use a separate experimental schema if possible, not just public tables with a prefix.

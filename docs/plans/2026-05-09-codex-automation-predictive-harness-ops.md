@@ -54,6 +54,22 @@ Fresh review is required before any of these are added:
 
 The current useful product outcome is boring on purpose: weekly proof that the harness remains deterministic, isolated, and ready for a reviewed live-data or model-runner patch when that becomes worth doing.
 
+## Weekly Thesis Review Loop
+
+The first learning loop is not price-only. Freeze a weekly Canola bull/bear thesis, stop the clock, then reveal only next-week evidence: official data, public news, market context, analyst interpretation, and warnings available by the review cutoff.
+
+Use `npm run forecast:canola:review-thesis` to package that review locally. The package does not require complete grain price history. It records:
+
+- the frozen run artifact,
+- accepted next-week evidence,
+- blocked evidence that was already known, too late, or from forbidden sources,
+- driver-level support/contradiction labels,
+- missed signals,
+- next-week adjustments,
+- whether the review can become a forward-calibration candidate.
+
+Price scoring remains a separate optional lane. It should support the thesis review when trustworthy price data exists, not block the evidence-review loop.
+
 ## Gemini Review Notes
 
 Gemini 3.1 Pro Preview reviewed the no-Hermes correction on 2026-05-09. Its material guidance was to replace future Hermes ownership language with Codex Automation ownership, keep the automation dry-run or sidecar-only, and require review before any production-table, private-data, dashboard, or writer boundary changes.
