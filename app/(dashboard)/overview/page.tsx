@@ -3,7 +3,7 @@
 // Visual direction: Direction A wheat/canola palette + Fraunces typography +
 // generous whitespace, combined with Direction B's chart density + trajectory
 // graphs + tabular-nums stance scores.
-// Data: all real from Supabase — no mocks except the Kalshi cards.
+// Data: all real from Supabase - no mocks except the Kalshi cards.
 
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
@@ -11,6 +11,7 @@ import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SpotPriceRail } from "@/components/overview/spot-price-rail";
 import { HeroThesis } from "@/components/overview/hero-thesis";
 import { GrainStanceGrid } from "@/components/overview/grain-stance-grid";
+import { GrainDeliveriesBins } from "@/components/overview/grain-deliveries-bins";
 import { SeedingStrip } from "@/components/overview/seeding-strip";
 import { MarketplaceStrip } from "@/components/overview/marketplace-strip";
 import { fetchOverviewData } from "@/lib/queries/overview-data";
@@ -35,6 +36,7 @@ export default async function OverviewPage() {
     caStances,
     usStances,
     spotPrices,
+    grainDeliveryBinRows,
     heroGrain,
     heroTrajectory,
   } = data;
@@ -48,14 +50,14 @@ export default async function OverviewPage() {
         minHeight: "100vh",
       }}
     >
-      {/* Spot price rail — thin ticker just below nav */}
+      {/* Spot price rail - thin ticker just below nav */}
       {spotPrices.length > 0 && <SpotPriceRail prices={spotPrices} />}
 
       <div
         className="mx-auto max-w-7xl px-4"
         style={{ paddingTop: 40, paddingBottom: 80 }}
       >
-        {/* ── Section 1: Hero AI Thesis ─────────────────────────────────── */}
+        {/* Section 1: Hero AI Thesis */}
         <section style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 24, fontFamily: "var(--font-dm-sans)" }}>
             <div
@@ -87,69 +89,97 @@ export default async function OverviewPage() {
             title="Market thesis unavailable"
             message="The hero thesis is temporarily unavailable. New analysis releases Friday evenings."
           >
-          {heroGrain ? (
-            <HeroThesis
-              grain={heroGrain}
-              trajectory={heroTrajectory}
-              grainWeek={grainWeek}
-            />
-          ) : (
-            <div
-              style={{
-                background: "#fff",
-                border: "1px solid #d7cfba",
-                padding: "40px 44px",
-              }}
-            >
-              <SectionStateCard
-                title="No market thesis available yet"
-                message="Analysis releases every Friday evening. Check back after the desk chief runs."
+            {heroGrain ? (
+              <HeroThesis
+                grain={heroGrain}
+                trajectory={heroTrajectory}
+                grainWeek={grainWeek}
               />
-            </div>
-          )}
+            ) : (
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #d7cfba",
+                  padding: "40px 44px",
+                }}
+              >
+                <SectionStateCard
+                  title="No market thesis available yet"
+                  message="Analysis releases every Friday evening. Check back after the desk chief runs."
+                />
+              </div>
+            )}
           </SectionBoundary>
         </section>
 
         {SECTION_DIVIDER}
 
-        {/* ── Section 2: Full Grain Stance Grid ─────────────────────────── */}
+        {/* Section 2: Full Grain Stance Grid */}
         <section style={{ marginTop: 64, marginBottom: 64 }}>
           <SectionHeader
             title="All markets"
-            subtitle="Every grain, every market — Canada and US side by side."
+            subtitle="Every grain, every market - Canada and US side by side."
           />
           <SectionBoundary
             title="Stance grid unavailable"
             message="The Canadian and US stance grid is temporarily unavailable. Try refreshing in a minute."
           >
-          <div style={{ marginTop: 32 }}>
-            {hasAny ? (
-              <div
-                style={{
-                  background: "#fff",
-                  border: "1px solid #d7cfba",
-                  padding: "32px 36px",
-                }}
-              >
-                <GrainStanceGrid
-                  caRows={caStances}
-                  usRows={usStances}
-                  grainWeek={grainWeek}
+            <div style={{ marginTop: 32 }}>
+              {hasAny ? (
+                <div
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #d7cfba",
+                    padding: "32px 36px",
+                  }}
+                >
+                  <GrainStanceGrid
+                    caRows={caStances}
+                    usRows={usStances}
+                    grainWeek={grainWeek}
+                  />
+                </div>
+              ) : (
+                <SectionStateCard
+                  title="Market data temporarily unavailable"
+                  message="Canadian and US stance data are unavailable right now. Check back shortly."
                 />
-              </div>
-            ) : (
-              <SectionStateCard
-                title="Market data temporarily unavailable"
-                message="Canadian and US stance data are unavailable right now. Check back shortly."
-              />
-            )}
-          </div>
+              )}
+            </div>
           </SectionBoundary>
         </section>
 
         {SECTION_DIVIDER}
 
-        {/* ── Section 3: Seeding Progress ───────────────────────────────── */}
+        {/* Section 3: Weekly deliveries and farm-bin estimate */}
+        <section style={{ marginTop: 64, marginBottom: 64 }}>
+          <SectionHeader
+            title="Weekly Deliveries and Farmer Storage"
+            subtitle="Current-week producer deliveries and the AAFC production + carry-in estimate for grain still in farmer storage."
+          />
+          <SectionBoundary
+            title="Delivery and bin charts unavailable"
+            message="The weekly delivery and farm-bin charts are temporarily unavailable. Try refreshing in a minute."
+          >
+            <div style={{ marginTop: 32 }}>
+              {grainDeliveryBinRows.length > 0 ? (
+                <GrainDeliveriesBins
+                  rows={grainDeliveryBinRows}
+                  grainWeek={grainWeek}
+                />
+              ) : (
+                <SectionStateCard
+                  title="Delivery and bin data temporarily unavailable"
+                  message="The current week delivery graphic could not load right now. Check back shortly."
+                />
+              )}
+            </div>
+          </SectionBoundary>
+        </section>
+
+        {SECTION_DIVIDER}
+
+        {/* Section 4: Seeding Progress */}
         <section style={{ marginTop: 64, marginBottom: 64 }}>
           <SectionBoundary
             title="Seeding progress unavailable"
@@ -161,7 +191,7 @@ export default async function OverviewPage() {
 
         {SECTION_DIVIDER}
 
-        {/* ── Section 4: Marketplace ────────────────────────────────────── */}
+        {/* Section 5: Marketplace */}
         <section style={{ marginTop: 64, marginBottom: 64 }}>
           <SectionBoundary
             title="Marketplace unavailable"
@@ -188,12 +218,12 @@ export default async function OverviewPage() {
           }}
         >
           <span>
-            Bushel Board · Predictive Marketplace for prairie &amp; corn-belt
+            Bushel Board - Predictive Marketplace for prairie &amp; corn-belt
             grain
           </span>
           <span>
-            Stance resets every Friday · {caStances.length + usStances.length}{" "}
-            markets tracked · Week {grainWeek}
+            Stance resets every Friday - {caStances.length + usStances.length}{" "}
+            markets tracked - Week {grainWeek}
           </span>
         </div>
       </div>

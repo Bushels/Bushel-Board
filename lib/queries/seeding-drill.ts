@@ -28,6 +28,7 @@ const COMMODITY_TO_CGC: Record<string, string> = {
   WHEAT: "Wheat",
   BARLEY: "Barley",
   OATS: "Oats",
+  SORGHUM: "Sorghum",
 };
 
 function cgcGrainFor(commodity: string): string {

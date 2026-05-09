@@ -5,8 +5,8 @@ USDA NASS weekly crop progress / crop condition importer.
 Fetches weekly national AND grain-belt state-level crop progress and condition
 rows from the USDA NASS QuickStats API, pivots them into canonical weekly rows,
 and upserts them to the usda_crop_progress table in Supabase. State-level rows
-are kept only for the 15 grain-belt states (see GRAIN_BELT_STATES); other states
-are skipped to bound row volume.
+are kept only for the configured grain and northern spring-wheat states (see
+GRAIN_BELT_STATES); other states are skipped to bound row volume.
 
 Usage:
   python3 scripts/import-usda-crop-progress.py
@@ -98,6 +98,17 @@ MARKETS = [
         "planting_order": ["primary"],
         "progress_order": ["primary"],
     },
+    {
+        "market_name": "Sorghum",
+        "commodity": "SORGHUM",
+        "cgc_grain": "Sorghum",
+        "variants": [
+            {"source_key": "primary", "commodity_desc": "SORGHUM", "class_desc": None},
+        ],
+        "condition_order": ["primary"],
+        "planting_order": ["primary"],
+        "progress_order": ["primary"],
+    },
 ]
 
 MARKETS_BY_COMMODITY = {market["commodity"]: market for market in MARKETS}
@@ -137,24 +148,30 @@ CONDITION_FIELD_BY_UNIT = {
 # that are then filtered to GRAIN_BELT_STATES below — powers /seeding map.
 AGG_LEVELS_TO_FETCH = ["NATIONAL", "STATE"]
 
-# 15 US grain-belt states whose state-level rows are retained on import.
-# Names must match USDA NASS state_name values (uppercase). All other states
-# are dropped during normalization to bound row volume.
+# US grain and northern spring-wheat states whose state-level rows are retained
+# on import. Names must match USDA NASS state_name values (uppercase). All
+# other states are dropped during normalization to bound row volume.
 GRAIN_BELT_STATES = {
     "IOWA",
     "ILLINOIS",
+    "IDAHO",
     "INDIANA",
     "OHIO",
     "NEBRASKA",
     "KANSAS",
+    "MONTANA",
     "MISSOURI",
     "SOUTH DAKOTA",
     "NORTH DAKOTA",
     "MINNESOTA",
+    "WASHINGTON",
     "WISCONSIN",
     "MICHIGAN",
     "KENTUCKY",
     "ARKANSAS",
+    "COLORADO",
+    "NORTH CAROLINA",
+    "OKLAHOMA",
     "TEXAS",
 }
 
@@ -478,6 +495,20 @@ def build_canonical_rows(
                 warnings.append(
                     f"{group['market_name']} {group['week_ending']}: missing 5-year average planting pace"
                 )
+
+        planted_previous_year = pick_metric(sources, planting_order, "PROGRESS, PREVIOUS YEAR", "PCT PLANTED")
+        row["planted_pct_previous_year"] = planted_previous_year
+        if row["planted_pct"] is not None and planted_previous_year is not None:
+            row["planted_pct_yoy_change"] = round(float(row["planted_pct"]) - float(planted_previous_year), 3)
+        else:
+            row["planted_pct_yoy_change"] = None
+
+        emerged_previous_year = pick_metric(sources, planting_order, "PROGRESS, PREVIOUS YEAR", "PCT EMERGED")
+        row["emerged_pct_previous_year"] = emerged_previous_year
+        if row["emerged_pct"] is not None and emerged_previous_year is not None:
+            row["emerged_pct_yoy_change"] = round(float(row["emerged_pct"]) - float(emerged_previous_year), 3)
+        else:
+            row["emerged_pct_yoy_change"] = None
 
         canonical_rows.append(row)
 

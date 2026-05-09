@@ -154,6 +154,9 @@ Every piece of work must satisfy before being marked complete:
 - `node scripts/import-producer-cars.mjs` — CGC Producer Car CSV importer (idempotent upsert into `producer_car_allocations`). Run by Claude Desktop Routine `collect-producer-cars` Thu 4 PM MT.
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
+- `npm run refresh-thesis-cache` - refresh cached Canada/US Bull/Bear thesis packets from the current packet RPC spine.
+- `npm run collect:*` - thesis-relevant collector wrappers. They run the mechanical importer first, then refresh `thesis_packet_cache` only after success. Use importer-specific dry-run commands or direct wrapper dry-run calls on Windows.
+
 ## Intelligence Pipeline
 - **⚠️ ALL VERCEL CRONS DISABLED (2026-03-17):** The legacy ingest/Grok chain is no longer scheduled and is now tombstoned. V2 is triggered manually and by **Claude Desktop Routines/Schedules** (Anthropic-native scheduled tasks) — not Vercel cron and not any third-party scheduler.
 - **V2 (current) — Claude Agent Desk swarm:** The production weekly pipeline. Fully Claude-only, no Grok, no xAI in the analysis loop.
@@ -163,7 +166,7 @@ Every piece of work must satisfy before being marked complete:
   - **Search tools:** Anthropic-native `web_search_20250305` + internal X API v2 gateway Edge Function (`search-x-signals`). **No xAI / Grok anywhere in the V2 loop.**
   - **Viking knowledge:** L0/L1/L2 tiered system injected per specialist intent (`lib/knowledge/viking-l0.ts`, `viking-l1.ts`, RPC `get_knowledge_context` for L2 chunks).
 - **V1 Grok analysis chain (retired):** `analyze-grain-market`, `search-x-intelligence`, `analyze-market-data`, `generate-intelligence`, `generate-farm-summary`, and `/api/pipeline/run` now return HTTP 410 tombstones. Do not re-enable them, do not use `XAI_API_KEY` for recovery, and do not write new Grok rows to `market_analysis`, `grain_intelligence`, `farm_summaries`, or `x_market_signals`.
-- **Daily data collectors (feed V2 scouts):** 6 Claude Desktop Routines feed Supabase throughout the week: `collect-crop-progress` (Mon), `collect-grain-monitor` (Wed), `collect-export-sales` (Thu AM), `collect-cgc` (Thu PM), `collect-cftc-cot` (Fri PM), `collect-wasde` (Fri monthly). Configs: `docs/reference/collector-task-configs.md`. Collectors write intra-week ticks to `score_trajectory` with `scan_type='collector_*'` (Track 45-B).
+- **Daily data collectors (feed V2 scouts + /thesis cache):** Claude Desktop Routines feed Supabase throughout the week: `collect-crop-progress` (Mon), `collect-grain-monitor` (Wed), `collect-export-sales` (Thu AM), `collect-cgc` (Thu PM), `collect-producer-cars` (Thu PM), `collect-cftc-cot` (Fri PM), `collect-wasde` (monthly), and `collect-wasde-archive` (monthly revision history). Configs: `docs/reference/collector-task-configs.md`. Thesis-relevant collectors should use `npm run collect:*` wrappers so successful imports refresh `thesis_packet_cache`. Collectors also write intra-week ticks to `score_trajectory` / `us_score_trajectory` with `scan_type='collector_*'` (Track 45-B).
 - **CFTC COT import:** `GET /api/cron/import-cftc-cot` → `import-cftc-cot` Edge Function. Public cron ingress disabled; triggered by `collect-cftc-cot` Claude Desktop Routine.
 - **Advisor chat (Bushy):** Anthropic Claude (Opus/Sonnet depending on task) with internal tool use. Legacy Grok-backed chat is retired.
 - **Parallel debate scripts:** Retired with the Grok workflow. Use Claude/Codex review for thesis QA.
@@ -189,7 +192,16 @@ Every piece of work must satisfy before being marked complete:
 - **X API v2 (data source for sentiment-scout + Bushy):** Direct X/Twitter API v2 gateway behind a Supabase Edge Function. Replaces Grok's `x_search` for both pipeline scanning and Bushy's real-time signal lookups. Credentials in Vercel env: `XAPI_CONSUMER_KEY`, `XAPI_SECRET_KEY`, `XAPI_BEARER_TOKEN`. Decouples tweet discovery from LLM reasoning entirely.
 - **Auth for chain triggers:** Claude Desktop Routines hit internal Edge Functions using `verify_jwt = false` plus `x-bushel-internal-secret` backed by `BUSHEL_INTERNAL_FUNCTION_SECRET`. Never use anon JWTs for internal chaining. Vercel cron is no longer a public ingress (all Vercel crons disabled 2026-03-17).
 
+## Data Layer Foundation Additions
+- **Source-spine tables:** `source_runs` (normalized collector run ledger), `grain_market_mappings` (Canada/US market identity mapping), `thesis_packet_cache` (cached Canada/US facts-only Bull/Bear packets for `/thesis`; refreshed by `npm run refresh-thesis-cache` and successful `npm run collect:*` wrappers).
+- **Thesis packet RPCs:** `get_canada_thesis_packet(...)` and `get_us_thesis_packet(...)` build facts-only packet JSON; `refresh_thesis_packet_cache(...)` writes `thesis_packet_cache`; `get_thesis_board_cached(p_crop_year, p_market_year)` serves `/thesis`.
+- **Thesis board UI:** `/thesis` renders cached Canada/US thesis packet cards from `app/(dashboard)/thesis/page.tsx`, using stance, confidence, bull/bear drivers, freshness warnings, packet metrics, and source provenance from `lib/queries/thesis-board.ts`.
+- **Thesis query layer:** `lib/queries/thesis-board.ts` normalizes cached packet JSON into `/thesis` cards; `lib/__tests__/thesis-board.test.ts` covers stale flags, packet counts, stance labels, and empty-state handling.
+
 ## Pipeline Monitoring
+- Source run freshness: `SELECT source_name, status, source_date, completed_at FROM source_runs ORDER BY completed_at DESC LIMIT 20;`
+- Thesis cache freshness: `SELECT side, item_key, crop_year, market_year, source_run_watermark, generated_at FROM thesis_packet_cache ORDER BY generated_at DESC LIMIT 25;`
+- Thesis board RPC: `SELECT jsonb_array_length(get_thesis_board_cached('2025-2026', 2025)->'canada') AS canada, jsonb_array_length(get_thesis_board_cached('2025-2026', 2025)->'us') AS us;`
 - Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)
 - Import audit: `SELECT * FROM cgc_imports ORDER BY imported_at DESC LIMIT 5;`
 - Data freshness: `SELECT * FROM v_latest_import;`

@@ -1,5 +1,92 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-08 - Collector wrapper dry-runs and Windows CLI shims are separate risks
+
+**Symptom:** The thesis-cache wrapper worked for normal collector runs, but `npm run collect:cgc -- --dry-run` did not reliably forward `--dry-run` to the child importer in the Windows runner. A broad `shell: true` Windows fix then broke quoted `node -e` child arguments. Gemini 3.1 Pro Preview also flagged that direct `tsx` child commands can fail on Windows when spawned without shell handling.
+
+**Root cause:** There were two different boundaries mixed together: npm argument forwarding and Windows command-shim execution. `npm` did not preserve the appended dry-run flag the way the wrapper needed, while commands such as `tsx`, `npx`, `.cmd`, and `.bat` need Windows shell handling that ordinary `node` and Python child commands should not use.
+
+**Fix status:** `scripts/run-collector-with-thesis-cache-refresh.ts` now detects Windows CLI shims narrowly, handles `.cmd` / `.bat`, treats `--dry-run=true` as a dry-run, labels failed child starts, and documents that wrapper options must appear before the collector command. Collector docs now say to use importer-specific dry-run commands or direct wrapper invocation for dry-run proof.
+
+**Prevention:**
+- Treat npm script argument forwarding as unproven on Windows until a smoke test proves the exact command shape.
+- Use shell execution only for commands that need Windows shims; keep normal executable child commands on direct spawn so quoting stays intact.
+- If a cache refresh runs after a successful collector, make the refresh-failure retry contract explicit because an external scheduler may rerun the whole collector.
+
+**Tags:** #collectors #windows #npm #thesis-cache #gemini-audit
+
+---
+
+## 2026-05-08 - Portfolio imports worked but freshness reporting was Canola-shaped
+
+**Symptom:** COT and grain-price collectors could run successfully while still giving Canola-centered or misleading freshness proof. Oats COT data was imported in the rolling CFTC load, but no Oats row exists in the latest 2026-04-28 CFTC report, so the heartbeat layer originally reported "no rows" instead of the latest available Oats row being stale at 2026-02-03. Repeat COT and price upserts also left `imported_at` unchanged on existing rows.
+
+**Root cause:** The automation reports and heartbeat code were built around the first Canola analytics path, not the full portfolio data contract. The importers also relied on table defaults for `imported_at`, which only apply on insert, not on conflict updates.
+
+**Fix status:** COT now maps and imports OATS, writes CAD and US heartbeats for Corn, Soybeans, Wheat, Oats, and Canola, and flags stale-source grain rows explicitly. COT and grain-price upserts now stamp `imported_at` on every run. The price importer reports all tracked contracts, fetched contracts, skipped contracts, and latest rows.
+
+**Prevention:**
+- Automation summaries must list tracked, fetched, skipped, and stale items, not just the pilot grain.
+- For any idempotent importer using upsert, set `imported_at` explicitly when freshness views read that column.
+- Treat "latest report date" and "latest available row for this grain" as separate facts when a source can omit a thin contract.
+
+**Tags:** #automations #cftc-cot #grain-prices #freshness #portfolio-data-contract
+
+---
+
+## 2026-05-07 - Public seeding page showed no data after successful USDA import
+
+**Symptom:** The USDA crop-progress importer successfully upserted 2026-05-03 rows for Corn, Soybeans, Wheat, Barley, and Oats, but `/seeding` still rendered "No seeding data yet" for anonymous users.
+
+**Root cause:** `usda_crop_progress` had RLS enabled and only authenticated users had a SELECT policy. The `get_seeding_seismograph()` RPC had public execute grants, but it is security-invoker, so anonymous callers still saw zero underlying rows.
+
+**Fix status:** Migration `20260507144604_allow_public_usda_crop_progress_read.sql` adds an anonymous SELECT policy for public USDA source data and revokes direct write privileges from `anon` / `authenticated`. Live verification showed anonymous `get_seeding_seismograph('CORN', 2026)` returning 87 rows and `/seeding` rendering week ending 2026-05-03.
+
+**Prevention:**
+- For public pages backed by RPCs, test the exact anonymous read path, not only service-role data freshness.
+- Treat "RPC execute granted" as incomplete proof when the function reads RLS-protected tables.
+- Keep source-data writes service-role-only; public pages should get narrow SELECT policies on non-user public datasets.
+
+**Tags:** #supabase #rls #seeding #usda-crop-progress #public-page #rpc
+
+---
+
+## 2026-05-07 - Spring Wheat pulse missed three official USDA states
+
+**Symptom:** The first Spring Wheat premium pulse would have shown Minnesota, North Dakota, and South Dakota only, even though the official 2026-05-03 USDA Spring Wheat report also included Idaho, Montana, and Washington.
+
+**Root cause:** `scripts/import-usda-crop-progress.py` retained only the original 15 grain-belt states for state-level crop-progress rows. That trimming was acceptable for the first corn/soybean-centered seeding map, but it silently dropped major northern spring-wheat reporters.
+
+**Fix status:** Expanded the importer state allowlist to include Idaho, Montana, and Washington; added matching `us_state_centroids` rows in migration `20260507172242_add_spring_wheat_state_centroids.sql`; reran the live Wheat import for 2026. Anonymous `get_seeding_seismograph('WHEAT', 2026)` now returns six Spring Wheat planting states for week ending 2026-05-03.
+
+**Follow-up:** Migration `20260507184844_add_crop_progress_previous_year_metrics.sql` admits USDA `PROGRESS, PREVIOUS YEAR` planting and emergence fields into the canonical row. Spring Wheat hover cards can now show last-year comparison directly from the current USDA report instead of inferring it from a prior crop-year row.
+
+**Prevention:**
+- Treat crop-specific geography as part of the data contract, not only a map display detail.
+- Before launching a premium grain lane, compare the imported state/province set against the official source's current reporting set.
+- Keep Spring Wheat labels explicit: U.S. planting/emergence is USDA Spring Wheat excluding durum; Canadian Manitoba data is currently province-wide seeding plus regional spring-wheat notes.
+
+**Tags:** #seeding #usda-crop-progress #spring-wheat #data-contract #map-coverage
+
+---
+
+## 2026-05-08 - Sorghum needed crop-specific southern Plains and Southeast states
+
+**Symptom:** Adding Sorghum to the premium seeding pulse would have missed Colorado, North Carolina, and Oklahoma even though the official 2026-05-03 USDA Sorghum report included those state progress rows.
+
+**Root cause:** The USDA crop-progress and acreage importers used the same retained-state allowlist that was originally built around the central grain belt plus spring-wheat expansion. Sorghum requires a different reporting footprint, and the map RPC also needs a `us_state_centroids` row before a retained state can render.
+
+**Fix status:** Added Sorghum to both USDA importers, expanded the retained-state allowlist to include Colorado, North Carolina, and Oklahoma, added matching map centroids in migration `20260508161414_add_sorghum_state_centroids.sql`, and reran live 2026 Sorghum progress and acreage imports. Anonymous `get_seeding_seismograph('SORGHUM', 2026)` now returns CO, KS, NC, NE, OK, SD, and TX for week ending 2026-05-03.
+
+**Prevention:**
+- For each new USDA crop lane, run a current QuickStats state-set check before assuming the existing map geography is enough.
+- Add importer allowlist coverage and `us_state_centroids` coverage in the same change.
+- Keep acreage badges tolerant of missing state acreage estimates; North Carolina currently has Sorghum progress but no matching 2026 planted-acre estimate in the importer output.
+
+**Tags:** #seeding #usda-crop-progress #sorghum #data-contract #map-coverage
+
+---
+
 ## 2026-05-03 - Supabase migration history drift blocks data-layer deploy
 
 **Symptom:** Data Layer Foundation V1 migrations parsed successfully in a linked Supabase `BEGIN` / `ROLLBACK` check, but `supabase db push --dry-run --linked` would not produce a clean deploy plan.
@@ -1159,7 +1246,7 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 
 **Root cause:** The CFTC parser in `supabase/functions/_shared/cftc-cot-parser.ts` maps CME commodity names to CGC grain names, but Oats is not included in the mapping. 10 of 16 CGC grains correctly lack COT data (no futures contracts exist), but Oats is a genuine gap.
 
-**Fix:** Add `{ "OATS": { cgcGrain: "Oats", mappingType: "primary" } }` to the commodity-to-grain mapping in the CFTC parser.
+**Fix status:** Added `{ "OATS": { cgcGrain: "Oats", mappingType: "primary" } }` to the CFTC parser, widened the COT heartbeat wrapper to write Oats for both Canadian and U.S. tracks, and added an Oats row to `grain_market_mappings`.
 
 **Tags:** #cftc #parser #oats #mapping-gap
 

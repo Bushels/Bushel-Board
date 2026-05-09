@@ -7,6 +7,7 @@ Use this with:
 - `docs/reference/source-registry.md` - source identity, cadence, lag, and admission rules.
 - `docs/reference/canonical-grain-fact-model.md` - shared fact shape and source/quality fields.
 - `docs/reference/cgc-excel-map.md` - sheet, row, CSV, and Supabase mapping detail.
+- `docs/reference/canola-cash-movement-map.md` - Canola V1 dashboard map for old-crop flow, farmer holding, and new-crop pressure.
 
 ## Core Rule
 

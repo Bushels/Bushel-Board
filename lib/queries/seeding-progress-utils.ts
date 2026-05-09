@@ -11,6 +11,10 @@ export interface SeismographRow {
   emerged_pct: number | null;
   harvested_pct: number | null;
   planted_pct_vs_avg: number | null;
+  planted_pct_previous_year: number | null;
+  planted_pct_yoy_change: number | null;
+  emerged_pct_previous_year: number | null;
+  emerged_pct_yoy_change: number | null;
   good_excellent_pct: number | null;
   condition_index: number | null;
   ge_pct_yoy_change: number | null;

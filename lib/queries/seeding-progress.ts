@@ -20,6 +20,10 @@ export interface UsTotalSummary {
   emerged_pct: number | null;
   harvested_pct: number | null;
   planted_pct_vs_avg: number | null;
+  planted_pct_previous_year: number | null;
+  planted_pct_yoy_change: number | null;
+  emerged_pct_previous_year: number | null;
+  emerged_pct_yoy_change: number | null;
   good_excellent_pct: number | null;
   ge_pct_yoy_change: number | null;
 }
@@ -39,6 +43,7 @@ const SMALL_MULTIPLES_COMMODITIES = [
   "WHEAT",
   "BARLEY",
   "OATS",
+  "SORGHUM",
 ] as const;
 
 /** Fetch latest US TOTAL row for a commodity (national headline stats). */
@@ -50,7 +55,7 @@ async function getUsTotalLatest(
   const { data, error } = await supabase
     .from("usda_crop_progress")
     .select(
-      "week_ending,planted_pct,emerged_pct,harvested_pct,planted_pct_vs_avg,good_excellent_pct,ge_pct_yoy_change",
+      "week_ending,planted_pct,emerged_pct,harvested_pct,planted_pct_vs_avg,planted_pct_previous_year,planted_pct_yoy_change,emerged_pct_previous_year,emerged_pct_yoy_change,good_excellent_pct,ge_pct_yoy_change",
     )
     .eq("commodity", commodity.toUpperCase())
     .eq("state", "US TOTAL")
@@ -66,17 +71,21 @@ async function getUsTotalLatest(
     emerged_pct: num(data.emerged_pct),
     harvested_pct: num(data.harvested_pct),
     planted_pct_vs_avg: num(data.planted_pct_vs_avg),
+    planted_pct_previous_year: num(data.planted_pct_previous_year),
+    planted_pct_yoy_change: num(data.planted_pct_yoy_change),
+    emerged_pct_previous_year: num(data.emerged_pct_previous_year),
+    emerged_pct_yoy_change: num(data.emerged_pct_yoy_change),
     good_excellent_pct: num(data.good_excellent_pct),
     ge_pct_yoy_change: num(data.ge_pct_yoy_change),
   };
 }
 
 /**
- * Fetch the small-multiples dashboard payload: all 5 grain-belt commodities
+ * Fetch the small-multiples dashboard payload: all six grain-belt commodities
  * with their state-level seismograph data + national headline summary.
  *
- * 5 parallel RPC calls + 5 parallel US TOTAL queries = 10 round trips,
- * all fired together. Total payload ~350 state rows + 5 summary rows.
+ * Six parallel RPC calls + six parallel US TOTAL queries + acreage lookups,
+ * all fired together. Total payload stays small enough for this dashboard.
  */
 export async function getSeedingDashboard(
   marketYear: number,
@@ -123,6 +132,10 @@ export async function getSeedingSeismograph(
     emerged_pct: num(r.emerged_pct),
     harvested_pct: num(r.harvested_pct),
     planted_pct_vs_avg: num(r.planted_pct_vs_avg),
+    planted_pct_previous_year: num(r.planted_pct_previous_year),
+    planted_pct_yoy_change: num(r.planted_pct_yoy_change),
+    emerged_pct_previous_year: num(r.emerged_pct_previous_year),
+    emerged_pct_yoy_change: num(r.emerged_pct_yoy_change),
     good_excellent_pct: num(r.good_excellent_pct),
     condition_index: num(r.condition_index),
     ge_pct_yoy_change: num(r.ge_pct_yoy_change),

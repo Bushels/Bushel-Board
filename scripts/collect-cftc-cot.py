@@ -4,11 +4,8 @@ collect-cftc-cot — Phase 1 wrapper around the import-cftc-cot Edge Function.
 
 Calls the Edge Function with internal auth, then fans out Phase 1 heartbeat
 ticks to both:
-  * US markets (us_score_trajectory): Corn, Soybeans, Wheat (Oats has no
-    disaggregated CFTC series — skipped).
-  * CAD grains (score_trajectory): Canola, Corn, Soybeans, Wheat (the 4
-    grains with CFTC COT mappings per supabase/functions/_shared/
-    cftc-cot-parser.ts).
+  * US markets (us_score_trajectory): Corn, Soybeans, Wheat, Oats.
+  * CAD grains (score_trajectory): Canola, Corn, Soybeans, Wheat, Oats.
 
 Usage:
   python3 scripts/collect-cftc-cot.py
@@ -35,8 +32,13 @@ HEARTBEAT_CLI = Path(__file__).with_name("write-collector-heartbeat.py")
 TRAJECTORY_SCAN_TYPE = "collector_cftc_cot"
 TRAJECTORY_TRIGGER = "CFTC COT weekly refresh"
 
-US_MARKETS_WITH_COT = ["Corn", "Soybeans", "Wheat"]
-CAD_GRAINS_WITH_COT = ["Canola", "Corn", "Soybeans", "Wheat"]
+US_MARKETS_WITH_COT = ["Corn", "Soybeans", "Wheat", "Oats"]
+CAD_GRAINS_WITH_COT = ["Canola", "Corn", "Soybeans", "Wheat", "Oats"]
+COT_HEARTBEAT_GRAINS = sorted(set(US_MARKETS_WITH_COT + CAD_GRAINS_WITH_COT))
+COT_SELECT_FIELDS = (
+    "report_date,commodity,cgc_grain,mapping_type,managed_money_long,"
+    "managed_money_short,prod_merc_long,prod_merc_short,crop_year,grain_week"
+)
 
 EDGE_TIMEOUT_SECONDS = 180
 SUPABASE_TIMEOUT_SECONDS = 30
@@ -104,7 +106,7 @@ def trigger_edge_function(supabase_url: str, service_key: str, internal_secret: 
 
 
 def fetch_latest_cot_report(supabase_url: str, service_key: str) -> tuple[str, list[dict[str, Any]]]:
-    """Return (latest_report_date, rows) from cftc_cot_positions for that date."""
+    """Return latest report rows plus latest available stale rows for missing tracked grains."""
     url = supabase_url.rstrip("/") + "/rest/v1/cftc_cot_positions"
     qs_latest = urllib.parse.urlencode({
         "select": "report_date",
@@ -123,7 +125,7 @@ def fetch_latest_cot_report(supabase_url: str, service_key: str) -> tuple[str, l
 
     # Pull all rows for that report_date.
     qs_rows = urllib.parse.urlencode({
-        "select": "report_date,commodity,cgc_grain,mapping_type,managed_money_long,managed_money_short,prod_merc_long,prod_merc_short,crop_year,grain_week",
+        "select": COT_SELECT_FIELDS,
         "report_date": f"eq.{report_date}",
         "limit": "100",
     })
@@ -133,6 +135,36 @@ def fetch_latest_cot_report(supabase_url: str, service_key: str) -> tuple[str, l
     )
     with urllib.request.urlopen(req2, timeout=SUPABASE_TIMEOUT_SECONDS) as response:
         detail_rows = json.loads(response.read().decode("utf-8", "ignore") or "[]")
+
+    # Some CFTC contracts can stop appearing in the current weekly report even
+    # though the commodity remains part of the portfolio. Pull the latest
+    # available row for any missing tracked grain so heartbeats can report
+    # "stale source" instead of "not imported".
+    present_grains = {row.get("cgc_grain") for row in detail_rows if row.get("cgc_grain")}
+    seen = {(row.get("report_date"), row.get("commodity")) for row in detail_rows}
+    for grain in COT_HEARTBEAT_GRAINS:
+        if grain in present_grains:
+            continue
+        qs_grain = urllib.parse.urlencode({
+            "select": COT_SELECT_FIELDS,
+            "cgc_grain": f"eq.{grain}",
+            "order": "report_date.desc,commodity.asc",
+            "limit": "20",
+        })
+        req_grain = urllib.request.Request(
+            f"{url}?{qs_grain}",
+            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+        )
+        with urllib.request.urlopen(req_grain, timeout=SUPABASE_TIMEOUT_SECONDS) as response:
+            grain_rows = json.loads(response.read().decode("utf-8", "ignore") or "[]")
+        if not grain_rows:
+            continue
+        latest_grain_date = grain_rows[0].get("report_date")
+        for row in grain_rows:
+            key = (row.get("report_date"), row.get("commodity"))
+            if row.get("report_date") == latest_grain_date and key not in seen:
+                detail_rows.append(row)
+                seen.add(key)
     return report_date, detail_rows
 
 
@@ -168,6 +200,11 @@ def cot_signal_note(market: str, rows: list[dict[str, Any]]) -> tuple[str, str]:
         severity = "normal"
     sign = "long" if mm_net > 0 else "short"
     return severity, f"CFTC COT — {market} MM net {mm_net:+,} ({sign})"
+
+
+def latest_row_date(rows: list[dict[str, Any]]) -> str | None:
+    dates = [r.get("report_date") for r in rows if r.get("report_date")]
+    return max(dates) if dates else None
 
 
 def invoke_heartbeat(side: str, market: str, severity: str, signal_note: str,
@@ -216,31 +253,47 @@ def build_and_emit(report_date: str, rows: list[dict[str, Any]], dry_run: bool) 
     for market in US_MARKETS_WITH_COT:
         rs = by_grain.get(market, [])
         severity, note = cot_signal_note(market, rs)
+        source_report_date = latest_row_date(rs) or report_date
+        is_stale = bool(rs) and source_report_date != report_date
+        if is_stale:
+            severity = "unknown"
+            note = f"CFTC COT - {market} latest row stale at {source_report_date}; no row in {report_date}"
         evidence = {
             "collector": "collect-cftc-cot",
-            "report_date": report_date,
+            "latest_report_date": report_date,
+            "source_report_date": source_report_date,
+            "is_stale": is_stale,
             "commodities": sorted({r["commodity"] for r in rs}),
             "primary_row": next((r for r in rs if r.get("mapping_type") == "primary"), rs[0] if rs else None),
         }
         plan.append({"side": "us", "market": market, "severity": severity,
-                     "signal_note": note, "rows": len(rs)})
+                     "signal_note": note, "rows": len(rs),
+                     "source_report_date": source_report_date})
         if not dry_run:
-            results.append(invoke_heartbeat("us", market, severity, note, report_date, evidence))
+            results.append(invoke_heartbeat("us", market, severity, note, source_report_date, evidence))
 
     for grain in CAD_GRAINS_WITH_COT:
         rs = by_grain.get(grain, [])
         severity, note = cot_signal_note(grain, rs)
+        source_report_date = latest_row_date(rs) or report_date
+        is_stale = bool(rs) and source_report_date != report_date
+        if is_stale:
+            severity = "unknown"
+            note = f"CFTC COT - {grain} latest row stale at {source_report_date}; no row in {report_date}"
         evidence = {
             "collector": "collect-cftc-cot",
-            "report_date": report_date,
+            "latest_report_date": report_date,
+            "source_report_date": source_report_date,
+            "is_stale": is_stale,
             "commodities": sorted({r["commodity"] for r in rs}),
             "primary_row": next((r for r in rs if r.get("mapping_type") == "primary"), rs[0] if rs else None),
         }
         plan.append({"side": "cad", "market": grain, "severity": severity,
-                     "signal_note": note, "rows": len(rs)})
+                     "signal_note": note, "rows": len(rs),
+                     "source_report_date": source_report_date})
         if not dry_run:
             results.append(invoke_heartbeat(
-                "cad", grain, severity, note, report_date, evidence,
+                "cad", grain, severity, note, source_report_date, evidence,
                 grain_week=grain_week_by_grain.get(grain),
             ))
 

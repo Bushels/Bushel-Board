@@ -24,6 +24,91 @@ export interface GrainPriceSpec {
   barchartSymbol?: string;
 }
 
+export const GRAIN_PRICE_SPECS: GrainPriceSpec[] = [
+  {
+    grain: "Wheat",
+    contract: "ZW",
+    yahooSymbol: "ZW=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Corn",
+    contract: "ZC",
+    yahooSymbol: "ZC=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Oats",
+    contract: "ZO",
+    yahooSymbol: "ZO=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "Soybeans",
+    contract: "ZS",
+    yahooSymbol: "ZS=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    grain: "HRW Wheat",
+    contract: "KE",
+    yahooSymbol: "KE=F",
+    exchange: "KCBT",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: true,
+  },
+  {
+    // Soybean Oil is kept in cents/lb because crush math uses that convention.
+    grain: "Soybean Oil",
+    contract: "ZL",
+    yahooSymbol: "ZL=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "cents/lb",
+    centsToBase: false,
+  },
+  {
+    grain: "Soybean Meal",
+    contract: "ZM",
+    yahooSymbol: "ZM=F",
+    exchange: "CBOT",
+    currency: "USD",
+    unit: "$/short ton",
+    centsToBase: false,
+  },
+  {
+    grain: "Canola",
+    contract: "RSK26",
+    barchartSymbol: "RSK26",
+    exchange: "ICE",
+    currency: "CAD",
+    unit: "$/tonne",
+    centsToBase: false,
+  },
+  {
+    grain: "Spring Wheat",
+    contract: "MWK26",
+    barchartSymbol: "MWK26",
+    exchange: "MGEX",
+    currency: "USD",
+    unit: "$/bu",
+    centsToBase: false,
+  },
+];
+
 export interface ChartData {
   timestamps: number[];
   closes: (number | null)[];

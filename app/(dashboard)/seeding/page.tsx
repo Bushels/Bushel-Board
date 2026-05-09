@@ -1,8 +1,11 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { SeedingDashboard } from "@/components/dashboard/seeding-dashboard";
-import { SeedingCanadaPlaceholder } from "@/components/dashboard/seeding-canada-placeholder";
+import { SeedingCanadaProgress } from "@/components/dashboard/seeding-canada-progress";
+import { getCanadaSeedingProgress } from "@/lib/queries/canada-seeding-progress";
 import { getSeedingDashboard } from "@/lib/queries/seeding-progress";
 import { safeQuery } from "@/lib/utils/safe-query";
 
@@ -11,10 +14,14 @@ export const dynamic = "force-dynamic";
 export default async function SeedingPage() {
   const marketYear = new Date().getFullYear();
 
-  const result = await safeQuery("seeding dashboard", () =>
-    getSeedingDashboard(marketYear),
-  );
-  const dashboards = result.data ?? [];
+  const [usResult, canadaResult] = await Promise.all([
+    safeQuery("seeding dashboard", () => getSeedingDashboard(marketYear)),
+    safeQuery("Canada seeding progress", () =>
+      getCanadaSeedingProgress(marketYear),
+    ),
+  ]);
+  const dashboards = usResult.data ?? [];
+  const canadaReports = canadaResult.data ?? [];
 
   // Latest week across all commodities — used in the section subtitle
   const latestWeek = dashboards
@@ -34,11 +41,19 @@ export default async function SeedingPage() {
           title="Weekly Seeding Progress"
           subtitle={
             latestWeek
-              ? `Same state-level crop pulse, shown across all five US grain markets — week ending ${latestWeek}.`
+              ? `Same state-level crop pulse, shown across all six US grain markets — week ending ${latestWeek}.`
               : "USDA NASS data not available for this market year yet."
           }
-        />
-        <SeedingCanadaPlaceholder />
+        >
+          <Link
+            href="/seeding/spring-wheat"
+            className="inline-flex min-h-9 items-center gap-2 rounded-full border border-canola/35 bg-canola/10 px-3 py-1.5 text-xs font-bold text-canola transition-colors hover:border-canola/65 hover:bg-canola/15"
+          >
+            Spring Wheat Pulse
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </SectionHeader>
+        <SeedingCanadaProgress reports={canadaReports} />
         {!hasAnyData ? (
           <SectionStateCard
             title="No seeding data yet"

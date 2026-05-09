@@ -28,6 +28,7 @@ import {
   buildRowsForGrain,
   fetchBarchartSnapshot,
   fetchYahooChart,
+  GRAIN_PRICE_SPECS,
   type GrainPriceSpec,
   type PriceRow,
 } from "@/lib/grain-price-sources";
@@ -59,7 +60,7 @@ Source strategy:
     MWK26  Spring Wheat (MGEX)
 
 Output:
-  stdout  JSON summary { dry_run, grains_fetched, grains_skipped, rows_upserted, errors, duration_ms }
+  stdout  JSON summary including all tracked contracts and latest fetched rows
   stderr  Progress diagnostics
 `);
   process.exit(0);
@@ -119,95 +120,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1);
 }
 
-const GRAIN_SPECS: GrainPriceSpec[] = [
-  {
-    grain: "Wheat",
-    contract: "ZW",
-    yahooSymbol: "ZW=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Corn",
-    contract: "ZC",
-    yahooSymbol: "ZC=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Oats",
-    contract: "ZO",
-    yahooSymbol: "ZO=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Soybeans",
-    contract: "ZS",
-    yahooSymbol: "ZS=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "HRW Wheat",
-    contract: "KE",
-    yahooSymbol: "KE=F",
-    exchange: "KCBT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    // Soybean Oil — needed for US soy crush margin:
-    //   crush_margin = (ZL_cents_per_lb × 11) + (ZM_$_per_short_ton × 0.0485) − ZS_$_per_bu
-    // Yahoo quotes ZL in cents/lb. We keep raw cents (no base conversion) so the
-    // crush formula in us-price-analyst matches industry convention.
-    grain: "Soybean Oil",
-    contract: "ZL",
-    yahooSymbol: "ZL=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "cents/lb",
-    centsToBase: false,
-  },
-  {
-    // Soybean Meal — needed for US soy crush margin (see ZL note).
-    // Yahoo quotes ZM directly in USD per short ton — no conversion needed.
-    grain: "Soybean Meal",
-    contract: "ZM",
-    yahooSymbol: "ZM=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/short ton",
-    centsToBase: false,
-  },
-  {
-    grain: "Canola",
-    contract: "RSK26",
-    barchartSymbol: "RSK26",
-    exchange: "ICE",
-    currency: "CAD",
-    unit: "$/tonne",
-    centsToBase: false,
-  },
-  {
-    grain: "Spring Wheat",
-    contract: "MWK26",
-    barchartSymbol: "MWK26",
-    exchange: "MGEX",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: false,
-  },
-];
+const GRAIN_SPECS: GrainPriceSpec[] = GRAIN_PRICE_SPECS;
 
 async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<PriceRow[]> {
   if (spec.yahooSymbol) {
@@ -231,6 +144,26 @@ async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<Pri
   return [];
 }
 
+function specLabel(spec: GrainPriceSpec): string {
+  return `${spec.grain}:${spec.contract}`;
+}
+
+function latestRowsByContract(rows: PriceRow[]): PriceRow[] {
+  const latest = new Map<string, PriceRow>();
+
+  for (const row of rows) {
+    const key = `${row.grain}|${row.contract}`;
+    const existing = latest.get(key);
+    if (!existing || row.price_date > existing.price_date) {
+      latest.set(key, row);
+    }
+  }
+
+  return [...latest.values()].sort((a, b) =>
+    `${a.grain}:${a.contract}`.localeCompare(`${b.grain}:${b.contract}`),
+  );
+}
+
 async function main() {
   const startTime = Date.now();
   const runStartedAt = new Date().toISOString();
@@ -238,6 +171,8 @@ async function main() {
   let grainsFetched = 0;
   let grainsSkipped = 0;
   const allRows: PriceRow[] = [];
+  const fetchedSpecs: string[] = [];
+  const skippedSpecs: string[] = [];
 
   console.error(`Importing grain prices (${DAYS}-day lookback)...`);
 
@@ -251,10 +186,12 @@ async function main() {
 
     if (rows.length === 0) {
       grainsSkipped++;
+      skippedSpecs.push(specLabel(spec));
       console.error(`  Skipped ${spec.grain}`);
     } else {
       allRows.push(...rows);
       grainsFetched++;
+      fetchedSpecs.push(specLabel(spec));
       console.error(`  ${spec.grain}: ${rows.length} row(s) from ${rows[0]?.source}`);
     }
 
@@ -279,6 +216,10 @@ async function main() {
           dry_run: true,
           grains_fetched: grainsFetched,
           grains_skipped: grainsSkipped,
+          tracked_contracts: GRAIN_SPECS.map(specLabel),
+          fetched_contracts: fetchedSpecs,
+          skipped_contracts: skippedSpecs,
+          latest_rows: latestRowsByContract(allRows),
           rows_upserted: 0,
           errors: 0,
           duration_ms,
@@ -314,6 +255,9 @@ async function main() {
           dry_run: false,
           grains_fetched: 0,
           grains_skipped: grainsSkipped,
+          tracked_contracts: GRAIN_SPECS.map(specLabel),
+          fetched_contracts: fetchedSpecs,
+          skipped_contracts: skippedSpecs,
           rows_upserted: 0,
           errors: grainsSkipped,
           duration_ms,
@@ -329,9 +273,13 @@ async function main() {
   const BATCH_SIZE = 50;
   let upserted = 0;
   let errors = 0;
+  const importedAt = new Date().toISOString();
 
   for (let i = 0; i < allRows.length; i += BATCH_SIZE) {
-    const batch = allRows.slice(i, i + BATCH_SIZE);
+    const batch = allRows.slice(i, i + BATCH_SIZE).map((row) => ({
+      ...row,
+      imported_at: importedAt,
+    }));
 
     const { error } = await supabase.from("grain_prices").upsert(batch, {
       onConflict: "grain,contract,price_date",
@@ -393,6 +341,9 @@ async function main() {
       days: DAYS,
       grains_fetched: grainsFetched,
       grains_skipped: grainsSkipped,
+      tracked_contracts: GRAIN_SPECS.map(specLabel),
+      fetched_contracts: fetchedSpecs,
+      skipped_contracts: skippedSpecs,
       all_rows: allRows.length,
       cad_normalization: cadNormalization,
       errors,
@@ -402,6 +353,10 @@ async function main() {
     dry_run: false,
     grains_fetched: grainsFetched,
     grains_skipped: grainsSkipped,
+    tracked_contracts: GRAIN_SPECS.map(specLabel),
+    fetched_contracts: fetchedSpecs,
+    skipped_contracts: skippedSpecs,
+    latest_rows: latestRowsByContract(allRows),
     rows_upserted: upserted,
     errors,
     cad_normalization: cadNormalization,

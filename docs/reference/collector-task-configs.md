@@ -38,7 +38,7 @@ FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected d
 
 CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now runs as Codex automation `cgc-weekly-grain-stats-import` at 1:35 PM MT. It fetches the current CGC page/CSV from the local Codex runtime, forwards the raw CSV to `import-cgc-weekly` with `csv_data`, verifies `cgc_observations`, and writes `collector_cgc` heartbeats. If the live CSV is not ahead of Supabase, the script reports `ALREADY_CURRENT` and does not retry in the same run.
 
-2026-05-02 correction: `/api/pipeline/run` is permanently tombstoned with `grok_workflow_deprecated`; it is not a CGC ingress and should not be refactored back into service. `/api/cron/import-cgc` is also not the active routine path. Use `npm run import-cgc`.
+2026-05-02 correction: `/api/pipeline/run` is permanently tombstoned with `grok_workflow_deprecated`; it is not a CGC ingress and should not be refactored back into service. `/api/cron/import-cgc` is also not the active routine path. Use `npm run collect:cgc` so the CGC importer is followed by the thesis packet cache refresh.
 
 ### Producer Cars Timing Rationale
 
@@ -48,20 +48,24 @@ CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now ru
 
 - Times deliberately off-round to avoid API congestion
 - Each collector is standalone — not a team, not a swarm
-- `collect-cgc` runs `npm run import-cgc`; it does not trigger the V1 Grok pipeline or Friday swarm
+- `collect-cgc` runs `npm run collect:cgc`; it does not trigger the V1 Grok pipeline or Friday swarm
 - `collect-crop-progress` uses the USDA NASS QuickStats API directly (not Firecrawl)
 - `collect-grain-monitor`, `collect-export-sales`, `collect-producer-cars`, `collect-wasde` use their source-specific fetch paths
 - All collectors write data freshness metadata (source dates, grain weeks)
+- Scheduled thesis-relevant collectors should use the `npm run collect:*` wrapper commands. The wrapper runs the mechanical importer first, then runs `npm run refresh-thesis-cache` only after success. If the refresh fails, the wrapper exits non-zero so stale thesis cache is visible; collectors must remain idempotent because an external runner may retry the full command. For dry runs, keep using importer-specific dry-run commands or call the wrapper directly with the child `--dry-run` flag; npm argument forwarding was not reliable in the Windows runner.
 - If a collector fails, the Friday swarm runs with stale data and flags it
 
 ## Two-Phase Collector Architecture
 
-Weekday collector routines generally run in two phases:
+Weekday collector routines generally run in two phases plus the mechanical thesis-cache refresh:
 
 | Phase | Actor | Writes | scan_type |
 |-------|-------|--------|-----------|
 | 1. Mechanical | Python / TS importer | Source table + trajectory heartbeat | `collector_*` |
+| 1b. Thesis cache | `refresh-thesis-packet-cache.ts` | `thesis_packet_cache` + `source_runs` system row | `thesis-packet-cache` |
 | 2. Reasoning | Opus routine agent (soft review) | Trajectory soft-update row | `opus_review_*` |
+
+Phase 1b rebuilds the cached facts-only Bull/Bear Thesis packets from the current packet RPC spine; it does not write thesis prose.
 
 Phase 1 proves the data arrived and stamps a trajectory "heartbeat" with stance unchanged — Track 45-B contract. Phase 2 is the Opus soft-reviewer: it reads the fresh data + current `us_market_analysis` thesis + recent trajectory ticks, decides on a bounded stance/confidence delta, and appends a `opus_review_*` row to the trajectory. Phase 2 never mutates `us_market_analysis` — Friday's swarm (`weekly_debate`) is the only writer of the thesis-of-record.
 
@@ -84,13 +88,13 @@ Full Opus prompt + decision framework: `docs/reference/collector-soft-update-pro
 
 | Collector | Phase 1 Script / Endpoint | Phase 2 Soft Review | Notes |
 |---|---|---|---|
-| `collect-crop-progress` | `scripts/import-usda-crop-progress.py` *(emits heartbeats via `write-collector-heartbeat.py`)* | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_crop_progress` | USDA NASS QuickStats API |
-| `collect-grain-monitor` | `scripts/import-grain-monitor-weekly.ts` *(fans out heartbeats to all 16 CAD grains after upsert)* | `scripts/write-collector-soft-update.py --side cad --scan-type opus_review_grain_monitor` | **Weekly Quorum PDF, deterministic parse.** `scripts/import-grain-monitor.mjs` is monthly-Excel fallback / backfill only — never schedule it. |
-| `collect-export-sales` | `scripts/import-usda-export-sales.py` *(emits heartbeats per US market after upsert)* | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_export_sales` | USDA FAS ESR API |
-| `collect-cgc` | `npm run import-cgc` / `scripts/import-cgc-weekly-codex.mjs` *(fetches CGC CSV locally, calls `import-cgc-weekly` with `csv_data`, verifies import, then fans out heartbeats to all 16 CAD grains)* | `scripts/write-collector-soft-update.py --side cad --scan-type opus_review_cgc` | Does not call `/api/pipeline/run` or `/api/cron/import-cgc`; `/api/pipeline/run` is now a Grok-workflow tombstone. Dry-run command: `npm run import-cgc:dry`. |
-| `collect-producer-cars` | `node scripts/import-producer-cars.mjs` *(upserts `producer_car_allocations`)* | Not scheduled for v1 | CGC Producer Car CSV. Mechanical-only because it is deterministic and lower complexity; Friday logistics-scout reads the refreshed table. |
-| `collect-cftc-cot` | `scripts/collect-cftc-cot.py` *(triggers `import-cftc-cot` EF, then fans out heartbeats to mapped US + CAD markets)* | `scripts/write-collector-soft-update.py --side {us\|cad} --scan-type opus_review_cftc_cot` (one pass per side) | US: Corn/Soybeans/Wheat (Oats has no disaggregated series). CAD: Canola/Corn/Soybeans/Wheat. |
-| `collect-wasde` | `scripts/import-usda-wasde.py` *(emits heartbeats per US market after upsert)* | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_wasde` | Monthly only (10th–14th). USDA PSD API — latest snapshot per (market, attr, MY) only. |
+| `collect-crop-progress` | `npm run collect:crop-progress` -> `scripts/import-usda-crop-progress.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_crop_progress` | USDA NASS QuickStats API |
+| `collect-grain-monitor` | `npm run collect:grain-monitor` -> `scripts/import-grain-monitor-weekly.ts` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side cad --scan-type opus_review_grain_monitor` | **Weekly Quorum PDF, deterministic parse.** `scripts/import-grain-monitor.mjs` is monthly-Excel fallback / backfill only - never schedule it. |
+| `collect-export-sales` | `npm run collect:export-sales` -> `scripts/import-usda-export-sales.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_export_sales` | USDA FAS ESR API |
+| `collect-cgc` | `npm run collect:cgc` -> `scripts/import-cgc-weekly-codex.mjs` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side cad --scan-type opus_review_cgc` | Does not call `/api/pipeline/run` or `/api/cron/import-cgc`; `/api/pipeline/run` is now a Grok-workflow tombstone. Dry-run command: `npm run import-cgc:dry`. |
+| `collect-producer-cars` | `npm run collect:producer-cars` -> `scripts/import-producer-cars.mjs` -> `npm run refresh-thesis-cache` | Not scheduled for v1 | CGC Producer Car CSV. Mechanical-only because it is deterministic and lower complexity; Friday logistics-scout reads the refreshed table. |
+| `collect-cftc-cot` | `npm run collect:cftc-cot` -> `scripts/collect-cftc-cot.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side {us\|cad} --scan-type opus_review_cftc_cot` (one pass per side) | US/CAD mapped markets from `grain_market_mappings`; COT rows feed the cached thesis board after refresh. |
+| `collect-wasde` | `npm run collect:wasde` -> `scripts/import-usda-wasde.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_wasde` | Monthly only (10th-14th). USDA PSD API - latest snapshot per (market, attr, MY) only. |
 | `collect-wasde-archive` | `python scripts/import-usda-wasde-archive.py --last-n-months 2` *(remote routine uses Supabase MCP for upserts)* | Not scheduled for v1 | Monthly (13th of month). USDA ESMIS .xls archive — provides revision history (prev-month + current-month projection columns) that PSD API drops. Coexists with `collect-wasde`: same `usda_wasde_raw` table, same unique constraint, last-write-wins per (market, attr, MY, calendar_year, month, unit). One-shot historical backfill: run `--last-n-months 12` from a local shell with `.env.local` populated. |
 
 ### Phase 1 Heartbeat Primitive
@@ -116,18 +120,25 @@ All trajectory-enabled collectors share a single mechanical writer: `scripts/wri
 ```
 collect-crop-progress  → usda_crop_progress     → macro-scout reads
                       ↘ us_score_trajectory    → us-desk-weekly reads (mech + opus_review ticks)
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 collect-grain-monitor  → grain_monitor_snapshots → logistics-scout reads
                       ↘ score_trajectory       → grain-desk-weekly reads (mech tick; opus_review blocked)
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 collect-export-sales   → usda_export_sales       → demand-scout reads
                       ↘ us_score_trajectory    → us-desk-weekly reads (mech + opus_review ticks)
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 collect-cgc            → cgc_observations        → supply-scout, demand-scout, logistics-scout read
                       ↘ score_trajectory       → grain-desk-weekly reads (collector_cgc mech tick + opus_review tick)
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 collect-producer-cars  → producer_car_allocations → logistics-scout reads
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 collect-cftc-cot       → cftc_cot_positions      → sentiment-scout reads
                       ↘ us_score_trajectory    → us-desk-weekly reads (mech + opus_review ticks)
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 collect-wasde-archive  → usda_wasde_raw (revision history) → macro-scout reads via get_usda_wasde_context
 collect-wasde          → usda_wasde_raw/mapped    → macro-scout reads
                       ↘ us_score_trajectory    → us-desk-weekly reads (mech + opus_review ticks)
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
 ```
 
 The phase-2 `opus_review_*` rows feed the Friday swarm as "weekday signal accumulator" — the desk chief checks cumulative stance drift vs the Friday anchor and prioritizes markets where drift is largest.

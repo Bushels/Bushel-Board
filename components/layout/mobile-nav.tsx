@@ -87,6 +87,17 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                 Source Spine
               </Link>
               <Link
+                href="/thesis"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname.startsWith("/thesis")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                Thesis
+              </Link>
+              <Link
                 href="/us"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",

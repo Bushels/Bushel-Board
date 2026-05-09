@@ -38,7 +38,7 @@ export function SeedingDashboard({ dashboards }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Cards row — at-a-glance comparison across all 5 crops */}
+      {/* Cards row — at-a-glance comparison across all six crops */}
       <SeedingSmallMultiples
         dashboards={dashboards}
         currentWeek={currentWeek}

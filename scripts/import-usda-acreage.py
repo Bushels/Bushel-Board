@@ -2,8 +2,8 @@
 """
 USDA NASS planted-acreage importer.
 
-Fetches annual AREA PLANTED estimates for the 5 US grain markets (Corn,
-Soybeans, Wheat, Barley, Oats) at NATIONAL and STATE aggregation levels,
+Fetches annual AREA PLANTED estimates for the US grain markets (Corn,
+Soybeans, Wheat, Barley, Oats, Sorghum) at NATIONAL and STATE aggregation levels,
 upserts them into crop_acreage_estimates. The /seeding card badges and
 focus-map tooltips JOIN this table to render "X% planted of Y M ac" context.
 
@@ -48,12 +48,14 @@ MARKETS = [
     {"market_name": "Wheat", "commodity": "WHEAT", "cgc_grain": "Wheat", "class_desc": None},
     {"market_name": "Barley", "commodity": "BARLEY", "cgc_grain": "Barley", "class_desc": None},
     {"market_name": "Oats", "commodity": "OATS", "cgc_grain": "Oats", "class_desc": None},
+    {"market_name": "Sorghum", "commodity": "SORGHUM", "cgc_grain": "Sorghum", "class_desc": None},
 ]
 
 GRAIN_BELT_STATES = {
     "IOWA", "ILLINOIS", "INDIANA", "OHIO", "NEBRASKA", "KANSAS",
     "MISSOURI", "SOUTH DAKOTA", "NORTH DAKOTA", "MINNESOTA",
-    "WISCONSIN", "MICHIGAN", "KENTUCKY", "ARKANSAS", "TEXAS",
+    "WISCONSIN", "MICHIGAN", "KENTUCKY", "ARKANSAS", "COLORADO",
+    "NORTH CAROLINA", "OKLAHOMA", "TEXAS",
 }
 
 # state_alpha → display name; for the remaining grain-belt states above,
@@ -63,7 +65,8 @@ STATE_NAME_TO_CODE = {
     "NEBRASKA": "NE", "KANSAS": "KS", "MISSOURI": "MO",
     "SOUTH DAKOTA": "SD", "NORTH DAKOTA": "ND", "MINNESOTA": "MN",
     "WISCONSIN": "WI", "MICHIGAN": "MI", "KENTUCKY": "KY",
-    "ARKANSAS": "AR", "TEXAS": "TX",
+    "ARKANSAS": "AR", "COLORADO": "CO", "NORTH CAROLINA": "NC",
+    "OKLAHOMA": "OK", "TEXAS": "TX",
 }
 
 

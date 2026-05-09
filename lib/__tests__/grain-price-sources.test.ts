@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildLatestRowFromSnapshot,
   buildRowsForGrain,
+  GRAIN_PRICE_SPECS,
   parseBarchartOverview,
   type GrainPriceSpec,
 } from "../grain-price-sources";
@@ -101,5 +102,26 @@ describe("buildRowsForGrain", () => {
       change_pct: 2.273,
       source: "yahoo-finance",
     });
+  });
+});
+
+describe("GRAIN_PRICE_SPECS", () => {
+  it("tracks the full mapped futures portfolio, not only Canola", () => {
+    const contracts = GRAIN_PRICE_SPECS.map((spec) => `${spec.grain}:${spec.contract}`);
+
+    expect(contracts).toEqual(
+      expect.arrayContaining([
+        "Canola:RSK26",
+        "Corn:ZC",
+        "HRW Wheat:KE",
+        "Oats:ZO",
+        "Soybean Meal:ZM",
+        "Soybean Oil:ZL",
+        "Soybeans:ZS",
+        "Spring Wheat:MWK26",
+        "Wheat:ZW",
+      ]),
+    );
+    expect(new Set(contracts).size).toBe(contracts.length);
   });
 });

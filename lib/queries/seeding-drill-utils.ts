@@ -73,6 +73,7 @@ const COMMODITY_TO_TICKER: Record<string, { ticker: string; label: string }> = {
   WHEAT: { ticker: "ZW", label: "Wheat (ZW)" },
   BARLEY: { ticker: "", label: "Barley" },
   OATS: { ticker: "ZO", label: "Oats (ZO)" },
+  SORGHUM: { ticker: "", label: "Sorghum" },
 };
 
 export function tickerForCommodity(
