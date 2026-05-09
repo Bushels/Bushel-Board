@@ -47,13 +47,13 @@ CGC "Exports" in Summary = Terminal Exports + Primary Shipment Distribution "Exp
 |----------|---------|--------|
 | `get_pipeline_velocity(p_grain, p_crop_year)` | Aggregates 5 pipeline metrics server-side | `lib/queries/observations.ts` |
 | `get_signals_with_feedback(p_grain, p_crop_year, p_grain_week)` | User-scoped X signal feed | `lib/queries/x-signals.ts` |
-| `get_signals_for_intelligence(p_grain, p_crop_year, p_grain_week)` | Service-only X signals for LLM | `generate-intelligence` (v1) |
-| `calculate_delivery_percentiles(p_crop_year)` | Delivery pace percentiles | `generate-farm-summary` |
+| `get_signals_for_intelligence(p_grain, p_crop_year, p_grain_week)` | Legacy service-only X signals | Retired Grok writer only; do not use for live workflow |
+| `calculate_delivery_percentiles(p_crop_year)` | Delivery pace percentiles | Claude/Codex summary writer or direct reads |
 | `get_delivery_analytics(p_crop_year, p_grain)` | Privacy-threshold farmer analytics (≥5 farmers) | `lib/queries/delivery-analytics.ts` |
-| `enqueue_internal_function(p_function_name, p_body)` | Internal Edge Function chaining via pg_net | `analyze-grain-market` (v2) |
-| `get_logistics_snapshot(p_crop_year, p_grain_week)` | Grain Monitor + Producer Car data as JSON | `analyze-grain-market`, `analyze-market-data` |
-| `get_cot_positioning(p_grain, p_crop_year, p_weeks_back)` | CFTC managed money/commercial positions | `analyze-grain-market`, `lib/queries/cot.ts` |
-| `get_processor_self_sufficiency(p_grain, p_crop_year)` | Producer vs non-producer delivery ratio | `analyze-grain-market` |
+| `enqueue_internal_function(p_function_name, p_body)` | Internal Edge Function chaining via pg_net | Active internal jobs only; do not enqueue retired Grok functions |
+| `get_logistics_snapshot(p_crop_year, p_grain_week)` | Grain Monitor + Producer Car data as JSON | Claude/Codex desk workflow, `lib/queries/logistics.ts` |
+| `get_cot_positioning(p_grain, p_crop_year, p_weeks_back)` | CFTC managed money/commercial positions | Claude/Codex desk workflow, `lib/queries/cot.ts` |
+| `get_processor_self_sufficiency(p_grain, p_crop_year)` | Producer vs non-producer delivery ratio | Claude/Codex desk workflow |
 | `get_pipeline_velocity_avg(p_grain, p_crop_year, p_years_back)` | N-year average cumulative pipeline metrics | Dashboard charts |
 | `get_weekly_terminal_flow(p_grain, p_crop_year)` | Per-grain weekly terminal receipts vs exports | `lib/queries/logistics.ts` |
 | `get_aggregate_terminal_flow(p_crop_year)` | System-wide weekly terminal flow for sparkline | `lib/queries/logistics.ts` |

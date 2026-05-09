@@ -16,7 +16,7 @@ Helping prairie farmers (AB, SK, MB) answer: *"Should I haul or hold my grain th
 | Layer | What It Does | Status |
 |-------|-------------|--------|
 | **Data Pipeline** | Auto-imports weekly CGC grain statistics (deliveries, exports, stocks) for 16 Canadian grains | Built. Auto-import paused while we refine the AI model. |
-| **AI Analysis** | Claude agent swarm (6 scouts + 3 specialists + desk chief) with Viking knowledge + 15 debate rules. Grok fallback. | Built. First Friday swarm run pending. |
+| **AI Analysis** | Claude/Codex desk workflow with Viking knowledge + debate rules. Grok/xAI fallback retired. | Built. First Friday swarm run pending. |
 | **Visualizations** | Supply pipeline, YoY delivery gaps, terminal flow, CFTC positioning, price sparklines | Built. Ongoing polish. |
 | **My Farm** | Personalized summaries, delivery tracking, percentile comparisons, contract progress | Built. Actively improving. |
 | **Social Signals** | Aggregates X/Twitter market chatter, scored by AI + farmer votes for relevance | Built. Signal quality filtering needs work. |
@@ -28,19 +28,22 @@ Compressed snapshots of what's been delivered, most recent first.
 
 | # | Feature | Last Worked | Snapshot |
 |---|---------|-------------|---------|
+| 48 | My Farm Storage Tracker — "Grain in your bin" | 2026-04-28 | Two simple inputs per tracked grain (total tonnes + remaining tonnes) with peer comparison: *"X% of farmers have more &lt;grain&gt; in the bin than you."* Reuses `crop_plans.starting_grain_kt` + `volume_left_to_sell_kt`; new RPC `get_grain_storage_comparison` with ≥5-farmer privacy gate. Sentiment voting on /my-farm paused — components and tables retained for future restoration. |
+| 47 | Public-First Auth + Nav Reorder + Landing Retirement | 2026-04-28 | Auth model flipped: middleware now denylists only `/my-farm`. `/`, `/overview`, `/grain/[slug]`, `/us`, `/seeding` are publicly accessible; root redirects to `/overview`. The Prairie Landing Page + Bio Trial Signup were deleted (`components/landing/`, `/api/trial-notify`). My Farm tab moved to far-right of header; mobile sheet reordered. |
+| 46 | Seeding Progress Map (`/seeding` Crop Pulse Seismograph) | 2026-04-28 | US-only v1: 15 grain-belt states, 5 commodities, week scrubber, accessibility table fallback. Canada placeholder pending NASS-equivalent ingest. |
 | 44 | Overview Bull/Bear Unification | 2026-04-16 | Single `UnifiedMarketStanceChart` on /overview groups CA + US markets with expand-on-click accordion rows revealing two-column bull/bear bullets. CGC snapshot grid, Logistics Banner, and Community Pulse removed from the page. New `getUsMarketStancesForOverview` query + defensive JSONB parsers on both sides. |
-| 41 | Claude Agent Desk | 2026-04-15 | Friday swarm: 6 scouts (Haiku) + 3 specialists (Sonnet) + desk chief (Opus). Divergence resolution via 15 debate rules + Viking L0/L1/L2. 6 daily collectors feed Supabase. Grok retained as fallback. |
+| 41 | Claude Agent Desk | 2026-04-15 | Friday swarm: 6 scouts (Haiku) + 3 specialists (Sonnet) + desk chief (Opus). Divergence resolution via 15 debate rules + Viking L0/L1/L2. 6 daily collectors feed Supabase. Grok fallback retired. |
 | 39 | Unified Pricing Board | 2026-04-14 | Single posted_prices table. Operators post daily prices via chat. Farmers query conversationally. Demand analytics feedback loop. |
 | 38 | Operational Feedback Loop | 2026-04-14 | Design doc. feedback_log with user_role for farmer vs operator filtering. |
 | 37 | Web Alpha — Bushy Chat | 2026-04-14 | Full chat at /chat. SSE streaming, 10 tools, trust footer, verification prompts, source tags. |
 | 36 | Chat-First iOS Pivot | 2026-04-14 | Bushels iOS app design + skeleton. Bushy persona. Chat-architect agent. LLM adapter. |
 | 35 | US Thesis Lane + Hermes | 2026-04-11 | USDA export sales/WASDE/crop progress tables. Score trajectory. Hermes pipeline design. |
-| 34 | Grok 4.20 + Parallel Debate | 2026-03-21 | Upgraded to grok-4.20-reasoning. Parallel Grok+Claude analysis with divergence debate (>15 pts). Viking L0/L1 injected into both models. 72 web/X searches, 10 debate rounds, Gemini QC validated. |
+| 34 | Grok 4.20 + Parallel Debate | 2026-03-21 | Historical track. Retired 2026-05-02; no longer part of production analysis or QA. |
 | 33 | Viking Knowledge System | 2026-03-19 | Replaced flat 7K-token static blob (3 books) with tiered L0/L1/L2 architecture (all 8 books, ~2K tokens). L0: always-loaded analyst worldview. L1: 7 topic summaries loaded by intent detection. L2: existing PostgreSQL full-text search. Zero extra LLM calls at query time. |
 | 32 | Live Grain Futures Prices | 2026-03-18 | Yahoo Finance import for Wheat/Corn/Oats/Soybeans. Canola + Spring Wheat unavailable — need Barchart API. |
-| 31 | Pipeline v2: Senior Analyst | 2026-03-17 | Single-pass Grok with native web/x search replaces dual-LLM chain. Pre-computed ratios, shipping calendar, research tiers. 27 tests. |
+| 31 | Pipeline v2: Senior Analyst | 2026-03-17 | Historical Grok pipeline. Retired 2026-05-02 in favor of Claude/Codex desk workflows. |
 | 30 | Stance Spectrum Meter | 2026-03-16 | Gradient bar (bullish-to-bearish) driven by stance_score. Semicircle confidence gauge on recommendations. |
-| 29 | Unified Grok 4.1 Fast | 2026-03-16 | All AI migrated to grok-4-1-fast-reasoning via xAI API. Full 16-grain pipeline re-run. |
+| 29 | Unified Grok 4.1 Fast | 2026-03-16 | Historical xAI migration. Retired 2026-05-02. |
 | 28 | Terminal Net Flow | 2026-03-16 | Diverging bar chart: weekly receipts vs exports with net flow. Overview banner with sparkline. |
 | 27 | Delivery Pace Chart | 2026-03-15 | Dual Y-axis YoY cumulative gap. Pure utility + 5 tests. |
 | 23-26 | Dashboard Redesign V2 (4 waves) | 2026-03-14 | AAFC baseline update, grain page restructured into decision tool, engagement voting, crush utilization gauge, price sparklines, processor self-sufficiency. |
@@ -53,7 +56,7 @@ Compressed snapshots of what's been delivered, most recent first.
 
 ## Current Focus Areas
 
-- **Claude Agent Desk** — Friday swarm live: 6 scouts + 3 specialists + desk chief. First automated run this Friday. Replaces single-pass Grok.
+- **Claude Agent Desk** — Friday swarm live: 6 scouts + 3 specialists + desk chief. First automated run this Friday. Replaces single-pass Grok; Grok fallback is retired.
 - **Chat Alpha** — Bushy chat live at /chat. Testing end-to-end conversation quality.
 - **Unified Pricing Board** — Operators post daily prices, farmers query conversationally (Track 39).
 - **iOS App** — Bushels iOS app designed, Xcode skeleton built. Pending Mac transition for development.
@@ -82,7 +85,7 @@ Compressed snapshots of what was done in each working session, most recent first
 - **UI:** shadcn/ui + Tailwind CSS (custom wheat palette)
 - **Charts:** Recharts
 - **Fonts:** DM Sans (body) + Fraunces (display)
-- **AI:** Grok 4.20 Reasoning via xAI Responses API
+- **AI:** Claude/Codex desk workflow for analysis; direct X API v2 planned for social-signal input
 
 ## Getting Started
 
@@ -103,9 +106,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 For the intelligence pipeline (Edge Function secrets):
 
-```bash
-npx supabase secrets set XAI_API_KEY=xai-your-key
-```
+Grok/xAI secrets are no longer part of the production analysis setup.
 
 ### Install & Run
 
@@ -155,7 +156,7 @@ lib/
   knowledge/            # Viking tiered knowledge (L0/L1/L2 retrieval)
   queries/              # Server-side Supabase query modules
   utils/                # Crop year, delivery gap, recommendations
-  advisor/              # Grok advisor chat client
+  advisor/              # Advisor context and Claude/Hermes proxy
 supabase/
   functions/            # Edge Functions (AI pipeline, imports)
   migrations/           # Database schema

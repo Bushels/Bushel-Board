@@ -2,17 +2,17 @@
  * Supabase Edge Function: validate-import
  *
  * Runs 5 deterministic data quality checks after a CGC weekly import.
- * If all checks pass, chains to search-x-intelligence.
- * If any check fails, logs the failure and stops the pipeline.
+ * Writes the result to validation_reports. Does NOT auto-chain downstream —
+ * V2 (Claude Agent Desk) is triggered by Claude Desktop Routines, not by a
+ * chained Edge Function. The legacy V1 Grok chain is retired; do not invoke
+ * search-x-intelligence, analyze-market-data, analyze-grain-market,
+ * generate-intelligence, or generate-farm-summary.
  *
  * Input body: { "crop_year": "2025-2026", "grain_week": 30 }
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  enqueueInternalFunction,
-  requireInternalRequest,
-} from "../_shared/internal-auth.ts";
+import { requireInternalRequest } from "../_shared/internal-auth.ts";
 
 // The 16 CGC grains present in Primary/Deliveries data
 const EXPECTED_GRAINS = [
@@ -105,6 +105,8 @@ Deno.serve(async (req) => {
     if (!grainCoveragePassed) allPassed = false;
 
     // ── Check 3: Week continuity ────────────────────────────────────────
+    // .maybeSingle(): on the very first week of a crop year there is no
+    // prior row — .single() would return an error and poison the check.
     const { data: prevWeekRow } = await supabase
       .from("cgc_observations")
       .select("grain_week")
@@ -112,7 +114,7 @@ Deno.serve(async (req) => {
       .neq("grain_week", grainWeek)
       .order("grain_week", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const prevMaxWeek = prevWeekRow?.grain_week ?? 0;
     // Valid: imported week is previous + 1, or same week (re-import), or first week
@@ -208,23 +210,10 @@ Deno.serve(async (req) => {
 
     console.log(`Validation ${status}: ${JSON.stringify(checks)}`);
 
-    // ── Chain trigger (only on pass) ────────────────────────────────────
-    // Trigger the X search step with the same internal-secret contract used by the chain.
-    if (allPassed) {
-      try {
-        console.log("Validation passed — triggering search-x-intelligence...");
-        await enqueueInternalFunction(supabase, "search-x-intelligence", {
-          mode: "deep",
-          crop_year: cropYear,
-          grain_week: grainWeek,
-        });
-      } catch (chainErr) {
-        console.error("search-x-intelligence chain-trigger failed:", chainErr);
-        // Don't fail validation — intelligence pipeline is best-effort
-      }
-    } else {
-      console.log("Validation FAILED — intelligence chain blocked.");
-    }
+    // V2 note: we intentionally do NOT chain to search-x-intelligence here.
+    // The legacy V1 Grok pipeline is retired. V2 (Claude Agent Desk) runs via Claude
+    // Desktop Routines on its own schedule — it does not need a chain kick
+    // from this function.
 
     return new Response(
       JSON.stringify({
@@ -232,7 +221,7 @@ Deno.serve(async (req) => {
         grain_week: grainWeek,
         status,
         checks,
-        chain_triggered: allPassed,
+        chain_triggered: false,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

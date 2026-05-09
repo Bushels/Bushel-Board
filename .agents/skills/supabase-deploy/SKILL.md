@@ -16,15 +16,12 @@ Deploy Edge Functions and manage database migrations for the Bushel Board Supaba
 ## Project Context
 
 - **Supabase project:** `ibgsloyjxdopkvwqcqwh`
-- **Edge Functions (7 total):**
-  - `import-cgc-weekly` — legacy internal-only fallback import path
-  - `validate-import` — runs anomaly checks, writes to validation_reports
-  - `search-x-intelligence` — X/Twitter search via xAI for market sentiment
-  - `analyze-market-data` — Step 3.5 Flash round-1 market analysis
-  - `generate-intelligence` — per-grain AI narratives via Grok
-  - `generate-farm-summary` — per-user weekly farm summaries + percentiles
-  - `validate-site-health` — post-pipeline site checks
-- **Canonical weekly ingest:** Vercel route `GET /api/cron/import-cgc` (not a Supabase Edge Function)
+- **Edge Functions:**
+  - `import-cgc-weekly` - internal import target used by the Codex importer
+  - `validate-import` - anomaly checks, writes to validation_reports
+  - `validate-site-health` - post-pipeline site checks
+  - Retired tombstones: `search-x-intelligence`, `analyze-market-data`, `analyze-grain-market`, `generate-intelligence`, `generate-farm-summary`
+- **Canonical weekly ingest:** `npm run import-cgc` / `scripts/import-cgc-weekly-codex.mjs`
 - **Migrations path:** `supabase/migrations/`
 - **Secrets:** stored in Supabase Vault; local dev in `.env.local` (gitignored)
 
@@ -65,8 +62,8 @@ npx supabase secrets set KEY=value --project-ref ibgsloyjxdopkvwqcqwh
 **Required secrets for Edge Functions:**
 | Secret | Used by |
 |--------|---------|
-| `XAI_API_KEY` | `search-x-intelligence`, `generate-intelligence`, `generate-farm-summary` |
-| `OPENROUTER_API_KEY` | `analyze-market-data` |
+| `XAI_API_KEY` | Retired; do not use for production analysis |
+| `OPENROUTER_API_KEY` | Not used by the retired Grok chain |
 | `BUSHEL_INTERNAL_FUNCTION_SECRET` | All internal-only functions and `enqueue_internal_function()` |
 | `SUPABASE_SERVICE_ROLE_KEY` | All functions (auto-injected) |
 | `SUPABASE_URL` | All functions (auto-injected) |
@@ -96,7 +93,7 @@ npx supabase secrets set KEY=value --project-ref ibgsloyjxdopkvwqcqwh
 ## Examples
 
 - **User:** "Deploy the generate-intelligence function"
-  → `npx supabase functions deploy generate-intelligence --project-ref ibgsloyjxdopkvwqcqwh`
+  → Stop and explain that `generate-intelligence` is retired. Deploy only if the task is explicitly to publish the tombstone.
 
 - **User:** "Push the latest migration"
   → `npx supabase db push --project-ref ibgsloyjxdopkvwqcqwh`, then verify with `list_migrations`

@@ -190,6 +190,7 @@ export const CFTC_GRAIN_MAP: Record<
   "SOYBEAN OIL": { cgcGrain: "Canola", mappingType: "secondary" },
   "SOYBEAN MEAL": { cgcGrain: "Canola", mappingType: "secondary" },
   CORN: { cgcGrain: "Corn", mappingType: "primary" },
+  OATS: { cgcGrain: "Oats", mappingType: "primary" },
   CANOLA: { cgcGrain: "Canola", mappingType: "primary" },
 };
 

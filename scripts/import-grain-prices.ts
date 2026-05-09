@@ -28,9 +28,11 @@ import {
   buildRowsForGrain,
   fetchBarchartSnapshot,
   fetchYahooChart,
+  GRAIN_PRICE_SPECS,
   type GrainPriceSpec,
   type PriceRow,
 } from "@/lib/grain-price-sources";
+import { writeSourceRun } from "./source-run";
 
 const args = process.argv.slice(2);
 
@@ -49,15 +51,16 @@ Environment variables (from .env.local):
   SUPABASE_SERVICE_ROLE_KEY     Service role key (never expose to browser)
 
 Source strategy:
-  Yahoo Finance chart API:
-    ZW=F, KE=F, ZC=F, ZS=F, ZO=F
+  Yahoo Finance chart API (yahooSymbol keeps =F for the API call; stored contract
+  symbol is canonical without suffix):
+    ZW, KE, ZC, ZS, ZO, ZL, ZM
 
   Barchart fallback (latest close only):
     RSK26  Canola (ICE)
     MWK26  Spring Wheat (MGEX)
 
 Output:
-  stdout  JSON summary { dry_run, grains_fetched, grains_skipped, rows_upserted, errors, duration_ms }
+  stdout  JSON summary including all tracked contracts and latest fetched rows
   stderr  Progress diagnostics
 `);
   process.exit(0);
@@ -84,7 +87,17 @@ function loadEnvFile(filePath: string) {
       const eqIndex = trimmed.indexOf("=");
       if (eqIndex === -1) continue;
       const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
+      let value = trimmed.slice(eqIndex + 1).trim();
+      // Strip surrounding double or single quotes (Next.js accepts quoted values
+      // in .env.local, but our naive parser would otherwise keep the quote chars
+      // as part of the value — producing URLs like `"https://..."` that fail
+      // URL validation).
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
       if (!process.env[key]) {
         process.env[key] = value;
       }
@@ -107,71 +120,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1);
 }
 
-const GRAIN_SPECS: GrainPriceSpec[] = [
-  {
-    grain: "Wheat",
-    contract: "ZW=F",
-    yahooSymbol: "ZW=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Corn",
-    contract: "ZC=F",
-    yahooSymbol: "ZC=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Oats",
-    contract: "ZO=F",
-    yahooSymbol: "ZO=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Soybeans",
-    contract: "ZS=F",
-    yahooSymbol: "ZS=F",
-    exchange: "CBOT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "HRW Wheat",
-    contract: "KE=F",
-    yahooSymbol: "KE=F",
-    exchange: "KCBT",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: true,
-  },
-  {
-    grain: "Canola",
-    contract: "RSK26",
-    barchartSymbol: "RSK26",
-    exchange: "ICE",
-    currency: "CAD",
-    unit: "$/tonne",
-    centsToBase: false,
-  },
-  {
-    grain: "Spring Wheat",
-    contract: "MWK26",
-    barchartSymbol: "MWK26",
-    exchange: "MGEX",
-    currency: "USD",
-    unit: "$/bu",
-    centsToBase: false,
-  },
-];
+const GRAIN_SPECS: GrainPriceSpec[] = GRAIN_PRICE_SPECS;
 
 async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<PriceRow[]> {
   if (spec.yahooSymbol) {
@@ -195,11 +144,35 @@ async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<Pri
   return [];
 }
 
+function specLabel(spec: GrainPriceSpec): string {
+  return `${spec.grain}:${spec.contract}`;
+}
+
+function latestRowsByContract(rows: PriceRow[]): PriceRow[] {
+  const latest = new Map<string, PriceRow>();
+
+  for (const row of rows) {
+    const key = `${row.grain}|${row.contract}`;
+    const existing = latest.get(key);
+    if (!existing || row.price_date > existing.price_date) {
+      latest.set(key, row);
+    }
+  }
+
+  return [...latest.values()].sort((a, b) =>
+    `${a.grain}:${a.contract}`.localeCompare(`${b.grain}:${b.contract}`),
+  );
+}
+
 async function main() {
   const startTime = Date.now();
+  const runStartedAt = new Date().toISOString();
+  const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
   let grainsFetched = 0;
   let grainsSkipped = 0;
   const allRows: PriceRow[] = [];
+  const fetchedSpecs: string[] = [];
+  const skippedSpecs: string[] = [];
 
   console.error(`Importing grain prices (${DAYS}-day lookback)...`);
 
@@ -213,10 +186,12 @@ async function main() {
 
     if (rows.length === 0) {
       grainsSkipped++;
+      skippedSpecs.push(specLabel(spec));
       console.error(`  Skipped ${spec.grain}`);
     } else {
       allRows.push(...rows);
       grainsFetched++;
+      fetchedSpecs.push(specLabel(spec));
       console.error(`  ${spec.grain}: ${rows.length} row(s) from ${rows[0]?.source}`);
     }
 
@@ -241,6 +216,10 @@ async function main() {
           dry_run: true,
           grains_fetched: grainsFetched,
           grains_skipped: grainsSkipped,
+          tracked_contracts: GRAIN_SPECS.map(specLabel),
+          fetched_contracts: fetchedSpecs,
+          skipped_contracts: skippedSpecs,
+          latest_rows: latestRowsByContract(allRows),
           rows_upserted: 0,
           errors: 0,
           duration_ms,
@@ -255,15 +234,34 @@ async function main() {
   if (grainsFetched === 0) {
     console.error("ERROR: All symbols failed to fetch. Exiting.");
     const duration_ms = Date.now() - startTime;
+    const sourceRun = await writeSourceRun(supabase, {
+      source_name: "grain_prices",
+      source_lane: "cross_border",
+      collector_name: "import-grain-prices",
+      status: "failed",
+      rows_inserted: 0,
+      rows_skipped: grainsSkipped,
+      error_message: "All symbols failed to fetch",
+      started_at: runStartedAt,
+      metadata: {
+        days: DAYS,
+        grains_fetched: 0,
+        grains_skipped: grainsSkipped,
+      },
+    });
     console.log(
       JSON.stringify(
         {
           dry_run: false,
           grains_fetched: 0,
           grains_skipped: grainsSkipped,
+          tracked_contracts: GRAIN_SPECS.map(specLabel),
+          fetched_contracts: fetchedSpecs,
+          skipped_contracts: skippedSpecs,
           rows_upserted: 0,
           errors: grainsSkipped,
           duration_ms,
+          source_run: sourceRun,
         },
         null,
         2,
@@ -272,13 +270,16 @@ async function main() {
     process.exit(1);
   }
 
-  const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_KEY!);
   const BATCH_SIZE = 50;
   let upserted = 0;
   let errors = 0;
+  const importedAt = new Date().toISOString();
 
   for (let i = 0; i < allRows.length; i += BATCH_SIZE) {
-    const batch = allRows.slice(i, i + BATCH_SIZE);
+    const batch = allRows.slice(i, i + BATCH_SIZE).map((row) => ({
+      ...row,
+      imported_at: importedAt,
+    }));
 
     const { error } = await supabase.from("grain_prices").upsert(batch, {
       onConflict: "grain,contract,price_date",
@@ -324,13 +325,42 @@ async function main() {
   }
 
   const duration_ms = Date.now() - startTime;
+  const sortedDates = allRows.map((row) => row.price_date).sort();
+  const sourceRun = await writeSourceRun(supabase, {
+    source_name: "grain_prices",
+    source_lane: "cross_border",
+    collector_name: "import-grain-prices",
+    status: errors > 0 ? "partial" : "success",
+    source_period_start: sortedDates[0] ?? null,
+    source_period_end: sortedDates.at(-1) ?? null,
+    latest_source_label: sortedDates.at(-1) ?? null,
+    rows_inserted: upserted,
+    rows_skipped: grainsSkipped,
+    started_at: runStartedAt,
+    metadata: {
+      days: DAYS,
+      grains_fetched: grainsFetched,
+      grains_skipped: grainsSkipped,
+      tracked_contracts: GRAIN_SPECS.map(specLabel),
+      fetched_contracts: fetchedSpecs,
+      skipped_contracts: skippedSpecs,
+      all_rows: allRows.length,
+      cad_normalization: cadNormalization,
+      errors,
+    },
+  });
   const result = {
     dry_run: false,
     grains_fetched: grainsFetched,
     grains_skipped: grainsSkipped,
+    tracked_contracts: GRAIN_SPECS.map(specLabel),
+    fetched_contracts: fetchedSpecs,
+    skipped_contracts: skippedSpecs,
+    latest_rows: latestRowsByContract(allRows),
     rows_upserted: upserted,
     errors,
     cad_normalization: cadNormalization,
+    source_run: sourceRun,
     duration_ms,
   };
 

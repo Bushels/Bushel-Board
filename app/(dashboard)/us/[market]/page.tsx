@@ -4,7 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
+import { BullBearCards } from "@/components/dashboard/bull-bear-cards";
 import { formatRecommendationLabel, getUsMarketBySlug } from "@/lib/constants/us-markets";
 import { getUsMarketDetailData } from "../actions";
 
@@ -80,32 +82,20 @@ export default async function UsMarketDetailPage({ params }: Props) {
           title="US Market Thesis"
           subtitle="What is helping, what is hurting, and why the call follows"
         />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <GlassCard className="p-5" hover={false}>
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-muted-foreground">Initial thesis</p>
-              <p className="text-sm leading-6">{detail.analysis.initial_thesis}</p>
-            </div>
-          </GlassCard>
-          <GlassCard className="p-5" hover={false}>
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-muted-foreground">Tracked call</p>
-              <p className="text-sm leading-6">{detail.trajectory.trigger}</p>
-            </div>
-          </GlassCard>
-          <GlassCard className="p-5" hover={false}>
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-muted-foreground">Bull case</p>
-              <p className="text-sm leading-6">{detail.analysis.bull_case}</p>
-            </div>
-          </GlassCard>
-          <GlassCard className="p-5" hover={false}>
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-muted-foreground">Bear case</p>
-              <p className="text-sm leading-6">{detail.analysis.bear_case}</p>
-            </div>
-          </GlassCard>
-        </div>
+        <SectionBoundary
+          title="Market thesis unavailable"
+          message="The US market thesis is temporarily unavailable. Try refreshing in a minute."
+        >
+          <BullBearCards
+            bullCase={detail.analysis.bull_case}
+            bearCase={detail.analysis.bear_case}
+            confidence={detail.analysis.data_confidence ?? "medium"}
+            confidenceScore={detail.analysis.confidence_score ?? undefined}
+            stanceScore={detail.analysis.stance_score}
+            initialThesis={detail.analysis.initial_thesis}
+            trackedCall={detail.trajectory.trigger ?? undefined}
+          />
+        </SectionBoundary>
       </section>
 
       <section className="space-y-4">
@@ -113,17 +103,22 @@ export default async function UsMarketDetailPage({ params }: Props) {
           title="Top Signals"
           subtitle="Most important drivers in the current US thesis"
         />
-        <div className="grid gap-4 lg:grid-cols-2">
-          {detail.analysis.key_signals.map((signal, index) => (
-            <GlassCard key={`${signal.title}-${index}`} className="p-5" hover={false}>
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{signal.signal} · {signal.source}</p>
-                <h3 className="text-base font-semibold">{signal.title}</h3>
-                <p className="text-sm leading-6">{signal.body}</p>
-              </div>
-            </GlassCard>
-          ))}
-        </div>
+        <SectionBoundary
+          title="Top signals unavailable"
+          message="Signal cards are temporarily unavailable. Try refreshing in a minute."
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            {detail.analysis.key_signals.map((signal, index) => (
+              <GlassCard key={`${signal.title}-${index}`} className="p-5" hover={false}>
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{signal.signal} · {signal.source}</p>
+                  <h3 className="text-base font-semibold">{signal.title}</h3>
+                  <p className="text-sm leading-6">{signal.body}</p>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </SectionBoundary>
       </section>
 
       <section className="space-y-4">
@@ -131,16 +126,21 @@ export default async function UsMarketDetailPage({ params }: Props) {
           title="Data Freshness"
           subtitle="What this US thesis was built on"
         />
-        <GlassCard className="p-5" hover={false}>
-          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <p><span className="text-muted-foreground">WASDE month:</span> {String(freshness.wasde_month ?? "N/A")}</p>
-            <p><span className="text-muted-foreground">Export sales week:</span> {String(freshness.export_sales_week ?? "N/A")}</p>
-            <p><span className="text-muted-foreground">Crop progress week:</span> {String(freshness.crop_progress_week ?? "N/A")}</p>
-            <p><span className="text-muted-foreground">Price date:</span> {String(freshness.price_date ?? "N/A")}</p>
-            <p><span className="text-muted-foreground">COT report:</span> {String(freshness.cot_report_date ?? "N/A")}</p>
-            <p><span className="text-muted-foreground">Generated:</span> {detail.analysis.generated_at}</p>
-          </div>
-        </GlassCard>
+        <SectionBoundary
+          title="Freshness metadata unavailable"
+          message="Data-freshness details are temporarily unavailable."
+        >
+          <GlassCard className="p-5" hover={false}>
+            <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <p><span className="text-muted-foreground">WASDE month:</span> {String(freshness.wasde_month ?? "N/A")}</p>
+              <p><span className="text-muted-foreground">Export sales week:</span> {String(freshness.export_sales_week ?? "N/A")}</p>
+              <p><span className="text-muted-foreground">Crop progress week:</span> {String(freshness.crop_progress_week ?? "N/A")}</p>
+              <p><span className="text-muted-foreground">Price date:</span> {String(freshness.price_date ?? "N/A")}</p>
+              <p><span className="text-muted-foreground">COT report:</span> {String(freshness.cot_report_date ?? "N/A")}</p>
+              <p><span className="text-muted-foreground">Generated:</span> {detail.analysis.generated_at}</p>
+            </div>
+          </GlassCard>
+        </SectionBoundary>
       </section>
     </div>
   );

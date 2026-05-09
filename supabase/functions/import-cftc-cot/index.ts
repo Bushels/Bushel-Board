@@ -30,7 +30,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // 4. Parse to DB schema
-    const positions = parseCftcCotRows(apiRows);
+    const importedAt = new Date().toISOString();
+    const positions = parseCftcCotRows(apiRows).map((position) => ({
+      ...position,
+      imported_at: importedAt,
+      import_source: "import-cftc-cot",
+    }));
 
     // 5. Supabase service-role client
     const supabase = createClient(

@@ -33,7 +33,7 @@ export const US_MARKETS = [
     futuresGrain: "Wheat",
     exportCommodity: "ALL WHEAT",
     cotCommodity: "WHEAT",
-    cropProgressMarkets: ["Winter Wheat", "Spring Wheat"],
+    cropProgressMarkets: ["Wheat"],
     includeInOverview: true,
   },
   {
@@ -51,7 +51,7 @@ export const US_MARKETS = [
     futuresGrain: "Barley",
     exportCommodity: "BARLEY",
     cotCommodity: null,
-    cropProgressMarkets: [],
+    cropProgressMarkets: ["Barley"],
     includeInOverview: true,
   },
 ] as const satisfies readonly UsMarketDef[];

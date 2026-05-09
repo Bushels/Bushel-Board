@@ -182,6 +182,18 @@ Structure per grain:
 
 ## Phase 3: Specialist Dispatch (4 agents in parallel)
 
+### Rule Context (MANDATORY — load before dispatching specialists)
+
+Each specialist prompt MUST include these three rule contexts, concatenated in this order:
+
+1. **Global rules:** Full contents of `docs/reference/agent-debate-rules.md` (Rules 1-19 + Validation Checklist).
+2. **Country rules:** Full contents of `docs/reference/agent-debate-rules-canada.md` (Canadian market context + all 16 grain cards).
+3. **Target grain card (emphasized):** Extract the single grain card for the grain being analyzed and include it a second time under an "ACTIVE GRAIN CARD" heading at the top of the specialist prompt.
+
+**Rule citation convention:** Every specialist brief MUST cite rule IDs in evidence chains. Format: `R-NN` for global, `R-CA-<GRAIN>-NN` for Canadian grain-specific. Example: "Vancouver vessel queue tight (R-16 requires receipt check: PASS; R-CA-CNL-03 applies)."
+
+**Thesis-killer tracking:** Every specialist MUST scan its target grain's "Thesis-Killers" list and explicitly flag whether any is currently active. Output field: `active_thesis_killers[]`.
+
 **Step 3.1:** Spawn 4 specialist agents, each receiving ALL compiled scout briefs:
 
 Each specialist receives:
@@ -251,6 +263,40 @@ Run the debate resolution protocol:
     Resolution: +15 — terminal congestion is real (Rule 3) but spec positioning warrants caution (Rule 9).
     Confidence: 60% (divergence reduces certainty)."
    ```
+
+### Tier Assignment (NEW — v1 tier-based debate)
+
+After per-grain stance scoring, assign each grain to one of 5 tiers:
+
+| Tier          | Stance score range | Action                                   |
+|---------------|---------------------|------------------------------------------|
+| Strong Bull   | > +50               | High-conviction bullish, actionable this week |
+| Mild Bull     | +20 to +50          | Directional lean; watch for confirmation |
+| Neutral       | -20 to +20          | No clear signal; mixed fundamentals      |
+| Mild Bear     | -50 to -20          | Directional lean bearish; watch for weakness |
+| Strong Bear   | < -50               | High-conviction bearish, actionable this week |
+
+**Boundary flag:** If stance_score is within ±3 of any tier edge, add `boundary_flag: true` to the output row so meta-reviewer can audit.
+
+### Intra-Tier Ranking
+
+Within each tier, rank grains in this order:
+
+1. **Compression Index score** (primary key) — applies only to STRONG-fit grains (Canola Class A; Lentils, Peas, Amber Durum Class B; Mustard, Canaryseed, Flaxseed Class C). Higher composite = higher rank.
+2. **Grain-specific tiebreakers** (from the grain card's "Debate Tiebreakers" list) — fallback for non-Compression-Index grains and for ties within STRONG-fit group.
+3. **Data freshness** (from the grain card) — in a tie, grain with fresher data ranks higher.
+
+### Rule Citation Requirement
+
+The desk chief's Step 5.1 output row for each grain MUST include a `rule_citations[]` array with at least ONE grain-specific rule ID. If the analysis relies solely on global rules, meta-reviewer will flag the row.
+
+### Compression Index Output Format
+
+For STRONG-fit grains, output format: `compression_index: +4`, `compression_class: "A"`. For all other grains, output: `compression_index: null`, `compression_class: null`.
+
+### Basis Veto Check (Rule 18)
+
+Before finalizing any stance_score > +2, verify the basis component. If basis_component ≤ -2, CAP the stance_score at +2 and add `basis_vetoed: true` to the output.
 
 ### Viking Knowledge for Resolution
 
@@ -367,6 +413,16 @@ Sizing rules (apply WITHIN the tier cap):
   "initial_thesis": "Crush demand provides floor but export pipeline must prove itself in next 2 weeks.",
   "bull_case": "Domestic crush absorbing supply at 87% utilization. Stocks drew 95 Kt WoW. Basis narrowing at local elevators.",
   "bear_case": "Exports -25% YoY. Managed money reducing net longs. Vessel queue only 18.",
+  "bull_reasoning": [
+    { "fact": "Crush utilization 87% (5yr avg 78%)", "reasoning": "Domestic processors are the buyer of last resort and are absorbing supply at a pace above trend (supply-scout + domestic-analyst)." },
+    { "fact": "Stocks -95 Kt WoW (net absorption)", "reasoning": "First drawdown in 6 weeks signals the disposition side is catching up to production — rule R-18 (inventory regime shift)." },
+    { "fact": "Basis narrowing at AB/SK elevators", "reasoning": "Local bids firming vs futures — posted-price scout shows $3-5/t narrower than 4-wk avg." }
+  ],
+  "bear_reasoning": [
+    { "fact": "Terminal exports -25% YoY", "reasoning": "Export pipeline is the largest disposition channel and is running well below last year — export-analyst flags logistics+demand mix as unclear." },
+    { "fact": "Managed money reducing net longs -8% OI", "reasoning": "Spec unwind typically precedes price weakness by 2-3 weeks — rule R-10 (COT timing)." },
+    { "fact": "Vessel queue 18 (below avg)", "reasoning": "No congestion means export softness is demand-driven, not logistics-driven — the harder problem to solve." }
+  ],
   "final_assessment": "HOLD 2 WEEKS. Crush is doing the work but the export story needs proof. If terminal exports don't pick up by Week 37, the bearish case strengthens. Price a 20% slice if basis narrows further at your elevator.",
   "key_signals": [
     "Crush utilization 87% (above 5yr avg)",
@@ -377,23 +433,47 @@ Sizing rules (apply WITHIN the tier cap):
   ],
   "historical_context": "Current week deliveries 12% below 5yr average. Stocks at lowest level since 2022-23 at this point in the crop year.",
   "model_used": "claude-agent-desk-v1-opus",
-  "metadata": {
+  "llm_metadata": {
     "scout_count": 6,
     "specialist_count": 4,
     "divergence_resolved": false,
     "max_specialist_divergence": 12,
     "resolution_rules_applied": [],
     "viking_l2_chunks_used": 3,
-    "data_freshness": { "cgc": 35, "grain_monitor": 33, "cot": "2026-04-08" }
+    "data_freshness": { "cgc": 35, "grain_monitor": 33, "cot": "2026-04-08" },
+    "effort_tier": "MAJOR",
+    "track_46": {
+      "stance_tier": "Neutral",
+      "compression_index": 4,
+      "compression_class": "A",
+      "rule_citations": ["R-CA-CNL-01", "R-CA-CNL-03", "R-16", "R-18"],
+      "active_thesis_killers": [],
+      "boundary_flag": false,
+      "basis_vetoed": false
+    }
   }
 }
 ```
+
+> **Why `track_46` lives inside `llm_metadata`:** the seven Track 46 debate-quality fields are columns on `unified_rankings` (see migration `20260419130000`), not on `market_analysis`. Storing them under `llm_metadata.track_46` keeps the chief's output persisted AND preserves the hand-off for the Unifier phase (Saturday) to read them back and build each week's `unified_rankings` row without re-running the chief.
+>
+> **Key rename:** `tier` → `stance_tier`. The word "tier" is overloaded elsewhere in this prompt (`effort_tier` = MAJOR/MID/MINOR attention budget). Rename to `stance_tier` to disambiguate.
+
+**New v1 fields (tier-based debate — Track 46):**
+
+- `tier` — one of "Strong Bull", "Mild Bull", "Neutral", "Mild Bear", "Strong Bear" (per Phase 4 Tier Assignment table).
+- `compression_index` — integer or null. Non-null only for STRONG-fit grains (Canola, Lentils, Peas, Amber Durum, Mustard, Canaryseed, Flaxseed). All others: null.
+- `compression_class` — "A" | "B" | "C" | null. Same population rules as `compression_index`.
+- `rule_citations` — array of rule IDs (e.g. `["R-CA-CNL-03", "R-16"]`). MUST include at least one grain-specific rule (`R-CA-<GRAIN>-NN`).
+- `active_thesis_killers` — array of strings. Empty array if none firing; `null` is not allowed.
+- `boundary_flag` — boolean. True if `stance_score` is within ±3 of any tier edge (-50, -20, +20, +50).
+- `basis_vetoed` — boolean. True if Rule 18 capped the score at +2 because basis component ≤ -2.
 
 ### Step 5.1.5 — In-run Meta-Review (MANDATORY before write)
 
 Before executing the UPSERT, hold all 16 proposed rows in memory and self-audit the full batch as one coherent desk report. This is a pre-flight check, not a cosmetic pass — if you find an issue, fix it before writing.
 
-**Run these 8 checks across the batch:**
+**Run these 13 checks across the batch:**
 
 1. **Directional sanity** — Count bullish (stance > 10), neutral (|stance| ≤ 10), bearish (stance < -10) grains. Target distribution for a normal week: 3–6 bullish, 3–6 neutral, 3–6 bearish. If the batch is ≥13/16 in any single direction, you have a calibration problem unless there is a clear macro reason (you must name it in `metadata.batch_bias_justification`).
 2. **Confidence sanity** — Count high-confidence rows (confidence_score ≥ 70). If 0/16 are high-confidence, the swarm is being too timid — re-examine grains with clean signals. If >12/16 are high-confidence, you're overclaiming — apply caution.
@@ -403,6 +483,11 @@ Before executing the UPSERT, hold all 16 proposed rows in memory and self-audit 
 6. **Trajectory sanity** — For any grain with |Δ stance vs last week| > 25 with `phase_4_5_executed: false`, Phase 4.5 was skipped — stop and re-run anomaly investigation for that grain.
 7. **Data freshness labelling** — Every row's `metadata.data_freshness` must name the specific week/date for each source, not "recent" or "current".
 8. **Tier recording** — Every row must have `metadata.effort_tier` set to `"MAJOR"`, `"MID"`, or `"MINOR"`.
+9. **Rule citation coverage:** Every grain row has at least ONE grain-specific rule ID in `rule_citations[]`. FAIL if any row cites only global rules.
+10. **Thesis-killer scan:** Every grain row has `active_thesis_killers[]` populated (can be empty array, but must be present).
+11. **Tier boundary check:** Any row with `boundary_flag: true` is reviewed manually for tier classification risk.
+12. **Compression Index coverage:** STRONG-fit grains (Canola, Lentils, Peas, Amber Durum, Mustard, Canaryseed, Flaxseed) have non-null compression_index; all others are explicitly null.
+13. **Basis veto applied:** Any stance_score > +2 has been checked against basis component (Rule 18).
 
 **Emit a meta-review summary** into `metadata.meta_review` on every row (same object duplicated across the batch is fine — farmers never see it, but a future audit loop will):
 
@@ -411,7 +496,7 @@ Before executing the UPSERT, hold all 16 proposed rows in memory and self-audit 
   "meta_review": {
     "batch_distribution": { "bullish": 5, "neutral": 7, "bearish": 4 },
     "high_confidence_count": 6,
-    "checks_passed": ["directional","confidence","evidence","tier_compliance","contradiction","trajectory","freshness","tier_recording"],
+    "checks_passed": ["directional","confidence","evidence","tier_compliance","contradiction","trajectory","freshness","tier_recording","rule_citation","thesis_killer","boundary","compression_coverage","basis_veto"],
     "fixes_applied": [
       "Flaxseed: removed 'specialty buyers active' platitude from bull_reasoning",
       "Rye: trimmed bull_reasoning from 4 to 3 items (MINOR tier cap)"
@@ -431,29 +516,48 @@ VALUES ($1, $2, 'failed', 'grain-desk-weekly',
   jsonb_build_object('reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
 ```
 
-**Step 5.2:** Upsert to market_analysis via Supabase MCP:
+**Step 5.2:** Upsert to market_analysis via Supabase MCP.
+
+> **Column-name trap:** the JSONB column on `market_analysis` is **`llm_metadata`** (NOT `metadata`). Verify against migration `20260312120000_market_analysis_table.sql` before editing this SQL.
+>
+> **Track 46 persistence:** the chief's output includes `tier, compression_index, compression_class, rule_citations, active_thesis_killers, boundary_flag, basis_vetoed`. These are **not** top-level columns on `market_analysis` — they are columns on `unified_rankings` (see migration `20260419130000`). Nest them inside `llm_metadata.track_46 = { ... }` so (a) this UPSERT succeeds, and (b) the downstream Unifier phase can read them back out to build the weekly `unified_rankings` row.
+
+> **Bull/Bear reasoning write-contract:** `bull_reasoning` and `bear_reasoning` are JSONB `[{fact, reasoning}, ...]` arrays added in migration `20260415_add_bull_bear_reasoning.sql`. The overview MarketStance chart and the grain detail BullBearCards both call `coerceBullets()` in `lib/queries/market-stance.ts` — if these columns are empty the UI falls back to parsing `bull_case`/`bear_case` prose and the chief's structured output is lost. The UPSERT column list below MUST include both.
 
 ```sql
 INSERT INTO market_analysis (grain, crop_year, grain_week, stance_score, confidence_score,
-  data_confidence, initial_thesis, bull_case, bear_case, final_assessment, key_signals,
-  historical_context, model_used, metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+  data_confidence, initial_thesis, bull_case, bear_case, bull_reasoning, bear_reasoning,
+  final_assessment, key_signals, historical_context, model_used, llm_metadata)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16)
 ON CONFLICT (grain, crop_year, grain_week)
 DO UPDATE SET stance_score = EXCLUDED.stance_score, confidence_score = EXCLUDED.confidence_score,
   data_confidence = EXCLUDED.data_confidence, initial_thesis = EXCLUDED.initial_thesis,
   bull_case = EXCLUDED.bull_case, bear_case = EXCLUDED.bear_case,
+  bull_reasoning = EXCLUDED.bull_reasoning, bear_reasoning = EXCLUDED.bear_reasoning,
   final_assessment = EXCLUDED.final_assessment, key_signals = EXCLUDED.key_signals,
   historical_context = EXCLUDED.historical_context, model_used = EXCLUDED.model_used,
-  metadata = EXCLUDED.metadata, generated_at = now();
+  llm_metadata = EXCLUDED.llm_metadata, generated_at = now();
 ```
 
-**Step 5.3:** Insert score_trajectory rows:
+**Step 5.3:** Insert score_trajectory rows.
+
+> **Column-name trap:** the writer column on `score_trajectory` is **`model_source`** (NOT `model_used` — that's on `market_analysis`). The NOT NULL columns that must be populated on every row: `grain, crop_year, grain_week, scan_type, stance_score, recommendation, data_freshness, model_source`. Use the helper `buildWeeklyTrajectoryRow()` in `lib/trajectory-mapping.ts` as the source of truth for row shape — do not hand-roll.
 
 ```sql
-INSERT INTO score_trajectory (grain, crop_year, grain_week, stance_score, model_used)
-SELECT grain, crop_year, grain_week, stance_score, 'claude-agent-desk-v1-opus'
-FROM (VALUES ('Canola', '2025-2026', 35, 15), ...) AS t(grain, crop_year, grain_week, stance_score);
+INSERT INTO score_trajectory (
+  grain, crop_year, grain_week, scan_type, stance_score,
+  conviction_pct, near_term, medium_term, recommendation,
+  trigger, evidence, data_freshness, model_source
+)
+VALUES
+  ('Canola',   '2025-2026', 35, 'weekly_debate', 15,
+   65, 'HOLD 2 WEEKS', 'PRICE_20PCT_IF_BASIS_NARROWS', 'HOLD 2 WEEKS',
+   'crush floor + export question', $1::jsonb, $2::jsonb, 'claude-agent-desk-v1-opus'),
+  -- repeat for the remaining 15 grains using the same 13-column shape
+  ;
 ```
+
+One row per grain, `scan_type = 'weekly_debate'`, `model_source = 'claude-agent-desk-v1-opus'`. `evidence` and `data_freshness` are JSONB; `trigger` is the one-line "why this stance changed" text; `recommendation` mirrors `final_assessment` or its short-form equivalent.
 
 **Step 5.4:** Log pipeline run:
 
@@ -464,11 +568,11 @@ VALUES ($1, $2, 'completed', 'claude-agent-desk', $3);
 
 ## Phase 6: Trigger Downstream
 
-**Step 6.1:** Trigger farm summary generation:
+**Step 6.1:** Farm summary handoff:
 
-```sql
-SELECT enqueue_internal_function('generate-farm-summary', '{"crop_year": "2025-2026", "grain_week": 35}'::jsonb);
-```
+`generate-farm-summary` is retired with the Grok workflow. Do not enqueue it.
+If personalized summaries are required, hand off to the Claude/Codex summary
+writer once that routine exists.
 
 **Step 6.2:** Trigger site health validation:
 
@@ -499,7 +603,7 @@ TeamDelete()
 | Scout fails entirely | Proceed with 5 scouts for all grains, note reduced coverage |
 | Specialist fails | Resolve with 2 specialists, note reduced confidence |
 | All scouts fail for a grain | Skip that grain. Retain previous week's score. |
-| xAI search fails (macro-scout) | Proceed without external search, flag in metadata |
+| External search unavailable (macro-scout) | Proceed without external search, flag in metadata |
 | L2 knowledge query empty | Proceed with L0+L1 only |
 | Supabase MCP unavailable | Abort swarm, report error |
 | Divergence unresolvable | Use risk-analyst score (conservative), confidence = 40% |

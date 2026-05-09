@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { GlassCard } from "@/components/ui/glass-card";
 import { formatRecommendationLabel, toUsMarketSlug } from "@/lib/constants/us-markets";
@@ -24,13 +25,26 @@ export default async function UsOverviewPage() {
       <section className="space-y-4">
         <SectionHeader
           title="US Grain Thesis Overview"
-          subtitle={`US weekly market view for crop year ${overview.cropYear} (market year ${overview.marketYear})`}
-        />
+          subtitle={`US grain markets this week — what's selling and what's stuck (crop year ${overview.cropYear}).`}
+        >
+          {isPlantingSeason() && (
+            <Link
+              href="/seeding"
+              className="text-xs font-medium text-canola hover:underline"
+            >
+              National seeding progress →
+            </Link>
+          )}
+        </SectionHeader>
 
+        <SectionBoundary
+          title="US market view unavailable"
+          message="The US grain thesis cards are temporarily unavailable. Try refreshing in a minute."
+        >
         {overview.stances.length === 0 ? (
           <SectionStateCard
-            title="US thesis data unavailable"
-            message="No stored US weekly theses were found yet. Run the US thesis generator and publish path first."
+            title="US market view is being prepared"
+            message="New analysis releases Friday evenings. Check back soon."
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -78,6 +92,7 @@ export default async function UsOverviewPage() {
             ))}
           </div>
         )}
+        </SectionBoundary>
       </section>
 
       <section className="space-y-4">
@@ -85,7 +100,10 @@ export default async function UsOverviewPage() {
           title="US Weekly Thesis Cards"
           subtitle="Farmer-facing summary cards for the first US thesis lane"
         />
-
+        <SectionBoundary
+          title="US thesis cards unavailable"
+          message="The detailed weekly thesis cards are temporarily unavailable. Try refreshing in a minute."
+        >
         <div className="grid gap-4 lg:grid-cols-2">
           {details.map((detail, index) => {
             const stance = overview.stances.find((s) => s.market === detail.marketName);
@@ -144,7 +162,13 @@ export default async function UsOverviewPage() {
             );
           })}
         </div>
+        </SectionBoundary>
       </section>
     </div>
   );
+}
+
+function isPlantingSeason(): boolean {
+  const m = new Date().getMonth() + 1; // 1-based
+  return m >= 4 && m <= 6;
 }

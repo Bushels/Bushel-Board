@@ -6,6 +6,7 @@ import { MobileNav } from "./mobile-nav";
 import { CgcFreshness } from "./cgc-freshness";
 import { Logo } from "./logo";
 import { DesktopNavLinks } from "./desktop-nav-links";
+import { MyFarmNavLink } from "./my-farm-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { createClient } from "@/lib/supabase/server";
@@ -16,7 +17,7 @@ export async function Nav() {
   // Fetch the current user's unlocked grains and email
   let unlockedGrains: string[] = [];
   let userEmail: string | null = null;
-  let homeHref: "/chat" | "/overview" | "/my-farm" = "/chat";
+  let homeHref: "/overview" | "/my-farm" = "/overview";
   try {
     const supabase = await createClient();
     const {
@@ -48,12 +49,10 @@ export async function Nav() {
                   Bushel Board
                 </span>
               </Link>
-              <DesktopNavLinks
-                allGrains={ALL_GRAINS}
-                unlockedGrains={unlockedGrains}
-              />
+              <DesktopNavLinks />
             </div>
             <div className="flex items-center gap-2">
+              <MyFarmNavLink />
               <Suspense
                 fallback={<Skeleton className="hidden h-9 w-32 rounded-full sm:block" />}
               >

@@ -2,6 +2,10 @@
 /**
  * Import Grain Monitor Data from MonthlyReportDataTables.xlsx
  *
+ * Fallback / backfill helper only.
+ * The canonical weekly importer is scripts/import-grain-monitor-weekly.ts,
+ * which reads the Quorum weekly PDF and writes a full weekly logistics row.
+ *
  * Downloads the Quorum Corp Excel data tables and extracts:
  * - Out-of-car time % by port (weekly granularity from 5C-5)
  * - Primary elevator stock levels by province (monthly from 5A-2)
@@ -36,7 +40,9 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const args = process.argv.slice(2);
 if (args.includes("--help")) {
-  console.log(`Usage: node scripts/import-grain-monitor.mjs [--download] [--crop-year 2025-2026]`);
+  console.log(
+    `Usage: node scripts/import-grain-monitor.mjs [--download] [--crop-year 2025-2026]\n\nFallback/backfill helper for the monthly Grain Monitor workbook.`
+  );
   process.exit(0);
 }
 
@@ -427,7 +433,7 @@ async function main() {
       out_of_car_time_vancouver_pct: oct.oct_vancouver_pct || null,
       out_of_car_time_prince_rupert_pct: oct.oct_prince_rupert_pct || null,
       // Source
-      source_notes: `Quorum MonthlyReportDataTables.xlsx (auto-imported)`,
+      source_notes: `Quorum MonthlyReportDataTables.xlsx fallback/backfill (auto-imported)`,
     });
   }
 

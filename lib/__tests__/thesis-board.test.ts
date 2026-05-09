@@ -1,0 +1,283 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildCanadaThesisBoardItem,
+  buildUsThesisBoardItem,
+} from "@/lib/queries/thesis-board";
+
+const canola = { name: "Canola", slug: "canola", defaultBushelWeightLbs: 50 };
+const corn = {
+  name: "Corn",
+  slug: "corn",
+  futuresGrain: "Corn",
+  exportCommodity: "CORN",
+  cotCommodity: "CORN",
+  cropProgressMarkets: ["Corn"],
+  includeInOverview: true,
+};
+
+describe("thesis board packet normalization", () => {
+  it("derives Canada bull and bear drivers from a facts-only packet", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      lane: "canada",
+      grain: "Canola",
+      crop_year: "2025-2026",
+      grain_week: 38,
+      packet_generated_at: "2026-05-08T18:00:00Z",
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 500,
+          process_deliveries_kt: 180,
+        },
+        exports: {
+          current_week_kt: 260,
+        },
+      },
+      supply: {
+        total_supply_kt: 22000,
+        carry_out_kt: 4800,
+      },
+      logistics: {
+        grain_monitor: {
+          terminal_capacity_pct: 91,
+        },
+      },
+      prices: [
+        {
+          settlement_price: 728.7,
+          change_pct: -1.2,
+          currency: "CAD",
+          unit: "tonne",
+          price_date: "2026-05-08",
+        },
+      ],
+      positioning: [
+        {
+          mapping_type: "primary",
+          managed_money_long: 95000,
+          managed_money_short: 22000,
+          change_managed_money_long: 1200,
+          change_managed_money_short: 100,
+        },
+      ],
+      freshness: [
+        {
+          source_name: "cgc_observations",
+          freshness_status: "strong",
+        },
+        {
+          source_name: "grain_prices",
+          freshness_status: "stale",
+        },
+      ],
+      quality_warnings: [
+        {
+          source_name: "grain_prices",
+          status: "stale",
+          action_hint: "Refresh prices.",
+        },
+      ],
+    });
+
+    expect(item.bullDrivers.map((driver) => driver.title)).toContain("Export pull visible");
+    expect(item.bearDrivers.map((driver) => driver.title)).toContain("Heavy carryout context");
+    expect(item.bearDrivers.map((driver) => driver.title)).toContain("Futures pressure");
+    expect(item.freshness).toHaveLength(2);
+    expect(item.confidence).toBe("medium");
+  });
+
+  it("derives US demand and supply drivers from a facts-only packet", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      lane: "us",
+      market_name: "Corn",
+      market_year: 2025,
+      packet_generated_at: "2026-05-08T18:00:00Z",
+      supply: {
+        crop_progress: {
+          us_total: {
+            good_excellent_pct: 76,
+            ge_pct_yoy_change: 10,
+            planted_pct_vs_avg: 7,
+          },
+        },
+        wasde: {
+          ending_stocks_direction: "down",
+          ending_stocks_mmt: 39.2,
+          stocks_to_use_pct: 9.5,
+        },
+      },
+      demand: {
+        export_sales: {
+          net_sales_mt: 620000,
+          export_pace_pct: 104,
+        },
+      },
+      prices: [],
+      positioning: [],
+      freshness: [
+        {
+          source_name: "usda_crop_progress",
+          freshness_status: "strong",
+        },
+        {
+          source_name: "usda_export_sales",
+          freshness_status: "strong",
+        },
+        {
+          source_name: "usda_wasde_mapped",
+          freshness_status: "strong",
+        },
+      ],
+      quality_warnings: [],
+    });
+
+    expect(item.bullDrivers.map((driver) => driver.title)).toContain("Export sales demand");
+    expect(item.bullDrivers.map((driver) => driver.title)).toContain("WASDE balance tightening");
+    expect(item.bearDrivers.map((driver) => driver.title)).toContain(
+      "US crop condition adds supply pressure",
+    );
+    expect(item.stanceScore).toBe(0);
+    expect(item.stanceLabel).toBe("Balanced");
+    expect(item.confidence).toBe("high");
+  });
+
+  it("returns a safe balanced Canada item for an empty packet", () => {
+    const item = buildCanadaThesisBoardItem(canola, {});
+
+    expect(item.bullDrivers).toHaveLength(0);
+    expect(item.bearDrivers).toHaveLength(0);
+    expect(item.stanceScore).toBe(0);
+    expect(item.stanceLabel).toBe("Balanced");
+    expect(item.bullCase).toBe("No clear bull driver in the current packet.");
+    expect(item.bearCase).toBe("No clear bear driver in the current packet.");
+  });
+
+  it("does not create false Canada drivers from zero denominators", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 0,
+          process_deliveries_kt: 0,
+        },
+        exports: {
+          current_week_kt: 0,
+        },
+      },
+      supply: {
+        total_supply_kt: 0,
+        carry_out_kt: 0,
+      },
+      freshness: [
+        {
+          source_name: "cgc_observations",
+          freshness_status: "strong",
+        },
+        {
+          source_name: "supply_disposition",
+          freshness_status: "strong",
+        },
+      ],
+    });
+
+    const titles = [...item.bullDrivers, ...item.bearDrivers].map((driver) => driver.title);
+    expect(titles).not.toContain("Export pull light");
+    expect(titles).not.toContain("Domestic processing thin");
+    expect(titles).not.toContain("Tight carryout context");
+  });
+
+  it("caps driver confidence when the source freshness row is stale", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 500,
+        },
+        exports: {
+          current_week_kt: 260,
+        },
+      },
+      freshness: [
+        {
+          source_name: "cgc_observations",
+          freshness_status: "stale",
+        },
+      ],
+      quality_warnings: [
+        {
+          source_name: "cgc_observations",
+          status: "stale",
+        },
+      ],
+    });
+
+    expect(item.bullDrivers).toHaveLength(1);
+    expect(item.bullDrivers[0]?.title).toBe("Export pull visible");
+    expect(item.bullDrivers[0]?.confidence).toBe("low");
+    expect(item.confidence).toBe("medium");
+  });
+
+  it("drops item confidence to low when packet warnings contain blockers", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      freshness: [
+        {
+          source_name: "cgc_observations",
+          freshness_status: "strong",
+        },
+      ],
+      quality_warnings: [
+        {
+          source_name: "grain_prices",
+          status: "broken",
+        },
+        {
+          source_name: "supply_disposition",
+          status: "empty",
+        },
+      ],
+    });
+
+    expect(item.warnings.map((warning) => warning.severity)).toEqual(["blocker", "blocker"]);
+    expect(item.confidenceScore).toBe(38);
+    expect(item.confidence).toBe("low");
+  });
+
+  it("requires USDA export pace before calling positive net sales bullish", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      demand: {
+        export_sales: {
+          net_sales_mt: 1000,
+          export_pace_pct: null,
+        },
+      },
+      freshness: [
+        {
+          source_name: "usda_export_sales",
+          freshness_status: "strong",
+        },
+      ],
+    });
+
+    expect(item.bullDrivers.map((driver) => driver.title)).not.toContain("Export sales demand");
+  });
+
+  it("treats a net-long Canada CFTC row with negative weekly change as pressure", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      positioning: [
+        {
+          mapping_type: "primary",
+          managed_money_long: 1000,
+          managed_money_short: 100,
+          change_managed_money_long: -250,
+          change_managed_money_short: 25,
+        },
+      ],
+      freshness: [
+        {
+          source_name: "cftc_cot_positions",
+          freshness_status: "strong",
+        },
+      ],
+    });
+
+    expect(item.bullDrivers.map((driver) => driver.title)).not.toContain("Managed money support");
+    expect(item.bearDrivers.map((driver) => driver.title)).toContain("Positioning pressure");
+  });
+});

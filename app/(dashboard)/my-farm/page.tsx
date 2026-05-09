@@ -1,13 +1,12 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getFarmSummary, getGrainIntelligence, getMarketAnalysis } from "@/lib/queries/intelligence";
+import { getFarmSummary, getMarketAnalysis } from "@/lib/queries/intelligence";
 import type { MarketAnalysis } from "@/lib/queries/intelligence";
 import { getDeliveryAnalytics } from "@/lib/queries/delivery-analytics";
 import { getSupplyDispositionForGrains } from "@/lib/queries/supply-disposition";
 import { getGrainOverview } from "@/lib/queries/grains";
-import { getSentimentOverview } from "@/lib/queries/sentiment";
-import { getUserSentimentVote } from "@/lib/queries/sentiment";
 import { getUserRole } from "@/lib/auth/role-guard";
-import { CURRENT_CROP_YEAR, getCurrentGrainWeek } from "@/lib/utils/crop-year";
+import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { grainSlug } from "@/lib/constants/grains";
 import { deriveRecommendation } from "@/lib/utils/recommendations";
 import type { RecommendationResult } from "@/lib/utils/recommendations";
@@ -15,25 +14,14 @@ import { FarmSummaryCard } from "@/components/dashboard/farm-summary-card";
 import { DeliveryPaceCard } from "@/components/dashboard/delivery-pace-card";
 import { YourImpact } from "@/components/dashboard/your-impact";
 import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
-import { MultiGrainSentiment } from "@/components/dashboard/multi-grain-sentiment";
-import { SentimentBanner } from "@/components/dashboard/sentiment-banner";
+import { GrainStorageCard } from "@/components/dashboard/grain-storage-card";
+import { getGrainStorageComparison } from "@/lib/queries/grain-storage-comparison";
+import { GlassCard } from "@/components/ui/glass-card";
+import { convertKtToTonnes } from "@/lib/utils/grain-units";
 import { MyFarmClient, type MarketSupplyData } from "./client";
 import { Wheat } from "lucide-react";
-
-function deriveStanceFromThesis(
-  thesis: string | null | undefined
-): "bullish" | "bearish" | "neutral" {
-  if (!thesis) return "neutral";
-  const lower = thesis.toLowerCase();
-  if (lower.includes("bullish") || lower.includes("upside") || lower.includes("rally")) {
-    return "bullish";
-  }
-  if (lower.includes("bearish") || lower.includes("downside") || lower.includes("pressure")) {
-    return "bearish";
-  }
-  return "neutral";
-}
 
 export default async function MyFarmPage() {
   const supabase = await createClient();
@@ -41,7 +29,9 @@ export default async function MyFarmPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const grainWeek = getCurrentGrainWeek();
+  if (!user) {
+    redirect("/login");
+  }
 
   const [{ data: cropPlans }, farmSummary, analytics, role] = await Promise.all([
     supabase
@@ -61,55 +51,34 @@ export default async function MyFarmPage() {
     (plan) => (plan.deliveries ?? []).length > 0
   );
 
-  // Build grain info for sentiment + recommendations
   const grainSlugs = plans.map((p) => grainSlug(p.grain));
-  const grainInfos = plans.map((p) => ({
-    name: p.grain,
-    slug: grainSlug(p.grain),
-  }));
 
-  // Fetch AAFC supply data, sentiment overview, intelligence, and user votes in parallel
-  const [supplyData, sentimentOverview, grainOverviewData, ...intelligenceAndVotes] =
-    await Promise.all([
-      grainSlugs.length > 0
-        ? getSupplyDispositionForGrains(grainSlugs)
-        : Promise.resolve([]),
-      getSentimentOverview(CURRENT_CROP_YEAR, grainWeek),
-      getGrainOverview(),
-      ...plans.flatMap((p) => [
-        getGrainIntelligence(p.grain),
-        user?.id
-          ? (async () => {
-              const vote = await getUserSentimentVote(
-                supabase,
-                p.grain,
-                CURRENT_CROP_YEAR,
-                grainWeek
-              );
-              return { grain: p.grain, vote };
-            })()
-          : Promise.resolve({ grain: p.grain, vote: null }),
-        getMarketAnalysis(p.grain),
-      ]),
-    ]);
+  // AAFC supply data, published market analysis, and per-grain
+  // storage peer comparisons fetched in parallel. (Sentiment fetches were
+  // removed when the per-grain voting block was paused — the components
+  // and DB tables remain so voting can be redeployed later.)
+  const [
+    supplyData,
+    grainOverviewData,
+    storageComparisons,
+    marketAnalyses,
+  ] = await Promise.all([
+    grainSlugs.length > 0
+      ? getSupplyDispositionForGrains(grainSlugs)
+      : Promise.resolve([]),
+    getGrainOverview(),
+    Promise.all(plans.map((p) => getGrainStorageComparison(p.grain))),
+    Promise.all(plans.map((p) => getMarketAnalysis(p.grain))),
+  ]);
 
-  // Parse intelligence results, user votes, and market analysis from interleaved array
-  const intelligenceMap: Record<string, Awaited<ReturnType<typeof getGrainIntelligence>>> = {};
-  const initialVotes: Record<string, number | null> = {};
+  const storageComparisonByGrain = new Map(
+    plans.map((p, i) => [p.grain, storageComparisons[i] ?? null])
+  );
+
   const marketAnalysisMap: Record<string, MarketAnalysis | null> = {};
 
   for (let i = 0; i < plans.length; i++) {
-    const intel = intelligenceAndVotes[i * 3] as Awaited<
-      ReturnType<typeof getGrainIntelligence>
-    >;
-    const voteResult = intelligenceAndVotes[i * 3 + 1] as {
-      grain: string;
-      vote: number | null;
-    };
-    const ma = intelligenceAndVotes[i * 3 + 2] as MarketAnalysis | null;
-    intelligenceMap[plans[i].grain] = intel;
-    initialVotes[voteResult.grain] = voteResult.vote;
-    marketAnalysisMap[plans[i].grain] = ma;
+    marketAnalysisMap[plans[i].grain] = marketAnalyses[i] ?? null;
   }
 
   // Build market supply map
@@ -144,11 +113,10 @@ export default async function MyFarmPage() {
   }> = [];
 
   for (const plan of plans) {
-    const intel = intelligenceMap[plan.grain];
     const ma = marketAnalysisMap[plan.grain];
     const marketStance = ma?.stance_score != null
       ? (ma.stance_score >= 20 ? "bullish" : ma.stance_score <= -20 ? "bearish" : "neutral")
-      : deriveStanceFromThesis(intel?.thesis_body);
+      : "neutral";
     const startingGrain = Number(plan.starting_grain_kt ?? 0);
     const remainingToSell = Number(plan.volume_left_to_sell_kt ?? 0);
     const contracted = Number(plan.contracted_kt ?? 0);
@@ -181,12 +149,14 @@ export default async function MyFarmPage() {
     });
   }
 
-  const unlockedSlugs = grainSlugs;
-
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* HERO */}
-      <div className="rounded-2xl border border-canola/15 bg-gradient-to-br from-canola/5 to-background p-6">
+      {/* HERO — GlassCard with the wheat-gradient overlay preserved via className. */}
+      <GlassCard
+        elevation={1}
+        hover={false}
+        className="border-canola/15 bg-gradient-to-br from-canola/5 to-background p-6"
+      >
         <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
           <Wheat className="h-8 w-8 text-canola" />
           My Farm
@@ -194,7 +164,7 @@ export default async function MyFarmPage() {
         <p className="text-base text-muted-foreground mt-2 max-w-2xl">
           Your grain. Your decisions.
         </p>
-      </div>
+      </GlassCard>
 
       {/* WEEKLY SUMMARY */}
       <section className="space-y-4">
@@ -202,35 +172,50 @@ export default async function MyFarmPage() {
           title="Weekly Summary"
           subtitle="Your personalized farm brief"
         />
-        <FarmSummaryCard
-          summary={farmSummary}
-          hasPlans={plans.length > 0}
-          hasLoggedDeliveries={hasLoggedDeliveries}
-        />
+        <SectionBoundary
+          title="Weekly summary unavailable"
+          message="Your personalized farm brief is temporarily unavailable. Try refreshing in a minute."
+        >
+          <FarmSummaryCard
+            summary={farmSummary}
+            hasPlans={plans.length > 0}
+            hasLoggedDeliveries={hasLoggedDeliveries}
+          />
+        </SectionBoundary>
       </section>
 
-      {/* MARKET SENTIMENT */}
+      {/* MARKET SENTIMENT — paused; will be redeployed once peer-comparison
+          metrics ship. Component + DB tables left intact for restoration. */}
+
+      {/* GRAIN STORAGE — the new headline focus. Two simple inputs per crop:
+          total this year + how much is left in the bin. Below each card is
+          a peer-comparison stat ("X% of farmers have more in the bin"). */}
       {plans.length > 0 && (
         <section className="space-y-4">
           <SectionHeader
-            title="Market Sentiment"
-            subtitle="Vote on your grains and see how the community feels"
+            title="Grain in your bin"
+            subtitle="Update your total and what's left — see how it stacks up against other farmers."
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MultiGrainSentiment
-              grains={grainInfos}
-              grainWeek={grainWeek}
-              cropYear={CURRENT_CROP_YEAR}
-              role={role}
-              initialVotes={initialVotes}
-              sentimentOverview={sentimentOverview}
-            />
-            <SentimentBanner
-              sentimentData={sentimentOverview}
-              grainWeek={grainWeek}
-              unlockedSlugs={unlockedSlugs}
-            />
-          </div>
+          <SectionBoundary
+            title="Storage tracker unavailable"
+            message="Your grain storage cards couldn't load. Refresh the page to try again."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {plans.map((plan) => (
+                <GrainStorageCard
+                  key={plan.grain}
+                  grain={plan.grain}
+                  initialTotalTonnes={convertKtToTonnes(
+                    Number(plan.starting_grain_kt ?? 0)
+                  )}
+                  initialRemainingTonnes={convertKtToTonnes(
+                    Number(plan.volume_left_to_sell_kt ?? 0)
+                  )}
+                  comparison={storageComparisonByGrain.get(plan.grain) ?? null}
+                />
+              ))}
+            </div>
+          </SectionBoundary>
         </section>
       )}
 
@@ -241,17 +226,22 @@ export default async function MyFarmPage() {
             title="Your Recommendations"
             subtitle="AI-powered guidance for your grains"
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recommendations.map((rec, i) => (
-              <RecommendationCard
-                key={rec.grainSlug}
-                grainName={rec.grainName}
-                grainSlug={rec.grainSlug}
-                recommendation={rec.recommendation}
-                deliveredPct={rec.deliveredPct}
-              />
-            ))}
-          </div>
+          <SectionBoundary
+            title="Recommendations unavailable"
+            message="Your grain recommendations couldn't load. Try refreshing in a minute."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendations.map((rec) => (
+                <RecommendationCard
+                  key={rec.grainSlug}
+                  grainName={rec.grainName}
+                  grainSlug={rec.grainSlug}
+                  recommendation={rec.recommendation}
+                  deliveredPct={rec.deliveredPct}
+                />
+              ))}
+            </div>
+          </SectionBoundary>
         </section>
       )}
 
@@ -261,12 +251,17 @@ export default async function MyFarmPage() {
           title="Your Grains"
           subtitle="Manage crop plans, log deliveries, and track progress"
         />
-        <MyFarmClient
-          currentPlans={plans}
-          percentiles={percentiles}
-          role={role}
-          marketSupply={marketSupply}
-        />
+        <SectionBoundary
+          title="Crop plans unavailable"
+          message="Your grain plans couldn't load. Refresh the page to try again."
+        >
+          <MyFarmClient
+            currentPlans={plans}
+            percentiles={percentiles}
+            role={role}
+            marketSupply={marketSupply}
+          />
+        </SectionBoundary>
       </section>
 
       {/* DELIVERY PACE + YOUR IMPACT */}
@@ -276,12 +271,17 @@ export default async function MyFarmPage() {
             title="Delivery Pace"
             subtitle="How your marketing compares to other prairie farmers"
           />
-          <DeliveryPaceCard
-            plans={plans}
-            percentiles={percentiles}
-            analytics={analytics}
-          />
-          <YourImpact variant="farm" />
+          <SectionBoundary
+            title="Delivery pace unavailable"
+            message="Peer-comparison data is temporarily unavailable. Try refreshing in a minute."
+          >
+            <DeliveryPaceCard
+              plans={plans}
+              percentiles={percentiles}
+              analytics={analytics}
+            />
+            <YourImpact variant="farm" />
+          </SectionBoundary>
         </section>
       )}
 

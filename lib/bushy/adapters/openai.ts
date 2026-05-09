@@ -1,7 +1,5 @@
 // WS2 Task 2.5 — Bushy chat harness
-// OpenAIAdapter: uses the `openai` SDK (v6+) streaming API. Mirrors
-// XaiAdapter's tool-use loop pattern because OpenAI's and xAI's wire
-// protocols are identical (both are OpenAI's /v1/chat/completions SSE).
+// OpenAIAdapter: uses the `openai` SDK (v6+) streaming API.
 //
 // Cached tokens: OpenAI surfaces cache hits via
 // usage.prompt_tokens_details.cached_tokens (~50% discount for 4o, ~25%

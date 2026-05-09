@@ -29,6 +29,14 @@ Gemini CLI exposes two main tools. One works reliably, one does not.
 
 Always use `ask-gemini`. Never use `brainstorm`.
 
+When the MCP tool is not exposed in the active Codex session, use the local Gemini CLI directly:
+
+```
+gemini -m gemini-3.1-pro-preview -p "@path/to/file.ts Focused audit question." --approval-mode plan --skip-trust --output-format text
+```
+
+Keep the same prompt discipline: one file, one focused question, concrete risks only. Gemini 3.1 Pro Preview can return capacity errors or time out; treat a missing response as a tool limitation, not as release proof.
+
 ## Prompt Patterns That Work
 
 ### Pattern 1: Single File + Focused Question (Best)
@@ -133,10 +141,14 @@ mcp__gemini-cli__ask-gemini(prompt: "...")
 
 # Fast: gemini-2.5-flash (quicker, good for enumeration tasks)
 mcp__gemini-cli__ask-gemini(prompt: "...", model: "gemini-2.5-flash")
+
+# Strict local CLI audit when requested by Kyle or when MCP is unavailable
+gemini -m gemini-3.1-pro-preview -p "@file Return blockers and concrete improvements only." --approval-mode plan --skip-trust --output-format text
 ```
 
 Use **Pro** for: knowledge gap analysis, prompt engineering, strategic product questions.
 Use **Flash** for: quick checks, listing/enumeration, validation tasks.
+Use **Gemini 3.1 Pro Preview CLI** for: second-opinion code audits, failure-mode review, and user-requested Gemini checks. Keep prompts narrow enough that timeouts are non-blocking.
 
 ## Bushel Board-Specific Workflows
 
@@ -166,7 +178,7 @@ Step 1: @supabase/functions/_shared/market-intelligence-config.ts
         What guardrails are missing from the CGC_DATA_GUARDRAILS section that could cause
         the AI to produce incorrect grain market analysis?
 
-Step 2: @supabase/functions/generate-intelligence/prompt-template.ts
+Step 2: Retired. Do not review `generate-intelligence` prompt templates except as historical context.
         Where could this prompt template allow the AI to produce misleading output?
         Focus on data misinterpretation risks.
 
@@ -232,6 +244,34 @@ a gap LINE on a right Y-axis). Design doc silently simplified to 2 lines on 1 ax
 All reviewer agents validated against the design doc, not the prototype. The gap line — the most
 important element — was never built.
 
+### Workflow 7: Code Wiring Audit
+
+Run after implementing operational glue code, especially wrappers, collectors, scheduled commands,
+or cache-refresh paths.
+
+```
+@scripts/run-collector-with-thesis-cache-refresh.ts
+Audit this wrapper. Focus only on argument forwarding, Windows execution, dry-run/help safety,
+refresh failure handling, retry/idempotency risk, and hidden operational risk.
+Return blockers and concrete improvements only.
+```
+
+For `package.json`, keep the scope even tighter:
+
+```
+@package.json
+Audit only the collect:* and refresh-thesis-cache scripts. Focus on whether scheduled collectors
+refresh the thesis cache after success and whether npm/Windows argument behavior is misleading.
+Return blockers and concrete improvements only.
+```
+
+**Lesson learned (2026-05-08):** Gemini correctly caught that Windows CLI shims and dry-run
+argument forwarding are separate risks. The fix was not broad `shell: true`; that broke quoted
+ordinary child commands. Use narrow shell handling for known shims (`tsx`, `npx`, `npm`, `.cmd`,
+`.bat`) and verify direct child commands separately. Gemini also flagged the retry contract:
+if refresh fails after a collector succeeds, a scheduler may retry the whole collector, so collectors
+must remain idempotent and docs must say this explicitly.
+
 ## Parallel Multi-Query Strategy
 
 When you need multiple perspectives, make separate `ask-gemini` calls in the same turn.
@@ -277,7 +317,7 @@ Gemini's responses are advisory input, not authoritative. Always:
 |------|------------------|
 | `supabase/functions/_shared/commodity-knowledge.ts` | Knowledge gaps, incorrect rules, missing frameworks |
 | `supabase/functions/_shared/market-intelligence-config.ts` | Prompt quality, guardrail completeness, persona tuning |
-| `supabase/functions/generate-intelligence/prompt-template.ts` | Data misinterpretation risks, output format issues |
-| `supabase/functions/analyze-market-data/index.ts` | Data pipeline completeness, missing data sources |
+| Claude/Codex desk prompts | Data misinterpretation risks, output format issues |
+| `market_analysis` desk workflow | Data pipeline completeness, missing data sources |
 | `docs/reference/agent-debate-rules.md` | Rule gaps, contradictions, missing grain-specific rules |
-| `supabase/functions/search-x-intelligence/search-queries.ts` | Query coverage, missing hashtags, seasonal gaps |
+| Direct X API v2 query plan | Future query coverage, missing hashtags, seasonal gaps |

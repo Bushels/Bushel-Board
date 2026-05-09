@@ -19,7 +19,8 @@ export interface GrainIntelligence {
 }
 
 /**
- * Get the latest intelligence for a grain (most recent grain_week).
+ * Legacy Grok/xAI narrative archive. Do not use this for live thesis surfaces.
+ * Current published analysis should come from getMarketAnalysis().
  */
 export async function getGrainIntelligence(
   grainName: string

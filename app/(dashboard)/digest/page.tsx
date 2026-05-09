@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SectionHeader } from "@/components/dashboard/section-header";
+import { SectionStateCard } from "@/components/dashboard/section-state-card";
 import { DigestView } from "./digest-view";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +36,15 @@ export default async function DigestPage() {
   if (error) {
     console.error("Digest generation error:", error);
     return (
-      <div className="mx-auto max-w-3xl py-8">
-        <h1 className="text-xl font-bold text-foreground">Daily Digest</h1>
-        <p className="mt-2 text-sm text-red-500">
-          Error generating digest: {error.message}
-        </p>
+      <div className="mx-auto max-w-3xl space-y-4 py-8">
+        <SectionHeader
+          title="Daily Digest"
+          subtitle="Operational briefing for bu/ac"
+        />
+        <SectionStateCard
+          title="Digest unavailable"
+          message={`Generation error: ${error.message}`}
+        />
       </div>
     );
   }

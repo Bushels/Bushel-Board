@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Friday Grain Desk — Ranked Outlook Mockup</title>
+<style>
+  :root {
+    --wheat-50: #f5f3ee;
+    --wheat-900: #2a261e;
+    --canola: #c17f24;
+    --prairie: #437a22;
+    --amber: #d97706;
+    --rose: #b33;
+    --slate: #475569;
+    --muted: #7a7366;
+    --line: #e6dfd1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--wheat-50);
+    color: var(--wheat-900);
+    margin: 0;
+    padding: 32px;
+    line-height: 1.5;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 28px;
+    margin: 0 0 4px;
+    color: var(--wheat-900);
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--wheat-50);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--line);
+  }
+  td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr:hover td { background: color-mix(in srgb, var(--wheat-50) 60%, transparent); }
+  .rank {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--muted);
+    width: 36px;
+  }
+  .grain-cell {
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .tier {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .tier-strong-bull { background: color-mix(in srgb, var(--prairie) 15%, white); color: var(--prairie); }
+  .tier-mild-bull   { background: color-mix(in srgb, var(--prairie) 8%, white); color: var(--prairie); }
+  .tier-neutral     { background: color-mix(in srgb, var(--slate) 12%, white); color: var(--slate); }
+  .tier-mild-bear   { background: color-mix(in srgb, var(--rose) 10%, white); color: var(--rose); }
+  .tier-strong-bear { background: color-mix(in srgb, var(--rose) 18%, white); color: var(--rose); }
+  .score {
+    font-weight: 700;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .score-bull { color: var(--prairie); }
+  .score-bear { color: var(--rose); }
+  .score-neutral { color: var(--slate); }
+  .compression {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--wheat-50);
+    color: var(--canola);
+    display: inline-block;
+  }
+  .compression-na { color: var(--muted); background: transparent; font-weight: 400; font-family: inherit; }
+  .driver { font-size: 13px; color: var(--wheat-900); }
+  .rules {
+    margin-top: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--canola);
+    font-weight: 600;
+  }
+  .killer {
+    font-size: 12px;
+    color: var(--amber);
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .audit {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--wheat-50);
+    border-left: 4px solid var(--canola);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .audit .label {
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--wheat-900);
+  }
+  .audit ul { margin: 0; padding-left: 20px; }
+  .audit li { margin-bottom: 4px; }
+  .audit .ok::marker { content: "✓ "; color: var(--prairie); }
+  .audit .warn::marker { content: "⚠ "; color: var(--amber); }
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Friday Grain Desk — Unified North American Ranked Outlook</h1>
+  <div class="sub">Week 36 · CAD + US unified · Generated 2026-04-18 · Model: claude-opus-desk-chief-v2 + unifier</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th style="width:44px">Region</th>
+        <th>Grain</th>
+        <th>Tier</th>
+        <th style="text-align:right">Stance</th>
+        <th>Compression</th>
+        <th>Primary Driver</th>
+        <th>Thesis-Killer Watch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="rank">1</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🌱 Canola</td>
+        <td><span class="tier tier-strong-bull">Strong Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+72</span></td>
+        <td><span class="compression">+4 · A</span></td>
+        <td class="driver">
+          Spring wound: vessel queue 33, Primary -21% / Process +12%
+          <div class="rules">R-CA-CNL-03 · R-16 · R-17</div>
+        </td>
+        <td class="killer">⚠ China tariff walk-back (Apr 24 COT)</td>
+      </tr>
+      <tr>
+        <td class="rank">2</td>
+        <td class="flag">🇺🇸</td>
+        <td class="grain-cell">🌽 Corn</td>
+        <td><span class="tier tier-strong-bull">Strong Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+62</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          Ethanol crush pace +8%, China PRC tender window open
+          <div class="rules">R-US-COR-01 · R-US-COR-03 · R-2</div>
+        </td>
+        <td class="killer">⚠ Brazil safrinha yield surprise</td>
+      </tr>
+      <tr>
+        <td class="rank">3</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🫘 Lentils</td>
+        <td><span class="tier tier-strong-bull">Strong Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+58</span></td>
+        <td><span class="compression">+3 · B</span></td>
+        <td class="driver">
+          India tender pull + container dwell at Saskatoon &gt; 4d
+          <div class="rules">R-CA-LEN-02 · R-17 · R-19</div>
+        </td>
+        <td class="killer">⚠ India 33% safeguard tariff risk</td>
+      </tr>
+      <tr>
+        <td class="rank">4</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🌾 Amber Durum</td>
+        <td><span class="tier tier-strong-bull">Strong Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+45</span></td>
+        <td><span class="compression">+3 · A</span></td>
+        <td class="driver">
+          Algeria OAIC tender active, country stocks &lt; 200kt by Wk34
+          <div class="rules">R-CA-DUR-01 · R-16</div>
+        </td>
+        <td class="killer">⚠ EU durum crop recovery 2025</td>
+      </tr>
+      <tr>
+        <td class="rank">5</td>
+        <td class="flag">🇺🇸</td>
+        <td class="grain-cell">🟡 Soybeans</td>
+        <td><span class="tier tier-mild-bull">Mild Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+38</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          Crush margins $2.15/bu, Brazil late-planting premium
+          <div class="rules">R-US-SOY-02 · R-13</div>
+        </td>
+        <td class="killer">⚠ China state reserve release</td>
+      </tr>
+      <tr>
+        <td class="rank">6</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🌻 Flaxseed</td>
+        <td><span class="tier tier-mild-bull">Mild Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+32</span></td>
+        <td><span class="compression">+2 · C</span></td>
+        <td class="driver">
+          EU licenses open, country stocks draw continuing
+          <div class="rules">R-CA-FLX-01</div>
+        </td>
+        <td class="killer">⚠ GM contamination finding</td>
+      </tr>
+      <tr>
+        <td class="rank">7</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🥜 Peas</td>
+        <td><span class="tier tier-mild-bull">Mild Bull</span></td>
+        <td style="text-align:right"><span class="score score-bull">+28</span></td>
+        <td><span class="compression">+2 · B</span></td>
+        <td class="driver">
+          Bangladesh+India tender volume rising
+          <div class="rules">R-CA-PEA-01 · R-18</div>
+        </td>
+        <td class="killer">⚠ India pea tariff reimposition cycle</td>
+      </tr>
+      <tr>
+        <td class="rank">8</td>
+        <td class="flag">🇺🇸</td>
+        <td class="grain-cell">🌾 Wheat</td>
+        <td><span class="tier tier-neutral">Neutral</span></td>
+        <td style="text-align:right"><span class="score score-neutral">+15</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          Global SRW supply ample, HRW protein premium muted
+          <div class="rules">R-US-WHT-01 · R-US-WHT-02</div>
+        </td>
+        <td class="killer">⚠ Black Sea corridor disruption</td>
+      </tr>
+      <tr>
+        <td class="rank">9</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🌾 Wheat</td>
+        <td><span class="tier tier-neutral">Neutral</span></td>
+        <td style="text-align:right"><span class="score score-neutral">+8</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          Global substitution caps CWRS tightness
+          <div class="rules">R-CA-WHT-01</div>
+        </td>
+        <td class="killer" style="color:var(--muted)">— WEAK fit, no spring signal</td>
+      </tr>
+      <tr>
+        <td class="rank">10</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🌽 Corn</td>
+        <td><span class="tier tier-neutral">Neutral</span></td>
+        <td style="text-align:right"><span class="score score-neutral">-5</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          CBOT-dominated, Canadian price-taker
+          <div class="rules">R-CA-COR-01</div>
+        </td>
+        <td class="killer" style="color:var(--muted)">— N/A grain</td>
+      </tr>
+      <tr>
+        <td class="rank">11</td>
+        <td class="flag">🇨🇦</td>
+        <td class="grain-cell">🌾 Oats</td>
+        <td><span class="tier tier-mild-bear">Mild Bear</span></td>
+        <td style="text-align:right"><span class="score score-bear">-35</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          US feed demand softening, thin futures unreliable
+          <div class="rules">R-CA-OAT-01 · R-8</div>
+        </td>
+        <td class="killer">⚠ Producer car allocation divergence</td>
+      </tr>
+      <tr>
+        <td class="rank">12</td>
+        <td class="flag">🇺🇸</td>
+        <td class="grain-cell">🌾 Oats</td>
+        <td><span class="tier tier-mild-bear">Mild Bear</span></td>
+        <td style="text-align:right"><span class="score score-bear">-42</span></td>
+        <td><span class="compression-na">n/a</span></td>
+        <td class="driver">
+          Quaker contract cycle soft, CBOT oats OI &lt; 15K unreliable
+          <div class="rules">R-US-OAT-01</div>
+        </td>
+        <td class="killer">⚠ Canadian export surge</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:12px; font-size:12px; color:var(--muted); font-style:italic;">
+    Showing 12 of 20 rows. Full list includes all 16 CAD grains + 4 US markets.
+  </div>
+
+  <div class="audit">
+    <div class="label">🔍 Rule Coverage Audit (meta-reviewer)</div>
+    <ul>
+      <li class="ok">All 16 grains have ≥1 grain-specific rule cited</li>
+      <li class="ok">Compression Index computed for 7 STRONG-fit grains</li>
+      <li class="warn">Rye thesis cites only global rules — consider adding R-CA-RYE card in v1.1</li>
+      <li class="ok">No unresolved tier boundaries (no grains within ±3 of a tier edge)</li>
+    </ul>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--prairie)"></span>Bullish tiers</span>
+    <span><span class="dot" style="background:var(--slate)"></span>Neutral tier</span>
+    <span><span class="dot" style="background:var(--rose)"></span>Bearish tiers</span>
+    <span>Compression Class A (5 components) · B (4 components, no vessel queue) · C (3 components, no COT)</span>
+  </div>
+</div>
+</body>
+</html>

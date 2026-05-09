@@ -65,28 +65,6 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
 
             <nav className="flex flex-col gap-1 px-4 pt-4">
               <Link
-                href="/chat"
-                className={cn(
-                  "rounded-2xl px-3 py-2.5 transition-colors",
-                  pathname === "/chat"
-                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
-                    : "hover:bg-white/55 dark:hover:bg-white/7"
-                )}
-              >
-                Bushy
-              </Link>
-              <Link
-                href="/my-farm"
-                className={cn(
-                  "rounded-2xl px-3 py-2.5 transition-colors",
-                  pathname.startsWith("/my-farm")
-                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
-                    : "hover:bg-white/55 dark:hover:bg-white/7"
-                )}
-              >
-                My Farm
-              </Link>
-              <Link
                 href="/overview"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",
@@ -98,6 +76,28 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                 Overview
               </Link>
               <Link
+                href="/source-spine"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname.startsWith("/source-spine")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                Source Spine
+              </Link>
+              <Link
+                href="/thesis"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname.startsWith("/thesis")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                Thesis
+              </Link>
+              <Link
                 href="/us"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",
@@ -107,6 +107,17 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                 )}
               >
                 US Markets
+              </Link>
+              <Link
+                href="/my-farm"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname.startsWith("/my-farm")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                My Farm
               </Link>
 
               {yourCrops.length === 0 && (

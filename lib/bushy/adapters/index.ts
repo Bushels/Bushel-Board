@@ -3,7 +3,7 @@
 //
 // Dispatch order (deterministic):
 //   claude-*         → AnthropicAdapter
-//   grok-*           → XaiAdapter
+//   grok-*           -> retired; do not route to xAI
 //   gpt-*, o1-*, o3-*→ OpenAIAdapter
 //   anything else    → OpenRouterAdapter
 //
@@ -14,12 +14,13 @@
 import { AnthropicAdapter } from "./anthropic";
 import { OpenAIAdapter } from "./openai";
 import { OpenRouterAdapter } from "./openrouter";
-import { XaiAdapter } from "./xai";
 import type { LLMAdapter } from "./types";
 
 export function getAdapter(modelId: string): LLMAdapter {
   if (modelId.startsWith("claude-")) return new AnthropicAdapter(modelId);
-  if (modelId.startsWith("grok-")) return new XaiAdapter(modelId);
+  if (modelId.startsWith("grok-")) {
+    throw new Error("Grok/xAI adapters are retired. Use Claude/Codex routing.");
+  }
   if (
     modelId.startsWith("gpt-") ||
     modelId.startsWith("o1-") ||

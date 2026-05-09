@@ -2,8 +2,8 @@
  * Supabase Edge Function: validate-site-health
  *
  * Runs 7 deterministic health checks against the live database to verify
- * site data integrity. Called as step 6 in the import pipeline chain
- * (after generate-farm-summary) and daily by cron.
+ * site data integrity. Called after source imports / desk workflows and by
+ * scheduled health checks. The old generate-farm-summary step is retired.
  *
  * Input body (optional): { "crop_year": "2025-2026", "grain_week": 30, "source": "pipeline" }
  * If omitted, derives current crop year dynamically.
@@ -28,23 +28,32 @@ const CGC_HEADER_COLUMNS = [
   "ktonnes",
 ];
 
-// Tables to check for short-format crop year violations
+// Tables to check for short-format crop year violations.
+// macro_estimates removed 2026-04-19 — deprecated per docs/reference/data-sources.md.
+// market_analysis + us_market_analysis added — V2 swarm outputs must stay long-format.
 const CROP_YEAR_TABLES = [
   "cgc_imports",
   "cgc_observations",
   "grain_intelligence",
+  "market_analysis",
+  "us_market_analysis",
+  "score_trajectory",
+  "us_score_trajectory",
   "x_market_signals",
   "farm_summaries",
   "crop_plans",
-  "macro_estimates",
   "supply_disposition",
   "validation_reports",
 ];
 
+// us_market_analysis and us_score_trajectory use (market_name, market_year)
+// instead of (grain, grain_week), so they are excluded from this filter.
 const GRAIN_WEEK_TABLES = new Set([
   "cgc_imports",
   "cgc_observations",
   "grain_intelligence",
+  "market_analysis",
+  "score_trajectory",
   "x_market_signals",
   "farm_summaries",
   "validation_reports",
@@ -177,15 +186,18 @@ Deno.serve(async (req) => {
     const checks: Record<string, CheckResult> = {};
 
     // ── Check 1: Data freshness ───────────────────────────────────────────
+    // status IN ('success','partial') — partial imports still land real data.
+    // maybeSingle() — no successful imports is a legitimate state (pre-first-import),
+    // and we want to report that as a controlled failure rather than a thrown error.
     {
       const { data, error } = await supabase
         .from("cgc_imports")
         .select("crop_year, grain_week, imported_at")
-        .eq("status", "success")
+        .in("status", ["success", "partial"])
         .order("crop_year", { ascending: false })
         .order("grain_week", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         checks.freshness = {
@@ -355,34 +367,112 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Check 7: Intelligence freshness ───────────────────────────────────
+    // ── Check 7: V2 CAD swarm freshness (market_analysis) ─────────────────
+    // market_analysis is the authoritative user-facing output stream (Claude
+    // Agent Desk CAD swarm). Legacy grain_intelligence is informational only
+    // in V2 — we report it but don't fail on it.
     {
       const { data, error } = await supabase
-        .from("grain_intelligence")
-        .select("grain, crop_year, grain_week, generated_at")
+        .from("market_analysis")
+        .select("grain, crop_year, grain_week, generated_at, model_used")
         .order("generated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (error || !data) {
-        checks.intelligence_freshness = {
+        checks.v2_cad_freshness = {
           passed: false,
           value: null,
-          detail: `No grain_intelligence rows found: ${error?.message || "empty"}`,
+          detail: `No market_analysis rows found: ${error?.message || "empty"}`,
         };
       } else {
         const generatedAt = new Date(data.generated_at);
         const daysSince = Math.floor(
           (Date.now() - generatedAt.getTime()) / 86400000
         );
-        const isFresh = daysSince <= 14;
+        // Weekly swarm — 10d window allows 1 missed Friday before flagging.
+        const isFresh = daysSince <= 10;
 
-        checks.intelligence_freshness = {
+        checks.v2_cad_freshness = {
           passed: isFresh,
           value: `${data.grain} Wk ${data.grain_week} (${daysSince}d ago)`,
           detail: isFresh
-            ? `Latest intelligence: ${data.grain} Wk ${data.grain_week}, generated ${daysSince} days ago`
-            : `Intelligence is stale: ${data.grain} Wk ${data.grain_week}, generated ${daysSince} days ago (>14 days)`,
+            ? `V2 CAD swarm: ${data.grain} Wk ${data.grain_week} via ${data.model_used ?? "unknown"}, generated ${daysSince} days ago`
+            : `V2 CAD swarm stale: ${data.grain} Wk ${data.grain_week}, generated ${daysSince} days ago (>10d threshold)`,
+        };
+      }
+    }
+
+    // ── Check 8: V2 US swarm freshness (us_market_analysis) ───────────────
+    // us_market_analysis keys by (market_name, market_year) — not
+    // (grain, grain_week) — see 20260414003500_create_us_thesis_storage.sql.
+    // Same 10d threshold as CAD; swarm runs Fri 7:30 PM ET.
+    {
+      const { data, error } = await supabase
+        .from("us_market_analysis")
+        .select("market_name, crop_year, market_year, generated_at, model_used")
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) {
+        checks.v2_us_freshness = {
+          passed: false,
+          value: null,
+          detail: `No us_market_analysis rows found: ${error?.message || "empty"}`,
+        };
+      } else {
+        const generatedAt = new Date(data.generated_at);
+        const daysSince = Math.floor(
+          (Date.now() - generatedAt.getTime()) / 86400000
+        );
+        const isFresh = daysSince <= 10;
+        const label = `${data.market_name} MY${data.market_year}`;
+
+        checks.v2_us_freshness = {
+          passed: isFresh,
+          value: `${label} (${daysSince}d ago)`,
+          detail: isFresh
+            ? `V2 US swarm: ${label} via ${data.model_used ?? "unknown"}, generated ${daysSince} days ago`
+            : `V2 US swarm stale: ${label}, generated ${daysSince} days ago (>10d threshold)`,
+        };
+      }
+    }
+
+    // ── Check 9: Score trajectory anchor freshness ────────────────────────
+    // score_trajectory gets a weekly_debate anchor row from the Friday swarm
+    // plus intra-week collector_* ticks. If the anchor is stale, the overview
+    // page's trajectory arrows will silently freeze.
+    // Timestamp column is `recorded_at` (see scripts/evaluate-predictions.ts
+    // and prediction_scorecard.source_recorded_at comment).
+    {
+      const { data, error } = await supabase
+        .from("score_trajectory")
+        .select("grain, crop_year, grain_week, scan_type, recorded_at")
+        .eq("scan_type", "weekly_debate")
+        .order("recorded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) {
+        checks.trajectory_anchor = {
+          passed: false,
+          value: null,
+          detail: `No weekly_debate trajectory rows found: ${error?.message || "empty"}`,
+        };
+      } else {
+        const recordedAt = new Date(data.recorded_at);
+        const daysSince = Math.floor(
+          (Date.now() - recordedAt.getTime()) / 86400000
+        );
+        const isFresh = daysSince <= 10;
+
+        checks.trajectory_anchor = {
+          passed: isFresh,
+          value: `${data.grain} Wk ${data.grain_week} (${daysSince}d ago)`,
+          detail: isFresh
+            ? `Anchor fresh: ${data.grain} Wk ${data.grain_week}, recorded ${daysSince} days ago`
+            : `Anchor stale: ${data.grain} Wk ${data.grain_week}, recorded ${daysSince} days ago (>10d — Friday swarm may have missed)`,
         };
       }
     }

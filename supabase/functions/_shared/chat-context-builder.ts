@@ -236,12 +236,15 @@ async function loadPostedPrices(supabase: any, fsaCode: string) {
 }
 
 async function loadCgcFreshness(supabase: any) {
+  // Filter by status so a failed import (grain_week=0) doesn't poison the
+  // "data as of Wk X" freshness line Bushy shows to farmers.
   const { data } = await supabase
     .from("cgc_imports")
     .select("grain_week, imported_at")
+    .in("status", ["success", "partial"])
     .order("imported_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
   return data;
 }
 

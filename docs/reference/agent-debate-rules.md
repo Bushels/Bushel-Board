@@ -2,7 +2,7 @@
 
 **Purpose:** Codified rules derived from moderation of AI-vs-AI debates. Used as a validation checklist for intelligence generation and manual Claude-Grok debates.
 
-**Last updated:** 2026-03-18 (Price Action rules + Claude-Grok manual debate protocol added)
+**Last updated:** 2026-04-18 (Rules 16-19 — Coiled Spring disambiguators — added)
 
 ---
 
@@ -38,11 +38,11 @@ Don't default to "watch — need 2-3 more weeks to confirm." If 2 out of 3 recen
 ## Thesis Quality Rules
 
 ### Rule 5: Never Publish Contradictory Models Without Resolution
-If Claude says bearish and Grok says bullish (or vice versa), the moderator's job is to RESOLVE the contradiction explicitly using the evidence chain. The farmer must never receive two opposite recommendations.
+If two Claude/Codex reviewers disagree, the moderator's job is to RESOLVE the contradiction explicitly using the evidence chain. The farmer must never receive two opposite recommendations.
 
-**Template:** "Claude scored this [X] based on [evidence]. Grok challenged to [Y] because [counter-evidence]. The resolved thesis is [direction] with [confidence] because [decisive factor]."
+**Template:** "Reviewer A scored this [X] based on [evidence]. Reviewer B challenged to [Y] because [counter-evidence]. The resolved thesis is [direction] with [confidence] because [decisive factor]."
 
-**Protocol (manual debate):** Claude forms independent thesis first → sends to Grok via xAI API → Grok responds AGREE or CHALLENGE → Claude moderates any disagreements using Rules 1-4 + Basis Signal Matrix → final score published.
+**Protocol (manual debate):** Claude/Codex reviewer forms independent thesis first -> second reviewer responds AGREE or CHALLENGE -> moderator resolves disagreements using Rules 1-4 + Basis Signal Matrix -> final score published.
 
 ### Rule 6: Always Provide a Timeline
 "Hold patient" is not actionable. "Hold for 2-3 weeks while Vancouver vessel queue (currently 26, avg 20) clears" IS actionable. Every hold/sell/wait recommendation must include:
@@ -118,6 +118,38 @@ If prices are unavailable or stale (>2 trading days old), flag as low-confidence
 
 ---
 
+## Coiled Spring Disambiguators (Rules 16-19)
+
+The Coiled Spring framework describes a physical-tightness regime where basis widens, carry tightens, stocks drain, and vessel queues grow until a catalyst releases the pressure. It applies cleanly to 7 Canadian grains (Canola, Lentils, Peas, Amber Durum, Mustard Seed, Canaryseed, Flaxseed) and misfires when applied uniformly. Rules 16-19 are the disambiguators that prevent false positives.
+
+### Rule 16: Pipeline Congestion Requires Receipt Confirmation
+Pipeline tension (vessel queue length, out-of-car time, terminal fill %) scores bullish **only if terminal receipts are simultaneously accelerating**. Congestion without accelerating receipts is supply-side (rail failure, port labor, weather) and is structurally bearish for basis.
+
+**Test:** `vessel_queue > 1yr_avg AND terminal_receipts_4wk_chg > 0` → pipeline tension = bullish. If receipts are flat or declining, pipeline congestion is a logistics bottleneck, not demand pull.
+
+**Anti-pattern:** "Vancouver vessel queue = 33 (1yr avg 20) → strongly bullish canola." Wrong without confirming terminal receipts accelerated in the same 2-3 week window. Otherwise the queue reflects CN/CP delivery failure, which widens basis and hurts the farmer.
+
+### Rule 17: Elevator-vs-Crush Bid Spread Disambiguates "Withholding"
+If Process (crusher) deliveries are rising while Primary (elevator) deliveries fall, farmers are **migrating to better-bidding crushers**, not withholding grain. The Coiled Spring is real but its release vector is **basis, not futures**. Recommendations should focus on cash/basis capture at the crusher, not futures speculation.
+
+**Test:** `Process.Deliveries WoW > 0 AND Primary.Deliveries WoW < 0` → migration, not withholding. Check R-CA-CNL-04 (canola bid spread) before asserting futures-side thesis.
+
+### Rule 18: Basis Veto Rule
+If the basis component of any composite score reads -2 or worse on the Basis Signal Matrix (Rule 13), **cap the composite score at +2** regardless of other bullish inputs. Basis is the farmer's truth (Rule 12). Fundamentals cannot override a widening basis at the farmer's elevator.
+
+**Example:** Canola flow strong (+4), COT supportive (+2), vessel queue tight (+3), but Moose Jaw basis has widened from -$50 to -$68 over 2 weeks. Basis component = -3 → composite CAPPED at +2.
+
+### Rule 19: COT Short-Cover Requires 3-Week or Shipment Confirmation
+One week of commercial short-cover is ambiguous between **sales completion** (bearish — crushers done buying) and **directional capitulation** (bullish — commercials forced to reprice). Do not score bullish on a 1-week COT move alone.
+
+**Confirmation paths (either suffices):**
+1. 3 consecutive weeks of same-direction commercial short-cover, or
+2. USDA export shipments for the same week show accelerated pace vs prior 4-week average.
+
+If neither is present, the COT move is flagged "ambiguous" and excluded from the composite.
+
+---
+
 ## Claude-Grok Manual Debate Protocol
 
 ### When to Run
@@ -128,8 +160,8 @@ If prices are unavailable or stale (>2 trading days old), flag as low-confidence
 ### Procedure
 1. **Claude loads context:** Knowledge chunks, commodity framework, X signals, COT data, current prices (2 sources)
 2. **Claude forms independent thesis:** Score all 10 grains with full evidence chain including price action
-3. **Send to Grok:** Via xAI API (prefer Responses API with x_search/web_search; fallback to Chat Completions)
-4. **Grok responds:** AGREE or CHALLENGE each grain with its own score + evidence
+3. **Second review:** Claude/Codex reviewer responds AGREE or CHALLENGE each grain with its own score + evidence
+4. **No Grok fallback:** Do not use xAI/Grok for the debate step
 5. **Claude moderates disagreements:** Apply Rules 1-15, Basis Signal Matrix, and book knowledge frameworks
 6. **Resolution:** Final score = evidence-weighted blend. Document which rules decided the outcome.
 7. **Price accountability:** Record cash + futures prices at time of debate for next-week accuracy check.
@@ -184,6 +216,10 @@ Before publishing any grain intelligence, verify:
 - [ ] **Cash price verified:** Are current cash prices from ≥2 sources included in the analysis? (Rule 15)
 - [ ] **Basis computed:** Is the cash-futures basis gap stated for every grain with a futures contract? (Rule 13)
 - [ ] **Price-thesis alignment:** If cash is flat/falling, is the thesis NOT bullish without explicit justification? (Rules 12-14)
+- [ ] **Coiled Spring — pipeline confirmation:** If thesis cites vessel queue or port congestion, are terminal receipts simultaneously accelerating? (Rule 16)
+- [ ] **Coiled Spring — bid spread check:** If thesis cites "withholding," is Process vs Primary delivery divergence ruled out? (Rule 17)
+- [ ] **Basis veto applied:** If basis component ≤ -2, is composite score capped at +2? (Rule 18)
+- [ ] **COT cover confirmation:** Is any short-cover signal backed by 3 weeks of same-direction moves OR matching USDA shipment acceleration? (Rule 19)
 
 ## Price Accountability Log
 

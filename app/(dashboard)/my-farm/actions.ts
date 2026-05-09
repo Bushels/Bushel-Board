@@ -31,6 +31,16 @@ const addCropPlanSchema = z.object({
   }
 });
 
+const updateGrainStorageSchema = z.object({
+  grain: z.string().min(1, "Grain is required"),
+  total_tonnes: z.coerce
+    .number()
+    .nonnegative("Total grain cannot be negative"),
+  remaining_tonnes: z.coerce
+    .number()
+    .nonnegative("Remaining grain cannot be negative"),
+});
+
 const logDeliverySchema = z.object({
   grain: z.string().min(1, "Grain is required"),
   submission_id: z.string().uuid("Invalid submission id"),
@@ -145,6 +155,82 @@ export async function addCropPlan(formData: FormData) {
 
   if (error) {
     console.error("Error upserting crop plan:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/my-farm");
+  revalidatePath("/overview");
+
+  return { success: true };
+}
+
+/**
+ * Simple storage-tracker update path for the new "two-input" My Farm flow.
+ *
+ * The farmer enters total grain (this year) and how much is left in the bin.
+ * This action upserts both into crop_plans, defaulting acres_seeded=0 for
+ * brand-new rows and re-clamping contracted/uncontracted so the
+ * crop_plans_marketing_state_check constraint stays satisfied:
+ *   contracted_kt <= volume_left_to_sell_kt
+ *   uncontracted_kt = max(volume_left_to_sell_kt - contracted_kt, 0)
+ *   starting_grain_kt >= volume_left_to_sell_kt
+ */
+export async function updateGrainStorage(formData: FormData) {
+  const supabase = await createClient();
+  const { user, role } = await getAuthenticatedUserContext();
+  if (!user) return { error: "Unauthorized" };
+  if (role !== "farmer") {
+    return { error: "Observer accounts cannot edit storage" };
+  }
+
+  const parsed = updateGrainStorageSchema.safeParse({
+    grain: formData.get("grain"),
+    total_tonnes: formData.get("total_tonnes"),
+    remaining_tonnes: formData.get("remaining_tonnes"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const { grain, total_tonnes, remaining_tonnes } = parsed.data;
+
+  if (remaining_tonnes > total_tonnes) {
+    return { error: "Remaining cannot exceed total" };
+  }
+
+  const totalKt = convertTonnesToKt(total_tonnes);
+  const remainingKt = convertTonnesToKt(remaining_tonnes);
+
+  const { data: existing } = await supabase
+    .from("crop_plans")
+    .select("id, acres_seeded, contracted_kt")
+    .eq("user_id", user.id)
+    .eq("crop_year", CURRENT_CROP_YEAR)
+    .eq("grain", grain)
+    .maybeSingle();
+
+  const existingContractedKt = Number(existing?.contracted_kt ?? 0);
+  const newContractedKt = Math.min(existingContractedKt, remainingKt);
+  const newUncontractedKt = Math.max(remainingKt - newContractedKt, 0);
+
+  const { error } = await supabase.from("crop_plans").upsert(
+    {
+      user_id: user.id,
+      crop_year: CURRENT_CROP_YEAR,
+      grain,
+      acres_seeded: existing?.acres_seeded ?? 0,
+      starting_grain_kt: totalKt,
+      volume_left_to_sell_kt: remainingKt,
+      contracted_kt: newContractedKt,
+      uncontracted_kt: newUncontractedKt,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,crop_year,grain" }
+  );
+
+  if (error) {
+    console.error("updateGrainStorage upsert error:", error);
     return { error: error.message };
   }
 

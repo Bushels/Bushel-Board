@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { GrainDef } from "@/lib/constants/grains";
 import { cn } from "@/lib/utils";
-
-interface DesktopNavLinksProps {
-  allGrains: GrainDef[];
-  unlockedGrains: string[];
-}
 
 function navLinkClasses(isActive: boolean) {
   return cn(
@@ -19,22 +13,22 @@ function navLinkClasses(isActive: boolean) {
   );
 }
 
-export function DesktopNavLinks({
-  allGrains,
-  unlockedGrains,
-}: DesktopNavLinksProps) {
+export function DesktopNavLinks() {
   const pathname = usePathname();
 
   return (
     <nav className="hidden shrink-0 items-center gap-1 rounded-full border border-white/35 bg-white/30 p-1 shadow-[0_18px_40px_-28px_rgba(42,38,30,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5 md:flex">
-      <Link href="/chat" className={navLinkClasses(pathname === "/chat")}>
-        Bushy
-      </Link>
-      <Link href="/my-farm" className={navLinkClasses(pathname.startsWith("/my-farm"))}>
-        My Farm
-      </Link>
       <Link href="/overview" className={navLinkClasses(pathname.startsWith("/overview"))}>
         Overview
+      </Link>
+      <Link href="/thesis" className={navLinkClasses(pathname.startsWith("/thesis"))}>
+        Thesis
+      </Link>
+      <Link
+        href="/source-spine"
+        className={navLinkClasses(pathname.startsWith("/source-spine"))}
+      >
+        Source Spine
       </Link>
     </nav>
   );

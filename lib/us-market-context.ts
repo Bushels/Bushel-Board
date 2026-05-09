@@ -1,7 +1,7 @@
 /**
  * US Market Context — Pre-computed USDA signals for analyst prompt injection.
  *
- * Queries usda_export_sales, usda_wasde_estimates, and usda_crop_progress
+ * Queries usda_export_sales, get_usda_wasde_context(), and usda_crop_progress
  * tables and formats a markdown section for the analyst data brief.
  *
  * This is a server-only module (imports Supabase server client).

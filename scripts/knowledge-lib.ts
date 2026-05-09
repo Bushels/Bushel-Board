@@ -38,7 +38,8 @@ function loadEnvFileIntoProcess(filePath: string) {
       const eqIndex = trimmed.indexOf("=");
       if (eqIndex === -1) continue;
       const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
+      const rawValue = trimmed.slice(eqIndex + 1).trim();
+      const value = rawValue.replace(/^(['"])(.*)\1$/, "$2");
       if (!process.env[key]) {
         process.env[key] = value;
       }

@@ -1,5 +1,159 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-08 - Collector wrapper dry-runs and Windows CLI shims are separate risks
+
+**Symptom:** The thesis-cache wrapper worked for normal collector runs, but `npm run collect:cgc -- --dry-run` did not reliably forward `--dry-run` to the child importer in the Windows runner. A broad `shell: true` Windows fix then broke quoted `node -e` child arguments. Gemini 3.1 Pro Preview also flagged that direct `tsx` child commands can fail on Windows when spawned without shell handling.
+
+**Root cause:** There were two different boundaries mixed together: npm argument forwarding and Windows command-shim execution. `npm` did not preserve the appended dry-run flag the way the wrapper needed, while commands such as `tsx`, `npx`, `.cmd`, and `.bat` need Windows shell handling that ordinary `node` and Python child commands should not use.
+
+**Fix status:** `scripts/run-collector-with-thesis-cache-refresh.ts` now detects Windows CLI shims narrowly, handles `.cmd` / `.bat`, treats `--dry-run=true` as a dry-run, labels failed child starts, and documents that wrapper options must appear before the collector command. Collector docs now say to use importer-specific dry-run commands or direct wrapper invocation for dry-run proof.
+
+**Prevention:**
+- Treat npm script argument forwarding as unproven on Windows until a smoke test proves the exact command shape.
+- Use shell execution only for commands that need Windows shims; keep normal executable child commands on direct spawn so quoting stays intact.
+- If a cache refresh runs after a successful collector, make the refresh-failure retry contract explicit because an external scheduler may rerun the whole collector.
+
+**Tags:** #collectors #windows #npm #thesis-cache #gemini-audit
+
+---
+
+## 2026-05-08 - Portfolio imports worked but freshness reporting was Canola-shaped
+
+**Symptom:** COT and grain-price collectors could run successfully while still giving Canola-centered or misleading freshness proof. Oats COT data was imported in the rolling CFTC load, but no Oats row exists in the latest 2026-04-28 CFTC report, so the heartbeat layer originally reported "no rows" instead of the latest available Oats row being stale at 2026-02-03. Repeat COT and price upserts also left `imported_at` unchanged on existing rows.
+
+**Root cause:** The automation reports and heartbeat code were built around the first Canola analytics path, not the full portfolio data contract. The importers also relied on table defaults for `imported_at`, which only apply on insert, not on conflict updates.
+
+**Fix status:** COT now maps and imports OATS, writes CAD and US heartbeats for Corn, Soybeans, Wheat, Oats, and Canola, and flags stale-source grain rows explicitly. COT and grain-price upserts now stamp `imported_at` on every run. The price importer reports all tracked contracts, fetched contracts, skipped contracts, and latest rows.
+
+**Prevention:**
+- Automation summaries must list tracked, fetched, skipped, and stale items, not just the pilot grain.
+- For any idempotent importer using upsert, set `imported_at` explicitly when freshness views read that column.
+- Treat "latest report date" and "latest available row for this grain" as separate facts when a source can omit a thin contract.
+
+**Tags:** #automations #cftc-cot #grain-prices #freshness #portfolio-data-contract
+
+---
+
+## 2026-05-07 - Public seeding page showed no data after successful USDA import
+
+**Symptom:** The USDA crop-progress importer successfully upserted 2026-05-03 rows for Corn, Soybeans, Wheat, Barley, and Oats, but `/seeding` still rendered "No seeding data yet" for anonymous users.
+
+**Root cause:** `usda_crop_progress` had RLS enabled and only authenticated users had a SELECT policy. The `get_seeding_seismograph()` RPC had public execute grants, but it is security-invoker, so anonymous callers still saw zero underlying rows.
+
+**Fix status:** Migration `20260507144604_allow_public_usda_crop_progress_read.sql` adds an anonymous SELECT policy for public USDA source data and revokes direct write privileges from `anon` / `authenticated`. Live verification showed anonymous `get_seeding_seismograph('CORN', 2026)` returning 87 rows and `/seeding` rendering week ending 2026-05-03.
+
+**Prevention:**
+- For public pages backed by RPCs, test the exact anonymous read path, not only service-role data freshness.
+- Treat "RPC execute granted" as incomplete proof when the function reads RLS-protected tables.
+- Keep source-data writes service-role-only; public pages should get narrow SELECT policies on non-user public datasets.
+
+**Tags:** #supabase #rls #seeding #usda-crop-progress #public-page #rpc
+
+---
+
+## 2026-05-07 - Spring Wheat pulse missed three official USDA states
+
+**Symptom:** The first Spring Wheat premium pulse would have shown Minnesota, North Dakota, and South Dakota only, even though the official 2026-05-03 USDA Spring Wheat report also included Idaho, Montana, and Washington.
+
+**Root cause:** `scripts/import-usda-crop-progress.py` retained only the original 15 grain-belt states for state-level crop-progress rows. That trimming was acceptable for the first corn/soybean-centered seeding map, but it silently dropped major northern spring-wheat reporters.
+
+**Fix status:** Expanded the importer state allowlist to include Idaho, Montana, and Washington; added matching `us_state_centroids` rows in migration `20260507172242_add_spring_wheat_state_centroids.sql`; reran the live Wheat import for 2026. Anonymous `get_seeding_seismograph('WHEAT', 2026)` now returns six Spring Wheat planting states for week ending 2026-05-03.
+
+**Follow-up:** Migration `20260507184844_add_crop_progress_previous_year_metrics.sql` admits USDA `PROGRESS, PREVIOUS YEAR` planting and emergence fields into the canonical row. Spring Wheat hover cards can now show last-year comparison directly from the current USDA report instead of inferring it from a prior crop-year row.
+
+**Prevention:**
+- Treat crop-specific geography as part of the data contract, not only a map display detail.
+- Before launching a premium grain lane, compare the imported state/province set against the official source's current reporting set.
+- Keep Spring Wheat labels explicit: U.S. planting/emergence is USDA Spring Wheat excluding durum; Canadian Manitoba data is currently province-wide seeding plus regional spring-wheat notes.
+
+**Tags:** #seeding #usda-crop-progress #spring-wheat #data-contract #map-coverage
+
+---
+
+## 2026-05-08 - Sorghum needed crop-specific southern Plains and Southeast states
+
+**Symptom:** Adding Sorghum to the premium seeding pulse would have missed Colorado, North Carolina, and Oklahoma even though the official 2026-05-03 USDA Sorghum report included those state progress rows.
+
+**Root cause:** The USDA crop-progress and acreage importers used the same retained-state allowlist that was originally built around the central grain belt plus spring-wheat expansion. Sorghum requires a different reporting footprint, and the map RPC also needs a `us_state_centroids` row before a retained state can render.
+
+**Fix status:** Added Sorghum to both USDA importers, expanded the retained-state allowlist to include Colorado, North Carolina, and Oklahoma, added matching map centroids in migration `20260508161414_add_sorghum_state_centroids.sql`, and reran live 2026 Sorghum progress and acreage imports. Anonymous `get_seeding_seismograph('SORGHUM', 2026)` now returns CO, KS, NC, NE, OK, SD, and TX for week ending 2026-05-03.
+
+**Prevention:**
+- For each new USDA crop lane, run a current QuickStats state-set check before assuming the existing map geography is enough.
+- Add importer allowlist coverage and `us_state_centroids` coverage in the same change.
+- Keep acreage badges tolerant of missing state acreage estimates; North Carolina currently has Sorghum progress but no matching 2026 planted-acre estimate in the importer output.
+
+**Tags:** #seeding #usda-crop-progress #sorghum #data-contract #map-coverage
+
+---
+
+## 2026-05-03 - Supabase migration history drift blocks data-layer deploy
+
+**Symptom:** Data Layer Foundation V1 migrations parsed successfully in a linked Supabase `BEGIN` / `ROLLBACK` check, but `supabase db push --dry-run --linked` would not produce a clean deploy plan.
+
+**Root cause:** The live Supabase migration ledger contains remote-only migration version `20260429100000`, while the local repo does not. That means the database and repository disagree about migration history. Treating that as a warning would risk applying new data contracts on top of an unreviewed schema-history gap.
+
+**Fix status:** Branch `codex/data-layer-foundation-v1` is committed and pushed as `18a0935`, with handoff commit `cd7bbda` pushed after it. On 2026-05-03, remote migration `20260429100000` was recovered from `supabase_migrations.schema_migrations` and mirrored locally as `supabase/migrations/20260429100000_predictive_market_briefs.sql`. The four Data Layer Foundation migrations and follow-up freshness optimization are now applied live, and the Canola validator passes.
+
+**Prevention:**
+- Run `supabase migration list --linked` before major DB work, not only at deployment time.
+- Treat remote-only migrations as a release gate until their DDL is recovered, duplicated locally, or explicitly marked as repaired.
+- Keep SQL rollback parsing as a syntax/schema check only; it does not prove migration-history health.
+- Separate GitHub push proof from Supabase deploy proof in handoffs.
+
+**Tags:** #supabase #migration-history #data-layer #release-gate #deployment-proof
+
+---
+
+## 2026-04-30 — Grain Monitor Week 37 parser regression + autonomy charter
+
+**Symptom:** Tuesday 2026-04-29's `collect-grain-monitor` Claude Desktop Routine ran the weekly importer (`scripts/import-grain-monitor-weekly.ts`) against Quorum's Week 37 PDF (`GMPGOCWeek202537.pdf`) and threw `Could not parse vessel lineup, cleared, or inbound metrics` from `parseVesselsAndWeather`. The agent correctly diagnosed it as a script-side parser regression (Week 36 dry-ran cleanly, so the regression was week-specific) but stopped at "report and recommend human follow-up" — defeating the value proposition of an AI-scheduled task.
+
+**Root cause — two regex deltas in Week 37:**
+1. **Singular "vessel" when count is 1.** Quorum's Page 1 vessel bullet read *"Prince Rupert vessel lineup for Week 38 2025-26 decreased to 1 vessel..."* — singular. The regex hard-coded the plural `vessels`.
+2. **pdf-parse split-letter month artifact.** Quorum's text reads *"...to May 03, 2026..."* in the PDF, but `pdf-parse` extracts it as *"to M ay 03, 2026"* (a space inserted inside the word). The regex `[A-Za-z]+ \d{1,2}, \d{4}` couldn't bridge the space — `[A-Za-z]+` matched only "M" and the date pattern failed.
+
+The same split-letter artifact also silently broke `parsePageMetadata` for Week 37, dropping the `inboundPeriod` and `inboundWeek` fields from `source_notes` (cosmetic provenance loss only — discrete columns were unaffected).
+
+**Fix shipped (commits 620a648, d8f0d66, 95c75d5 on `codex/grain-monitor-weekly-import`):**
+1. **Regex patches.** `vessels` → `vessels?` for both lineup count groups. `[A-Za-z]+` → `[A-Za-z]+(?:\s[A-Za-z]+)?` for both Vessels Inbound month tokens (in `parseVesselsAndWeather` AND `parsePageMetadata`). The pattern catches "M ay", "S ept", "A ug", etc. without being permissive enough to over-match.
+2. **Parser extraction.** All 6 parsers (`parsePageMetadata`, `parseStocks`, `parseCountryDeliveriesAndPortPerformance`, `parseShipments`, `parseVesselsAndWeather`, `parseWeeklyReportFromPages`) plus their helpers and types moved from the shebang-bearing `scripts/import-grain-monitor-weekly.ts` into a new pure-parser module at `scripts/grain-monitor/parsers.ts`. The importer keeps only IO/CLI/Supabase concerns. This unblocks Vitest, which previously couldn't import any parser without Vite's SSR transform choking on `#!/usr/bin/env node`.
+3. **Vitest seatbelt.** Two test files at `lib/__tests__/grain-monitor-weekly-parser.test.ts` (synthetic edge cases) and `lib/__tests__/grain-monitor-weekly-full-parser.test.ts` (full fixtures), 9 tests / 92 assertions covering all 6 parsers across both Week 36 (plural baseline) and Week 37 (singular + split-month). 8 page-text fixture files committed at `lib/__tests__/fixtures/grain-monitor/week{36,37}-page{1,2,3,5}.txt`, captured with the production `pdf-parse` library so they reflect exactly what the runtime parsers see.
+4. **Tiered autonomy charter.** `docs/hermes/skills/import-grain-monitor.md` rewritten with explicit Tier 1 / Tier 2 / Tier 3 rules so the next regression self-heals.
+5. **Live backfill.** Week 37 row upserted into `grain_monitor_snapshots` with all 38 fields populated and complete `source_notes` (including the previously-dropped inbound section).
+
+**Expectations going forward — what we expect from `collect-grain-monitor`:**
+
+- **Tier 1 (always):** diagnose the failure, identify whether it's source-side (PDF missing) or script-side (parsing failed), confirm no partial DB write, and dry-run the immediately prior week as a regression cross-check. Print all of this in the run summary.
+- **Tier 2 (auto-fix when seatbelt holds):** if the failure is a parser-side regex regression mechanically derivable from a one-token PDF wording delta (singular/plural, split-letter month artifact, whitespace/punctuation drift), AND the prior week's PDF still parses cleanly with the proposed patch, AND a new Vitest fixture covering the new wording is added, AND `npm run test` passes, AND the dry-run output passes a sanity sniff (vessel counts 0–100, OCT 0–50%, country stocks 1,000–15,000 kt, total unloads 0–25,000, report_date within 14 days of today) — then commit on the current branch with a `fix(grain-monitor):` prefix and run the live backfill. No remote push, no PR, no merge to master from Tier 2.
+- **Tier 3 (always escalate):** schema-level changes (new field, dropped column, type drift), structural PDF reorg (page count change, missing section, layout reshuffle), authentication/network/DB errors, sanity-sniff failures, multi-week regressions, ambiguous diagnosis after two passes.
+
+**Hard guardrails — never violate, even under pressure:**
+- Never relax a regex to be permissive enough to match unrelated text. Tight constructs (`vessels?`, `[A-Za-z]+(?:\s[A-Za-z]+)?`) are correct by design.
+- Never skip Vitest. If `npm run test` fails on the parser file, abort the self-fix.
+- Never fall back to the monthly Excel workbook. A stale-but-clean row beats a rich-but-wrong row.
+- Never `git push --force`, `--no-verify`, or bypass hooks.
+- Never delete or overwrite a prior week's row. Upsert on `(crop_year, grain_week)` is the only write mode.
+- Never run live backfill if dry-run output mismatches the prior week's pattern (terminal stocks jump >25% WoW with no congestion bullet, vessel queue triples with no event in the bullets) — that signals parser drift, not data shift.
+
+**Why this works:** autonomous self-healing only becomes safe once the agent has a verifiable success criterion that runs in seconds. For deterministic parsers, that's a fixture-based test suite. The Vitest seatbelt added in this incident is what makes Tier 2 trustworthy; without it, "AI can fix it" reduces to "AI can guess and hope," which is worse than escalating to a human because failures get committed quietly. The charter is only as safe as the suite the agent must pass before committing — broaden the suite, broaden Tier 2's reach.
+
+**Tags:** #grain-monitor #pdf-parse #regex #autonomy-charter #self-healing #vitest #seatbelt #parser-extraction #lessons-on-lessons
+
+---
+
+## 2026-04-27 — Producer Cars shipment-distribution worksheet name mismatch
+
+**Symptom:** A freshness check for `worksheet='Producer Cars Shipment Distribution'` returned 0 rows for CGC week 37. A local CSV audit found the same thing across every cached CGC CSV from 2020 through the current `gsw-shg-en.csv`: that worksheet name does not appear at all.
+
+**Root cause:** CGC does not publish a separate `Producer Cars Shipment Distribution` worksheet in the long-format CSV. Producer-car data lands under `worksheet='Producer Cars'` with metrics including `Shipments`, `Shipment Distribution`, and `Shipment Destinations`. The phrase "Producer Cars Shipment Distribution" in older docs was a human label, not the exact CSV worksheet value.
+
+**Importer finding:** `supabase/functions/import-cgc-weekly/index.ts` does not filter out the worksheet; it parses every CSV row and upserts to `cgc_observations`. The zero-row result is therefore a source/name mismatch, not an importer filter bug.
+
+**Impact:** Do not query `worksheet='Producer Cars Shipment Distribution'`. For producer-car export/flow logic, use `worksheet='Producer Cars'` plus the relevant shipment metric/region. Existing SQL that uses `Producer Cars`.`Shipment Distribution` is on the right shape; docs and prompts must not reintroduce the nonexistent worksheet name.
+
+**Tags:** #cgc #producer-cars #worksheet-name #shipment-distribution #source-contract
+
 ## 2026-04-24 — V1 Grok pipeline kill switch (fail-closed)
 
 **Symptom:** A rogue V1 Grok run landed in `market_analysis` at 2026-04-24 19:08 UTC (13:08 MT) for Canola with `model_used='grok-4.20-reasoning'`. This was 5.5 hours before the Friday 6:47 PM MT V2 Claude Agent Desk swarm was scheduled to fire. CLAUDE.md explicitly designates V1 as "recovery fallback only" — no scheduled writer should have hit the old path. No caller was identified via Vercel routes, scripts, `pg_cron`, `pipeline_runs`, or Claude Desktop Routines; the write was happening but we could not find the trigger.
@@ -1092,7 +1246,7 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 
 **Root cause:** The CFTC parser in `supabase/functions/_shared/cftc-cot-parser.ts` maps CME commodity names to CGC grain names, but Oats is not included in the mapping. 10 of 16 CGC grains correctly lack COT data (no futures contracts exist), but Oats is a genuine gap.
 
-**Fix:** Add `{ "OATS": { cgcGrain: "Oats", mappingType: "primary" } }` to the commodity-to-grain mapping in the CFTC parser.
+**Fix status:** Added `{ "OATS": { cgcGrain: "Oats", mappingType: "primary" } }` to the CFTC parser, widened the COT heartbeat wrapper to write Oats for both Canadian and U.S. tracks, and added an Oats row to `grain_market_mappings`.
 
 **Tags:** #cftc #parser #oats #mapping-gap
 
@@ -1134,10 +1288,12 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 
 **Exception:** The Out-of-Car Time sheet (5C-5) has **weekly** granularity — each grain week gets its own column. This is the only weekly metric in the Excel.
 
-**Fix:** The import script (`scripts/import-grain-monitor.mjs`) handles both granularities:
+**Original workaround:** The import script (`scripts/import-grain-monitor.mjs`) handled both granularities:
 - Weekly OCT data: imported directly with correct grain week numbers (weeks 1-26 for current crop year)
 - Monthly stock/terminal data: mapped to approximate grain week midpoints (AUG→wk3, SEP→wk7, etc.)
 - Manual weekly entries (from PDF reports) are preserved and never overwritten by auto-import
+
+**Update 2026-04-20:** `scripts/import-grain-monitor-weekly.ts` is now the canonical weekly importer. It reads the Quorum weekly PDF (`GMPGOCWeek{YYYY}{WW}.pdf`), writes the real `report_date`, fills the full weekly logistics row, and surfaces lag versus the latest imported CGC week. `scripts/import-grain-monitor.mjs` remains only as the monthly Excel fallback/backfill helper and should not be treated as the weekly source of truth.
 
 **Data sources:**
 - Weekly PDF reports: `grainmonitor.ca/Downloads/WeeklyReports/GMPGOCWeek{YYYYWW}.pdf` (rich but requires PDF parsing)

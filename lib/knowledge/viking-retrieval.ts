@@ -11,7 +11,7 @@
  * Zero extra LLM calls at query time. All summarization happened at ingestion.
  *
  * Usage:
- *   // Pipeline (Edge Function) — no L2 needed, L0+L1 is sufficient
+ *   // Desk market read workflow - no L2 needed, L0+L1 is sufficient
  *   const context = buildVikingPipelineContext(grain);
  *
  *   // Advisor chat — full L0+L1+L2 with user query
@@ -74,26 +74,13 @@ const PIPELINE_DEFAULT_TOPICS: VikingTopic[] = [
 /** Maximum L2 chunks to retrieve for advisor chat */
 const ADVISOR_L2_LIMIT = 3;
 
-/** Topic tags to pass to L2 RPC for different contexts */
-const PIPELINE_L2_TOPICS = [
-  "deliveries",
-  "exports",
-  "stocks",
-  "basis",
-  "storage",
-  "hedging",
-  "logistics",
-  "crush",
-  "seasonality",
-] as const;
-
-// ─── Pipeline Context (Edge Functions) ────────────────────────────────────────
+// ─── Desk Workflow Context ────────────────────────────────────────────────────
 
 /**
- * Build Viking context for the AI pipeline (analyze-grain-market).
+ * Build Viking context for the Claude/Codex desk market-read workflow.
  *
- * Loads L0 (always) + L1 (grain-relevant topics). No L2 — the pipeline
- * has its own data brief with specific CGC numbers, so L2 specifics
+ * Loads L0 (always) + L1 (grain-relevant topics). No L2 — the desk workflow
+ * has its own data brief with specific source numbers, so L2 specifics
  * would be redundant.
  *
  * For grain-specific analysis, we infer topics from the grain name to

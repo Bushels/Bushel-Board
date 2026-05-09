@@ -24,6 +24,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -33,11 +34,30 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from source_run import SourceRunError, write_source_run
+
 FAS_BASE_URL = "https://apps.fas.usda.gov/OpenData/api/esr"
 SUPABASE_TIMEOUT_SECONDS = 60
 USDA_TIMEOUT_SECONDS = 60
 USDA_RATE_LIMIT_SECONDS = 2.0
 UPSERT_BATCH_SIZE = 200
+
+# Phase 1 trajectory heartbeat — one row per US market after upsert succeeds.
+# Delegates to scripts/write-collector-heartbeat.py so the write contract stays
+# centralized. Each US market gets one row carrying current stance/recommendation
+# forward with source-specific evidence stamped.
+HEARTBEAT_CLI = Path(__file__).with_name("write-collector-heartbeat.py")
+TRAJECTORY_SCAN_TYPE = "collector_export_sales"
+TRAJECTORY_TRIGGER = "USDA FAS export sales refresh"
+
+# Only canonical US-market commodities write heartbeats (skip Canola-proxy + reference).
+HEARTBEAT_MARKETS_BY_COMMODITY = {
+    "ALL WHEAT": "Wheat",
+    "CORN": "Corn",
+    "SOYBEANS": "Soybeans",
+    "BARLEY": "Barley",
+    "OATS": "Oats",
+}
 
 COMMODITIES = [
     {"commodity_code": 107, "commodity": "ALL WHEAT", "cgc_grain": "Wheat", "mapping_type": "primary"},
@@ -77,6 +97,8 @@ def load_env_files() -> None:
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip('"').strip("'")
+            # Vercel CLI writes trailing \n escape sequences into quoted values
+            value = value.replace("\\n", "").replace("\\r", "")
             os.environ.setdefault(key, value)
 
 
@@ -253,17 +275,15 @@ def aggregate_rows(
             key=lambda item: item[1],
             reverse=True,
         )
-        record["top_buyers"] = json.dumps(
-            [
-                {
-                    "country": country_names.get(country_code, str(country_code)).title(),
-                    "country_code": country_code,
-                    "volume_mt": round(mt, 3),
-                }
-                for country_code, mt in buyer_rows
-                if mt != 0
-            ][:max_buyers]
-        )
+        record["top_buyers"] = [
+            {
+                "country": country_names.get(country_code, str(country_code)).title(),
+                "country_code": country_code,
+                "volume_mt": round(mt, 3),
+            }
+            for country_code, mt in buyer_rows
+            if mt != 0
+        ][:max_buyers]
 
         for key in (
             "net_sales_mt",
@@ -385,8 +405,143 @@ def fetch_latest_week(
     return None
 
 
+def build_heartbeat_rows(
+    all_rows: list[dict[str, Any]],
+    market_years: list[int],
+) -> list[dict[str, Any]]:
+    """Pick the latest-week aggregated row per US market to feed Phase 1 heartbeats.
+
+    Only writes heartbeats for canonical US markets (HEARTBEAT_MARKETS_BY_COMMODITY).
+    Uses the primary (first) market_year.
+    """
+    if not all_rows:
+        return []
+    primary_market_year = format_market_year(market_years[0])
+    latest_by_market: dict[str, dict[str, Any]] = {}
+    for row in all_rows:
+        commodity = row.get("commodity")
+        market_name = HEARTBEAT_MARKETS_BY_COMMODITY.get(commodity)
+        if not market_name:
+            continue
+        if row.get("market_year") != primary_market_year:
+            continue
+        week_ending = row.get("week_ending")
+        if not week_ending:
+            continue
+        prev = latest_by_market.get(market_name)
+        if prev is None or week_ending > prev.get("week_ending", ""):
+            row_with_market = dict(row)
+            row_with_market["_market_name"] = market_name
+            latest_by_market[market_name] = row_with_market
+    return list(latest_by_market.values())
+
+
+def export_sales_signal_note(row: dict[str, Any]) -> tuple[str, str]:
+    """Pick (severity, plain-English note) for an export-sales week."""
+    net = row.get("net_sales_mt")
+    outstanding = row.get("outstanding_mt")
+    pace = row.get("export_pace_pct")
+
+    try:
+        net_f = float(net) if net is not None else None
+    except (TypeError, ValueError):
+        net_f = None
+    try:
+        outstanding_f = float(outstanding) if outstanding is not None else None
+    except (TypeError, ValueError):
+        outstanding_f = None
+    try:
+        pace_f = float(pace) if pace is not None else None
+    except (TypeError, ValueError):
+        pace_f = None
+
+    # Demand-scare: consecutive cancellations or pace well behind
+    if net_f is not None and net_f < -50_000:
+        return "critical", f"Net sales {net_f / 1000:+.0f} Kt — major cancellations"
+    if pace_f is not None and pace_f < 50:
+        return "elevated", f"Export pace {pace_f:.0f}% vs marketing-year target — behind"
+    if net_f is not None and net_f < 0:
+        return "elevated", f"Net sales {net_f / 1000:+.0f} Kt — cancellations"
+
+    if net_f is None:
+        return "unknown", "Net sales not reported for this week"
+
+    pace_phrase = f", pace {pace_f:.0f}%" if pace_f is not None else ""
+    outstanding_phrase = f", outstanding {outstanding_f / 1000:.0f} Kt" if outstanding_f is not None else ""
+    return "normal", f"Net sales {net_f / 1000:+.0f} Kt{pace_phrase}{outstanding_phrase}"
+
+
+def invoke_heartbeat(
+    market_name: str,
+    severity: str,
+    signal_note: str,
+    source_week_ending: str,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Shell out to scripts/write-collector-heartbeat.py for a single market."""
+    cmd = [
+        sys.executable,
+        str(HEARTBEAT_CLI),
+        "--side", "us",
+        "--market", market_name,
+        "--scan-type", TRAJECTORY_SCAN_TYPE,
+        "--trigger", TRAJECTORY_TRIGGER,
+        "--severity", severity,
+        "--signal-note", signal_note,
+        "--source-week-ending", source_week_ending,
+        "--evidence-json", json.dumps(evidence),
+        "--quiet",
+    ]
+    try:
+        completed = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return {"market_name": market_name, "status": "timeout"}
+    if completed.returncode != 0:
+        return {
+            "market_name": market_name,
+            "status": "error",
+            "stderr": completed.stderr.strip()[:500],
+        }
+    return {"market_name": market_name, "status": "written", "severity": severity}
+
+
+def build_and_write_heartbeats(
+    all_rows: list[dict[str, Any]],
+    market_years: list[int],
+) -> dict[str, Any]:
+    rows = build_heartbeat_rows(all_rows, market_years)
+    if not rows:
+        return {"written": 0, "results": [], "note": "no_canonical_us_markets_in_batch"}
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        market_name = row["_market_name"]
+        severity, note = export_sales_signal_note(row)
+        evidence = {
+            "commodity": row.get("commodity"),
+            "market_year": row.get("market_year"),
+            "week_ending": row.get("week_ending"),
+            "net_sales_mt": row.get("net_sales_mt"),
+            "exports_mt": row.get("exports_mt"),
+            "outstanding_mt": row.get("outstanding_mt"),
+            "cumulative_exports_mt": row.get("cumulative_exports_mt"),
+            "export_pace_pct": row.get("export_pace_pct"),
+            "top_buyers": row.get("top_buyers", [])[:3],
+        }
+        result = invoke_heartbeat(
+            market_name=market_name,
+            severity=severity,
+            signal_note=note,
+            source_week_ending=row.get("week_ending"),
+            evidence=evidence,
+        )
+        results.append(result)
+    written = sum(1 for r in results if r.get("status") == "written")
+    return {"written": written, "total": len(results), "results": results}
+
+
 def main() -> None:
     start = time.time()
+    run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     load_env_files()
     args = parse_args()
 
@@ -451,7 +606,18 @@ def main() -> None:
         if commodity_had_data:
             commodities_imported += 1
 
+    heartbeat_preview: list[dict[str, Any]] = []
     if args.dry_run:
+        for row in build_heartbeat_rows(all_rows, market_years):
+            severity, note = export_sales_signal_note(row)
+            heartbeat_preview.append(
+                {
+                    "market_name": row["_market_name"],
+                    "week_ending": row.get("week_ending"),
+                    "severity": severity,
+                    "signal_note": note,
+                }
+            )
         duration_ms = round((time.time() - start) * 1000)
         summary = {
             "status": "dry_run",
@@ -463,6 +629,7 @@ def main() -> None:
             "errors": errors,
             "duration_ms": duration_ms,
             "sample_rows": all_rows[:5],
+            "heartbeat_preview": heartbeat_preview,
         }
         print(json.dumps(summary, indent=2))
         return
@@ -480,8 +647,44 @@ def main() -> None:
         if latest:
             verification.append(latest)
 
+    # Phase 1 trajectory heartbeats — write one row per US market with current
+    # stance/recommendation carried forward. Never fails the parent run: if
+    # Phase 1 heartbeat write errors, log it and continue.
+    try:
+        heartbeat_result = build_and_write_heartbeats(all_rows, market_years)
+    except Exception as exc:
+        heartbeat_result = {"status": "error", "error": str(exc)[:500]}
+        warnings.append(f"trajectory heartbeats raised: {exc}")
+
     duration_ms = round((time.time() - start) * 1000)
     status = "success" if not errors else "partial"
+    source_run: dict[str, Any] | None = None
+    if all_rows:
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_role_key,
+                source_name="usda_export_sales",
+                source_lane="us",
+                collector_name="import-usda-export-sales",
+                status=status,
+                source_period_start=min(row["week_ending"] for row in all_rows),
+                source_period_end=latest_week,
+                latest_source_label=f"{format_market_year(market_years[0])} / {latest_week}",
+                rows_inserted=upserted,
+                rows_skipped=0,
+                started_at=run_started_at,
+                metadata={
+                    "commodities_imported": commodities_imported,
+                    "market_years": [str(y) for y in market_years],
+                    "commodity_filters": args.commodity,
+                    "warnings": warnings,
+                    "errors": errors,
+                    "trajectory": heartbeat_result,
+                },
+            )
+        except SourceRunError as exc:
+            warnings.append(f"source_runs write failed: {exc}")
     summary = {
         "status": status,
         "commodities_imported": commodities_imported,
@@ -491,6 +694,8 @@ def main() -> None:
         "warnings": warnings,
         "errors": errors,
         "verification": verification,
+        "trajectory": heartbeat_result,
+        "source_run": source_run,
         "duration_ms": duration_ms,
     }
     print(json.dumps(summary, indent=2))

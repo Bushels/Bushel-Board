@@ -7,7 +7,7 @@
  * Triggers fire after tool execution in chat-completion:
  * - save_local_intel → basis/condition changes → notify nearby farmers
  * - post_daily_prices → new elevator prices → notify farmers in FSA
- * - generate-farm-summary → weekly summary ready → notify the farmer
+ * - Claude/Codex summary writer -> weekly summary ready -> notify the farmer
  * - Scheduled: area stance shift, re-engagement (3+ days inactive)
  *
  * All triggers are fire-and-forget (non-blocking) — never slow the chat stream.

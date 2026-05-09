@@ -181,7 +181,7 @@ Source 3: worksheet='Producer Cars', metric='Shipments'
 
 ### 4B. Total Exports
 
-**Formula:** SUM(Terminal Exports.Exports) across all ports, across all grades + Primary Shipment Distribution.Shipment Distribution where Region='Export Destinations'
+**Formula:** SUM(Terminal Exports.Exports) across all ports, across all grades + Primary Shipment Distribution.Shipment Distribution where Region='Export Destinations' + Producer Cars shipment rows for direct US farmer railcar movement.
 
 ```
 Source 1: worksheet='Terminal Exports', metric='Exports'
@@ -192,6 +192,10 @@ Source 1: worksheet='Terminal Exports', metric='Exports'
 
 Source 2 (direct exports bypassing terminals):
   worksheet='Primary Shipment Distribution', metric='Shipment Distribution', Region='Export Destinations'
+
+Source 3 (producer cars direct to US):
+  worksheet='Producer Cars', metric IN ('Shipment Distribution', 'Shipment Destinations')
+  NOTE: there is no separate worksheet named 'Producer Cars Shipment Distribution'
 ```
 
 **Verified example (Canola, Week 30, Crop Year cumulative):**
