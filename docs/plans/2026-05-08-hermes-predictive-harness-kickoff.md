@@ -5,6 +5,8 @@
 **Mode:** Phase 0 discovery and design only. Stop before implementation.
 **Target user:** Kyle, Bushel Board owner.
 
+**2026-05-09 superseded note:** Do not paste this into Hermes and do not build Hermes automation from it. This is a historical seed packet only. The active path is Codex Automation, documented in `docs/plans/2026-05-09-codex-automation-predictive-harness-ops.md`.
+
 ---
 
 ## TL;DR For Hermes

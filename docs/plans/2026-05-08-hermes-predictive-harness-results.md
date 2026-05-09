@@ -2,7 +2,9 @@
 
 **Created:** 2026-05-09 MT
 **Author:** Codex local goal loop
-**Status:** Phase 0 review packet. No implementation approved.
+**Status:** Phase 0 review packet. Automation ownership superseded on 2026-05-09.
+
+**2026-05-09 operating correction:** Do not use Hermes automation for this harness. Codex Automation owns the scheduled no-write review path through `canola-predictive-harness-no-write-review`. Keep this file as the source-timing, sidecar, and scoring-risk review packet; use `docs/plans/2026-05-09-codex-automation-predictive-harness-ops.md` for the active operating path.
 
 ---
 
@@ -21,7 +23,7 @@ Fix these before implementation:
 - Treat historical LLM backtests before the model's training cutoff as pretraining-tainted unless proven otherwise.
 - Use a separate experimental schema if possible, not just public tables with a prefix.
 - Keep farmer/operator private data out of V1.
-- Treat Hermes as an optional runner, not the system owner.
+- Exclude Hermes automation from V1; Codex Automation owns scheduled harness review.
 
 ---
 
@@ -137,10 +139,11 @@ Codex /goal control loop
        Codex audit + Gemini critique
        no production integration until approved
 
-Hermes
+Codex Automation
   |
-  +--> optional later scheduler / memory runner
-       cannot write production thesis tables in V1
+  +--> active weekly no-write review gate
+       runs tests/build/guardrail scan only
+       cannot call model APIs or write Supabase in V1
 
 Supabase
   |
@@ -158,7 +161,7 @@ Dashboard
   +--> unchanged in V1
 ```
 
-Core decision: **Codex owns the local implementation loop. Hermes can run the experiment later, but the scorer and storage contracts must be deterministic and local-reviewable first.**
+Core decision: **Codex owns both the local implementation loop and the scheduled review loop. Hermes is not part of this harness path; the scorer and storage contracts must remain deterministic and local-reviewable before any writer or production integration is added.**
 
 ---
 
@@ -638,7 +641,7 @@ No code is approved in this Phase 0 packet. This is the proposed patch sequence 
 
 ### Codex Checklist
 
-- Does the plan keep Hermes experimental rather than production-owning?
+- Does the plan keep Codex Automation no-write and exclude Hermes automation?
 - Are production tables protected from experiment writes?
 - Is a point-in-time source cutoff present in every run and prediction?
 - Does snapshot storage make future leakage auditable?
@@ -678,7 +681,7 @@ Codex review outcome: **ACCEPT FOR PLANNING, HOLD FOR IMPLEMENTATION**.
 
 Accepted:
 
-- Hermes is experimental and not production-owning.
+- Hermes automation is excluded; Codex Automation owns scheduled no-write review.
 - Production tables remain read-only for V1.
 - The plan now includes point-in-time cutoffs, model pretraining taint, revision taint, price contract policy, market-close timing, baselines, Brier score, calibration buckets, private-data exclusion, and experimental schema isolation.
 
