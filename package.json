@@ -43,9 +43,11 @@
     "canola-market-read": "npx tsx scripts/generate-canola-market-read.ts",
     "backfill-score-trajectory": "npx tsx scripts/backfill-score-trajectory.ts",
     "test": "vitest run",
-    "test:forecast": "vitest run lib/__tests__/forecast-experiments-schema.test.ts lib/__tests__/forecast-experiments-scoring.test.ts lib/__tests__/forecast-experiments-snapshot.test.ts",
+    "test:forecast": "vitest run lib/__tests__/forecast-experiments-schema.test.ts lib/__tests__/forecast-experiments-scoring.test.ts lib/__tests__/forecast-experiments-snapshot.test.ts lib/__tests__/forecast-experiments-source-records.test.ts lib/__tests__/forecast-experiments-read-adapter.test.ts",
     "test:forecast:snapshot": "vitest run lib/__tests__/forecast-experiments-snapshot.test.ts",
+    "test:forecast:source-records": "vitest run lib/__tests__/forecast-experiments-source-records.test.ts lib/__tests__/forecast-experiments-read-adapter.test.ts",
     "forecast:canola:snapshot": "tsx scripts/build-canola-forecast-snapshot.ts",
+    "forecast:canola:source-records": "tsx scripts/build-canola-forecast-source-records.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

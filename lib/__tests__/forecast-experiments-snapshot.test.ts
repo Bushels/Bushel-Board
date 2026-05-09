@@ -124,7 +124,10 @@ describe("Canola forecast snapshot compiler", () => {
   it("does not depend on host localeCompare behavior for canonical sorting", () => {
     const originalLocaleCompare = String.prototype.localeCompare;
 
-    String.prototype.localeCompare = function reverseLocaleCompare(compareString) {
+    String.prototype.localeCompare = function reverseLocaleCompare(
+      this: string,
+      compareString: string,
+    ) {
       const left = String(this);
       const right = String(compareString);
 
@@ -269,6 +272,23 @@ describe("Canola forecast snapshot compiler", () => {
         source_cutoff_at: "2026-08-08T00:30:00-06:00",
       }),
     ).toThrow(/source_cutoff_at must use the same calendar date/i);
+  });
+
+  it("accepts source cutoffs whose UTC calendar date matches the as-of date", () => {
+    const snapshot = buildCanolaForecastSnapshot({
+      ...buildInput(),
+      as_of_date: "2026-08-07",
+      source_cutoff_at: "2026-08-08T02:30:00+08:00",
+      records: [
+        {
+          ...baseRecord(),
+          published_at: "2026-08-07T10:00:00Z",
+          available_at: "2026-08-07T10:05:00Z",
+        },
+      ],
+    });
+
+    expect(snapshot.records).toHaveLength(1);
   });
 });
 

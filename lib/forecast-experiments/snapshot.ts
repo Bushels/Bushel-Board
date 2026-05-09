@@ -125,7 +125,7 @@ const canolaForecastSnapshotInputSchema = z
     records: z.array(sourceRecordSchema).min(1),
   })
   .superRefine((value, context) => {
-    if (value.source_cutoff_at.slice(0, 10) !== value.as_of_date) {
+    if (!sourceCutoffDateMatchesAsOf(value.source_cutoff_at, value.as_of_date)) {
       context.addIssue({
         code: "custom",
         message: "source_cutoff_at must use the same calendar date as as_of_date.",
@@ -135,6 +135,16 @@ const canolaForecastSnapshotInputSchema = z
   });
 
 const blockedSourceKeySet = new Set<string>(BLOCKED_FORECAST_SOURCE_KEYS);
+
+function sourceCutoffDateMatchesAsOf(
+  sourceCutoffAt: string,
+  asOfDate: string,
+): boolean {
+  const declaredDate = sourceCutoffAt.slice(0, 10);
+  const utcDate = new Date(Date.parse(sourceCutoffAt)).toISOString().slice(0, 10);
+
+  return declaredDate === asOfDate || utcDate === asOfDate;
+}
 
 export function buildCanolaForecastSnapshot(
   input: unknown,
