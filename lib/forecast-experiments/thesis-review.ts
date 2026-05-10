@@ -95,6 +95,7 @@ export interface LearningCandidate {
     | "forward_calibration_candidate"
     | "review_only_revision_tainted"
     | "review_only_pretraining_tainted"
+    | "review_only_pretraining_unknown"
     | "review_only_fixture"
     | "review_only_inconclusive";
   reasons: string[];
@@ -457,6 +458,13 @@ function classifyLearningCandidate(
     reasons.push("forecast is pretraining-tainted");
   }
 
+  if (
+    runArtifact.forecast.pretraining_taint_status === "unknown" ||
+    runArtifact.forecast.pretraining_taint_status === "not_applicable"
+  ) {
+    reasons.push("forecast pretraining status is not proven untainted");
+  }
+
   if (isFixtureRun(runArtifact)) {
     reasons.push("forecast run is a synthetic fixture");
   }
@@ -485,6 +493,17 @@ function classifyLearningCandidate(
     return {
       allowed: false,
       mode: "review_only_pretraining_tainted",
+      reasons,
+    };
+  }
+
+  if (
+    runArtifact.forecast.pretraining_taint_status === "unknown" ||
+    runArtifact.forecast.pretraining_taint_status === "not_applicable"
+  ) {
+    return {
+      allowed: false,
+      mode: "review_only_pretraining_unknown",
       reasons,
     };
   }

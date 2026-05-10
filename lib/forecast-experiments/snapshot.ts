@@ -155,19 +155,24 @@ export function buildCanolaForecastSnapshot(
   const blockedSources: SnapshotBlockedSource[] = [];
 
   for (const record of parsed.records) {
+    const replayWarning =
+      parsed.snapshot_mode === "current_table_replay_mode" &&
+      record.record_type === "warning" &&
+      record.payload.code === "current_state_without_cutoff";
+
     if (blockedSourceKeySet.has(record.source_key)) {
       blockedSources.push(toBlockedSource(record, "blocked_forecast_source"));
       continue;
     }
 
-    if (Date.parse(record.available_at) > sourceCutoffTime) {
+    if (!replayWarning && Date.parse(record.available_at) > sourceCutoffTime) {
       blockedSources.push(
         toBlockedSource(record, "available_after_source_cutoff"),
       );
       continue;
     }
 
-    if (Date.parse(record.published_at) > sourceCutoffTime) {
+    if (!replayWarning && Date.parse(record.published_at) > sourceCutoffTime) {
       blockedSources.push(
         toBlockedSource(record, "published_after_source_cutoff"),
       );

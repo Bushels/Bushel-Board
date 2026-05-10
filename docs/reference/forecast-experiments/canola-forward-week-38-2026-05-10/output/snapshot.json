@@ -1,0 +1,1207 @@
+{
+  "schema_version": "canola-forecast-snapshot-v1",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "grain_week": 38,
+  "as_of_date": "2026-05-10",
+  "source_cutoff_at": "2026-05-10T08:55:00-06:00",
+  "snapshot_mode": "strict_artifact_mode",
+  "revision_taint_status": "untainted",
+  "source_clocks": [
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "2026-05-09",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week 41",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week_38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "grain_week_38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "freshness_hours": 0.04
+    }
+  ],
+  "records": [
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 20,
+        "label": "Managed money canola net position",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "notes": "Primary canola mapping only; secondary oilseed contracts stay labelled as proxy context.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Futures positioning",
+        "source_name": "cftc_cot_positions",
+        "source_row_key": "CANOLA:2026-05-05",
+        "source_table": "cftc_cot_positions",
+        "unit": "Contracts",
+        "value": 89108
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "2026-05-09",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 19,
+        "label": "ICE canola futures sample",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "notes": "Futures follow-through only. This is not a local cash bid or basis.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "2026-05-09",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Futures price context",
+        "source_name": "grain_prices",
+        "source_row_key": "Canola:RSK26:2026-05-09",
+        "source_table": "grain_prices",
+        "unit": "CAD $/tonne",
+        "value": 743.2
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 3,
+        "label": "Exports, crop year to date",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "crop_year 2025-2026, grain_week 38",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada terminal/direct export flow formula",
+        "source_name": "cgc_observations",
+        "source_row_key": "2025-2026:wk38:Canola:exports:Crop Year",
+        "source_table": "cgc_observations",
+        "unit": "Ktonnes",
+        "value": 12142.7
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 1,
+        "label": "Producer deliveries, crop year to date",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "crop_year 2025-2026, grain_week 38",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada plus documented producer-car formula",
+        "source_name": "cgc_observations",
+        "source_row_key": "2025-2026:wk38:Canola:Crop Year",
+        "source_table": "v_country_producer_deliveries",
+        "unit": "Ktonnes",
+        "value": 15218
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 2,
+        "label": "Exports, current week",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "notes": "Terminal exports plus direct export-destination flows where present in the packet RPC.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "crop_year 2025-2026, grain_week 38",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada terminal/direct export flow formula",
+        "source_name": "cgc_observations",
+        "source_row_key": "2025-2026:wk38:Canola:exports:Current Week",
+        "source_table": "cgc_observations",
+        "unit": "Ktonnes",
+        "value": 379.2
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 0,
+        "label": "Producer deliveries, current week",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "notes": "Primary deliveries plus Process producer deliveries plus Producer Cars shipments.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "crop_year 2025-2026, grain_week 38",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada plus documented producer-car formula",
+        "source_name": "cgc_observations",
+        "source_row_key": "2025-2026:wk38:Canola:Current Week",
+        "source_table": "v_country_producer_deliveries",
+        "unit": "Ktonnes",
+        "value": 433.3
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 14,
+        "label": "Grain Monitor terminal stocks",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 38, report_date 2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada logistics",
+        "source_name": "grain_monitor_snapshots",
+        "source_row_key": "2025-2026:wk38",
+        "source_table": "grain_monitor_snapshots",
+        "unit": "Ktonnes",
+        "value": 1372.3
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 13,
+        "label": "Grain Monitor country stocks",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 38, report_date 2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada logistics",
+        "source_name": "grain_monitor_snapshots",
+        "source_row_key": "2025-2026:wk38",
+        "source_table": "grain_monitor_snapshots",
+        "unit": "Ktonnes",
+        "value": 3909.2
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 15,
+        "label": "Grain Monitor terminal capacity",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 38, report_date 2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada logistics",
+        "source_name": "grain_monitor_snapshots",
+        "source_row_key": "2025-2026:wk38",
+        "source_table": "grain_monitor_snapshots",
+        "unit": "Percent",
+        "value": 71
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 17,
+        "label": "Vessels waiting at Vancouver",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 38, report_date 2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada logistics",
+        "source_name": "grain_monitor_snapshots",
+        "source_row_key": "2025-2026:wk38",
+        "source_table": "grain_monitor_snapshots",
+        "unit": "Vessels",
+        "value": 20
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 12,
+        "label": "Grain Monitor country deliveries",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 38, report_date 2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada logistics",
+        "source_name": "grain_monitor_snapshots",
+        "source_row_key": "2025-2026:wk38",
+        "source_table": "grain_monitor_snapshots",
+        "unit": "Ktonnes",
+        "value": 1027.7
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 38, report_date 2026-05-05",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 16,
+        "label": "Grain Monitor unloads",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 38, report_date 2026-05-05",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada logistics",
+        "source_name": "grain_monitor_snapshots",
+        "source_row_key": "2025-2026:wk38",
+        "source_table": "grain_monitor_snapshots",
+        "unit": "Cars",
+        "value": 11182
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "grain_week 41",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 18,
+        "label": "Producer car allocation, latest week",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "notes": "Forward-looking allocation relative to the CGC movement week.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "grain_week 41",
+        "quality_flags": [
+          "forward_week"
+        ],
+        "row_kind": "fact",
+        "scope": "Canada producer cars",
+        "source_name": "producer_car_allocations",
+        "source_row_key": "2025-2026:wk41:Canola",
+        "source_table": "producer_car_allocations",
+        "unit": "Cars",
+        "value": 176
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 8,
+        "label": "StatsCan final seeded area",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada crop-size baseline",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:seeded_area_acres",
+        "source_table": "v_supply_disposition_current",
+        "unit": "acres",
+        "value": 21617100
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 11,
+        "label": "StatsCan intended seeded area",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "notes": "Preliminary seeding-intention estimate. Replace with final seeded area when released.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [
+          "preliminary_intentions"
+        ],
+        "row_kind": "fact",
+        "scope": "Canada crop-size baseline",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:intended_seeded_area_acres",
+        "source_table": "v_supply_disposition_current",
+        "unit": "acres",
+        "value": 21839000
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 10,
+        "label": "StatsCan final yield",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada crop-size baseline",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:yield_bu_per_acre",
+        "source_table": "v_supply_disposition_current",
+        "unit": "bu/ac",
+        "value": 44.7
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 4,
+        "label": "AAFC/StatsCan production",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada balance sheet",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:supply_disposition",
+        "source_table": "v_supply_disposition_current",
+        "unit": "Ktonnes",
+        "value": 21804
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 5,
+        "label": "AAFC/StatsCan total supply",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada balance sheet",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:supply_disposition",
+        "source_table": "v_supply_disposition_current",
+        "unit": "Ktonnes",
+        "value": 23502
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 9,
+        "label": "StatsCan final harvested area",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada crop-size baseline",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:harvested_area_acres",
+        "source_table": "v_supply_disposition_current",
+        "unit": "acres",
+        "value": 21490100
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 6,
+        "label": "AAFC/StatsCan carry-in",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada balance sheet",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:supply_disposition",
+        "source_table": "v_supply_disposition_current",
+        "unit": "Ktonnes",
+        "value": 1597
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "fact",
+      "observed_period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "confidence": "high",
+        "item_index": 7,
+        "label": "AAFC/StatsCan carry-out",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "period": "source crop_year 2025-2026, source AAFC_2026-02-18",
+        "quality_flags": [],
+        "row_kind": "fact",
+        "scope": "Canada balance sheet",
+        "source_name": "supply_disposition",
+        "source_row_key": "2025-2026:Canola:supply_disposition",
+        "source_table": "v_supply_disposition_current",
+        "unit": "Ktonnes",
+        "value": 2500
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "body": "Grain Monitor is aligned with CGC week 38; logistics context can be read beside current movement.",
+        "confidence": "medium",
+        "item_index": 2,
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "interpretation",
+        "source_names": [
+          "grain_monitor_snapshots"
+        ],
+        "title": "Logistics timing"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "body": "Process deliveries were 41.7% of current-week producer deliveries. That keeps domestic crush visible in the read instead of treating export movement as the whole demand story.",
+        "confidence": "high",
+        "item_index": 1,
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "interpretation",
+        "source_names": [
+          "cgc_observations"
+        ],
+        "title": "Domestic crush signal"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "body": "CGC week 38 shows 433.3 kt delivered and 379.2 kt exported. Exports were 87.5% of weekly deliveries, but this is not total demand because domestic crush is a separate pull.",
+        "confidence": "high",
+        "item_index": 0,
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "interpretation",
+        "source_names": [
+          "cgc_observations"
+        ],
+        "title": "Commercial pull"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "bottom_line": "No pricing recommendation. This is a deterministic source read: physical movement is visible, while stale-risk, empty, lagged, and proxy lanes stay labelled.",
+        "headline": "Canola market read wk 38: 433.3 kt delivered, 379.2 kt exported, 6 source warning(s)",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "market_read_summary",
+        "status": "available"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "grain_week_38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "change_pct": 38.4,
+        "change_value": 105.2,
+        "current_period": "grain_week_38",
+        "current_value": 379.2,
+        "item_index": 1,
+        "label": "Exports",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "previous_period": "grain_week_37",
+        "previous_value": 274,
+        "row_kind": "change",
+        "source_name": "cgc_observations",
+        "source_table": "cgc_observations",
+        "unit": "Ktonnes"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "grain_week_38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "change_pct": 6.6,
+        "change_value": 26.7,
+        "current_period": "grain_week_38",
+        "current_value": 433.3,
+        "item_index": 0,
+        "label": "Producer deliveries",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "previous_period": "grain_week_37",
+        "previous_value": 406.6,
+        "row_kind": "change",
+        "source_name": "cgc_observations",
+        "source_table": "v_country_producer_deliveries",
+        "unit": "Ktonnes"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "No immediate action.",
+        "expected_cadence": "weekly Wed, naturally lagged",
+        "freshness_status": "strong",
+        "item_index": 5,
+        "latest_period": "2025-2026 wk 38",
+        "latest_period_end": "2026-05-05",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "quality_flags": [],
+        "row_kind": "freshness",
+        "rows_available": 27,
+        "source_lane": "canada",
+        "source_name": "grain_monitor_snapshots",
+        "thesis_use": "logistics"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "item_index": 4,
+        "label": "AAFC/StatsCan supply update",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "watch_item",
+        "source_names": [
+          "supply_disposition"
+        ],
+        "watch_for": "Supply-disposition source crop year matching the packet crop year.",
+        "why_it_matters": "Production and carryout are balance-sheet anchors. A mismatched crop year is context, not current truth."
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "No immediate action.",
+        "expected_cadence": "weekly Fri PM",
+        "freshness_status": "strong",
+        "item_index": 8,
+        "latest_period": "2025-2026 wk 40 / 2026-05-05",
+        "latest_period_end": "2026-05-05",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "quality_flags": [],
+        "row_kind": "freshness",
+        "rows_available": 584,
+        "source_lane": "cross_border",
+        "source_name": "cftc_cot_positions",
+        "thesis_use": "positioning"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "No immediate action.",
+        "expected_cadence": "weekly Thu PM",
+        "freshness_status": "strong",
+        "item_index": 4,
+        "latest_period": "2025-2026 wk 39",
+        "latest_period_end": "2026-05-03",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "quality_flags": [],
+        "row_kind": "freshness",
+        "rows_available": 1141514,
+        "source_lane": "canada",
+        "source_name": "cgc_observations",
+        "thesis_use": "supply / demand / logistics"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "item_index": 0,
+        "label": "Next CGC movement print",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "watch_item",
+        "source_names": [
+          "cgc_observations"
+        ],
+        "watch_for": "Canola producer deliveries and exports in grain week 39.",
+        "why_it_matters": "It proves whether the current export/delivery relationship is a one-week pulse or a real demand pull."
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "No immediate action.",
+        "expected_cadence": "weekly",
+        "freshness_status": "strong",
+        "item_index": 6,
+        "latest_period": "2025-2026 wk 41",
+        "latest_period_end": "2026-05-07",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "quality_flags": [],
+        "row_kind": "freshness",
+        "rows_available": 362,
+        "source_lane": "canada",
+        "source_name": "producer_car_allocations",
+        "thesis_use": "logistics"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "Keep proxy rows labelled in interpretation and public output.",
+        "item_index": 4,
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "message": "8 CFTC positioning row(s) are secondary/proxy mappings, not direct canola truth.",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "quality_warning",
+        "severity": "watch",
+        "source_name": "cftc_cot_positions",
+        "status": "proxy_mapping"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "message": "Forbidden or unadmitted market-read source lanes were omitted from forecast input.",
+        "omitted_sources": [
+          {
+            "count": 9,
+            "reason": "unadmitted_or_forbidden_source",
+            "source_name": "redacted_unadmitted_or_forbidden_source"
+          },
+          {
+            "count": 2,
+            "reason": "unadmitted_or_forbidden_source",
+            "source_name": "usda_wasde_mapped"
+          },
+          {
+            "count": 1,
+            "reason": "unadmitted_or_forbidden_source",
+            "source_name": "usda_wasde_raw"
+          },
+          {
+            "count": 2,
+            "reason": "unadmitted_or_forbidden_source",
+            "source_name": "weather_cache"
+          }
+        ],
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "omitted_sources"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "No immediate action.",
+        "expected_cadence": "periodic AAFC / StatsCan refresh",
+        "freshness_status": "strong",
+        "item_index": 7,
+        "latest_period": "2025-2026 / AAFC_2026-02-18",
+        "latest_period_end": "2026-03-14",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "quality_flags": [],
+        "row_kind": "freshness",
+        "rows_available": 80,
+        "source_lane": "canada",
+        "source_name": "supply_disposition",
+        "thesis_use": "supply / demand"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "action_hint": "No immediate action.",
+        "expected_cadence": "daily market days",
+        "freshness_status": "strong",
+        "item_index": 9,
+        "latest_period": "2026-05-09 / Spring Wheat / MWK26",
+        "latest_period_end": "2026-05-09",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "quality_flags": [],
+        "row_kind": "freshness",
+        "rows_available": 411,
+        "source_lane": "cross_border",
+        "source_name": "grain_prices",
+        "thesis_use": "price"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "item_index": 3,
+        "label": "Grain Monitor lag",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "watch_item",
+        "source_names": [
+          "grain_monitor_snapshots"
+        ],
+        "watch_for": "Whether Grain Monitor catches up to the latest CGC week.",
+        "why_it_matters": "Logistics pressure is useful, but a lagged port/elevator read should not be treated as same-week movement."
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "warning",
+      "observed_period": "crop_year 2025-2026, grain_week 38",
+      "published_at": "2026-05-10T14:52:18.228502+00:00",
+      "available_at": "2026-05-10T14:52:22.733Z",
+      "payload": {
+        "item_index": 2,
+        "label": "Price refresh",
+        "market_read_generated_at": "2026-05-10T14:52:22.733Z",
+        "market_read_version": "canola-market-read-v1",
+        "packet_generated_at": "2026-05-10T14:52:18.228502+00:00",
+        "row_kind": "watch_item",
+        "source_names": [
+          "grain_prices"
+        ],
+        "watch_for": "A current ICE canola futures sample after weekends and holidays.",
+        "why_it_matters": "Fresh futures show whether physical movement is getting market follow-through."
+      }
+    }
+  ],
+  "warnings": [],
+  "blocked_sources": [],
+  "snapshot_hash": "sha256:784465b816f64a7cb3fd6a740c47ba0b678dba9dec0d151db175d379d50a89a6"
+}

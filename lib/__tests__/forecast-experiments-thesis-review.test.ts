@@ -228,6 +228,22 @@ describe("Canola thesis weekly review package", () => {
       }),
     ).toThrow(/missed thesis reviews require/i);
   });
+
+  it("keeps unknown pretraining status out of calibration candidates", () => {
+    const reviewPackage = buildCanolaThesisReviewPackage({
+      ...reviewInput(),
+      run_artifact: runArtifactWithForecast({
+        ...forecast(),
+        pretraining_taint_status: "unknown",
+      }),
+    });
+
+    expect(reviewPackage.learning_candidate).toEqual({
+      allowed: false,
+      mode: "review_only_pretraining_unknown",
+      reasons: ["forecast pretraining status is not proven untainted"],
+    });
+  });
 });
 
 describe("Canola thesis review CLI", () => {
@@ -301,6 +317,32 @@ describe("Canola thesis review CLI", () => {
 function stripRunArtifact(input: ReturnType<typeof reviewInput>) {
   const { run_artifact: _runArtifact, ...review } = input;
   return review;
+}
+
+function runArtifactWithForecast(nextForecast: ReturnType<typeof forecast>) {
+  return runCanolaForecastLocalWorkflow({
+    source_rows: sourceRows(),
+    forecast: nextForecast,
+    crop_year: "2026-2027",
+    grain_week: 1,
+    as_of_date: "2026-08-07",
+    source_cutoff_at: "2026-08-07T14:30:00-06:00",
+    snapshot_mode: "strict_artifact_mode",
+    horizon_days: 28,
+    price_contract: {
+      exchange: "ICE",
+      commodity: "Canola",
+      contract_code: "RSX26",
+      contract_month: "2026-11",
+      roll_policy: "fixed_contract_no_roll",
+    },
+    model_training_cutoff: "2026-04-30",
+    provider: "manual",
+    model: "gemini-3.1-pro-preview",
+    runner_mode: "manual_model_output",
+    prompt_version: "canola-forecast-prompt-v1",
+    created_at: "2026-08-07T14:36:00-06:00",
+  }).run_artifact;
 }
 
 function runReviewCli(args: string[]) {

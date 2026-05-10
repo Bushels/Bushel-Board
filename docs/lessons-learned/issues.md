@@ -1,5 +1,22 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-10 - Forecast calibration candidates must prove source and model boundaries
+
+**Symptom:** The first real Canola source artifact work exposed two ways a harness artifact could be overpromoted: a forecast with unknown model pretraining status could still become a calibration candidate, and a filtered market-read export could reveal forbidden source-family names through its omission report.
+
+**Root cause:** The thesis-review classifier only blocked explicitly `tainted` forecasts, not `unknown` or `not_applicable` pretraining status. The market-read exporter originally treated unadmitted source names as safe to report unless they were already on a known forbidden list.
+
+**Fix status:** Forecast reviews now classify unknown or not-applicable pretraining status as `review_only_pretraining_unknown`. The Canola market-read source-row exporter now uses an allowlist for renderable omitted source names, redacts everything else, adds a hard disclaimer, and keeps current-table replay as revision-tainted warning evidence.
+
+**Prevention:**
+- Only `pretraining_taint_status = untainted` can become a forward-calibration candidate.
+- Omission reports should default to redaction; only deliberately public source names should be renderable.
+- Current-table replay artifacts must not carry raw payload through as evidence when source-cutoff proof is missing.
+
+**Tags:** #forecast-harness #pretraining-taint #source-boundary #privacy #gemini-audit
+
+---
+
 ## 2026-05-08 - Collector wrapper dry-runs and Windows CLI shims are separate risks
 
 **Symptom:** The thesis-cache wrapper worked for normal collector runs, but `npm run collect:cgc -- --dry-run` did not reliably forward `--dry-run` to the child importer in the Windows runner. A broad `shell: true` Windows fix then broke quoted `node -e` child arguments. Gemini 3.1 Pro Preview also flagged that direct `tsx` child commands can fail on Windows when spawned without shell handling.

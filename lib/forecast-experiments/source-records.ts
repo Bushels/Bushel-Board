@@ -86,14 +86,23 @@ export function buildSnapshotSourceRecord(
   );
   const payload = requirePayload(row.payload);
   const cutoffMs = requireClock(options.source_cutoff_at, "source_cutoff_at").ms;
+  const cutoffSupported =
+    row.source_cutoff_supported === true ||
+    payload.source_cutoff_supported === true;
+  const canolaMarketReadReplay =
+    sourceKey === "canola_market_read" &&
+    !cutoffSupported &&
+    options.snapshot_mode === "current_table_replay_mode";
 
-  assertObservedDatesNotAfterAsOf(observedPeriod, payload, options.as_of_date);
-  assertNotAfter("published_at", publishedAt.ms, cutoffMs);
-  assertNotAfter("available_at", availableAt.ms, cutoffMs);
-  assertMutableSourceHasClock(sourceKey, row);
-  assertMutableClockBeforeCutoff(row.updated_at, "updated_at", cutoffMs);
-  assertMutableClockBeforeCutoff(row.imported_at, "imported_at", cutoffMs);
-  assertMutableClockBeforeCutoff(row.created_at, "created_at", cutoffMs);
+  if (!canolaMarketReadReplay) {
+    assertObservedDatesNotAfterAsOf(observedPeriod, payload, options.as_of_date);
+    assertNotAfter("published_at", publishedAt.ms, cutoffMs);
+    assertNotAfter("available_at", availableAt.ms, cutoffMs);
+    assertMutableSourceHasClock(sourceKey, row);
+    assertMutableClockBeforeCutoff(row.updated_at, "updated_at", cutoffMs);
+    assertMutableClockBeforeCutoff(row.imported_at, "imported_at", cutoffMs);
+    assertMutableClockBeforeCutoff(row.created_at, "created_at", cutoffMs);
+  }
 
   if (sourceKey === "canola_market_read") {
     return buildCanolaMarketReadRecord(row, options, {
@@ -174,11 +183,31 @@ function buildCanolaMarketReadRecord(
   }
 
   return [
-    warningRecord(base, "current_state_without_cutoff", {
+    currentStateReplayWarningRecord(base),
+  ];
+}
+
+function currentStateReplayWarningRecord(base: {
+  sourceKey: string;
+  observedPeriod: string;
+  publishedAt: string;
+  availableAt: string;
+  payload: Record<string, unknown>;
+}): SnapshotSourceRecord {
+  return {
+    source_key: base.sourceKey,
+    record_type: "warning",
+    observed_period: base.observedPeriod,
+    published_at: base.publishedAt,
+    available_at: base.availableAt,
+    payload: {
+      code: "current_state_without_cutoff",
       message:
         "canola_market_read did not prove source_cutoff_at enforcement and is revision-tainted replay evidence only.",
-    }),
-  ];
+      original_row_kind: optionalText(base.payload.row_kind),
+      original_payload_omitted: true,
+    },
+  };
 }
 
 function buildGrainPriceRecord(

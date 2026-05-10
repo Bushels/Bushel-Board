@@ -74,6 +74,12 @@ Price scoring remains a separate optional lane. It should support the thesis rev
 
 The tracked example bundle is `docs/reference/forecast-experiments/canola-walk-forward-week-38/`. It uses synthetic, human-authored fixture values to demonstrate the operating loop and must not be cited as market-performance proof, model-output proof, training proof, live Supabase output, or price-skill proof. Its generated review package must stay `review_only_fixture`.
 
+The first real source artifact is `docs/reference/forecast-experiments/canola-forward-week-38-2026-05-10/`. It contains filtered rows exported from a saved deterministic Canola Market Read. The raw market-read JSON is not tracked because it can contain forbidden source lanes. The committed source rows redact unadmitted/forbidden omitted lanes, include a no-training/no-skill-proof disclaimer, and build only a frozen source snapshot. It is not a forecast, model output, training set, or performance claim.
+
+Before producing a real bull/bear thesis from that snapshot, require an explicit model training cutoff. If the forecast output marks `pretraining_taint_status` as `unknown` or `not_applicable`, the review must remain `review_only_pretraining_unknown`.
+
 ## Gemini Review Notes
 
 Gemini 3.1 Pro Preview reviewed the no-Hermes correction on 2026-05-09. Its material guidance was to replace future Hermes ownership language with Codex Automation ownership, keep the automation dry-run or sidecar-only, and require review before any production-table, private-data, dashboard, or writer boundary changes.
+
+Gemini 3.1 Pro Preview reviewed the real source-row exporter on 2026-05-10. Its material blockers were omission-name leakage, current-table replay overclaim, and artifact misuse. The exporter now redacts unknown/forbidden omitted lanes by default, marks replay rows as revision-tainted warnings with raw payload omitted, and writes an explicit no-training/no-skill-proof disclaimer.
