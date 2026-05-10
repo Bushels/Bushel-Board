@@ -72,6 +72,24 @@ Use `npm run forecast:canola:review-thesis` to package the completed review loca
 
 Price scoring remains a separate optional lane. It should support the thesis review when trustworthy price data exists, not block the evidence-review loop.
 
+## Historical Replay Training Loop
+
+Historical data can be used for learning, but it must be packaged as historical replay instead of forward proof.
+
+Use `npm run forecast:canola:historical-replay` to build local no-write replay packages from point-in-time source rows, next-window evidence, and outcome labels. The output candidate mode is `historical_training_candidate`, not `forward_calibration_candidate`.
+
+The historical replay lane must:
+
+- keep the review cutoff inside the declared 7-day or 28-day window,
+- block evidence available before the forecast cutoff,
+- block evidence available after the historical review cutoff,
+- block forbidden/private/proprietary source families,
+- mark current-table/revised snapshots as review-only,
+- mark model-assisted labels as pretraining-tainted when the model cutoff can include later outcomes,
+- require review before any training export.
+
+This lane can generate training candidates faster than forward waiting, but it cannot prove live market skill by itself.
+
 The tracked example bundle is `docs/reference/forecast-experiments/canola-walk-forward-week-38/`. It uses synthetic, human-authored fixture values to demonstrate the operating loop and must not be cited as market-performance proof, model-output proof, training proof, live Supabase output, or price-skill proof. Its generated review package must stay `review_only_fixture`.
 
 The first real source artifact is `docs/reference/forecast-experiments/canola-forward-week-38-2026-05-10/`. It contains filtered rows exported from a saved deterministic Canola Market Read. The raw market-read JSON is not tracked because it can contain forbidden source lanes. The committed source rows redact unadmitted/forbidden omitted lanes, include a no-training/no-skill-proof disclaimer, and build only a frozen source snapshot. It is not a training set or performance claim.
