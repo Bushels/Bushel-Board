@@ -13,6 +13,8 @@ The harness builds local no-write packages from:
 
 The first CGC-backed bundle is `docs/reference/forecast-experiments/canola-historical-replay-cgc-2025-weeks-1-3/`.
 
+Going forward, clean point-in-time CGC source files are captured by `scripts/capture-cgc-weekly-snapshot.ts` into the local ignored `data\CGC Weekly Snapshots\` folder. See `docs/reference/forecast-experiments/cgc-point-in-time-snapshot-capture.md`.
+
 ## Candidate Modes
 
 - `historical_training_candidate` - clean historical example that can be reviewed for training/export.
