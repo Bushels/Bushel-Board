@@ -95,6 +95,7 @@ export interface LearningCandidate {
     | "forward_calibration_candidate"
     | "review_only_revision_tainted"
     | "review_only_pretraining_tainted"
+    | "review_only_fixture"
     | "review_only_inconclusive";
   reasons: string[];
 }
@@ -456,6 +457,10 @@ function classifyLearningCandidate(
     reasons.push("forecast is pretraining-tainted");
   }
 
+  if (isFixtureRun(runArtifact)) {
+    reasons.push("forecast run is a synthetic fixture");
+  }
+
   if (thesisVerdict === "inconclusive") {
     reasons.push("review verdict is inconclusive");
   }
@@ -484,11 +489,26 @@ function classifyLearningCandidate(
     };
   }
 
+  if (isFixtureRun(runArtifact)) {
+    return {
+      allowed: false,
+      mode: "review_only_fixture",
+      reasons,
+    };
+  }
+
   return {
     allowed: false,
     mode: "review_only_inconclusive",
     reasons,
   };
+}
+
+function isFixtureRun(runArtifact: CanolaForecastRunArtifact): boolean {
+  const provider = runArtifact.metadata.provider.toLowerCase();
+  const model = runArtifact.metadata.model.toLowerCase();
+
+  return provider.includes("fixture") || model.includes("fixture");
 }
 
 function toCanonicalEvidence(

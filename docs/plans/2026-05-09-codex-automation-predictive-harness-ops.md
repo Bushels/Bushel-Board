@@ -72,6 +72,8 @@ Use `npm run forecast:canola:review-thesis` to package the completed review loca
 
 Price scoring remains a separate optional lane. It should support the thesis review when trustworthy price data exists, not block the evidence-review loop.
 
+The tracked example bundle is `docs/reference/forecast-experiments/canola-walk-forward-week-38/`. It uses synthetic, human-authored fixture values to demonstrate the operating loop and must not be cited as market-performance proof, model-output proof, training proof, live Supabase output, or price-skill proof. Its generated review package must stay `review_only_fixture`.
+
 ## Gemini Review Notes
 
 Gemini 3.1 Pro Preview reviewed the no-Hermes correction on 2026-05-09. Its material guidance was to replace future Hermes ownership language with Codex Automation ownership, keep the automation dry-run or sidecar-only, and require review before any production-table, private-data, dashboard, or writer boundary changes.

@@ -1,0 +1,158 @@
+{
+  "schema_version": "canola-thesis-review-package-v1",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "forecast_grain_week": 38,
+  "forecast_as_of_date": "2026-04-24",
+  "forecast_source_cutoff_at": "2026-04-24T16:30:00-06:00",
+  "review_as_of_date": "2026-05-01",
+  "review_cutoff_at": "2026-05-01T16:30:00-06:00",
+  "reviewer": "fixture",
+  "run_hash": "sha256:fee9574c57cc35a92eda6f60a591cf6e73eccda81479a8f047b2b0e731fe22d2",
+  "forecast_summary": {
+    "direction": "bullish",
+    "stance_score": 28,
+    "confidence_pct": 58,
+    "recommendation": "WATCH",
+    "top_drivers": [
+      {
+        "driver_index": 0,
+        "driver": "CGC-style deliveries and exports were both firm in the frozen fixture snapshot.",
+        "directional_effect": "bullish",
+        "evidence_source": "cgc_weekly",
+        "confidence": "medium"
+      },
+      {
+        "driver_index": 1,
+        "driver": "The fixture has no complete price tape, so the thesis should be judged first by next-week movement evidence.",
+        "directional_effect": "neutral",
+        "evidence_source": "canola_market_read",
+        "confidence": "medium"
+      }
+    ]
+  },
+  "accepted_evidence": [
+    {
+      "evidence_key": "public-crush-maintenance-note",
+      "source_key": "source_runs",
+      "evidence_type": "public_news",
+      "observed_period": "public context through 2026-04-29",
+      "published_at": "2026-04-29T09:00:00-06:00",
+      "available_at": "2026-04-29T09:05:00-06:00",
+      "summary": "Public context fixture noted temporary crush-maintenance risk, limiting confidence in a clean bullish read.",
+      "directional_effect": "bearish",
+      "materiality": "medium",
+      "payload": {
+        "context_signal": "temporary demand risk",
+        "fixture_note": "Synthetic public-context evidence."
+      }
+    },
+    {
+      "evidence_key": "cgc-week-39-movement",
+      "source_key": "cgc_weekly",
+      "evidence_type": "official_data",
+      "observed_period": "2025-2026 week 39 ending 2026-04-26",
+      "published_at": "2026-04-30T13:00:00-06:00",
+      "available_at": "2026-04-30T13:10:00-06:00",
+      "summary": "The next official movement fixture kept deliveries firm but showed exports easing.",
+      "directional_effect": "mixed",
+      "materiality": "high",
+      "payload": {
+        "deliveries_signal": "supportive",
+        "exports_signal": "contradictory",
+        "fixture_note": "Synthetic next-week evidence available before the review cutoff.",
+        "week_ending_date": "2026-04-26"
+      }
+    }
+  ],
+  "blocked_evidence": [
+    {
+      "evidence_key": "already-known-week-38",
+      "source_key": "cgc_weekly",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "reason": "already_available_at_forecast_cutoff"
+    },
+    {
+      "evidence_key": "private-chat-signal",
+      "source_key": "private_chat_data",
+      "observed_period": "private context",
+      "available_at": "2026-04-30T11:05:00-06:00",
+      "reason": "forbidden_source"
+    },
+    {
+      "evidence_key": "late-week-40-rumour",
+      "source_key": "source_runs",
+      "observed_period": "post-review context",
+      "available_at": "2026-05-04T09:05:00-06:00",
+      "reason": "available_after_review_cutoff"
+    }
+  ],
+  "driver_reviews": [
+    {
+      "driver_index": 0,
+      "verdict": "partially_supported",
+      "evidence_keys": [
+        "cgc-week-39-movement"
+      ],
+      "notes": "The movement evidence partly supported the driver because deliveries remained firm, but exports softened."
+    },
+    {
+      "driver_index": 1,
+      "verdict": "supported",
+      "evidence_keys": [
+        "cgc-week-39-movement",
+        "public-crush-maintenance-note"
+      ],
+      "notes": "The fixture correctly warned against price-only judgment; next-week evidence remained mixed and required fundamental review."
+    }
+  ],
+  "thesis_verdict": "partly_held",
+  "verdict_notes": "The bullish thesis partly held: deliveries stayed supportive, but the next official export signal softened and public context added a demand-risk warning. The review should adjust confidence rather than declare a clean miss or clean win.",
+  "missed_signals": [
+    "The fixture still lacks complete futures and cash-price context, so price-skill claims remain out of scope.",
+    "The frozen thesis did not anticipate the export-softening side of the next movement fixture."
+  ],
+  "adjustments_for_next_week": [
+    {
+      "adjustment": "Continue judging the thesis by official movement and public context until price history is admitted as trustworthy support.",
+      "reason": "The fixture deliberately avoids price-only logic.",
+      "priority": "medium"
+    },
+    {
+      "adjustment": "Keep the movement driver but reduce confidence unless exports recover in the next official evidence window.",
+      "reason": "Deliveries stayed supportive, but export softening made the bullish thesis only partly held.",
+      "priority": "medium"
+    }
+  ],
+  "learning_candidate": {
+    "allowed": false,
+    "mode": "review_only_fixture",
+    "reasons": [
+      "forecast run is a synthetic fixture"
+    ]
+  },
+  "guardrails": {
+    "executes_writes": false,
+    "requires_prices": false,
+    "calls_model_api": false,
+    "reads_supabase": false,
+    "review_required_before_training": true,
+    "review_required_before_sidecar_write": true,
+    "forbidden_operations": [
+      "model_fine_tune",
+      "model_api_call",
+      "supabase_read",
+      "supabase_write",
+      "sidecar_table_write",
+      "production_table_write",
+      "dashboard_import",
+      "private_farmer_data",
+      "private_operator_data",
+      "private_chat_data",
+      "hermes_automation_start"
+    ]
+  },
+  "created_at": "2026-05-01T16:35:00-06:00",
+  "package_hash": "sha256:3a2027c07740820adbc64ab7075b7fd17bf2c189c30147a4087abffb9ce38481"
+}

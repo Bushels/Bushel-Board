@@ -1,0 +1,141 @@
+{
+  "schema_version": "canola-thesis-review-prompt-pack-v1",
+  "prompt_version": "canola-thesis-review-prompt-v1",
+  "created_at": "2026-05-01T16:31:00-06:00",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "forecast_grain_week": 38,
+  "forecast_as_of_date": "2026-04-24",
+  "forecast_source_cutoff_at": "2026-04-24T16:30:00-06:00",
+  "review_as_of_date": "2026-05-01",
+  "review_cutoff_at": "2026-05-01T16:30:00-06:00",
+  "reviewer": "fixture",
+  "run_hash": "sha256:fee9574c57cc35a92eda6f60a591cf6e73eccda81479a8f047b2b0e731fe22d2",
+  "forecast_summary": {
+    "direction": "bullish",
+    "stance_score": 28,
+    "confidence_pct": 58,
+    "recommendation": "WATCH",
+    "top_drivers": [
+      {
+        "driver_index": 0,
+        "driver": "CGC-style deliveries and exports were both firm in the frozen fixture snapshot.",
+        "directional_effect": "bullish",
+        "evidence_source": "cgc_weekly",
+        "confidence": "medium"
+      },
+      {
+        "driver_index": 1,
+        "driver": "The fixture has no complete price tape, so the thesis should be judged first by next-week movement evidence.",
+        "directional_effect": "neutral",
+        "evidence_source": "canola_market_read",
+        "confidence": "medium"
+      }
+    ]
+  },
+  "accepted_evidence": [
+    {
+      "evidence_key": "public-crush-maintenance-note",
+      "source_key": "source_runs",
+      "evidence_type": "public_news",
+      "observed_period": "public context through 2026-04-29",
+      "published_at": "2026-04-29T09:00:00-06:00",
+      "available_at": "2026-04-29T09:05:00-06:00",
+      "summary": "Public context fixture noted temporary crush-maintenance risk, limiting confidence in a clean bullish read.",
+      "directional_effect": "bearish",
+      "materiality": "medium",
+      "payload": {
+        "context_signal": "temporary demand risk",
+        "fixture_note": "Synthetic public-context evidence."
+      }
+    },
+    {
+      "evidence_key": "cgc-week-39-movement",
+      "source_key": "cgc_weekly",
+      "evidence_type": "official_data",
+      "observed_period": "2025-2026 week 39 ending 2026-04-26",
+      "published_at": "2026-04-30T13:00:00-06:00",
+      "available_at": "2026-04-30T13:10:00-06:00",
+      "summary": "The next official movement fixture kept deliveries firm but showed exports easing.",
+      "directional_effect": "mixed",
+      "materiality": "high",
+      "payload": {
+        "deliveries_signal": "supportive",
+        "exports_signal": "contradictory",
+        "fixture_note": "Synthetic next-week evidence available before the review cutoff.",
+        "week_ending_date": "2026-04-26"
+      }
+    }
+  ],
+  "blocked_evidence": [
+    {
+      "evidence_key": "already-known-week-38",
+      "source_key": "cgc_weekly",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "reason": "already_available_at_forecast_cutoff"
+    },
+    {
+      "evidence_key": "private-chat-signal",
+      "source_key": "private_chat_data",
+      "observed_period": "private context",
+      "available_at": "2026-04-30T11:05:00-06:00",
+      "reason": "forbidden_source"
+    },
+    {
+      "evidence_key": "late-week-40-rumour",
+      "source_key": "source_runs",
+      "observed_period": "post-review context",
+      "available_at": "2026-05-04T09:05:00-06:00",
+      "reason": "available_after_review_cutoff"
+    }
+  ],
+  "system_prompt": "You are reviewing a frozen Canola bull/bear thesis for Bushel Board.\nUse only the accepted next-week evidence supplied in this prompt.\nDo not use blocked evidence, later news, later prices, price-only logic, private farmer data, production dashboard data, model memory, or outside market facts.\nDo not claim model training occurred. This is a review-labeling packet only.\nReturn one JSON object only. Do not wrap it in Markdown.",
+  "user_prompt": "Run hash: sha256:fee9574c57cc35a92eda6f60a591cf6e73eccda81479a8f047b2b0e731fe22d2\nForecast source cutoff: 2026-04-24T16:30:00-06:00\nReview cutoff: 2026-05-01T16:30:00-06:00\n\nTask:\nJudge whether the frozen thesis held up against only the accepted next-week evidence.\nReview every original driver exactly once.\nUse evidence_keys only from allowed_evidence_keys.\nIf thesis_verdict is missed, include at least one adjustments_for_next_week item.\n\nResponse contract:\n{\"allowed_adjustment_priorities\":[\"high\",\"medium\",\"low\"],\"allowed_driver_verdicts\":[\"supported\",\"partially_supported\",\"contradicted\",\"not_tested\"],\"allowed_evidence_keys\":[\"public-crush-maintenance-note\",\"cgc-week-39-movement\"],\"allowed_thesis_verdicts\":[\"held\",\"partly_held\",\"missed\",\"inconclusive\"],\"output\":\"single_json_object\",\"required_driver_indexes\":[0,1],\"required_fields\":[\"review_as_of_date\",\"review_cutoff_at\",\"reviewer\",\"thesis_verdict\",\"verdict_notes\",\"next_week_evidence\",\"driver_reviews\",\"missed_signals\",\"adjustments_for_next_week\",\"created_at\"],\"review_as_of_date\":\"2026-05-01\",\"review_cutoff_at\":\"2026-05-01T16:30:00-06:00\",\"reviewer\":\"fixture\",\"schema_version\":\"canola-thesis-review-json-v1\",\"target_cli\":\"review-canola-thesis-week --review\"}\n\nFrozen forecast summary:\n{\"confidence_pct\":58,\"direction\":\"bullish\",\"recommendation\":\"WATCH\",\"stance_score\":28,\"top_drivers\":[{\"confidence\":\"medium\",\"directional_effect\":\"bullish\",\"driver\":\"CGC-style deliveries and exports were both firm in the frozen fixture snapshot.\",\"driver_index\":0,\"evidence_source\":\"cgc_weekly\"},{\"confidence\":\"medium\",\"directional_effect\":\"neutral\",\"driver\":\"The fixture has no complete price tape, so the thesis should be judged first by next-week movement evidence.\",\"driver_index\":1,\"evidence_source\":\"canola_market_read\"}]}\n\nAccepted next-week evidence:\n[{\"available_at\":\"2026-04-29T09:05:00-06:00\",\"directional_effect\":\"bearish\",\"evidence_key\":\"public-crush-maintenance-note\",\"evidence_type\":\"public_news\",\"materiality\":\"medium\",\"observed_period\":\"public context through 2026-04-29\",\"payload\":{\"context_signal\":\"temporary demand risk\",\"fixture_note\":\"Synthetic public-context evidence.\"},\"published_at\":\"2026-04-29T09:00:00-06:00\",\"source_key\":\"source_runs\",\"summary\":\"Public context fixture noted temporary crush-maintenance risk, limiting confidence in a clean bullish read.\"},{\"available_at\":\"2026-04-30T13:10:00-06:00\",\"directional_effect\":\"mixed\",\"evidence_key\":\"cgc-week-39-movement\",\"evidence_type\":\"official_data\",\"materiality\":\"high\",\"observed_period\":\"2025-2026 week 39 ending 2026-04-26\",\"payload\":{\"deliveries_signal\":\"supportive\",\"exports_signal\":\"contradictory\",\"fixture_note\":\"Synthetic next-week evidence available before the review cutoff.\",\"week_ending_date\":\"2026-04-26\"},\"published_at\":\"2026-04-30T13:00:00-06:00\",\"source_key\":\"cgc_weekly\",\"summary\":\"The next official movement fixture kept deliveries firm but showed exports easing.\"}]\n\nBlocked evidence for audit only - do not cite in driver_reviews:\n[{\"available_at\":\"2026-04-24T13:10:00-06:00\",\"evidence_key\":\"already-known-week-38\",\"observed_period\":\"2025-2026 week 38 ending 2026-04-19\",\"reason\":\"already_available_at_forecast_cutoff\",\"source_key\":\"cgc_weekly\"},{\"available_at\":\"2026-04-30T11:05:00-06:00\",\"evidence_key\":\"private-chat-signal\",\"observed_period\":\"private context\",\"reason\":\"forbidden_source\",\"source_key\":\"private_chat_data\"},{\"available_at\":\"2026-05-04T09:05:00-06:00\",\"evidence_key\":\"late-week-40-rumour\",\"observed_period\":\"post-review context\",\"reason\":\"available_after_review_cutoff\",\"source_key\":\"source_runs\"}]",
+  "response_contract": {
+    "schema_version": "canola-thesis-review-json-v1",
+    "output": "single_json_object",
+    "target_cli": "review-canola-thesis-week --review",
+    "required_fields": [
+      "review_as_of_date",
+      "review_cutoff_at",
+      "reviewer",
+      "thesis_verdict",
+      "verdict_notes",
+      "next_week_evidence",
+      "driver_reviews",
+      "missed_signals",
+      "adjustments_for_next_week",
+      "created_at"
+    ],
+    "review_as_of_date": "2026-05-01",
+    "review_cutoff_at": "2026-05-01T16:30:00-06:00",
+    "reviewer": "fixture",
+    "allowed_thesis_verdicts": [
+      "held",
+      "partly_held",
+      "missed",
+      "inconclusive"
+    ],
+    "allowed_driver_verdicts": [
+      "supported",
+      "partially_supported",
+      "contradicted",
+      "not_tested"
+    ],
+    "allowed_adjustment_priorities": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "allowed_evidence_keys": [
+      "public-crush-maintenance-note",
+      "cgc-week-39-movement"
+    ],
+    "required_driver_indexes": [
+      0,
+      1
+    ]
+  },
+  "prompt_hash": "sha256:edc058fc10b2fe8a01be4671e0547ab3aa723d0822b878ec007462375e0819f3"
+}

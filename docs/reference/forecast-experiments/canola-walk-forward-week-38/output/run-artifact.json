@@ -1,0 +1,79 @@
+{
+  "schema_version": "canola-forecast-run-artifact-v1",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "grain_week": 38,
+  "as_of_date": "2026-04-24",
+  "source_cutoff_at": "2026-04-24T16:30:00-06:00",
+  "snapshot_schema_version": "canola-forecast-snapshot-v1",
+  "forecast_schema_version": "canola-forecast-v1",
+  "snapshot_hash": "sha256:0b4e51e35581337fe40a4f7efbc6a9daad7f06e30a092da3c3f2b088747a4431",
+  "snapshot_mode": "strict_artifact_mode",
+  "snapshot_revision_taint_status": "untainted",
+  "metadata": {
+    "provider": "manual-fixture",
+    "model": "human-authored-fixture-v1",
+    "runner_mode": "manual_model_output",
+    "model_training_cutoff": "2026-03-31",
+    "created_at": "2026-04-24T16:35:00-06:00",
+    "prompt_version": "canola-forecast-prompt-v1",
+    "prompt_hash": "sha256:3e0a885c2340a10f94a2a4994bd077badb6aa0dc147c7301d5345cc8a22ed58c"
+  },
+  "forecast": {
+    "schema_version": "canola-forecast-v1",
+    "grain": "Canola",
+    "crop_year": "2025-2026",
+    "grain_week": 38,
+    "as_of_date": "2026-04-24",
+    "source_cutoff_at": "2026-04-24T16:30:00-06:00",
+    "model_training_cutoff": "2026-03-31",
+    "pretraining_taint_status": "untainted",
+    "horizon_days": 7,
+    "price_contract": {
+      "exchange": "ICE",
+      "commodity": "Canola",
+      "contract_code": "RSN26",
+      "contract_month": "2026-07",
+      "roll_policy": "fixed_contract_no_roll"
+    },
+    "direction": "bullish",
+    "stance_score": 28,
+    "confidence_pct": 58,
+    "expected_move_pct_range": {
+      "low": 0.5,
+      "high": 2
+    },
+    "recommendation": "WATCH",
+    "top_drivers": [
+      {
+        "driver": "CGC-style deliveries and exports were both firm in the frozen fixture snapshot.",
+        "directional_effect": "bullish",
+        "evidence_source": "cgc_weekly",
+        "evidence_clock": "2026-04-24T13:10:00-06:00",
+        "confidence": "medium"
+      },
+      {
+        "driver": "The fixture has no complete price tape, so the thesis should be judged first by next-week movement evidence.",
+        "directional_effect": "neutral",
+        "evidence_source": "canola_market_read",
+        "evidence_clock": "2026-04-24T14:05:00-06:00",
+        "confidence": "medium"
+      }
+    ],
+    "invalidating_triggers": [
+      "Next-week official movement evidence reverses the delivery/export strength.",
+      "New public context shows the movement strength was temporary or offset by a demand shock."
+    ],
+    "known_blind_spots": [
+      "Fixture excludes complete futures and cash-price history.",
+      "Fixture values are synthetic and exist only to exercise the harness."
+    ],
+    "source_warnings": [
+      {
+        "source": "grain_prices",
+        "warning": "Do not use price-only logic for this fixture."
+      }
+    ]
+  },
+  "run_hash": "sha256:fee9574c57cc35a92eda6f60a591cf6e73eccda81479a8f047b2b0e731fe22d2"
+}
