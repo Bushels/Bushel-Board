@@ -90,6 +90,8 @@ The historical replay lane must:
 
 This lane can generate training candidates faster than forward waiting, but it cannot prove live market skill by itself.
 
+The first real CGC-backed historical replay bundle is `docs/reference/forecast-experiments/canola-historical-replay-cgc-2025-weeks-1-3/`. It was generated from `data\CGC Weekly\gsw-shg-en.csv` for 2025-2026 Weeks 1-3. The package hash is `sha256:00d5b0053a99929343355a77ef41af66012952bbe4c3bd20cd46340ee1cf5122`; it produced 0 `historical_training_candidate` weeks and 3 review-only revision-tainted weeks because annual CGC CSV history is not certified as as-published point-in-time data. The CGC input builder records its publication-time assumption in every generated row and the tracked artifact has a regression test that rebuilds the package hash from the tracked CSV.
+
 The tracked example bundle is `docs/reference/forecast-experiments/canola-walk-forward-week-38/`. It uses synthetic, human-authored fixture values to demonstrate the operating loop and must not be cited as market-performance proof, model-output proof, training proof, live Supabase output, or price-skill proof. Its generated review package must stay `review_only_fixture`.
 
 The first real source artifact is `docs/reference/forecast-experiments/canola-forward-week-38-2026-05-10/`. It contains filtered rows exported from a saved deterministic Canola Market Read. The raw market-read JSON is not tracked because it can contain forbidden source lanes. The committed source rows redact unadmitted/forbidden omitted lanes, include a no-training/no-skill-proof disclaimer, and build only a frozen source snapshot. It is not a training set or performance claim.

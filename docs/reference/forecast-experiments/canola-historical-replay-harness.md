@@ -11,6 +11,8 @@ The harness builds local no-write packages from:
 3. next-window public evidence labels,
 4. candidate classification for training use.
 
+The first CGC-backed bundle is `docs/reference/forecast-experiments/canola-historical-replay-cgc-2025-weeks-1-3/`.
+
 ## Candidate Modes
 
 - `historical_training_candidate` - clean historical example that can be reviewed for training/export.
@@ -48,6 +50,18 @@ npm run forecast:canola:historical-replay -- --input path\to\historical-replay-i
 ```
 
 Use `--dry-run` to prove the package hash without writing output.
+
+On Windows, use the direct `npx tsx` form when passing many named flags, because npm can swallow unknown script flags:
+
+```powershell
+npx tsx scripts/build-canola-cgc-historical-replay-input.ts --input "data\CGC Weekly\gsw-shg-en.csv" --crop-year 2025-2026 --weeks "1,2,3" --replay-set-name canola-cgc-2025-weeks-1-3 --created-at 2026-05-10T11:20:00-06:00 --publication-lag-days 4 --publication-time 13:00:00 --source-cutoff-time 14:30:00 --timezone-offset -06:00 --output docs\reference\forecast-experiments\canola-historical-replay-cgc-2025-weeks-1-3\historical-replay-input.json
+```
+
+Then package it:
+
+```powershell
+npx tsx scripts/build-canola-historical-replay-package.ts --input docs\reference\forecast-experiments\canola-historical-replay-cgc-2025-weeks-1-3\historical-replay-input.json --output docs\reference\forecast-experiments\canola-historical-replay-cgc-2025-weeks-1-3\historical-replay-package.json
+```
 
 ## Input Shape
 

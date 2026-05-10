@@ -37,8 +37,15 @@ export const HISTORICAL_REPLAY_LABELER_KINDS = [
   "model_assisted",
 ] as const;
 
+export const HISTORICAL_REPLAY_LABEL_TASKS = [
+  "thesis_review_label",
+  "directional_outcome_label",
+] as const;
+
 export type HistoricalReplayLabelerKind =
   (typeof HISTORICAL_REPLAY_LABELER_KINDS)[number];
+export type HistoricalReplayLabelTask =
+  (typeof HISTORICAL_REPLAY_LABEL_TASKS)[number];
 
 export type HistoricalReplayCandidateMode =
   | "historical_training_candidate"
@@ -55,6 +62,7 @@ export interface HistoricalReplayLabeler {
 }
 
 export interface HistoricalReplayOutcomeLabel {
+  label_task?: HistoricalReplayLabelTask;
   directional_outcome: ForecastDirection | "mixed";
   thesis_verdict: ThesisReviewVerdict;
   outcome_summary: string;
@@ -205,6 +213,7 @@ const labelerSchema = z
   });
 
 const outcomeLabelSchema = z.object({
+  label_task: z.enum(HISTORICAL_REPLAY_LABEL_TASKS).default("thesis_review_label"),
   directional_outcome: z.union([z.enum(FORECAST_DIRECTIONS), z.literal("mixed")]),
   thesis_verdict: z.enum(THESIS_REVIEW_VERDICTS),
   outcome_summary: z.string().min(1),
@@ -483,7 +492,18 @@ function classifyTrainingCandidate(
     reasons.push("no accepted next-week evidence");
   }
 
-  if (label.thesis_verdict === "inconclusive") {
+  const labelTask = label.label_task ?? "thesis_review_label";
+  if (
+    labelTask === "directional_outcome_label" &&
+    label.directional_outcome === "mixed"
+  ) {
+    reasons.push("directional outcome label is mixed");
+  }
+
+  if (
+    labelTask === "thesis_review_label" &&
+    label.thesis_verdict === "inconclusive"
+  ) {
     reasons.push("historical label verdict is inconclusive");
   }
 
@@ -609,6 +629,7 @@ function canonicalOutcomeLabel(
   label: HistoricalReplayOutcomeLabel,
 ): HistoricalReplayOutcomeLabel {
   return {
+    label_task: label.label_task ?? "thesis_review_label",
     directional_outcome: label.directional_outcome,
     thesis_verdict: label.thesis_verdict,
     outcome_summary: label.outcome_summary,

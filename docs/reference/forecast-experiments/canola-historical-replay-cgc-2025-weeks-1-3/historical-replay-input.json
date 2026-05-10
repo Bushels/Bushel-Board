@@ -1,0 +1,544 @@
+{
+  "replay_set_name": "canola-cgc-2025-weeks-1-3",
+  "review_window_days": 7,
+  "created_at": "2026-05-10T11:20:00-06:00",
+  "weeks": [
+    {
+      "period_id": "2025-2026-week-1",
+      "crop_year": "2025-2026",
+      "grain_week": 1,
+      "as_of_date": "2025-08-14",
+      "source_cutoff_at": "2025-08-14T14:30:00-06:00",
+      "snapshot_mode": "current_table_replay_mode",
+      "source_rows": [
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 1 ending 2025-08-10",
+          "published_at": "2025-08-14T13:00:00-06:00",
+          "available_at": "2025-08-14T13:10:00-06:00",
+          "imported_at": "2025-08-14T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-14T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 1,
+            "week_ending_date": "2025-08-10",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "primary_deliveries_current_week_ktonnes",
+            "worksheet": "Primary",
+            "metric": "Deliveries",
+            "period": "Current Week",
+            "value": 54.9
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 1 ending 2025-08-10",
+          "published_at": "2025-08-14T13:00:00-06:00",
+          "available_at": "2025-08-14T13:10:00-06:00",
+          "imported_at": "2025-08-14T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-14T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 1,
+            "week_ending_date": "2025-08-10",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "primary_shipments_current_week_ktonnes",
+            "worksheet": "Primary",
+            "metric": "Shipments",
+            "period": "Current Week",
+            "value": 192.4
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 1 ending 2025-08-10",
+          "published_at": "2025-08-14T13:00:00-06:00",
+          "available_at": "2025-08-14T13:10:00-06:00",
+          "imported_at": "2025-08-14T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-14T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 1,
+            "week_ending_date": "2025-08-10",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "terminal_exports_current_week_ktonnes",
+            "worksheet": "Terminal Exports",
+            "metric": "Exports",
+            "period": "Current Week",
+            "value": 254.6
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 1 ending 2025-08-10",
+          "published_at": "2025-08-14T13:00:00-06:00",
+          "available_at": "2025-08-14T13:10:00-06:00",
+          "imported_at": "2025-08-14T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-14T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 1,
+            "week_ending_date": "2025-08-10",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "summary_stocks_current_week_ktonnes",
+            "worksheet": "Summary",
+            "metric": "Stocks",
+            "period": "Current Week",
+            "value": 940.2
+          }
+        }
+      ],
+      "review_as_of_date": "2025-08-21",
+      "review_cutoff_at": "2025-08-21T14:30:00-06:00",
+      "labeler": {
+        "kind": "deterministic_rule",
+        "name": "cgc_weekly_movement_v1"
+      },
+      "outcome_label": {
+        "label_task": "directional_outcome_label",
+        "directional_outcome": "bearish",
+        "thesis_verdict": "inconclusive",
+        "outcome_summary": "Deterministic CGC movement label was bearish for 2025-2026 week 2 ending 2025-08-17.",
+        "supporting_evidence_keys": [
+          "cgc-week-2-movement"
+        ],
+        "contradicting_evidence_keys": [],
+        "missed_signals": [],
+        "adjustments_for_next_week": [
+          "Review CGC movement label before exporting this historical example for training."
+        ]
+      },
+      "next_week_evidence": [
+        {
+          "evidence_key": "cgc-week-2-movement",
+          "source_key": "cgc_weekly",
+          "evidence_type": "official_data",
+          "observed_period": "2025-2026 week 2 ending 2025-08-17",
+          "published_at": "2025-08-21T13:00:00-06:00",
+          "available_at": "2025-08-21T13:10:00-06:00",
+          "summary": "CGC Week 2 Canola movement label was bearish. Deliveries 54.9 -> 39.3 Kt (-28.4%), shipments 192.4 -> 115.7 Kt (-39.9%), terminal exports 254.6 -> 82.0 Kt (-67.8%), stocks 940.2 -> 793.4 Kt (-15.6%).",
+          "directional_effect": "bearish",
+          "materiality": "high",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 2,
+            "week_ending_date": "2025-08-17",
+            "grain": "Canola",
+            "deltas": {
+              "primary_deliveries_current_week_ktonnes": {
+                "current": 54.9,
+                "next": 39.3,
+                "delta": -15.6,
+                "delta_pct": -28.4
+              },
+              "primary_shipments_current_week_ktonnes": {
+                "current": 192.4,
+                "next": 115.7,
+                "delta": -76.7,
+                "delta_pct": -39.9
+              },
+              "terminal_exports_current_week_ktonnes": {
+                "current": 254.6,
+                "next": 82,
+                "delta": -172.6,
+                "delta_pct": -67.8
+              },
+              "summary_stocks_current_week_ktonnes": {
+                "current": 940.2,
+                "next": 793.4,
+                "delta": -146.8,
+                "delta_pct": -15.6
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "period_id": "2025-2026-week-2",
+      "crop_year": "2025-2026",
+      "grain_week": 2,
+      "as_of_date": "2025-08-21",
+      "source_cutoff_at": "2025-08-21T14:30:00-06:00",
+      "snapshot_mode": "current_table_replay_mode",
+      "source_rows": [
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 2 ending 2025-08-17",
+          "published_at": "2025-08-21T13:00:00-06:00",
+          "available_at": "2025-08-21T13:10:00-06:00",
+          "imported_at": "2025-08-21T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-21T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 2,
+            "week_ending_date": "2025-08-17",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "primary_deliveries_current_week_ktonnes",
+            "worksheet": "Primary",
+            "metric": "Deliveries",
+            "period": "Current Week",
+            "value": 39.3
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 2 ending 2025-08-17",
+          "published_at": "2025-08-21T13:00:00-06:00",
+          "available_at": "2025-08-21T13:10:00-06:00",
+          "imported_at": "2025-08-21T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-21T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 2,
+            "week_ending_date": "2025-08-17",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "primary_shipments_current_week_ktonnes",
+            "worksheet": "Primary",
+            "metric": "Shipments",
+            "period": "Current Week",
+            "value": 115.7
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 2 ending 2025-08-17",
+          "published_at": "2025-08-21T13:00:00-06:00",
+          "available_at": "2025-08-21T13:10:00-06:00",
+          "imported_at": "2025-08-21T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-21T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 2,
+            "week_ending_date": "2025-08-17",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "terminal_exports_current_week_ktonnes",
+            "worksheet": "Terminal Exports",
+            "metric": "Exports",
+            "period": "Current Week",
+            "value": 82
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 2 ending 2025-08-17",
+          "published_at": "2025-08-21T13:00:00-06:00",
+          "available_at": "2025-08-21T13:10:00-06:00",
+          "imported_at": "2025-08-21T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-21T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 2,
+            "week_ending_date": "2025-08-17",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "summary_stocks_current_week_ktonnes",
+            "worksheet": "Summary",
+            "metric": "Stocks",
+            "period": "Current Week",
+            "value": 793.4
+          }
+        }
+      ],
+      "review_as_of_date": "2025-08-28",
+      "review_cutoff_at": "2025-08-28T14:30:00-06:00",
+      "labeler": {
+        "kind": "deterministic_rule",
+        "name": "cgc_weekly_movement_v1"
+      },
+      "outcome_label": {
+        "label_task": "directional_outcome_label",
+        "directional_outcome": "mixed",
+        "thesis_verdict": "inconclusive",
+        "outcome_summary": "Deterministic CGC movement label was mixed for 2025-2026 week 3 ending 2025-08-24.",
+        "supporting_evidence_keys": [
+          "cgc-week-3-movement"
+        ],
+        "contradicting_evidence_keys": [],
+        "missed_signals": [],
+        "adjustments_for_next_week": [
+          "Do not train from mixed CGC movement without additional reviewed context."
+        ]
+      },
+      "next_week_evidence": [
+        {
+          "evidence_key": "cgc-week-3-movement",
+          "source_key": "cgc_weekly",
+          "evidence_type": "official_data",
+          "observed_period": "2025-2026 week 3 ending 2025-08-24",
+          "published_at": "2025-08-28T13:00:00-06:00",
+          "available_at": "2025-08-28T13:10:00-06:00",
+          "summary": "CGC Week 3 Canola movement label was mixed. Deliveries 39.3 -> 33.1 Kt (-15.8%), shipments 115.7 -> 105.3 Kt (-9.0%), terminal exports 82.0 -> 78.5 Kt (-4.3%), stocks 793.4 -> 603.4 Kt (-23.9%).",
+          "directional_effect": "mixed",
+          "materiality": "high",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 3,
+            "week_ending_date": "2025-08-24",
+            "grain": "Canola",
+            "deltas": {
+              "primary_deliveries_current_week_ktonnes": {
+                "current": 39.3,
+                "next": 33.1,
+                "delta": -6.2,
+                "delta_pct": -15.8
+              },
+              "primary_shipments_current_week_ktonnes": {
+                "current": 115.7,
+                "next": 105.3,
+                "delta": -10.4,
+                "delta_pct": -9
+              },
+              "terminal_exports_current_week_ktonnes": {
+                "current": 82,
+                "next": 78.5,
+                "delta": -3.5,
+                "delta_pct": -4.3
+              },
+              "summary_stocks_current_week_ktonnes": {
+                "current": 793.4,
+                "next": 603.4,
+                "delta": -190,
+                "delta_pct": -23.9
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "period_id": "2025-2026-week-3",
+      "crop_year": "2025-2026",
+      "grain_week": 3,
+      "as_of_date": "2025-08-28",
+      "source_cutoff_at": "2025-08-28T14:30:00-06:00",
+      "snapshot_mode": "current_table_replay_mode",
+      "source_rows": [
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 3 ending 2025-08-24",
+          "published_at": "2025-08-28T13:00:00-06:00",
+          "available_at": "2025-08-28T13:10:00-06:00",
+          "imported_at": "2025-08-28T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-28T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 3,
+            "week_ending_date": "2025-08-24",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "primary_deliveries_current_week_ktonnes",
+            "worksheet": "Primary",
+            "metric": "Deliveries",
+            "period": "Current Week",
+            "value": 33.1
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 3 ending 2025-08-24",
+          "published_at": "2025-08-28T13:00:00-06:00",
+          "available_at": "2025-08-28T13:10:00-06:00",
+          "imported_at": "2025-08-28T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-28T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 3,
+            "week_ending_date": "2025-08-24",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "primary_shipments_current_week_ktonnes",
+            "worksheet": "Primary",
+            "metric": "Shipments",
+            "period": "Current Week",
+            "value": 105.3
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 3 ending 2025-08-24",
+          "published_at": "2025-08-28T13:00:00-06:00",
+          "available_at": "2025-08-28T13:10:00-06:00",
+          "imported_at": "2025-08-28T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-28T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 3,
+            "week_ending_date": "2025-08-24",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "terminal_exports_current_week_ktonnes",
+            "worksheet": "Terminal Exports",
+            "metric": "Exports",
+            "period": "Current Week",
+            "value": 78.5
+          }
+        },
+        {
+          "source_key": "cgc_weekly",
+          "record_type": "fact",
+          "observed_period": "2025-2026 week 3 ending 2025-08-24",
+          "published_at": "2025-08-28T13:00:00-06:00",
+          "available_at": "2025-08-28T13:10:00-06:00",
+          "imported_at": "2025-08-28T13:15:00-06:00",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "source_cutoff_at": "2025-08-28T14:30:00-06:00",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 3,
+            "week_ending_date": "2025-08-24",
+            "grain": "Canola",
+            "unit": "Ktonnes",
+            "metric_key": "summary_stocks_current_week_ktonnes",
+            "worksheet": "Summary",
+            "metric": "Stocks",
+            "period": "Current Week",
+            "value": 603.4
+          }
+        }
+      ],
+      "review_as_of_date": "2025-09-04",
+      "review_cutoff_at": "2025-09-04T14:30:00-06:00",
+      "labeler": {
+        "kind": "deterministic_rule",
+        "name": "cgc_weekly_movement_v1"
+      },
+      "outcome_label": {
+        "label_task": "directional_outcome_label",
+        "directional_outcome": "mixed",
+        "thesis_verdict": "inconclusive",
+        "outcome_summary": "Deterministic CGC movement label was mixed for 2025-2026 week 4 ending 2025-08-31.",
+        "supporting_evidence_keys": [
+          "cgc-week-4-movement"
+        ],
+        "contradicting_evidence_keys": [],
+        "missed_signals": [],
+        "adjustments_for_next_week": [
+          "Do not train from mixed CGC movement without additional reviewed context."
+        ]
+      },
+      "next_week_evidence": [
+        {
+          "evidence_key": "cgc-week-4-movement",
+          "source_key": "cgc_weekly",
+          "evidence_type": "official_data",
+          "observed_period": "2025-2026 week 4 ending 2025-08-31",
+          "published_at": "2025-09-04T13:00:00-06:00",
+          "available_at": "2025-09-04T13:10:00-06:00",
+          "summary": "CGC Week 4 Canola movement label was mixed. Deliveries 33.1 -> 57.9 Kt (74.9%), shipments 105.3 -> 104.1 Kt (-1.1%), terminal exports 78.5 -> 47.9 Kt (-39.0%), stocks 603.4 -> 539.9 Kt (-10.5%).",
+          "directional_effect": "mixed",
+          "materiality": "high",
+          "payload": {
+            "source_file": "data\\CGC Weekly\\gsw-shg-en.csv",
+            "source_family": "CGC Weekly Grain Statistics",
+            "availability_basis": "estimated_publication_from_week_ending_plus_lag; annual CSV may include revisions unless point_in_time_certified is true",
+            "point_in_time_certified": false,
+            "crop_year": "2025-2026",
+            "grain_week": 4,
+            "week_ending_date": "2025-08-31",
+            "grain": "Canola",
+            "deltas": {
+              "primary_deliveries_current_week_ktonnes": {
+                "current": 33.1,
+                "next": 57.9,
+                "delta": 24.8,
+                "delta_pct": 74.9
+              },
+              "primary_shipments_current_week_ktonnes": {
+                "current": 105.3,
+                "next": 104.1,
+                "delta": -1.2,
+                "delta_pct": -1.1
+              },
+              "terminal_exports_current_week_ktonnes": {
+                "current": 78.5,
+                "next": 47.9,
+                "delta": -30.6,
+                "delta_pct": -39
+              },
+              "summary_stocks_current_week_ktonnes": {
+                "current": 603.4,
+                "next": 539.9,
+                "delta": -63.5,
+                "delta_pct": -10.5
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
