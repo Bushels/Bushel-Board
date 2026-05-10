@@ -74,9 +74,11 @@ Price scoring remains a separate optional lane. It should support the thesis rev
 
 The tracked example bundle is `docs/reference/forecast-experiments/canola-walk-forward-week-38/`. It uses synthetic, human-authored fixture values to demonstrate the operating loop and must not be cited as market-performance proof, model-output proof, training proof, live Supabase output, or price-skill proof. Its generated review package must stay `review_only_fixture`.
 
-The first real source artifact is `docs/reference/forecast-experiments/canola-forward-week-38-2026-05-10/`. It contains filtered rows exported from a saved deterministic Canola Market Read. The raw market-read JSON is not tracked because it can contain forbidden source lanes. The committed source rows redact unadmitted/forbidden omitted lanes, include a no-training/no-skill-proof disclaimer, and build only a frozen source snapshot. It is not a forecast, model output, training set, or performance claim.
+The first real source artifact is `docs/reference/forecast-experiments/canola-forward-week-38-2026-05-10/`. It contains filtered rows exported from a saved deterministic Canola Market Read. The raw market-read JSON is not tracked because it can contain forbidden source lanes. The committed source rows redact unadmitted/forbidden omitted lanes, include a no-training/no-skill-proof disclaimer, and build only a frozen source snapshot. It is not a training set or performance claim.
 
-Before producing a real bull/bear thesis from that snapshot, require an explicit model training cutoff. If the forecast output marks `pretraining_taint_status` as `unknown` or `not_applicable`, the review must remain `review_only_pretraining_unknown`.
+The first real frozen bull/bear thesis now lives in that artifact as `forecast.json`, with `output/prompt-pack.json` and `output/run-artifact.json`. The prompt pack hash is `sha256:d368cefe0bc578826793c5ec6a34b712389b0098d54695a713a28110a230af72`; the run hash is `sha256:ce840bc5aae95129cb7cab67b3bdf18fb736ed1c52359a93de63a841d9edc56a`. It is a bullish `WATCH` thesis for ICE Canola RSN26 July 2026 with confidence `61`, stance score `32`, and model training cutoff `2024-06-01`. It is not a training candidate until a next-week review package is built and accepted.
+
+If any future forecast output marks `pretraining_taint_status` as `unknown` or `not_applicable`, the review must remain `review_only_pretraining_unknown`.
 
 ## Gemini Review Notes
 
