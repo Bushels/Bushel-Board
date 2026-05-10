@@ -1,5 +1,42 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-10 - Multi-grain thesis harness should share one engine, not fork sixteen systems
+
+**Symptom:** After the Canola harness proved the weekly thesis loop, the natural next step was to run the same idea for all grains. The risk is building one Canola-shaped copy per grain, which would multiply bugs, tests, prompt drift, and review rules.
+
+**Root cause:** The pilot correctly optimized for Canola proof, but its file names, schemas, scripts, and prompts are still Canola-specific. Expanding from one grain to sixteen turns that naming debt into maintenance debt unless the shared mechanics are separated from grain-specific market logic.
+
+**Fix status:** Phase 3 is defined as a shared grain-agnostic base harness plus grain profiles for the canonical 16 dashboard grains. Grain profiles own source relevance, futures/no-futures context, price/basis/logistics/export rules, thin-market caveats, and prompt emphasis. The shared engine owns source admission, point-in-time clocks, hashes, no-future-leakage checks, prompt packaging, frozen artifacts, and next-week review packaging.
+
+**Prevention:**
+- Do not clone the Canola harness sixteen times.
+- Add grain-specific behavior through configuration/profile files first.
+- Keep CGC origin variants as evidence inputs unless intentionally promoted to first-class thesis lanes.
+- Treat early-week reads as working theses and Friday post-CFTC artifacts as the official frozen weekly thesis.
+- Gemini should challenge assumptions; Codex must keep final source-truth and artifact authority.
+
+**Tags:** #forecast-harness #multi-grain #grain-profiles #gemini-audit #training-candidates
+
+---
+
+## 2026-05-10 - Point-in-time snapshot capture needs audit-grade filenames and rollover logic
+
+**Symptom:** The first point-in-time CGC snapshot lane worked, but review found edge cases that could weaken future historical replay proof: dry-runs could say `captured` even when the current file was already present, same-day or same-timestamp changed payloads could collide, and latest-week detection could pick an old crop-year Week 52 over a new crop-year Week 1.
+
+**Root cause:** The first implementation optimized for the normal weekly path. Historical replay has a higher evidence standard: it must preserve exact payload identity, simulate writes accurately during dry-run, and handle crop-year rollover without relying on row order or grain-week number alone.
+
+**Fix status:** The snapshot writer now checks existing hashes even in dry-run, includes UTC timestamp plus the first eight raw-CSV hash characters in filenames, records both uncompressed CSV hash basis and gzip hash, and compares crop year before grain week. Tests cover dry-run idempotency, same-timestamp changed payloads, defensive date normalization, and crop-year rollover.
+
+**Prevention:**
+- Treat point-in-time capture as evidence preservation, not just file download.
+- Every raw source artifact needs a timestamp, source URL, content hash, hash basis, local path, and idempotency behavior.
+- Latest CGC week logic must compare crop year first, then grain week.
+- A missing Gemini response is not proof, but a concrete Gemini edge-case finding should become a regression test before commit.
+
+**Tags:** #cgc #point-in-time #historical-replay #idempotency #crop-year-rollover #gemini-audit
+
+---
+
 ## 2026-05-10 - Forecast calibration candidates must prove source and model boundaries
 
 **Symptom:** The first real Canola source artifact work exposed two ways a harness artifact could be overpromoted: a forecast with unknown model pretraining status could still become a calibration candidate, and a filtered market-read export could reveal forbidden source-family names through its omission report.

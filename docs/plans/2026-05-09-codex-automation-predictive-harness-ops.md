@@ -107,3 +107,22 @@ If any future forecast output marks `pretraining_taint_status` as `unknown` or `
 Gemini 3.1 Pro Preview reviewed the no-Hermes correction on 2026-05-09. Its material guidance was to replace future Hermes ownership language with Codex Automation ownership, keep the automation dry-run or sidecar-only, and require review before any production-table, private-data, dashboard, or writer boundary changes.
 
 Gemini 3.1 Pro Preview reviewed the real source-row exporter on 2026-05-10. Its material blockers were omission-name leakage, current-table replay overclaim, and artifact misuse. The exporter now redacts unknown/forbidden omitted lanes by default, marks replay rows as revision-tainted warnings with raw payload omitted, and writes an explicit no-training/no-skill-proof disclaimer.
+
+Gemini 3.1 Pro Preview reviewed the CGC point-in-time snapshot lane on 2026-05-10. Its material findings were dry-run idempotency accuracy, timestamp-only filename collision risk, hash-basis ambiguity, crop-year rollover risk, and CLI path usability. The implementation now checks hashes during dry-run, includes UTC timestamp plus short raw-CSV hash in filenames, records uncompressed and gzip hashes separately, compares crop year before grain week, and prints usable local paths for automation reports.
+
+## Phase 3 Transition
+
+The Canola harness should now be treated as the pilot implementation, not the template to clone directly.
+
+Phase 3 starts from `docs/plans/2026-05-10-multi-grain-weekly-thesis-harness-handoff.md`:
+
+- one shared base harness,
+- canonical 16 grain profiles,
+- early-week working thesis,
+- additive midweek update notes,
+- Friday post-CFTC official frozen thesis,
+- next-week reveal and review,
+- Gemini as adversarial reviewer,
+- Codex as final judge.
+
+Do not call Phase 3 output "training data" until reviewed examples have point-in-time inputs, frozen thesis artifacts, next-week evidence, and accepted review labels.
