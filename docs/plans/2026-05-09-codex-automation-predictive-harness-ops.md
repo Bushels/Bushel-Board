@@ -58,7 +58,9 @@ The current useful product outcome is boring on purpose: weekly proof that the h
 
 The first learning loop is not price-only. Freeze a weekly Canola bull/bear thesis, stop the clock, then reveal only next-week evidence: official data, public news, market context, analyst interpretation, and warnings available by the review cutoff.
 
-Use `npm run forecast:canola:review-thesis` to package that review locally. The package does not require complete grain price history. It records:
+Use `npm run forecast:canola:review-prompt-pack` to build the reviewer packet from the frozen run artifact and next-week evidence. The prompt pack contains only accepted evidence, blocked-evidence audit rows, required driver indexes, allowed evidence keys, and the exact JSON response contract.
+
+Use `npm run forecast:canola:review-thesis` to package the completed review locally. The package does not require complete grain price history. It records:
 
 - the frozen run artifact,
 - accepted next-week evidence,
