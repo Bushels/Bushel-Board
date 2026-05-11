@@ -5,9 +5,12 @@ import { z } from "zod";
 import {
   CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
   type CanolaForecastRunArtifact,
+  GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+  type GrainForecastRunArtifact,
 } from "./run-artifact";
 import {
   CANOLA_FORECAST_SCHEMA_VERSION,
+  GRAIN_FORECAST_SCHEMA_VERSION,
   DRIVER_CONFIDENCES,
   FORECAST_DIRECTIONS,
   FORECAST_RECOMMENDATIONS,
@@ -20,6 +23,8 @@ import { stableStringify } from "./snapshot";
 
 export const CANOLA_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION =
   "canola-thesis-review-package-v1" as const;
+export const GRAIN_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION =
+  "grain-thesis-review-package-v1" as const;
 
 export const THESIS_REVIEW_VERDICTS = [
   "held",
@@ -115,6 +120,8 @@ export interface CanolaThesisReviewPackageInput {
   created_at: string;
 }
 
+export type GrainThesisReviewPackageInput = CanolaThesisReviewPackageInput;
+
 export interface CanolaThesisReviewPackage {
   schema_version: typeof CANOLA_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION;
   grain: "Canola";
@@ -158,6 +165,12 @@ export interface CanolaThesisReviewPackage {
   };
   created_at: string;
   package_hash: string;
+}
+
+export interface GrainThesisReviewPackage
+  extends Omit<CanolaThesisReviewPackage, "schema_version" | "grain"> {
+  schema_version: typeof GRAIN_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION;
+  grain: GrainForecastRunArtifact["grain"];
 }
 
 const isoDateStringSchema = z
@@ -218,8 +231,45 @@ const forbiddenEvidenceSourceSet = new Set<string>(
 export function buildCanolaThesisReviewPackage(
   input: CanolaThesisReviewPackageInput,
 ): CanolaThesisReviewPackage {
-  const runArtifact = validateRunArtifact(input.run_artifact);
+  const runArtifact = validateRunArtifact(
+    input.run_artifact,
+    CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+    CANOLA_FORECAST_SCHEMA_VERSION,
+  ) as CanolaForecastRunArtifact;
   const parsed = reviewInputSchema.parse(input);
+
+  return buildThesisReviewPackage({
+    schemaVersion: CANOLA_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION,
+    runArtifact,
+    parsed,
+  }) as CanolaThesisReviewPackage;
+}
+
+export function buildGrainThesisReviewPackage(
+  input: GrainThesisReviewPackageInput,
+): GrainThesisReviewPackage {
+  const runArtifact = validateRunArtifact(
+    input.run_artifact,
+    GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+    GRAIN_FORECAST_SCHEMA_VERSION,
+  ) as GrainForecastRunArtifact;
+  const parsed = reviewInputSchema.parse(input);
+
+  return buildThesisReviewPackage({
+    schemaVersion: GRAIN_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION,
+    runArtifact,
+    parsed,
+  }) as GrainThesisReviewPackage;
+}
+
+function buildThesisReviewPackage(input: {
+  schemaVersion:
+    | typeof CANOLA_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION
+    | typeof GRAIN_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION;
+  runArtifact: CanolaForecastRunArtifact | GrainForecastRunArtifact;
+  parsed: z.infer<typeof reviewInputSchema>;
+}): CanolaThesisReviewPackage | GrainThesisReviewPackage {
+  const { runArtifact, parsed } = input;
 
   validateReviewClock(runArtifact, parsed.review_as_of_date, parsed.review_cutoff_at);
 
@@ -249,7 +299,7 @@ export function buildCanolaThesisReviewPackage(
 
   const forecast = runArtifact.forecast;
   const packageWithoutHash = {
-    schema_version: CANOLA_THESIS_REVIEW_PACKAGE_SCHEMA_VERSION,
+    schema_version: input.schemaVersion,
     grain: runArtifact.grain,
     crop_year: runArtifact.crop_year,
     forecast_grain_week: runArtifact.grain_week,
@@ -302,12 +352,14 @@ export function buildCanolaThesisReviewPackage(
       ],
     },
     created_at: parsed.created_at,
-  } satisfies Omit<CanolaThesisReviewPackage, "package_hash">;
+  };
 
-  return {
+  const reviewPackage = {
     ...packageWithoutHash,
     package_hash: `sha256:${sha256(stableStringify(packageWithoutHash))}`,
   };
+
+  return reviewPackage as CanolaThesisReviewPackage | GrainThesisReviewPackage;
 }
 
 function filterEvidence(
@@ -351,18 +403,26 @@ function filterEvidence(
   return { acceptedEvidence, blockedEvidence };
 }
 
-function validateRunArtifact(value: unknown): CanolaForecastRunArtifact {
+function validateRunArtifact(
+  value: unknown,
+  expectedRunSchemaVersion:
+    | typeof CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+  expectedForecastSchemaVersion:
+    | typeof CANOLA_FORECAST_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_SCHEMA_VERSION,
+): CanolaForecastRunArtifact | GrainForecastRunArtifact {
   if (!value || typeof value !== "object") {
     throw new Error("run_artifact must be an object.");
   }
 
-  const candidate = value as CanolaForecastRunArtifact;
+  const candidate = value as CanolaForecastRunArtifact | GrainForecastRunArtifact;
 
-  if (candidate.schema_version !== CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION) {
+  if (candidate.schema_version !== expectedRunSchemaVersion) {
     throw new Error("run_artifact schema_version is unsupported.");
   }
 
-  if (candidate.forecast_schema_version !== CANOLA_FORECAST_SCHEMA_VERSION) {
+  if (candidate.forecast_schema_version !== expectedForecastSchemaVersion) {
     throw new Error("run_artifact forecast_schema_version is unsupported.");
   }
 
@@ -376,7 +436,7 @@ function validateRunArtifact(value: unknown): CanolaForecastRunArtifact {
 }
 
 function validateReviewClock(
-  runArtifact: CanolaForecastRunArtifact,
+  runArtifact: CanolaForecastRunArtifact | GrainForecastRunArtifact,
   reviewAsOfDate: string,
   reviewCutoffAt: string,
 ): void {
@@ -445,7 +505,7 @@ function validateMissedThesisHasAdjustment(
 }
 
 function classifyLearningCandidate(
-  runArtifact: CanolaForecastRunArtifact,
+  runArtifact: CanolaForecastRunArtifact | GrainForecastRunArtifact,
   thesisVerdict: ThesisReviewVerdict,
 ): LearningCandidate {
   const reasons: string[] = [];
@@ -523,7 +583,9 @@ function classifyLearningCandidate(
   };
 }
 
-function isFixtureRun(runArtifact: CanolaForecastRunArtifact): boolean {
+function isFixtureRun(
+  runArtifact: CanolaForecastRunArtifact | GrainForecastRunArtifact,
+): boolean {
   const provider = runArtifact.metadata.provider.toLowerCase();
   const model = runArtifact.metadata.model.toLowerCase();
 

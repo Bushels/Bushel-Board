@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES,
+  THESIS_BOARD_MAJOR_US_MARKET_NAMES,
   buildCanadaThesisBoardItem,
+  buildMajorThesisComparisonRows,
   buildUsThesisBoardItem,
 } from "@/lib/queries/thesis-board";
 
@@ -12,6 +15,17 @@ const corn = {
   exportCommodity: "CORN",
   cotCommodity: "CORN",
   cropProgressMarkets: ["Corn"],
+  includeInOverview: true,
+};
+
+const wheat = { name: "Wheat", slug: "wheat", defaultBushelWeightLbs: 60 };
+const usWheat = {
+  name: "Wheat",
+  slug: "wheat",
+  futuresGrain: "Wheat",
+  exportCommodity: "ALL WHEAT",
+  cotCommodity: "WHEAT",
+  cropProgressMarkets: ["Wheat"],
   includeInOverview: true,
 };
 
@@ -279,5 +293,111 @@ describe("thesis board packet normalization", () => {
 
     expect(item.bullDrivers.map((driver) => driver.title)).not.toContain("Managed money support");
     expect(item.bearDrivers.map((driver) => driver.title)).toContain("Positioning pressure");
+  });
+
+  it("uses the V1 major Canada grain list instead of every CGC label", () => {
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).toEqual([
+      "Wheat",
+      "Canola",
+      "Barley",
+      "Oats",
+      "Corn",
+      "Soybeans",
+      "Peas",
+      "Lentils",
+      "Amber Durum",
+      "Flaxseed",
+    ]);
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Rye");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Mustard Seed");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Canaryseed");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Chick Peas");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Sunflower");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Beans");
+  });
+
+  it("keeps the US V1 overview to major grains and excludes rice and cotton", () => {
+    expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).toEqual([
+      "Corn",
+      "Soybeans",
+      "Wheat",
+      "Oats",
+      "Barley",
+    ]);
+    expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).not.toContain("Rice");
+    expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).not.toContain("Cotton");
+  });
+
+  it("builds country comparison rows with split explanations and strongest points", () => {
+    const canadaItem = buildCanadaThesisBoardItem(wheat, {
+      lane: "canada",
+      grain: "Wheat",
+      crop_year: "2025-2026",
+      grain_week: 38,
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 500,
+          process_deliveries_kt: 180,
+        },
+        exports: {
+          current_week_kt: 260,
+        },
+      },
+      freshness: [
+        {
+          source_name: "cgc_observations",
+          freshness_status: "strong",
+        },
+      ],
+    });
+    const usItem = buildUsThesisBoardItem(usWheat, {
+      lane: "us",
+      market_name: "Wheat",
+      market_year: 2025,
+      supply: {
+        crop_progress: {
+          us_total: {
+            good_excellent_pct: 76,
+            planted_pct_vs_avg: 8,
+          },
+        },
+      },
+      freshness: [
+        {
+          source_name: "usda_crop_progress",
+          freshness_status: "strong",
+        },
+      ],
+    });
+
+    const wheatRow = buildMajorThesisComparisonRows([canadaItem], [usItem]).find(
+      (row) => row.grain === "Wheat",
+    );
+
+    expect(wheatRow?.status).toBe("mixed");
+    expect(wheatRow?.explanation).toContain("CA +36 Bull tilt");
+    expect(wheatRow?.explanation).toContain("US -30 Bear tilt");
+    expect(wheatRow?.strongestBullPoints.map((point) => point.country)).toContain("CA");
+    expect(wheatRow?.strongestBearPoints.map((point) => point.country)).toContain("US");
+  });
+
+  it("marks Canada-only major rows when no US V1 overview market exists", () => {
+    const durumItem = buildCanadaThesisBoardItem(
+      { name: "Amber Durum", slug: "amber-durum", defaultBushelWeightLbs: 60 },
+      {
+        lane: "canada",
+        grain: "Amber Durum",
+        crop_year: "2025-2026",
+        grain_week: 38,
+      },
+    );
+
+    const durumRow = buildMajorThesisComparisonRows([durumItem], []).find(
+      (row) => row.grain === "Amber Durum",
+    );
+
+    expect(durumRow?.status).toBe("canada_only");
+    expect(durumRow?.us).toBeNull();
+    expect(durumRow?.explanation).toContain("no matching US overview market");
   });
 });

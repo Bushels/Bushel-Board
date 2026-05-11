@@ -1,5 +1,23 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-10 - Kalshi comparison must not be framed as a Bushel Board market
+
+**Symptom:** The Kalshi idea naturally invites language like "our live prediction market" or "model fine-tuning in real time." That wording is ahead of the product and could mislead users, especially before Bushel Board has any stake/trade mechanics, reviewed examples, or training approval.
+
+**Root cause:** Kalshi is a real traded prediction market, while Bushel Board currently produces source-backed thesis signals. Comparing the two is useful, but the systems are not equivalent. Treating Kalshi movement as a training loop also skips the review gate required before any example can become a training candidate.
+
+**Fix status:** The product lane is renamed to Kalshi Prediction Board, and Bushel Board's side is named Bushel Board Implied Line. V1 remains read-only: Kalshi public market probabilities can be displayed beside thesis signals, but they do not feed thesis prompts, scorecards, Supabase writes, or training candidates.
+
+**Prevention:**
+- Use "Kalshi YES" for traded market probability and "Bushel Board Implied Line" for our deterministic comparison.
+- Never call Bushel Board a live prediction market until users can actually trade or stake.
+- If Kalshi returns no active markets, show watched/no-active-market states instead of mock prices.
+- Treat Kalshi disagreement as review evidence, not automatic model-training data.
+
+**Tags:** #kalshi #prediction-board #wording-boundary #training-candidates #no-write
+
+---
+
 ## 2026-05-10 - Multi-grain thesis harness should share one engine, not fork sixteen systems
 
 **Symptom:** After the Canola harness proved the weekly thesis loop, the natural next step was to run the same idea for all grains. The risk is building one Canola-shaped copy per grain, which would multiply bugs, tests, prompt drift, and review rules.

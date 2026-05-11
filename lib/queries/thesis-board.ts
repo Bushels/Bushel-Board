@@ -10,6 +10,14 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 export type ThesisLane = "canada" | "us";
 export type ThesisConfidence = "high" | "medium" | "low";
 export type ThesisDriverTone = "bull" | "bear";
+export type ThesisCountryCode = "CA" | "US";
+export type ThesisComparisonStatus =
+  | "aligned_bullish"
+  | "aligned_bearish"
+  | "aligned_balanced"
+  | "mixed"
+  | "canada_only"
+  | "us_only";
 
 export interface ThesisDriver {
   tone: ThesisDriverTone;
@@ -65,6 +73,27 @@ export interface ThesisBoardItem {
   staleSourceCount: number;
 }
 
+export interface ThesisComparisonPoint {
+  country: ThesisCountryCode;
+  tone: ThesisDriverTone;
+  title: string;
+  body: string;
+  sourceName: string;
+  confidence: ThesisConfidence;
+  metricLabel: string;
+}
+
+export interface ThesisComparisonRow {
+  grain: string;
+  canada: ThesisBoardItem | null;
+  us: ThesisBoardItem | null;
+  status: ThesisComparisonStatus;
+  statusLabel: string;
+  explanation: string;
+  strongestBullPoints: ThesisComparisonPoint[];
+  strongestBearPoints: ThesisComparisonPoint[];
+}
+
 export interface ThesisBoardData {
   generatedAt: string;
   packetMode: "cached" | "live_rpc_fallback";
@@ -73,12 +102,58 @@ export interface ThesisBoardData {
   cacheItemCount: number;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
+  comparisonRows: ThesisComparisonRow[];
   totals: {
     itemCount: number;
     strongSourceCount: number;
     staleSourceCount: number;
     blockerCount: number;
   };
+}
+
+export const THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES = [
+  "Wheat",
+  "Canola",
+  "Barley",
+  "Oats",
+  "Corn",
+  "Soybeans",
+  "Peas",
+  "Lentils",
+  "Amber Durum",
+  "Flaxseed",
+] as const;
+
+export const THESIS_BOARD_MAJOR_US_MARKET_NAMES = [
+  "Corn",
+  "Soybeans",
+  "Wheat",
+  "Oats",
+  "Barley",
+] as const;
+
+const MAJOR_CANADA_GRAIN_NAMES = new Set<string>(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES);
+const MAJOR_US_MARKET_NAMES = new Set<string>(THESIS_BOARD_MAJOR_US_MARKET_NAMES);
+
+export const EXPECTED_THESIS_BOARD_PACKET_COUNT =
+  THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES.length + THESIS_BOARD_MAJOR_US_MARKET_NAMES.length;
+
+export function isMajorCanadaThesisGrain(name: string): boolean {
+  return MAJOR_CANADA_GRAIN_NAMES.has(name);
+}
+
+export function isMajorUsThesisMarket(name: string): boolean {
+  return MAJOR_US_MARKET_NAMES.has(name);
+}
+
+export function getMajorCanadaThesisGrains(): GrainDef[] {
+  return THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES.map((name) =>
+    ALL_GRAINS.find((grain) => grain.name === name),
+  ).filter((grain): grain is GrainDef => Boolean(grain));
+}
+
+export function getMajorUsThesisMarkets(): UsMarketDef[] {
+  return US_OVERVIEW_MARKETS.filter((market) => isMajorUsThesisMarket(market.name));
 }
 
 function asRecord(value: unknown): JsonRecord {
@@ -686,6 +761,160 @@ export function buildUsThesisBoardItem(
   };
 }
 
+function driverConfidenceWeight(confidence: ThesisConfidence): number {
+  if (confidence === "high") return 3;
+  if (confidence === "medium") return 2;
+  return 1;
+}
+
+function stanceDirection(item: ThesisBoardItem | null): "bullish" | "bearish" | "balanced" | "missing" {
+  if (!item) return "missing";
+  if (item.stanceScore >= 20) return "bullish";
+  if (item.stanceScore <= -20) return "bearish";
+  return "balanced";
+}
+
+function signedScore(score: number): string {
+  return score > 0 ? `+${score}` : String(score);
+}
+
+function strongestPointsFor(
+  item: ThesisBoardItem | null,
+  country: ThesisCountryCode,
+  tone: ThesisDriverTone,
+): ThesisComparisonPoint[] {
+  if (!item) return [];
+  const drivers = tone === "bull" ? item.bullDrivers : item.bearDrivers;
+  return drivers
+    .map((driver) => ({
+      country,
+      tone,
+      title: driver.title,
+      body: driver.body,
+      sourceName: driver.sourceName,
+      confidence: driver.confidence,
+      metricLabel: driver.metricLabel,
+    }))
+    .sort((a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence))
+    .slice(0, 2);
+}
+
+function leadDriver(item: ThesisBoardItem): ThesisDriver | null {
+  const direction = stanceDirection(item);
+  const preferred =
+    direction === "bearish"
+      ? [...item.bearDrivers].sort(
+          (a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence),
+        )
+      : direction === "bullish"
+        ? [...item.bullDrivers].sort(
+            (a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence),
+          )
+        : [...item.bullDrivers, ...item.bearDrivers].sort(
+            (a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence),
+          );
+  return preferred[0] ?? null;
+}
+
+function comparisonStatusFor(
+  canada: ThesisBoardItem | null,
+  us: ThesisBoardItem | null,
+): ThesisComparisonStatus {
+  if (canada && !us) return "canada_only";
+  if (!canada && us) return "us_only";
+  if (!canada || !us) return "mixed";
+
+  const canadaDirection = stanceDirection(canada);
+  const usDirection = stanceDirection(us);
+  if (canadaDirection === "bullish" && usDirection === "bullish") return "aligned_bullish";
+  if (canadaDirection === "bearish" && usDirection === "bearish") return "aligned_bearish";
+  if (canadaDirection === "balanced" && usDirection === "balanced") return "aligned_balanced";
+  return "mixed";
+}
+
+function comparisonStatusLabel(status: ThesisComparisonStatus): string {
+  const labels: Record<ThesisComparisonStatus, string> = {
+    aligned_bullish: "Aligned bull",
+    aligned_bearish: "Aligned bear",
+    aligned_balanced: "Both balanced",
+    mixed: "Country split",
+    canada_only: "Canada only",
+    us_only: "US only",
+  };
+  return labels[status];
+}
+
+function comparisonExplanation(
+  grain: string,
+  canada: ThesisBoardItem | null,
+  us: ThesisBoardItem | null,
+): string {
+  if (canada && !us) {
+    return `${grain} has a Canada packet in V1, but no matching US overview market is modeled on this board.`;
+  }
+  if (!canada && us) {
+    return `${grain} has a US packet in V1, but no matching Canada major-grain packet is modeled on this board.`;
+  }
+  if (!canada || !us) {
+    return "No Canada or US packet is available for this V1 row.";
+  }
+
+  const canadaLead = leadDriver(canada);
+  const usLead = leadDriver(us);
+  const canadaDetail = canadaLead ? ` (${canadaLead.title})` : "";
+  const usDetail = usLead ? ` (${usLead.title})` : "";
+  return `CA ${signedScore(canada.stanceScore)} ${canada.stanceLabel}${canadaDetail}; US ${signedScore(
+    us.stanceScore,
+  )} ${us.stanceLabel}${usDetail}.`;
+}
+
+export function buildMajorThesisComparisonRows(
+  canadaItems: ThesisBoardItem[],
+  usItems: ThesisBoardItem[],
+): ThesisComparisonRow[] {
+  const canadaByName = new Map(
+    canadaItems
+      .filter((item) => isMajorCanadaThesisGrain(item.name))
+      .map((item) => [item.name, item] as const),
+  );
+  const usByName = new Map(
+    usItems
+      .filter((item) => isMajorUsThesisMarket(item.name))
+      .map((item) => [item.name, item] as const),
+  );
+  const orderedNames = [
+    ...THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES,
+    ...THESIS_BOARD_MAJOR_US_MARKET_NAMES.filter(
+      (name) => !MAJOR_CANADA_GRAIN_NAMES.has(name),
+    ),
+  ];
+
+  return orderedNames.map((grain) => {
+    const canada = canadaByName.get(grain) ?? null;
+    const us = usByName.get(grain) ?? null;
+    const status = comparisonStatusFor(canada, us);
+    const strongestBullPoints = [
+      ...strongestPointsFor(canada, "CA", "bull"),
+      ...strongestPointsFor(us, "US", "bull"),
+    ].sort((a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence));
+    const strongestBearPoints = [
+      ...strongestPointsFor(canada, "CA", "bear"),
+      ...strongestPointsFor(us, "US", "bear"),
+    ].sort((a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence));
+
+    return {
+      grain,
+      canada,
+      us,
+      status,
+      statusLabel: comparisonStatusLabel(status),
+      explanation: comparisonExplanation(grain, canada, us),
+      strongestBullPoints,
+      strongestBearPoints,
+    };
+  });
+}
+
 async function fetchCanadaPacket(
   supabase: SupabaseServerClient,
   grain: GrainDef,
@@ -764,15 +993,18 @@ function buildBoardData({
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
 }): ThesisBoardData {
-  const allItems = [...canadaItems, ...usItems];
+  const majorCanadaItems = canadaItems.filter((item) => isMajorCanadaThesisGrain(item.name));
+  const majorUsItems = usItems.filter((item) => isMajorUsThesisMarket(item.name));
+  const allItems = [...majorCanadaItems, ...majorUsItems];
   return {
     generatedAt,
     packetMode,
     cacheStatus,
     sourceRunWatermark,
     cacheItemCount,
-    canadaItems,
-    usItems,
+    canadaItems: majorCanadaItems,
+    usItems: majorUsItems,
+    comparisonRows: buildMajorThesisComparisonRows(majorCanadaItems, majorUsItems),
     totals: {
       itemCount: allItems.length,
       strongSourceCount: allItems.reduce((total, item) => total + item.strongSourceCount, 0),
@@ -856,7 +1088,15 @@ function dateValue(value: string | null): number | null {
 }
 
 function cacheStatusFor(packets: CachedBoardPackets): ThesisBoardData["cacheStatus"] {
-  if (packets.cacheItemCount < ALL_GRAINS.length + US_OVERVIEW_MARKETS.length) return "stale";
+  const cachedMajorCanadaCount = packets.canadaPackets.filter((packet, index) =>
+    isMajorCanadaThesisGrain(textValue(packet, "grain") ?? ALL_GRAINS[index]?.name ?? ""),
+  ).length;
+  const cachedMajorUsCount = packets.usPackets.filter((packet, index) =>
+    isMajorUsThesisMarket(textValue(packet, "market_name") ?? US_OVERVIEW_MARKETS[index]?.name ?? ""),
+  ).length;
+  if (cachedMajorCanadaCount + cachedMajorUsCount < EXPECTED_THESIS_BOARD_PACKET_COUNT) {
+    return "stale";
+  }
   const sourceRunTime = dateValue(packets.sourceRunWatermark);
   const cacheTime = dateValue(packets.generatedAt);
   if (sourceRunTime === null || cacheTime === null) return "stale";
@@ -880,10 +1120,10 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
 
   // Fallback stays sequential because concurrent all-grain packet calls can trip
   // hosted statement timeouts. The cached path above is the normal fast path.
-  for (const grain of ALL_GRAINS) {
+  for (const grain of getMajorCanadaThesisGrains()) {
     canadaItems.push(await fetchCanadaPacket(supabase, grain));
   }
-  for (const market of US_OVERVIEW_MARKETS) {
+  for (const market of getMajorUsThesisMarkets()) {
     usItems.push(await fetchUsPacket(supabase, market));
   }
 

@@ -2,17 +2,24 @@ import { createHash } from "node:crypto";
 
 import {
   CANOLA_FORECAST_SCHEMA_VERSION,
+  GRAIN_FORECAST_SCHEMA_VERSION,
   parseCanolaForecast,
+  parseGrainForecast,
   type CanolaForecast,
+  type GrainForecast,
 } from "./schema";
 import {
   CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+  GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION,
   stableStringify,
   type CanolaForecastSnapshot,
+  type GrainForecastSnapshot,
 } from "./snapshot";
 
 export const CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION =
   "canola-forecast-run-artifact-v1" as const;
+export const GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION =
+  "grain-forecast-run-artifact-v1" as const;
 
 export const FORECAST_RUNNER_MODES = [
   "manual_model_output",
@@ -37,6 +44,12 @@ export interface CanolaForecastRunArtifactInput {
   metadata: ForecastRunMetadata;
 }
 
+export interface GrainForecastRunArtifactInput {
+  snapshot: unknown;
+  forecast: unknown;
+  metadata: ForecastRunMetadata;
+}
+
 export interface CanolaForecastRunArtifact {
   schema_version: typeof CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION;
   grain: "Canola";
@@ -54,49 +67,122 @@ export interface CanolaForecastRunArtifact {
   run_hash: string;
 }
 
+export interface GrainForecastRunArtifact {
+  schema_version: typeof GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION;
+  grain: GrainForecast["grain"];
+  crop_year: string;
+  grain_week: number;
+  as_of_date: string;
+  source_cutoff_at: string;
+  snapshot_schema_version: typeof GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION;
+  forecast_schema_version: typeof GRAIN_FORECAST_SCHEMA_VERSION;
+  snapshot_hash: string;
+  snapshot_mode: GrainForecastSnapshot["snapshot_mode"];
+  snapshot_revision_taint_status: GrainForecastSnapshot["revision_taint_status"];
+  metadata: ForecastRunMetadata;
+  forecast: GrainForecast;
+  run_hash: string;
+}
+
 const runnerModeSet = new Set<string>(FORECAST_RUNNER_MODES);
 
 export function buildCanolaForecastRunArtifact(
   input: CanolaForecastRunArtifactInput,
 ): CanolaForecastRunArtifact {
-  const snapshot = validateSnapshot(input.snapshot);
+  const snapshot = validateSnapshot(
+    input.snapshot,
+    CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+  ) as CanolaForecastSnapshot;
   const forecast = parseCanolaForecast(input.forecast);
   const metadata = validateMetadata(input.metadata);
+
+  return buildForecastRunArtifact({
+    schemaVersion: CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+    snapshotSchemaVersion: CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+    forecastSchemaVersion: CANOLA_FORECAST_SCHEMA_VERSION,
+    snapshot,
+    forecast,
+    metadata,
+  }) as CanolaForecastRunArtifact;
+}
+
+export function buildGrainForecastRunArtifact(
+  input: GrainForecastRunArtifactInput,
+): GrainForecastRunArtifact {
+  const snapshot = validateSnapshot(
+    input.snapshot,
+    GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+  ) as GrainForecastSnapshot;
+  const forecast = parseGrainForecast(input.forecast);
+  const metadata = validateMetadata(input.metadata);
+
+  return buildForecastRunArtifact({
+    schemaVersion: GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+    snapshotSchemaVersion: GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+    forecastSchemaVersion: GRAIN_FORECAST_SCHEMA_VERSION,
+    snapshot,
+    forecast,
+    metadata,
+  }) as GrainForecastRunArtifact;
+}
+
+function buildForecastRunArtifact(input: {
+  schemaVersion:
+    | typeof CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION;
+  snapshotSchemaVersion:
+    | typeof CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION;
+  forecastSchemaVersion:
+    | typeof CANOLA_FORECAST_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_SCHEMA_VERSION;
+  snapshot: CanolaForecastSnapshot | GrainForecastSnapshot;
+  forecast: CanolaForecast | GrainForecast;
+  metadata: ForecastRunMetadata;
+}): CanolaForecastRunArtifact | GrainForecastRunArtifact {
+  const { snapshot, forecast, metadata } = input;
 
   validateForecastMatchesSnapshot(forecast, snapshot);
   validateForecastEvidenceClocks(forecast);
   validateTrainingCutoff(forecast, metadata);
 
   const artifactWithoutHash = {
-    schema_version: CANOLA_FORECAST_RUN_ARTIFACT_SCHEMA_VERSION,
+    schema_version: input.schemaVersion,
     grain: forecast.grain,
     crop_year: forecast.crop_year,
     grain_week: forecast.grain_week,
     as_of_date: forecast.as_of_date,
     source_cutoff_at: forecast.source_cutoff_at,
-    snapshot_schema_version: snapshot.schema_version,
-    forecast_schema_version: forecast.schema_version,
+    snapshot_schema_version: input.snapshotSchemaVersion,
+    forecast_schema_version: input.forecastSchemaVersion,
     snapshot_hash: snapshot.snapshot_hash,
     snapshot_mode: snapshot.snapshot_mode,
     snapshot_revision_taint_status: snapshot.revision_taint_status,
     metadata,
     forecast,
-  } satisfies Omit<CanolaForecastRunArtifact, "run_hash">;
+  };
 
-  return {
+  const artifact = {
     ...artifactWithoutHash,
     run_hash: `sha256:${sha256(stableStringify(artifactWithoutHash))}`,
   };
+
+  return artifact as CanolaForecastRunArtifact | GrainForecastRunArtifact;
 }
 
-function validateSnapshot(snapshot: unknown): CanolaForecastSnapshot {
+function validateSnapshot(
+  snapshot: unknown,
+  expectedSchemaVersion:
+    | typeof CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+): CanolaForecastSnapshot | GrainForecastSnapshot {
   if (!snapshot || typeof snapshot !== "object") {
     throw new Error("snapshot must be an object.");
   }
 
-  const candidate = snapshot as CanolaForecastSnapshot;
+  const candidate = snapshot as CanolaForecastSnapshot | GrainForecastSnapshot;
 
-  if (candidate.schema_version !== CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION) {
+  if (candidate.schema_version !== expectedSchemaVersion) {
     throw new Error("snapshot schema_version is unsupported.");
   }
 
@@ -147,8 +233,8 @@ function validateMetadata(metadata: ForecastRunMetadata): ForecastRunMetadata {
 }
 
 function validateForecastMatchesSnapshot(
-  forecast: CanolaForecast,
-  snapshot: CanolaForecastSnapshot,
+  forecast: CanolaForecast | GrainForecast,
+  snapshot: CanolaForecastSnapshot | GrainForecastSnapshot,
 ): void {
   const checks: Array<[string, unknown, unknown]> = [
     ["grain", forecast.grain, snapshot.grain],
@@ -165,7 +251,9 @@ function validateForecastMatchesSnapshot(
   }
 }
 
-function validateForecastEvidenceClocks(forecast: CanolaForecast): void {
+function validateForecastEvidenceClocks(
+  forecast: CanolaForecast | GrainForecast,
+): void {
   const cutoffMs = parseRequiredTimestamp(
     forecast.source_cutoff_at,
     "source_cutoff_at",
@@ -184,7 +272,7 @@ function validateForecastEvidenceClocks(forecast: CanolaForecast): void {
 }
 
 function validateTrainingCutoff(
-  forecast: CanolaForecast,
+  forecast: CanolaForecast | GrainForecast,
   metadata: ForecastRunMetadata,
 ): void {
   if (

@@ -2,8 +2,16 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
+import {
+  CANOLA_GRAIN,
+  FORECAST_GRAIN_NAMES,
+  type ForecastGrain,
+} from "./grain-profiles";
+
 export const CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION =
   "canola-forecast-snapshot-v1" as const;
+export const GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION =
+  "grain-forecast-snapshot-v1" as const;
 
 export const SNAPSHOT_MODES = [
   "strict_artifact_mode",
@@ -73,9 +81,18 @@ export interface CanolaForecastSnapshotInput {
   records: SnapshotSourceRecord[];
 }
 
-export interface CanolaForecastSnapshot {
-  schema_version: typeof CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION;
-  grain: "Canola";
+export interface GrainForecastSnapshotInput {
+  grain: ForecastGrain;
+  crop_year: string;
+  grain_week: number;
+  as_of_date: string;
+  source_cutoff_at: string;
+  snapshot_mode: SnapshotMode;
+  records: SnapshotSourceRecord[];
+}
+
+export interface ForecastSnapshotBase {
+  grain: ForecastGrain;
   crop_year: string;
   grain_week: number;
   as_of_date: string;
@@ -87,6 +104,15 @@ export interface CanolaForecastSnapshot {
   warnings: SnapshotWarning[];
   blocked_sources: SnapshotBlockedSource[];
   snapshot_hash: string;
+}
+
+export interface GrainForecastSnapshot extends ForecastSnapshotBase {
+  schema_version: typeof GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION;
+}
+
+export interface CanolaForecastSnapshot extends ForecastSnapshotBase {
+  schema_version: typeof CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION;
+  grain: typeof CANOLA_GRAIN;
 }
 
 const isoDateStringSchema = z
@@ -112,27 +138,30 @@ const sourceRecordSchema = z.object({
     .refine(isJsonSerializable, "Payload must be JSON-serializable."),
 });
 
+const forecastSnapshotCommonFields = {
+  crop_year: z
+    .string()
+    .regex(/^\d{4}-\d{4}$/, "Expected crop year like 2026-2027."),
+  grain_week: z.number().int().min(1).max(53),
+  as_of_date: isoDateStringSchema,
+  source_cutoff_at: offsetDateTimeStringSchema,
+  snapshot_mode: z.enum(SNAPSHOT_MODES),
+  records: z.array(sourceRecordSchema).min(1),
+};
+
+const grainForecastSnapshotInputSchema = z
+  .object({
+    grain: z.enum(FORECAST_GRAIN_NAMES),
+    ...forecastSnapshotCommonFields,
+  })
+  .superRefine(validateSnapshotCutoffDate);
+
 const canolaForecastSnapshotInputSchema = z
   .object({
-    grain: z.literal("Canola"),
-    crop_year: z
-      .string()
-      .regex(/^\d{4}-\d{4}$/, "Expected crop year like 2026-2027."),
-    grain_week: z.number().int().min(1).max(53),
-    as_of_date: isoDateStringSchema,
-    source_cutoff_at: offsetDateTimeStringSchema,
-    snapshot_mode: z.enum(SNAPSHOT_MODES),
-    records: z.array(sourceRecordSchema).min(1),
+    grain: z.literal(CANOLA_GRAIN),
+    ...forecastSnapshotCommonFields,
   })
-  .superRefine((value, context) => {
-    if (!sourceCutoffDateMatchesAsOf(value.source_cutoff_at, value.as_of_date)) {
-      context.addIssue({
-        code: "custom",
-        message: "source_cutoff_at must use the same calendar date as as_of_date.",
-        path: ["source_cutoff_at"],
-      });
-    }
-  });
+  .superRefine(validateSnapshotCutoffDate);
 
 const blockedSourceKeySet = new Set<string>(BLOCKED_FORECAST_SOURCE_KEYS);
 
@@ -149,7 +178,27 @@ function sourceCutoffDateMatchesAsOf(
 export function buildCanolaForecastSnapshot(
   input: unknown,
 ): CanolaForecastSnapshot {
-  const parsed = canolaForecastSnapshotInputSchema.parse(input);
+  return buildForecastSnapshot(
+    canolaForecastSnapshotInputSchema.parse(input),
+    CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+  ) as CanolaForecastSnapshot;
+}
+
+export function buildGrainForecastSnapshot(
+  input: unknown,
+): GrainForecastSnapshot {
+  return buildForecastSnapshot(
+    grainForecastSnapshotInputSchema.parse(input),
+    GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+  ) as GrainForecastSnapshot;
+}
+
+function buildForecastSnapshot(
+  parsed: GrainForecastSnapshotInput,
+  schemaVersion:
+    | typeof CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION
+    | typeof GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+): CanolaForecastSnapshot | GrainForecastSnapshot {
   const sourceCutoffTime = Date.parse(parsed.source_cutoff_at);
   const acceptedRecords: SnapshotSourceRecord[] = [];
   const blockedSources: SnapshotBlockedSource[] = [];
@@ -206,7 +255,7 @@ export function buildCanolaForecastSnapshot(
       : "untainted";
 
   const snapshotWithoutHash = {
-    schema_version: CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION,
+    schema_version: schemaVersion,
     grain: parsed.grain,
     crop_year: parsed.crop_year,
     grain_week: parsed.grain_week,
@@ -218,12 +267,31 @@ export function buildCanolaForecastSnapshot(
     records,
     warnings,
     blocked_sources,
-  } satisfies Omit<CanolaForecastSnapshot, "snapshot_hash">;
+  } satisfies Omit<ForecastSnapshotBase, "snapshot_hash"> & {
+    schema_version:
+      | typeof CANOLA_FORECAST_SNAPSHOT_SCHEMA_VERSION
+      | typeof GRAIN_FORECAST_SNAPSHOT_SCHEMA_VERSION;
+  };
 
-  return {
+  const snapshot = {
     ...snapshotWithoutHash,
     snapshot_hash: `sha256:${sha256(stableStringify(snapshotWithoutHash))}`,
   };
+
+  return snapshot as CanolaForecastSnapshot | GrainForecastSnapshot;
+}
+
+function validateSnapshotCutoffDate(
+  value: { source_cutoff_at: string; as_of_date: string },
+  context: z.RefinementCtx,
+): void {
+  if (!sourceCutoffDateMatchesAsOf(value.source_cutoff_at, value.as_of_date)) {
+    context.addIssue({
+      code: "custom",
+      message: "source_cutoff_at must use the same calendar date as as_of_date.",
+      path: ["source_cutoff_at"],
+    });
+  }
 }
 
 export function stableStringify(value: unknown): string {

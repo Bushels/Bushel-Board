@@ -3,10 +3,14 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowRight,
+  Activity,
   BarChart3,
   CheckCircle2,
   Clock3,
   DatabaseZap,
+  ExternalLink,
+  Flag,
+  Scale,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -18,7 +22,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getThesisBoardData, type ThesisBoardItem, type ThesisDriver } from "@/lib/queries/thesis-board";
+import {
+  getKalshiCommodityCalibrationData,
+  type KalshiCommodityCalibrationData,
+} from "@/lib/queries/kalshi-commodities";
+import type { KalshiCalibrationRow } from "@/lib/kalshi/commodity-markets";
+import {
+  getThesisBoardData,
+  type ThesisBoardItem,
+  type ThesisComparisonPoint,
+  type ThesisComparisonRow,
+  type ThesisDriver,
+} from "@/lib/queries/thesis-board";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +68,51 @@ function stanceClass(score: number): string {
   return "text-muted-foreground";
 }
 
+function directionalIndicatorLabel(score: number): string {
+  if (score > 0) return "Bullish indicator";
+  if (score < 0) return "Bearish indicator";
+  return "Balanced indicator";
+}
+
+function stanceFillClass(score: number): string {
+  if (score >= 20) return "bg-prairie";
+  if (score <= -20) return "bg-amber-600";
+  return "bg-muted-foreground";
+}
+
+function comparisonClass(status: ThesisComparisonRow["status"]): string {
+  if (status === "aligned_bullish") {
+    return "border-prairie/25 bg-prairie/10 text-prairie";
+  }
+  if (status === "aligned_bearish") {
+    return "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300";
+  }
+  if (status === "mixed") {
+    return "border-canola/30 bg-canola/10 text-canola";
+  }
+  return "border-border bg-muted/50 text-muted-foreground";
+}
+
+function kalshiAlignmentClass(alignment: KalshiCalibrationRow["alignment"]): string {
+  if (alignment === "aligned") {
+    return "border-prairie/25 bg-prairie/10 text-prairie";
+  }
+  if (alignment === "divergent") {
+    return "border-canola/30 bg-canola/10 text-canola";
+  }
+  if (alignment === "no_market" || alignment === "no_thesis") {
+    return "border-border bg-muted/50 text-muted-foreground";
+  }
+  return "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300";
+}
+
+function probabilityClass(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  if (value >= 55) return "text-prairie";
+  if (value <= 45) return "text-amber-700 dark:text-amber-300";
+  return "text-muted-foreground";
+}
+
 function freshnessClass(status: string): string {
   if (status === "strong") return "border-prairie/25 bg-prairie/10 text-prairie";
   if (status === "empty" || status === "broken") {
@@ -66,6 +126,431 @@ function metricLabel(item: ThesisBoardItem): string {
     return `Crop year ${item.cropYear ?? "unknown"} / week ${item.grainWeek ?? "latest"}`;
   }
   return `Market year ${item.marketYear ?? "latest"}`;
+}
+
+function CountryTag({ country }: { country: "CA" | "US" }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+      <Flag className="h-3 w-3" aria-hidden="true" />
+      {country}
+    </span>
+  );
+}
+
+function MarketIndicator({
+  item,
+  country,
+}: {
+  item: ThesisBoardItem | null;
+  country: "CA" | "US";
+}) {
+  if (!item) {
+    return (
+      <div className="space-y-2">
+        <CountryTag country={country} />
+        <p className="text-sm font-medium text-muted-foreground">Not modeled in V1</p>
+      </div>
+    );
+  }
+
+  const halfWidth = Math.min(50, Math.abs(item.stanceScore) / 2);
+  const positive = item.stanceScore > 0;
+
+  return (
+    <div className="min-w-44 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <CountryTag country={country} />
+        <Badge variant="outline" className={confidenceClass(item.confidence)}>
+          {item.confidenceScore}% confidence
+        </Badge>
+      </div>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className={cn("text-2xl font-semibold tabular-nums", stanceClass(item.stanceScore))}>
+            {item.stanceScore > 0 ? `+${item.stanceScore}` : item.stanceScore}
+          </p>
+          <p className="text-xs font-medium text-muted-foreground">
+            {directionalIndicatorLabel(item.stanceScore)}
+          </p>
+        </div>
+        <div
+          className="relative mb-1 h-2 w-28 rounded-full bg-muted"
+          aria-label={`${country} stance score ${item.stanceScore}`}
+        >
+          <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
+          <span
+            className={cn(
+              "absolute top-0 h-full rounded-full",
+              stanceFillClass(item.stanceScore),
+              positive ? "left-1/2" : "right-1/2",
+            )}
+            style={{ width: `${halfWidth}%` }}
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonPointList({
+  points,
+  emptyLabel,
+}: {
+  points: ThesisComparisonPoint[];
+  emptyLabel: string;
+}) {
+  if (points.length === 0) {
+    return <p className="text-sm leading-6 text-muted-foreground">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {points.slice(0, 4).map((point) => (
+        <div
+          key={`${point.country}-${point.sourceName}-${point.title}-${point.tone}`}
+          className="space-y-1 border-l-2 border-border pl-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <CountryTag country={point.country} />
+            <p className="text-sm font-semibold text-foreground">{point.title}</p>
+            <Badge variant="outline" className={confidenceClass(point.confidence)}>
+              {point.confidence}
+            </Badge>
+          </div>
+          <p className="text-xs font-medium text-muted-foreground">
+            {point.metricLabel} / {point.sourceName}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-display text-2xl font-semibold">Major Grain Thesis Matrix</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Canada and US major-grain calls in one read. Country markers show where
+            the evidence differs; V1 excludes smaller CGC labels plus US rice and cotton.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-border bg-white/60">
+          {rows.length} grain rows
+        </Badge>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1180px] text-left text-sm">
+            <caption className="sr-only">
+              Major Canada and US grain thesis matrix with stance, confidence, and strongest
+              bull and bear evidence.
+            </caption>
+            <thead className="border-b border-border bg-muted/35 text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="w-36 px-4 py-3 font-semibold">Grain</th>
+                <th className="w-56 px-4 py-3 font-semibold">Canada</th>
+                <th className="w-56 px-4 py-3 font-semibold">US</th>
+                <th className="w-64 px-4 py-3 font-semibold">Strongest Bull Points</th>
+                <th className="w-64 px-4 py-3 font-semibold">Strongest Bear Points</th>
+                <th className="w-72 px-4 py-3 font-semibold">Country Read</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.grain} className="border-b border-border/70 align-top last:border-b-0">
+                  <td className="px-4 py-4">
+                    <p className="font-semibold text-foreground">{row.grain}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <MarketIndicator item={row.canada} country="CA" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <MarketIndicator item={row.us} country="US" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <ComparisonPointList
+                      points={row.strongestBullPoints}
+                      emptyLabel="No bullish driver in the current packets."
+                    />
+                  </td>
+                  <td className="px-4 py-4">
+                    <ComparisonPointList
+                      points={row.strongestBearPoints}
+                      emptyLabel="No bearish driver in the current packets."
+                    />
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="space-y-2">
+                      <Badge variant="outline" className={comparisonClass(row.status)}>
+                        {row.statusLabel}
+                      </Badge>
+                      <p className="text-sm leading-6 text-muted-foreground">{row.explanation}</p>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function formatPercent(value: number | null): string {
+  if (value === null) return "--";
+  return `${value.toFixed(0)}%`;
+}
+
+function formatSignedPercent(value: number | null): string {
+  if (value === null) return "--";
+  return `${value > 0 ? "+" : ""}${value.toFixed(0)} pts`;
+}
+
+function formatOptionalNumber(value: number | null): string {
+  if (value === null) return "--";
+  return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function formatShortDateTime(value: string | null): string {
+  if (!value) return "Unknown close";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Edmonton",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function deltaClass(value: number | null): string {
+  if (value === null) return "text-muted-foreground";
+  const gap = Math.abs(value);
+  if (gap <= 8) return "text-prairie";
+  if (gap >= 15) return "text-canola";
+  return "text-amber-700 dark:text-amber-300";
+}
+
+function LineReasonList({
+  label,
+  reasons,
+  emptyLabel,
+}: {
+  label: string;
+  reasons: KalshiCalibrationRow["bushelBoardLine"]["topBullReasons"];
+  emptyLabel: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      {reasons.length > 0 ? (
+        reasons.slice(0, 1).map((reason) => (
+          <div key={`${reason.tone}-${reason.sourceName}-${reason.title}`} className="space-y-1">
+            <p className="text-sm font-semibold leading-5 text-foreground">{reason.title}</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {reason.metricLabel} / {reason.sourceName}
+            </p>
+          </div>
+        ))
+      ) : (
+        <p className="text-sm leading-5 text-muted-foreground">{emptyLabel}</p>
+      )}
+    </div>
+  );
+}
+
+function KalshiCalibrationCard({ row }: { row: KalshiCalibrationRow }) {
+  const market = row.featuredMarket;
+  const line = row.bushelBoardLine;
+
+  return (
+    <Card className="rounded-lg py-5 shadow-sm">
+      <CardHeader className="gap-4 px-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-border bg-muted/40 text-muted-foreground">
+                Kalshi
+              </Badge>
+              <Badge variant="outline" className={kalshiAlignmentClass(row.alignment)}>
+                {row.alignmentLabel}
+              </Badge>
+            </div>
+            <CardTitle className="font-display text-xl">{row.grain}</CardTitle>
+            <CardDescription>
+              {market
+                ? `${market.horizon} above-threshold contract`
+                : "Watched series, no active market returned"}
+            </CardDescription>
+          </div>
+          <Scale className="h-5 w-5 shrink-0 text-canola" aria-hidden="true" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 px-5">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Kalshi YES
+            </p>
+            <p className={cn("mt-2 text-2xl font-semibold tabular-nums", probabilityClass(market?.impliedYesPct ?? null))}>
+              {formatPercent(market?.impliedYesPct ?? null)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {market?.strikeLabel ? `Above ${market.strikeLabel}` : "No active price"}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Bushel Board Implied Line
+            </p>
+            <p className={cn("mt-2 text-2xl font-semibold tabular-nums", probabilityClass(line.probabilityPct))}>
+              {formatPercent(line.probabilityPct)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {line.status === "available"
+                ? `${line.country ?? "NA"} thesis / ${line.confidenceScore ?? "--"}% confidence`
+                : line.statusLabel}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Gap
+            </p>
+            <p className={cn("mt-2 text-2xl font-semibold tabular-nums", deltaClass(line.deltaPct))}>
+              {formatSignedPercent(line.deltaPct)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Bushel Board minus Kalshi YES
+            </p>
+          </div>
+        </div>
+
+        {market && (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold leading-6 text-foreground">{market.title}</p>
+            <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+              <div>
+                <p className="font-semibold text-foreground">Spread</p>
+                <p>{formatPercent(market.spreadPct)}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Volume</p>
+                <p>{formatOptionalNumber(market.volume)}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Closes</p>
+                <p>{formatShortDateTime(market.closeTime)}</p>
+              </div>
+            </div>
+            <a
+              href={market.apiUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-canola hover:text-canola/80"
+            >
+              Market API payload
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <LineReasonList
+            label="Top bull point"
+            reasons={line.topBullReasons}
+            emptyLabel="No bullish driver in the current packet."
+          />
+          <LineReasonList
+            label="Top bear point"
+            reasons={line.topBearReasons}
+            emptyLabel="No bearish driver in the current packet."
+          />
+        </div>
+
+        <p className="text-sm leading-6 text-muted-foreground">{row.explanation}</p>
+        <details className="rounded-lg border border-border bg-background px-3 py-2">
+          <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+            Calibration guardrails
+          </summary>
+          <div className="mt-2 space-y-1.5">
+            {row.warnings.slice(0, 4).map((warning) => (
+              <p key={warning} className="text-xs leading-5 text-muted-foreground">
+                {warning}
+              </p>
+            ))}
+          </div>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+function KalshiCalibrationSection({ data }: { data: KalshiCommodityCalibrationData }) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-display text-2xl font-semibold">Kalshi Prediction Board</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Kalshi market YES beside the Bushel Board Implied Line. V1 is a
+            read-only calibration layer; it does not feed the thesis prompt, scorecard, or training data.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="w-fit border-border bg-white/60">
+            {data.marketCount} active markets
+          </Badge>
+          <Badge variant="outline" className="w-fit border-canola/30 bg-canola/8 text-canola">
+            {data.watchedSeriesCount} series watched
+          </Badge>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/20 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-canola" aria-hidden="true" />
+            <p className="text-sm font-semibold">
+              {data.sourceStatus === "live"
+                ? "Live Kalshi commodity markets returned"
+                : data.sourceStatus === "no_active_markets"
+                  ? "No active Kalshi grain markets returned right now"
+                  : "Kalshi fetch returned warnings"}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Snapshot {formatDateTime(data.capturedAt)}
+          </p>
+        </div>
+        {data.warnings.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {data.warnings.slice(0, 3).map((warning) => (
+              <p key={warning} className="text-xs leading-5 text-muted-foreground">
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {data.rows.map((row) => (
+          <KalshiCalibrationCard key={row.grain} row={row} />
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function DriverList({
@@ -286,6 +771,7 @@ function EmptyLaneState({ label }: { label: string }) {
 
 export default async function ThesisPage() {
   const data = await getThesisBoardData();
+  const kalshiData = await getKalshiCommodityCalibrationData(data.comparisonRows);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-12 pt-8">
@@ -301,6 +787,7 @@ export default async function ThesisPage() {
             Structured grain calls from Canada and US thesis packets. The board reads
             facts, freshness, and provenance directly from the data spine, so weekly
             and daily collectors change the read without waiting for legacy narrative rows.
+            V1 renders major grains only, excluding smaller CGC labels and US rice/cotton.
           </p>
         </div>
 
@@ -363,10 +850,14 @@ export default async function ThesisPage() {
         />
       </section>
 
+      <KalshiCalibrationSection data={kalshiData} />
+
+      <MajorThesisMatrix rows={data.comparisonRows} />
+
       <section className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-display text-2xl font-semibold">Canada Grains</h2>
+            <h2 className="font-display text-2xl font-semibold">Canada Major Grains</h2>
             <p className="text-sm text-muted-foreground">
               CGC movement, Grain Monitor logistics, producer cars, prices, COT, and source freshness.
             </p>
