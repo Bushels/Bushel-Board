@@ -1,12 +1,10 @@
 // components/overview/marketplace-strip.tsx
-// Kalshi predictive market cards (mocked) + spot price tiles.
-// Kalshi cards are explicitly mocked — API wiring is deferred.
-// Spot prices are real from grain_prices table.
+// Live Kalshi board link + real spot price tiles.
 
+import Link from "next/link";
 import type { SpotPrice } from "@/lib/queries/overview-data";
 
 const INK = "#2a261e";
-const WHEAT_50 = "#f5f3ee";
 const WHEAT_100 = "#ebe7dc";
 const WHEAT_200 = "#d7cfba";
 const WHEAT_700 = "#5d5132";
@@ -15,77 +13,26 @@ const PRAIRIE = "#437a22";
 const AMBER = "#b8702a";
 const CANOLA = "#c17f24";
 
-// TODO: Kalshi API wiring deferred. These are representative mock contracts
-// matching the Kalshi corn/soy product line as of 2026-04.
-// When the API is wired: replace with real fetchKalshiContracts() call
-// and remove this stub array.
-interface KalshiContract {
-  crop: "CORN" | "SOY";
-  title: string;
-  yesPct: number;
-  noPct: number;
-  volume: string;
-  move: string;
-  expires: string;
-}
-
-const KALSHI_MOCK: KalshiContract[] = [
-  {
-    crop: "CORN",
-    title: "Will Dec corn close above $4.75 this week?",
-    yesPct: 64,
-    noPct: 36,
-    volume: "$284k",
-    move: "+8",
-    expires: "Fri, May 2",
-  },
-  {
-    crop: "CORN",
-    title: "USDA May WASDE: corn ending stocks below 2.0 bn bu?",
-    yesPct: 41,
-    noPct: 59,
-    volume: "$612k",
-    move: "-3",
-    expires: "May 9",
-  },
-  {
-    crop: "SOY",
-    title: "Will May soybeans close above $10.50 this week?",
-    yesPct: 28,
-    noPct: 72,
-    volume: "$198k",
-    move: "-12",
-    expires: "Fri, May 2",
-  },
-  {
-    crop: "SOY",
-    title: "Soybean planting >55% by May 12?",
-    yesPct: 71,
-    noPct: 29,
-    volume: "$94k",
-    move: "+5",
-    expires: "May 12",
-  },
-];
-
-function KalshiCard({ k }: { k: KalshiContract }) {
-  const cropColor = k.crop === "CORN" ? CANOLA : PRAIRIE;
-  const isUp = k.move.startsWith("+");
-  const moveColor = isUp ? PRAIRIE : AMBER;
+function KalshiBoardTeaser() {
   return (
-    <div
+    <Link
+      href="/kalshi"
       style={{
-        padding: "20px 22px",
-        background: "#fff",
+        display: "block",
+        padding: "24px 28px",
+        background: "#fffaf0",
         border: `1px solid ${WHEAT_200}`,
         fontFamily: "var(--font-dm-sans)",
+        textDecoration: "none",
       }}
     >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          marginBottom: 10,
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 12,
           alignItems: "baseline",
         }}
       >
@@ -93,84 +40,45 @@ function KalshiCard({ k }: { k: KalshiContract }) {
           style={{
             fontSize: 10,
             letterSpacing: "0.18em",
-            color: cropColor,
+            color: CANOLA,
             fontWeight: 700,
-            textTransform: "uppercase" as const,
+            textTransform: "uppercase",
           }}
         >
-          {k.crop}
+          Live Kalshi board
         </span>
-        <span style={{ fontSize: 10, color: INK_MUTED }}>via Kalshi</span>
+        <span style={{ fontSize: 11, color: INK_MUTED }}>Corn - Soybeans - Wheat</span>
       </div>
       <div
         style={{
           fontFamily: "var(--font-fraunces)",
-          fontSize: 17,
+          fontSize: 24,
           lineHeight: 1.3,
           color: INK,
-          marginBottom: 14,
-          minHeight: 44,
-        }}
-      >
-        {k.title}
-      </div>
-      {/* YES/NO probability bar */}
-      <div
-        style={{
-          display: "flex",
-          height: 36,
           marginBottom: 10,
-          fontWeight: 600,
-          fontSize: 13,
-          overflow: "hidden",
         }}
       >
-        <div
-          style={{
-            flex: k.yesPct,
-            background: PRAIRIE,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontVariantNumeric: "tabular-nums",
-            gap: 4,
-          }}
-        >
-          YES {k.yesPct}¢
-        </div>
-        <div
-          style={{
-            flex: k.noPct,
-            background: WHEAT_100,
-            color: WHEAT_700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontVariantNumeric: "tabular-nums",
-            gap: 4,
-          }}
-        >
-          NO {k.noPct}¢
-        </div>
+        Kalshi YES vs Bushel Board Implied Line
       </div>
+      <p style={{ color: WHEAT_700, margin: "0 0 16px", lineHeight: 1.6 }}>
+        A read-only commodity calibration board comparing live Kalshi probabilities
+        against Bushel Board thesis evidence. No mock prices.
+      </p>
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
-          fontSize: 11,
-          color: INK_MUTED,
+          alignItems: "center",
+          gap: 10,
+          fontSize: 13,
+          color: CANOLA,
+          fontWeight: 700,
           flexWrap: "wrap",
-          gap: 4,
         }}
       >
-        <span>Vol {k.volume}</span>
-        <span style={{ color: moveColor, fontWeight: 600 }}>
-          {isUp ? "↑" : "↓"} {k.move.replace(/^[+-]/, "")} this week
-        </span>
-        <span>Closes {k.expires}</span>
+        <span>Open Kalshi insight</span>
+        <span aria-hidden="true">-&gt;</span>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -202,9 +110,7 @@ function SpotTile({ price, isLast }: SpotTileProps) {
       >
         {price.grain}
       </div>
-      <div
-        style={{ display: "flex", alignItems: "baseline", gap: 6 }}
-      >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <span
           style={{
             fontFamily: "var(--font-fraunces)",
@@ -227,7 +133,7 @@ function SpotTile({ price, isLast }: SpotTileProps) {
           fontWeight: 600,
         }}
       >
-        {isUp ? "↑" : "↓"} {Math.abs(price.changePct).toFixed(2)}%
+        {isUp ? "Up" : "Down"} {Math.abs(price.changePct).toFixed(2)}%
         <span style={{ fontWeight: 400, color: INK_MUTED, marginLeft: 4 }}>
           ({isUp ? "+" : ""}
           {price.changeAmount.toFixed(4).replace(/\.?0+$/, "")})
@@ -278,7 +184,7 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
             fontWeight: 600,
           }}
         >
-          Preview · Kalshi coming soon · CBOT live
+          Live Kalshi board - CBOT live
         </span>
       </div>
       <p
@@ -291,26 +197,14 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
           maxWidth: 720,
         }}
       >
-        Where the crowd is putting money. Prediction contracts on top, spot
-        futures below.
+        Live Kalshi commodity insight now has its own board. Spot futures remain
+        below for quick price context.
       </p>
 
-      {/* Kalshi cards — 2×2 grid on desktop, 1 col on mobile */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: 14,
-          marginBottom: 14,
-        }}
-        className="grid-cols-1 sm:grid-cols-2"
-      >
-        {KALSHI_MOCK.map((k, i) => (
-          <KalshiCard key={i} k={k} />
-        ))}
+      <div style={{ marginBottom: 14 }}>
+        <KalshiBoardTeaser />
       </div>
 
-      {/* Spot price strip */}
       {visibleSpot.length > 0 && (
         <div
           style={{
@@ -326,20 +220,6 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
           ))}
         </div>
       )}
-
-      {/* Kalshi mock disclaimer */}
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 10,
-          color: "#af9f76",
-          fontFamily: "var(--font-dm-sans)",
-          letterSpacing: "0.04em",
-        }}
-      >
-        Predictive market data is illustrative. Kalshi API integration deferred
-        — live wiring coming soon.
-      </div>
     </div>
   );
 }

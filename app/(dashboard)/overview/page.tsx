@@ -3,7 +3,7 @@
 // Visual direction: Direction A wheat/canola palette + Fraunces typography +
 // generous whitespace, combined with Direction B's chart density + trajectory
 // graphs + tabular-nums stance scores.
-// Data: all real from Supabase - no mocks except the Kalshi cards.
+// Data: real Supabase-backed dashboard data plus a link into the live Kalshi board.
 
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
