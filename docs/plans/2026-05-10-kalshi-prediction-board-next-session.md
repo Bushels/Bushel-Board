@@ -1,8 +1,20 @@
 # Kalshi Prediction Board Next Session Handoff
 
 **Created:** 2026-05-10 MT
-**Status:** Next-session product build
+**Status:** Parked 2026-05-11 - resume only when Kalshi public grain commodity markets return
 **Current branch:** `codex/data-layer-foundation-v1`
+
+## Parking Note - 2026-05-11
+
+Kalshi public API wiring is proven, but the grain commodity markets are not currently open. The verified snapshot showed `0` open Corn/Soybeans/Wheat markets and latest finalized markets only.
+
+Do not make this the next active product session unless a fresh run shows an open grain commodity market:
+
+```powershell
+npx tsx scripts/capture-kalshi-commodity-snapshot.ts
+```
+
+Resume only if `open_market_count > 0` for Corn, Soybeans, or Wheat. Closed/finalized markets may prove API wiring but must not be used for live probability comparison.
 
 ## Direct Answer
 

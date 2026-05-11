@@ -24,9 +24,6 @@ export function DesktopNavLinks() {
       <Link href="/thesis" className={navLinkClasses(pathname.startsWith("/thesis"))}>
         Thesis
       </Link>
-      <Link href="/kalshi" className={navLinkClasses(pathname.startsWith("/kalshi"))}>
-        Kalshi
-      </Link>
       <Link
         href="/source-spine"
         className={navLinkClasses(pathname.startsWith("/source-spine"))}

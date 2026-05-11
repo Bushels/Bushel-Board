@@ -1,7 +1,6 @@
 // components/overview/marketplace-strip.tsx
-// Live Kalshi board link + real spot price tiles.
+// Parked Kalshi watch note + real spot price tiles.
 
-import Link from "next/link";
 import type { SpotPrice } from "@/lib/queries/overview-data";
 
 const INK = "#2a261e";
@@ -15,15 +14,13 @@ const CANOLA = "#c17f24";
 
 function KalshiBoardTeaser() {
   return (
-    <Link
-      href="/kalshi"
+    <div
       style={{
         display: "block",
         padding: "24px 28px",
         background: "#fffaf0",
         border: `1px solid ${WHEAT_200}`,
         fontFamily: "var(--font-dm-sans)",
-        textDecoration: "none",
       }}
     >
       <div
@@ -45,7 +42,7 @@ function KalshiBoardTeaser() {
             textTransform: "uppercase",
           }}
         >
-          Live Kalshi board
+          Kalshi watch parked
         </span>
         <span style={{ fontSize: 11, color: INK_MUTED }}>Corn - Soybeans - Wheat</span>
       </div>
@@ -58,11 +55,11 @@ function KalshiBoardTeaser() {
           marginBottom: 10,
         }}
       >
-        Kalshi YES vs Bushel Board Implied Line
+        Waiting for open grain markets
       </div>
       <p style={{ color: WHEAT_700, margin: "0 0 16px", lineHeight: 1.6 }}>
-        A read-only commodity calibration board comparing live Kalshi probabilities
-        against Bushel Board thesis evidence. No mock prices.
+        Kalshi API wiring is proven, but the public grain commodity markets are not
+        currently open. This lane is parked until Corn, Soybeans, or Wheat contracts return.
       </p>
       <div
         style={{
@@ -70,15 +67,14 @@ function KalshiBoardTeaser() {
           alignItems: "center",
           gap: 10,
           fontSize: 13,
-          color: CANOLA,
+          color: INK_MUTED,
           fontWeight: 700,
           flexWrap: "wrap",
         }}
       >
-        <span>Open Kalshi insight</span>
-        <span aria-hidden="true">-&gt;</span>
+        <span>No mock prices shown</span>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -184,7 +180,7 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
             fontWeight: 600,
           }}
         >
-          Live Kalshi board - CBOT live
+          Kalshi parked - CBOT live
         </span>
       </div>
       <p
@@ -197,8 +193,8 @@ export function MarketplaceStrip({ spotPrices }: MarketplaceStripProps) {
           maxWidth: 720,
         }}
       >
-        Live Kalshi commodity insight now has its own board. Spot futures remain
-        below for quick price context.
+        Kalshi commodity insight is parked until public grain markets return. Spot
+        futures remain below for quick price context.
       </p>
 
       <div style={{ marginBottom: 14 }}>
