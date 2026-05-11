@@ -284,6 +284,37 @@ describe("Kalshi commodity calibration contract", () => {
     expect(rows.find((row) => row.grain === "Soybeans")?.alignment).toBe("no_market");
   });
 
+  it("shows latest Kalshi API markets without using closed markets for the implied line", () => {
+    const latestMarket = normalizeKalshiCommodityMarket(
+      cornSeries,
+      {
+        ticker: "KXCORNW-26MAY0114-T450.99",
+        event_ticker: "KXCORNW-26MAY0114",
+        status: "finalized",
+        title: "Will the corn close price be above 450.99 USd/Bu on May 01, 2026?",
+        yes_bid_dollars: "0.0000",
+        yes_ask_dollars: "1.0000",
+        volume_fp: "125.00",
+        open_interest_fp: "88.00",
+        close_time: "2026-05-01T18:20:00Z",
+        rules_primary:
+          "If the close price of the 1-minute candlestick for corn using the CON6 contract is above 450.99 USd/Bu, then the market resolves to Yes.",
+      },
+      capturedAt,
+    );
+    const item = thesisItem("Corn", 31);
+    item.bullDrivers = [driver("bull", "medium")];
+
+    const rows = buildKalshiCalibrationRows([comparisonRow("Corn", item)], [], [latestMarket]);
+    const corn = rows.find((row) => row.grain === "Corn");
+
+    expect(corn?.featuredMarket).toBeNull();
+    expect(corn?.latestMarket?.marketTicker).toBe("KXCORNW-26MAY0114-T450.99");
+    expect(corn?.bushelBoardLine.status).toBe("no_market");
+    expect(corn?.bushelBoardLine.probabilityPct).toBeNull();
+    expect(corn?.explanation).toContain("wiring proof only");
+  });
+
   it("fetches each configured series sequentially with no write side effects", async () => {
     const requestedUrls: string[] = [];
     const fetchImpl = (async (input: RequestInfo | URL) => {
@@ -302,8 +333,9 @@ describe("Kalshi commodity calibration contract", () => {
     });
 
     expect(snapshot.markets).toHaveLength(0);
+    expect(snapshot.latestMarkets).toHaveLength(0);
     expect(requestedUrls).toHaveLength(2);
     expect(requestedUrls[0]).toContain("series_ticker=KXCORNW");
-    expect(requestedUrls[0]).toContain("status=open");
+    expect(requestedUrls[0]).not.toContain("status=open");
   });
 });

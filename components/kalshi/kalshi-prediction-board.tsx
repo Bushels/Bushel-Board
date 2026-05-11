@@ -116,8 +116,65 @@ function LineReasonList({
   );
 }
 
+function KalshiMarketDetails({
+  market,
+  mode,
+}: {
+  market: NonNullable<KalshiCalibrationRow["featuredMarket"]>;
+  mode: "active" | "latest";
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant="outline"
+            className={
+              mode === "active"
+                ? "border-prairie/25 bg-prairie/10 text-prairie"
+                : "border-border bg-muted/40 text-muted-foreground"
+            }
+          >
+            {mode === "active" ? "Active API market" : `Latest API market - ${market.status}`}
+          </Badge>
+          {mode === "latest" && (
+            <Badge variant="outline" className="border-amber-600/25 bg-amber-500/10 text-amber-800">
+              Not used for line
+            </Badge>
+          )}
+        </div>
+        <p className="text-sm font-semibold leading-6 text-foreground">{market.title}</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+        <div>
+          <p className="font-semibold text-foreground">Spread</p>
+          <p>{formatPercent(market.spreadPct)}</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">Volume</p>
+          <p>{formatOptionalNumber(market.volume)}</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">Closes</p>
+          <p>{formatShortDateTime(market.closeTime)}</p>
+        </div>
+      </div>
+      <a
+        href={market.apiUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-canola hover:text-canola/80"
+      >
+        Market API payload
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </a>
+    </div>
+  );
+}
+
 function KalshiCalibrationCard({ row }: { row: KalshiCalibrationRow }) {
   const market = row.featuredMarket;
+  const latestMarket = row.latestMarket;
   const line = row.bushelBoardLine;
 
   return (
@@ -137,7 +194,9 @@ function KalshiCalibrationCard({ row }: { row: KalshiCalibrationRow }) {
             <CardDescription>
               {market
                 ? `${market.horizon} above-threshold contract`
-                : "Watched series, no active market returned"}
+                : latestMarket
+                  ? "No active market; latest API market shown"
+                  : "Watched series, no market returned"}
             </CardDescription>
           </div>
           <Scale className="h-5 w-5 shrink-0 text-canola" aria-hidden="true" />
@@ -158,7 +217,11 @@ function KalshiCalibrationCard({ row }: { row: KalshiCalibrationRow }) {
               {formatPercent(market?.impliedYesPct ?? null)}
             </p>
             <p className="text-sm text-muted-foreground">
-              {market?.strikeLabel ? `Above ${market.strikeLabel}` : "No active price"}
+              {market?.strikeLabel
+                ? `Above ${market.strikeLabel}`
+                : latestMarket
+                  ? "No active price; API data below"
+                  : "No active price"}
             </p>
           </div>
 
@@ -192,34 +255,11 @@ function KalshiCalibrationCard({ row }: { row: KalshiCalibrationRow }) {
           </div>
         </div>
 
-        {market && (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold leading-6 text-foreground">{market.title}</p>
-            <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-              <div>
-                <p className="font-semibold text-foreground">Spread</p>
-                <p>{formatPercent(market.spreadPct)}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">Volume</p>
-                <p>{formatOptionalNumber(market.volume)}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">Closes</p>
-                <p>{formatShortDateTime(market.closeTime)}</p>
-              </div>
-            </div>
-            <a
-              href={market.apiUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-canola hover:text-canola/80"
-            >
-              Market API payload
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            </a>
-          </div>
-        )}
+        {market ? (
+          <KalshiMarketDetails market={market} mode="active" />
+        ) : latestMarket ? (
+          <KalshiMarketDetails market={latestMarket} mode="latest" />
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <LineReasonList
@@ -265,7 +305,10 @@ export function KalshiPredictionBoard({ data }: { data: KalshiCommodityCalibrati
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="w-fit border-border bg-white/60">
-            {data.marketCount} active markets
+            {data.marketCount} open markets
+          </Badge>
+          <Badge variant="outline" className="w-fit border-border bg-white/60">
+            {data.latestMarketCount} latest API markets
           </Badge>
           <Badge variant="outline" className="w-fit border-canola/30 bg-canola/8 text-canola">
             {data.watchedSeriesCount} series watched
@@ -281,7 +324,9 @@ export function KalshiPredictionBoard({ data }: { data: KalshiCommodityCalibrati
               {data.sourceStatus === "live"
                 ? "Live Kalshi commodity markets returned"
                 : data.sourceStatus === "no_active_markets"
-                  ? "No active Kalshi grain markets returned right now"
+                  ? data.latestMarketCount > 0
+                    ? "Kalshi API connected; no open grain markets right now"
+                    : "No active Kalshi grain markets returned right now"
                   : "Kalshi fetch returned warnings"}
             </p>
           </div>

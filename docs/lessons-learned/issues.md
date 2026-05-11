@@ -1,5 +1,22 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-11 - Kalshi open-only fetch can look unwired during no-market gaps
+
+**Symptom:** The Kalshi board showed zero markets even though the public API was reachable and returning commodity series data.
+
+**Root cause:** The first board fetch asked only for `status=open`. On 2026-05-11, Kalshi returned no open Corn/Soybean/Wheat markets, but did return latest finalized markets for all three grains. Treating "no open markets" as "no API data" made the integration look broken.
+
+**Fix status:** The fetch now reads each watched series without a status filter, separates open/active markets from latest returned markets, and shows latest markets as API proof only. Closed/finalized markets are labeled "Not used for line" and do not feed the Bushel Board Implied Line.
+
+**Prevention:**
+- Keep active/open market logic separate from latest returned API data.
+- Never use closed/finalized Kalshi contracts for live comparison math.
+- When open market count is zero, prove API health with latest-market metadata instead of mock prices.
+
+**Tags:** #kalshi #public-api #no-open-markets #live-data-boundary
+
+---
+
 ## 2026-05-10 - Kalshi comparison must not be framed as a Bushel Board market
 
 **Symptom:** The Kalshi idea naturally invites language like "our live prediction market" or "model fine-tuning in real time." That wording is ahead of the product and could mislead users, especially before Bushel Board has any stake/trade mechanics, reviewed examples, or training approval.

@@ -26,7 +26,7 @@ Usage:
   npx tsx scripts/capture-kalshi-commodity-snapshot.ts --help
 
 Output:
-  JSON to stdout with captured_at, watched series, normalized markets, and warnings.
+  JSON to stdout with captured_at, watched series, open markets, latest API markets, and warnings.
 
 Guardrails:
   - Read-only Kalshi public market metadata.
@@ -44,8 +44,10 @@ async function main() {
     source: "kalshi",
     mode: "read_only_calibration",
     watched_series: KALSHI_COMMODITY_SERIES,
-    market_count: snapshot.markets.length,
-    markets: snapshot.markets,
+    open_market_count: snapshot.markets.length,
+    latest_market_count: snapshot.latestMarkets.length,
+    open_markets: snapshot.markets,
+    latest_markets: snapshot.latestMarkets,
     warnings: snapshot.warnings,
   };
 

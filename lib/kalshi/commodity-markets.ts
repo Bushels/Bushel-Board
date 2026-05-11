@@ -120,6 +120,7 @@ export interface KalshiCommodityMarket {
 export interface KalshiCommoditySnapshot {
   capturedAt: string;
   markets: KalshiCommodityMarket[];
+  latestMarkets: KalshiCommodityMarket[];
   warnings: string[];
 }
 
@@ -129,6 +130,7 @@ export interface KalshiCalibrationRow {
   thesisCountry: "US" | "CA" | null;
   thesisDirection: "bullish" | "bearish" | "balanced" | "missing";
   featuredMarket: KalshiCommodityMarket | null;
+  latestMarket: KalshiCommodityMarket | null;
   bushelBoardLine: BushelBoardImpliedLine;
   marketLean: KalshiMarketLean;
   alignment: KalshiCalibrationAlignment;
@@ -277,11 +279,18 @@ function normalizeWhitespace(value: string | null): string | null {
 }
 
 function statusRank(status: string): number {
-  if (status === "open") return 0;
-  if (status === "unopened") return 1;
-  if (status === "paused") return 2;
+  if (isOpenKalshiStatus(status)) return 0;
+  if (status === "initialized" || status === "unopened") return 1;
+  if (status === "paused" || status === "inactive") return 2;
   if (status === "closed") return 3;
-  if (status === "settled" || status === "finalized") return 4;
+  if (
+    status === "determined" ||
+    status === "disputed" ||
+    status === "settled" ||
+    status === "finalized"
+  ) {
+    return 4;
+  }
   return 5;
 }
 
@@ -293,6 +302,16 @@ function timestampRank(value: string | null): number {
   if (!value) return Number.MAX_SAFE_INTEGER;
   const time = new Date(value).getTime();
   return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
+}
+
+function timestampMs(value: string | null): number {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isOpenKalshiStatus(status: string): boolean {
+  return status === "open" || status === "active";
 }
 
 export function normalizeKalshiCommodityMarket(
@@ -386,6 +405,27 @@ export function selectFeaturedKalshiMarkets(
       const horizonDelta = horizonRank(a.horizon) - horizonRank(b.horizon);
       if (horizonDelta !== 0) return horizonDelta;
       const closeDelta = timestampRank(a.closeTime) - timestampRank(b.closeTime);
+      if (closeDelta !== 0) return closeDelta;
+      return (b.volume ?? 0) - (a.volume ?? 0);
+    });
+    return sorted[0] ? [sorted[0]] : [];
+  });
+}
+
+export function selectLatestKalshiMarkets(
+  markets: KalshiCommodityMarket[],
+): KalshiCommodityMarket[] {
+  const byGrain = new Map<KalshiCommodityGrain, KalshiCommodityMarket[]>();
+  for (const market of markets) {
+    byGrain.set(market.grain, [...(byGrain.get(market.grain) ?? []), market]);
+  }
+
+  return KALSHI_CALIBRATION_GRAINS.flatMap((grain) => {
+    const candidates = byGrain.get(grain) ?? [];
+    const sorted = [...candidates].sort((a, b) => {
+      const statusDelta = statusRank(a.status) - statusRank(b.status);
+      if (statusDelta !== 0) return statusDelta;
+      const closeDelta = timestampMs(b.closeTime) - timestampMs(a.closeTime);
       if (closeDelta !== 0) return closeDelta;
       return (b.volume ?? 0) - (a.volume ?? 0);
     });
@@ -636,10 +676,14 @@ function explanationFor(
   thesisItem: ThesisBoardItem | null,
   thesisCountry: "US" | "CA" | null,
   market: KalshiCommodityMarket | null,
+  latestMarket: KalshiCommodityMarket | null,
   line: BushelBoardImpliedLine,
   alignment: KalshiCalibrationAlignment,
 ): string {
   if (!market) {
+    if (latestMarket) {
+      return `${grain} is watched and Kalshi API data is returning, but no active/open market is available. The latest returned market is ${latestMarket.status} and is shown as wiring proof only.`;
+    }
     return `${grain} is watched, but Kalshi returned no active commodity market for the configured weekly/monthly series.`;
   }
   if (!thesisItem || !thesisCountry) {
@@ -660,15 +704,20 @@ function explanationFor(
 export function buildKalshiCalibrationRows(
   comparisonRows: ThesisComparisonRow[],
   markets: KalshiCommodityMarket[],
+  latestMarkets: KalshiCommodityMarket[] = [],
 ): KalshiCalibrationRow[] {
   const comparisonByGrain = new Map(comparisonRows.map((row) => [row.grain, row]));
   const featuredMarkets = new Map(
     selectFeaturedKalshiMarkets(markets).map((market) => [market.grain, market]),
   );
+  const latestMarketsByGrain = new Map(
+    selectLatestKalshiMarkets(latestMarkets).map((market) => [market.grain, market]),
+  );
 
   return KALSHI_CALIBRATION_GRAINS.map((grain) => {
     const { item, country } = thesisFromComparisonRow(comparisonByGrain.get(grain));
     const featuredMarket = featuredMarkets.get(grain) ?? null;
+    const latestMarket = latestMarketsByGrain.get(grain) ?? null;
     const direction = thesisDirection(item);
     const marketLean = featuredMarket?.marketLean ?? "unpriced";
     const bushelBoardLine = buildBushelBoardImpliedLine(item, country, featuredMarket);
@@ -676,6 +725,11 @@ export function buildKalshiCalibrationRows(
     const warnings = [
       ...(featuredMarket?.warnings ?? []),
       ...bushelBoardLine.warnings,
+      ...(!featuredMarket && latestMarket
+        ? [
+            "Kalshi API returned a latest market for this grain, but it is not active/open and is not used for the Bushel Board Implied Line.",
+          ]
+        : []),
       "Kalshi is used as a calibration/comparison signal only; it is not fed back into thesis generation.",
       "Above-threshold contracts are directional proxies only when the strike is relevant to the current market.",
     ];
@@ -686,11 +740,20 @@ export function buildKalshiCalibrationRows(
       thesisCountry: country,
       thesisDirection: direction,
       featuredMarket,
+      latestMarket,
       bushelBoardLine,
       marketLean,
       alignment,
       alignmentLabel: alignmentLabel(alignment),
-      explanation: explanationFor(grain, item, country, featuredMarket, bushelBoardLine, alignment),
+      explanation: explanationFor(
+        grain,
+        item,
+        country,
+        featuredMarket,
+        latestMarket,
+        bushelBoardLine,
+        alignment,
+      ),
       warnings,
     };
   });
@@ -701,7 +764,7 @@ export async function fetchKalshiCommoditySnapshot({
   apiBaseUrl = KALSHI_API_BASE_URL,
   capturedAt = new Date().toISOString(),
   series = KALSHI_COMMODITY_SERIES,
-  status = "open",
+  status,
   timeoutMs = 8000,
   delayMs = 350,
 }: {
@@ -714,6 +777,7 @@ export async function fetchKalshiCommoditySnapshot({
   delayMs?: number;
 } = {}): Promise<KalshiCommoditySnapshot> {
   const markets: KalshiCommodityMarket[] = [];
+  const latestMarketCandidates: KalshiCommodityMarket[] = [];
   const warnings: string[] = [];
 
   for (const config of series) {
@@ -721,7 +785,9 @@ export async function fetchKalshiCommoditySnapshot({
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const url = new URL(`${apiBaseUrl}/markets`);
     url.searchParams.set("series_ticker", config.seriesTicker);
-    url.searchParams.set("status", status);
+    if (status) {
+      url.searchParams.set("status", status);
+    }
     url.searchParams.set("limit", "100");
     url.searchParams.set("mve_filter", "exclude");
 
@@ -735,7 +801,11 @@ export async function fetchKalshiCommoditySnapshot({
       }
       const payload = (await response.json()) as { markets?: KalshiRawMarket[] };
       for (const market of payload.markets ?? []) {
-        markets.push(normalizeKalshiCommodityMarket(config, market, capturedAt, apiBaseUrl));
+        const normalized = normalizeKalshiCommodityMarket(config, market, capturedAt, apiBaseUrl);
+        latestMarketCandidates.push(normalized);
+        if (status || isOpenKalshiStatus(normalized.status)) {
+          markets.push(normalized);
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -752,6 +822,7 @@ export async function fetchKalshiCommoditySnapshot({
   return {
     capturedAt,
     markets,
+    latestMarkets: selectLatestKalshiMarkets(latestMarketCandidates),
     warnings,
   };
 }

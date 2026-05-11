@@ -36,15 +36,19 @@ export default async function KalshiPage() {
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
           <Badge variant="outline" className="mb-4 border-canola/35 bg-canola/8 text-canola">
-            Live commodity calibration
+            {kalshiData.sourceStatus === "live"
+              ? "Live commodity calibration"
+              : "Kalshi API connection"}
           </Badge>
           <h1 className="max-w-4xl font-display text-3xl font-semibold tracking-normal text-foreground md:text-5xl">
-            Live Kalshi Commodity Insight
+            Kalshi Commodity Insight
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
             Corn, soybeans, and wheat Kalshi probabilities compared against the
             Bushel Board Implied Line. The line is built from current thesis direction,
             confidence, and ranked evidence without writing back into the thesis model.
+            Live YES lines appear only when Kalshi has an open market; latest API
+            markets are shown separately as source proof.
           </p>
         </div>
 
@@ -59,7 +63,9 @@ export default async function KalshiPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 px-5 text-sm leading-6 text-muted-foreground">
-            <p>Kalshi YES is the live market side when a supported market is active.</p>
+            <p>
+              Kalshi YES is the live market side only when a supported market is open.
+            </p>
             <p>Bushel Board Implied Line is deterministic and evidence-backed.</p>
             <p>Spread and liquidity are trust warnings, not proof of correctness.</p>
           </CardContent>
@@ -73,12 +79,12 @@ export default async function KalshiPage() {
               Kalshi Markets
             </CardDescription>
             <CardTitle className="text-2xl font-semibold tabular-nums">
-              {kalshiData.marketCount}
+              {kalshiData.marketCount} open
             </CardTitle>
           </CardHeader>
           <CardContent className="px-5 text-sm leading-6 text-muted-foreground">
-            Active markets returned from {kalshiData.watchedSeriesCount} watched
-            corn, soybean, and wheat series.
+            {kalshiData.latestMarketCount} latest API markets returned from{" "}
+            {kalshiData.watchedSeriesCount} watched corn, soybean, and wheat series.
           </CardContent>
         </Card>
 
