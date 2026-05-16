@@ -116,29 +116,50 @@ export interface ThesisBoardData {
 // The thesis board view remains packet-derived today, but this alias keeps both lanes type-linked.
 export type CanonicalThesisArtifact = ThesisArtifactV1;
 
-export const THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES = [
+export const THESIS_BOARD_V1_GRAIN_LANES = [
+  "Corn",
+  "Soybeans",
   "Wheat",
+  "Spring Wheat",
+  "Winter Wheat",
+  "Durum",
   "Canola",
   "Barley",
   "Oats",
-  "Corn",
-  "Soybeans",
-  "Peas",
-  "Lentils",
-  "Amber Durum",
-  "Flaxseed",
 ] as const;
 
-export const THESIS_BOARD_MAJOR_US_MARKET_NAMES = [
-  "Corn",
-  "Soybeans",
-  "Wheat",
-  "Oats",
-  "Barley",
-] as const;
+type ThesisBoardV1LaneSource = {
+  lane: (typeof THESIS_BOARD_V1_GRAIN_LANES)[number];
+  canadaSourceName?: string;
+  usSourceName?: string;
+  placeholderReason?: "source mapping needed";
+};
+
+const THESIS_BOARD_V1_LANE_SOURCE_MAP: readonly ThesisBoardV1LaneSource[] = [
+  { lane: "Corn", canadaSourceName: "Corn", usSourceName: "Corn" },
+  { lane: "Soybeans", canadaSourceName: "Soybeans", usSourceName: "Soybeans" },
+  { lane: "Wheat", canadaSourceName: "Wheat", usSourceName: "Wheat" },
+  { lane: "Spring Wheat", placeholderReason: "source mapping needed" },
+  { lane: "Winter Wheat", placeholderReason: "source mapping needed" },
+  { lane: "Durum", canadaSourceName: "Amber Durum" },
+  { lane: "Canola", canadaSourceName: "Canola" },
+  { lane: "Barley", canadaSourceName: "Barley", usSourceName: "Barley" },
+  { lane: "Oats", canadaSourceName: "Oats", usSourceName: "Oats" },
+];
+
+export const THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES = THESIS_BOARD_V1_LANE_SOURCE_MAP.map(
+  (lane) => lane.canadaSourceName,
+).filter((name): name is string => Boolean(name));
+
+export const THESIS_BOARD_MAJOR_US_MARKET_NAMES = THESIS_BOARD_V1_LANE_SOURCE_MAP.map(
+  (lane) => lane.usSourceName,
+).filter((name): name is string => Boolean(name));
 
 const MAJOR_CANADA_GRAIN_NAMES = new Set<string>(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES);
 const MAJOR_US_MARKET_NAMES = new Set<string>(THESIS_BOARD_MAJOR_US_MARKET_NAMES);
+const SOURCE_MAPPING_NEEDED_LANES = new Set<string>(
+  THESIS_BOARD_V1_LANE_SOURCE_MAP.filter((lane) => lane.placeholderReason).map((lane) => lane.lane),
+);
 
 export const EXPECTED_THESIS_BOARD_PACKET_COUNT =
   THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES.length + THESIS_BOARD_MAJOR_US_MARKET_NAMES.length;
@@ -860,6 +881,9 @@ function comparisonExplanation(
   if (!canada && us) {
     return `${grain} has a US packet in V1, but no matching Canada major-grain packet is modeled on this board.`;
   }
+  if (!canada && !us && SOURCE_MAPPING_NEEDED_LANES.has(grain)) {
+    return `${grain} is in V1 scope, but source mapping needed before class-specific evidence can be shown.`;
+  }
   if (!canada || !us) {
     return "No Canada or US packet is available for this V1 row.";
   }
@@ -887,16 +911,10 @@ export function buildMajorThesisComparisonRows(
       .filter((item) => isMajorUsThesisMarket(item.name))
       .map((item) => [item.name, item] as const),
   );
-  const orderedNames = [
-    ...THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES,
-    ...THESIS_BOARD_MAJOR_US_MARKET_NAMES.filter(
-      (name) => !MAJOR_CANADA_GRAIN_NAMES.has(name),
-    ),
-  ];
-
-  return orderedNames.map((grain) => {
-    const canada = canadaByName.get(grain) ?? null;
-    const us = usByName.get(grain) ?? null;
+  return THESIS_BOARD_V1_LANE_SOURCE_MAP.map((lane) => {
+    const grain = lane.lane;
+    const canada = lane.canadaSourceName ? (canadaByName.get(lane.canadaSourceName) ?? null) : null;
+    const us = lane.usSourceName ? (usByName.get(lane.usSourceName) ?? null) : null;
     const status = comparisonStatusFor(canada, us);
     const strongestBullPoints = [
       ...strongestPointsFor(canada, "CA", "bull"),

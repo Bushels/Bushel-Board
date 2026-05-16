@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES,
   THESIS_BOARD_MAJOR_US_MARKET_NAMES,
+  THESIS_BOARD_V1_GRAIN_LANES,
   buildCanadaThesisBoardItem,
   buildMajorThesisComparisonRows,
   buildUsThesisBoardItem,
@@ -295,19 +296,33 @@ describe("thesis board packet normalization", () => {
     expect(item.bearDrivers.map((driver) => driver.title)).toContain("Positioning pressure");
   });
 
-  it("uses the V1 major Canada grain list instead of every CGC label", () => {
-    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).toEqual([
+  it("locks the V1 board lane order to Kyle's major-grain scope", () => {
+    expect(THESIS_BOARD_V1_GRAIN_LANES).toEqual([
+      "Corn",
+      "Soybeans",
       "Wheat",
+      "Spring Wheat",
+      "Winter Wheat",
+      "Durum",
       "Canola",
       "Barley",
       "Oats",
+    ]);
+  });
+
+  it("uses only source-backed Canada packets needed for the V1 board", () => {
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).toEqual([
       "Corn",
       "Soybeans",
-      "Peas",
-      "Lentils",
+      "Wheat",
       "Amber Durum",
-      "Flaxseed",
+      "Canola",
+      "Barley",
+      "Oats",
     ]);
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Peas");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Lentils");
+    expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Flaxseed");
     expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Rye");
     expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Mustard Seed");
     expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).not.toContain("Canaryseed");
@@ -321,8 +336,8 @@ describe("thesis board packet normalization", () => {
       "Corn",
       "Soybeans",
       "Wheat",
-      "Oats",
       "Barley",
+      "Oats",
     ]);
     expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).not.toContain("Rice");
     expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).not.toContain("Cotton");
@@ -381,7 +396,20 @@ describe("thesis board packet normalization", () => {
     expect(wheatRow?.strongestBearPoints.map((point) => point.country)).toContain("US");
   });
 
-  it("marks Canada-only major rows when no US V1 overview market exists", () => {
+  it("builds comparison rows in exact V1 lane order with wheat-class placeholders", () => {
+    const rows = buildMajorThesisComparisonRows([], []);
+
+    expect(rows.map((row) => row.grain)).toEqual(THESIS_BOARD_V1_GRAIN_LANES);
+    expect(rows.find((row) => row.grain === "Spring Wheat")?.explanation).toContain(
+      "source mapping needed",
+    );
+    expect(rows.find((row) => row.grain === "Winter Wheat")?.explanation).toContain(
+      "source mapping needed",
+    );
+    expect(rows.find((row) => row.grain === "Amber Durum")).toBeUndefined();
+  });
+
+  it("labels Canadian Amber Durum source data as the Durum product lane", () => {
     const durumItem = buildCanadaThesisBoardItem(
       { name: "Amber Durum", slug: "amber-durum", defaultBushelWeightLbs: 60 },
       {
@@ -393,10 +421,11 @@ describe("thesis board packet normalization", () => {
     );
 
     const durumRow = buildMajorThesisComparisonRows([durumItem], []).find(
-      (row) => row.grain === "Amber Durum",
+      (row) => row.grain === "Durum",
     );
 
     expect(durumRow?.status).toBe("canada_only");
+    expect(durumRow?.canada).toBe(durumItem);
     expect(durumRow?.us).toBeNull();
     expect(durumRow?.explanation).toContain("no matching US overview market");
   });
