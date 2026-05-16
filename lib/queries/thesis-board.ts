@@ -3,6 +3,7 @@ import { US_OVERVIEW_MARKETS, type UsMarketDef } from "@/lib/constants/us-market
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { CURRENT_US_MARKET_YEAR } from "@/lib/queries/us-intelligence";
+import type { ThesisArtifactV1 } from "@/lib/thesis/artifact-contract";
 
 type JsonRecord = Record<string, unknown>;
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -110,6 +111,10 @@ export interface ThesisBoardData {
     blockerCount: number;
   };
 }
+
+// Canonical frozen artifact contract alignment for upcoming roundtable publish path.
+// The thesis board view remains packet-derived today, but this alias keeps both lanes type-linked.
+export type CanonicalThesisArtifact = ThesisArtifactV1;
 
 export const THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES = [
   "Wheat",
