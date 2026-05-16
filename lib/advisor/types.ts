@@ -50,10 +50,18 @@ export interface XSignalContext {
   source: string | null;
 }
 
+export interface DurableMemoryContext {
+  stableProfile: string[];
+  lastConfirmedPreferences: string[];
+  openQuestions: string[];
+  excludedCount: number;
+}
+
 export interface ChatContext {
   farmer: FarmerContext;
   knowledgeText: string | null;
   decisionSupportText: string | null;
+  durableMemory: DurableMemoryContext;
   logisticsSnapshot: Record<string, unknown> | null;
   cotSummary: string | null;
   priceContext: GrainPriceContext[];

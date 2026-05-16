@@ -51,6 +51,31 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
     ? `## Decision Guardrails\n${ctx.decisionSupportText}`
     : "No special decision guardrails.";
 
+  const memoryLines: string[] = [];
+  if (ctx.durableMemory.stableProfile.length > 0) {
+    memoryLines.push(
+      "Stable profile:\n" +
+        ctx.durableMemory.stableProfile.map((line) => `- ${line}`).join("\n"),
+    );
+  }
+  if (ctx.durableMemory.lastConfirmedPreferences.length > 0) {
+    memoryLines.push(
+      "Last confirmed preferences:\n" +
+        ctx.durableMemory.lastConfirmedPreferences.map((line) => `- ${line}`).join("\n"),
+    );
+  }
+  if (ctx.durableMemory.openQuestions.length > 0) {
+    memoryLines.push(
+      "Open questions to reconfirm:\n" +
+        ctx.durableMemory.openQuestions.map((line) => `- ${line}`).join("\n"),
+    );
+  }
+
+  const durableMemorySection =
+    memoryLines.length > 0
+      ? `## Durable Farmer Memory\n${memoryLines.join("\n\n")}`
+      : "## Durable Farmer Memory\nNo durable memory entries available.";
+
   const logisticsSection = ctx.logisticsSnapshot
     ? `## Logistics Snapshot\n${JSON.stringify(ctx.logisticsSnapshot, null, 2)}`
     : "No logistics data available.";
@@ -77,6 +102,8 @@ ${farmerCard}
 ${knowledgeSection}
 
 ${decisionSupportSection}
+
+${durableMemorySection}
 
 ${logisticsSection}
 
