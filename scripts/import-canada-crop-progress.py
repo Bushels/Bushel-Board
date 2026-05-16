@@ -348,9 +348,13 @@ def clean_alberta_crop_label(label: str) -> str:
     cleaned = re.sub(r"\s*,\s*May\s+[0-9]+$", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     if cleaned.startswith("Major Crops"):
-        return "Major Crops"
+        return "All Crops"
     if cleaned.startswith("All Crops"):
         return "All Crops"
+    if cleaned.startswith("5-year"):
+        return "5-year All Crops"
+    if cleaned.startswith("10-year"):
+        return "10-year All Crops"
     return cleaned.strip()
 
 
@@ -456,7 +460,12 @@ def parse_manitoba() -> tuple[list[dict[str, Any]], str]:
             value_pct=seeded,
             previous_year_pct=previous_seeded,
             five_year_avg_pct=average_seeded,
-            source_excerpt="Overall, progress remains very low, with approximately 2% of seeding completed.",
+            source_excerpt=(
+                f"Seeding Progression in 2026 Compared to Previous Years chart shows "
+                f"{seeded:.0f}% seeded as of {report_date}."
+                if seeded is not None
+                else "Seeding Progression in 2026 Compared to Previous Years chart."
+            ),
             confidence="high",
         )
     ]
@@ -595,7 +604,11 @@ def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]],
         else None
     )
 
-    table_start = text.find("Table 1: Alberta Seeding Progress")
+    table_heading = re.search(
+        r"Table 1:\s+Alberta(?:\s+Major\s+Crop)?\s+Seeding\s+Progress",
+        text,
+    )
+    table_start = table_heading.start() if table_heading else -1
     table_end = text.find("Source: AGI/AFSC Crop Reporting Survey", table_start)
     if table_start < 0 or table_end <= table_start:
         raise RuntimeError("Could not locate Alberta Table 1 seeding progress.")

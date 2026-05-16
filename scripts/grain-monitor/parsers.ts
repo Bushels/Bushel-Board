@@ -162,7 +162,11 @@ export function getCapacityLabelCropYear(cropYear: string): string {
 }
 
 export function parseLongDate(dateText: string): string {
-  const match = dateText.match(/^([A-Za-z]+) (\d{1,2}), (\d{4})$/);
+  const normalizedDateText = dateText.replace(
+    /\b(J\s+an|F\s+eb|M\s+ar|A\s+pr|M\s+ay|J\s+un|J\s+ul|A\s+ug|S\s+ep|O\s+ct|N\s+ov|D\s+ec)\b/gi,
+    (month) => month.replace(/\s+/g, ""),
+  );
+  const match = normalizedDateText.match(/^([A-Za-z]+) (\d{1,2}), (\d{4})$/);
   if (!match) {
     throw new Error(`Could not parse date: ${dateText}`);
   }
@@ -318,7 +322,7 @@ export function parsePageMetadata(page1Text: string): WeeklyReportMetadata {
   const coveredPeriod = metadataMatch[4];
   const { start, end } = parseCoveredPeriod(coveredPeriod);
 
-  const vesselAsOfMatch = flatPage1.match(/5\. Vessels as at ([A-Za-z]+ \d{1,2}, \d{4})/i);
+  const vesselAsOfMatch = flatPage1.match(/5\. Vessels as at ([A-Za-z]+(?:\s[A-Za-z]+)? \d{1,2}, \d{4})/i);
   const vesselWeekMatch = flatPage1.match(/Vancouver vessel lineup for Week (\d+)/i);
   const inboundMatch = flatPage1.match(
     /Vessels Inbound ([A-Za-z]+(?:\s[A-Za-z]+)? \d{1,2}, \d{4} to [A-Za-z]+(?:\s[A-Za-z]+)? \d{1,2}, \d{4}) \(Week (\d+)\)/i,
@@ -467,10 +471,10 @@ export function parseVesselsAndWeather(page1Text: string, page5Text: string) {
   }
 
   const vancouverLineupMatch = vancouverLineupBullet.match(
-    /Vancouver vessel lineup for Week (\d+) .*? to (\d+) vessels? \(The current one-year average at Vancouver is (\d+) vessels\)/i,
+    /Vancouver vessel lineup for Week (\d+) .*? (?:to|at) (\d+) vessels? \(The current one-year average at Vancouver is (\d+) vessels\)/i,
   );
   const princeRupertLineupMatch = princeRupertLineupBullet.match(
-    /Prince Rupert vessel lineup for Week (\d+) .*? to (\d+) vessels? \(The current one-year average at Prince Rupert is (\d+) vessels\)/i,
+    /Prince Rupert vessel lineup for Week (\d+) .*? (?:to|at) (\d+) vessels? \(The current one-year average at Prince Rupert is (\d+) vessels\)/i,
   );
   const clearedMatch = clearedBullet.match(
     /Vessels cleared from Vancouver (?:was|were) (\d+) and from Prince Rupert (?:was|were) (\d+) in Week (\d+)/i,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseVesselsAndWeather } from "../../scripts/grain-monitor/parsers";
+import { parsePageMetadata, parseVesselsAndWeather } from "../../scripts/grain-monitor/parsers";
 
 describe("parseVesselsAndWeather", () => {
   it("parses normal plural vessel lineup bullets", () => {
@@ -44,5 +44,51 @@ describe("parseVesselsAndWeather", () => {
     expect(parsed.vessels_inbound_next_week).toBe(14);
     expect(parsed.vessel_avg_one_year_vancouver).toBe(12);
     expect(parsed.vessel_avg_one_year_prince_rupert).toBe(2);
+  });
+
+  it("parses unchanged vessel lineups reported as remained at", () => {
+    const page1 = [
+      "\u2022 Vancouver vessel lineup for Week 40 2025-26 decreased to 19 vessels (The current one-year average at Vancouver is 20 vessels).",
+      "\u2022 Prince Rupert vessel lineup for Week 40 2025-26 remained at 2 vessels (The current one-year average at Prince Rupert is 2 vessels).",
+      "\u2022 Vessels cleared from Vancouver was 13 and from Prince Rupert was 2 in Week 40 2025-26.",
+      "Vessels Inbound M ay 11, 2026 to M ay 17, 2026 (Week 41)",
+      "13",
+      "2",
+    ].join("\n");
+
+    const parsed = parseVesselsAndWeather(page1, "");
+
+    expect(parsed.vessels_vancouver).toBe(19);
+    expect(parsed.vessels_prince_rupert).toBe(2);
+    expect(parsed.vessels_cleared_vancouver).toBe(13);
+    expect(parsed.vessels_cleared_prince_rupert).toBe(2);
+    expect(parsed.vessels_inbound_next_week).toBe(15);
+    expect(parsed.vessel_avg_one_year_vancouver).toBe(20);
+    expect(parsed.vessel_avg_one_year_prince_rupert).toBe(2);
+  });
+});
+
+describe("parsePageMetadata", () => {
+  it("parses split-month vessel as-of dates", () => {
+    const page1 = [
+      "Weekly Performance Update",
+      "May 12, 2026",
+      "For Grain Week 39 2025-26 CY",
+      "April 27, 2026 to May 03, 2026",
+      "5. Vessels as at M ay 10, 2026",
+      "\u2022 Vancouver vessel lineup for Week 40 2025-26 decreased to 19 vessels (The current one-year average at Vancouver is 20 vessels).",
+      "Vessels Inbound M ay 11, 2026 to M ay 17, 2026 (Week 41)",
+    ].join("\n");
+
+    expect(parsePageMetadata(page1)).toMatchObject({
+      grainWeek: 39,
+      reportDate: "2026-05-12",
+      coveredPeriodStart: "2026-04-27",
+      coveredPeriodEnd: "2026-05-03",
+      vesselAsOfDate: "2026-05-10",
+      vesselWeek: 40,
+      inboundPeriod: "M ay 11, 2026 to M ay 17, 2026",
+      inboundWeek: 41,
+    });
   });
 });
