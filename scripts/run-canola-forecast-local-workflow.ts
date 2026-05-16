@@ -16,6 +16,10 @@ import {
   type ForecastRunnerMode,
 } from "../lib/forecast-experiments/run-artifact";
 import { runCanolaForecastLocalWorkflow } from "../lib/forecast-experiments/local-workflow";
+import {
+  assertLocalWorkflowOutputFilename,
+  assertNoForbiddenWriteIntents,
+} from "../lib/forecast-experiments/no-write-guard";
 
 interface CliOptions {
   help: boolean;
@@ -90,6 +94,7 @@ function main(argv: string[]): void {
       created_at: requireDefined(options.createdAt, "created_at"),
     });
     const json = `${JSON.stringify(workflow, null, 2)}\n`;
+    assertNoForbiddenWriteIntents(workflow);
 
     if (options.outputDir && !options.dryRun) {
       writeWorkflowFiles(options.outputDir, workflow);
@@ -236,31 +241,16 @@ function writeWorkflowFiles(
   workflow: ReturnType<typeof runCanolaForecastLocalWorkflow>,
 ): void {
   mkdirSync(outputDir, { recursive: true });
-  writeFileSync(
-    join(outputDir, "source-records.json"),
-    `${JSON.stringify(workflow.source_records, null, 2)}\n`,
-    "utf8",
-  );
-  writeFileSync(
-    join(outputDir, "snapshot.json"),
-    `${JSON.stringify(workflow.snapshot, null, 2)}\n`,
-    "utf8",
-  );
-  writeFileSync(
-    join(outputDir, "prompt-pack.json"),
-    `${JSON.stringify(workflow.prompt_pack, null, 2)}\n`,
-    "utf8",
-  );
-  writeFileSync(
-    join(outputDir, "run-artifact.json"),
-    `${JSON.stringify(workflow.run_artifact, null, 2)}\n`,
-    "utf8",
-  );
-  writeFileSync(
-    join(outputDir, "workflow.json"),
-    `${JSON.stringify(workflow, null, 2)}\n`,
-    "utf8",
-  );
+  const writeAllowedJson = (fileName: string, value: unknown): void => {
+    assertLocalWorkflowOutputFilename(fileName);
+    writeFileSync(join(outputDir, fileName), `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  };
+
+  writeAllowedJson("source-records.json", workflow.source_records);
+  writeAllowedJson("snapshot.json", workflow.snapshot);
+  writeAllowedJson("prompt-pack.json", workflow.prompt_pack);
+  writeAllowedJson("run-artifact.json", workflow.run_artifact);
+  writeAllowedJson("workflow.json", workflow);
 }
 
 function readSourceRows(path: string | undefined): ApprovedForecastSourceRow[] {
