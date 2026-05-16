@@ -1,7 +1,7 @@
 # Multi-Grain Weekly Thesis Harness Handoff
 
 **Created:** 2026-05-10 MT
-**Status:** Phase 3 start packet
+**Status:** background reference; product focus narrowed 2026-05-16 to the Bullish/Bearish major-grains board (`docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`)
 **Prior foundation:** Canola forecast/replay harness, CGC point-in-time snapshot capture, Codex weekly automations
 
 ## Direct Answer

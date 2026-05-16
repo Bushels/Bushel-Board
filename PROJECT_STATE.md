@@ -1,21 +1,22 @@
 # Bushel Board - Current State
 
-**Last verified implementation checkpoint:** Kalshi public API fallback-market proof (`b8ebf05`) plus parked-nav/docs update on branch `codex/data-layer-foundation-v1`
-**As of:** 2026-05-11
+**Last verified implementation checkpoint:** USDA export-sales refresh + thesis cache verification on branch `codex/data-layer-foundation-v1`
+**As of:** 2026-05-16
 
 ## Active task
-Current focus is moving back to the original **multi-grain weekly thesis harness** lane. The Kalshi Prediction Board is parked as an ongoing feature until Kalshi public grain commodity markets reopen for Corn, Soybeans, or Wheat.
+Current focus is the **Bullish/Bearish board for the first major grain lanes only**: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats. Treat this as the next product lane, not a Kalshi lane and not a minor-grain expansion.
 
-Completed local work in this session:
+Completed local work since the Kalshi parking update:
 
+- Kalshi Prediction Board remains parked: public API wiring is proven, but no open Corn/Soybeans/Wheat markets were available at the last Kalshi check. `/kalshi` remains available only as read-only API proof.
 - Phase 3A multi-grain harness refactor: shared grain profiles and grain-agnostic forecast harness path while preserving Canola compatibility. This remains no-write and not connected to production/dashboard writes.
-- Phase 3B `/thesis` major-grain matrix: Canada major grains plus US overview markets only, with CA/US direction indicators, confidence, strongest bull/bear points, and country-difference explanations. Smaller CGC labels and US rice/cotton are excluded from V1.
-- Phase 3C Kalshi Prediction Board V1: read-only Kalshi commodity calibration cards for Corn, Soybeans, and Wheat weekly/monthly series. It fetches public Kalshi metadata, normalizes YES probability/spread/liquidity, and compares against thesis direction without feeding thesis prompts, scorecards, training examples, or production write paths.
-- 2026-05-11 Kalshi API wiring proof: the board now separates open markets from latest returned API markets. Live result at verification time was `0` open grain markets and `3` latest returned finalized grain markets. Closed/finalized markets are shown only as API wiring proof and are not used for the Bushel Board Implied Line.
+- Phase 3B `/thesis` major-grain matrix exists, but the product scope is now narrowed further for V1: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Pulses, flax, smaller CGC labels, US rice/cotton, and Kalshi are excluded from the next pass.
+- USDA export-sales freshness was repaired 2026-05-16. Live Supabase now has `usda_export_sales.week_ending = 2026-05-07` with 5 rows / 5 commodities for the latest week: ALL WHEAT, CORN, SOYBEANS, BARLEY, OATS.
+- `thesis_packet_cache` was force-refreshed after the export-sales import. Verification: 21 cache rows, `max(refreshed_at)=2026-05-16 18:19:28+00`, `max(source_run_watermark)=2026-05-16 18:17:52+00`.
 
-Kalshi is now demoted from visible dashboard navigation and `/overview` promotion while it is parked. The `/kalshi` route remains available for direct verification and future restart.
+Primary next-session handoff: `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
 
-Primary next-session handoff: `docs/plans/2026-05-10-multi-grain-weekly-thesis-harness-handoff.md`.
+Background harness handoff: `docs/plans/2026-05-10-multi-grain-weekly-thesis-harness-handoff.md`.
 
 Parked Kalshi handoff: `docs/plans/2026-05-10-kalshi-prediction-board-next-session.md`.
 
@@ -24,9 +25,10 @@ Existing automations remain unchanged: `canola-predictive-harness-no-write-revie
 GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo view` resolves this checkout as `Bushels/Bushel-Board`, default branch `master`.
 
 ## Known blockers
-- Kalshi public API wiring is proven, but it currently returns `0` open Corn/Soybeans/Wheat markets. The Kalshi lane is parked until open grain commodity contracts return.
+- Kalshi public API wiring is proven, but it returned `0` open Corn/Soybeans/Wheat markets at the last check. The Kalshi lane is parked until open grain commodity contracts return.
 - Closed/finalized Kalshi markets may be shown as latest API proof only. They must not drive live probability comparisons or the Bushel Board Implied Line.
 - Wording boundary: Bushel Board is not a live prediction market yet. Do not use trading/advice copy, and do not imply a model-training/fine-tuning loop from unreviewed Kalshi comparisons.
+- `npm run collect:export-sales` successfully imported current USDA data, but the wrapper-triggered cache refresh skipped until `npm run refresh-thesis-cache -- --force` was run. Patch next: collector-triggered thesis-cache refreshes should either force by default or compare against latest `source_runs` directly instead of trusting the cached watermark.
 - Predictive harness production integration still requires review before release. Codex Automation now owns the scheduled no-write review path; Hermes automation is out. The primary learning loop is weekly thesis review against next-week evidence; price scoring is optional and must not block thesis-review learning while grain price history is incomplete. Kyle approved future harness phases and patches, but do not treat that as permission to skip review, write sidecar/production data, use private farmer/operator/chat data, or connect production dashboard reads before the review step is complete.
 - `/api/pipeline/run` is permanently tombstoned as `grok_workflow_deprecated`; do not use it for CGC imports or analysis recovery.
 - Grok-backed farm summary generation is tombstoned; personalized summary refresh needs a Claude/Codex replacement writer before it is current again.
@@ -37,13 +39,14 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 - `npx tsc --noEmit --pretty false` currently fails on existing non-harness test type debt in seeding glyph/progress fixtures, overview supply fixture shape, and Bushy/weather tests. The forecast harness suite and `npm run build` pass.
 
 ## Next action
-1. Open a new clean session with `docs/plans/2026-05-10-multi-grain-weekly-thesis-harness-handoff.md`.
-2. Resume the original multi-grain weekly thesis harness direction, not the Kalshi lane.
-3. Leave Kalshi parked unless a fresh `npx tsx scripts/capture-kalshi-commodity-snapshot.ts` run shows `open_market_count > 0` for Corn, Soybeans, or Wheat.
-4. If Kalshi is resumed later, keep the layer read-only: no Supabase writes, no trading path, no thesis-prompt feedback, no scorecard/training writes.
-5. Use Gemini as adversarial reviewer for probability math and wording before treating any resumed Kalshi board as ready.
+1. Open a new clean session with `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
+2. Build the Bullish/Bearish board around this first major-lane scope only: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats.
+3. Do not expand to Peas, Lentils, Flaxseed, Rye, Mustard Seed, Canaryseed, Chick Peas, Sunflower, Beans, US rice/cotton, global commodity boards, or Kalshi until this board is polished and verified.
+4. First patch the collector-triggered thesis-cache refresh behavior found during the export-sales repair, then continue the board UI/data polish.
+5. Leave Kalshi parked unless a fresh `npx tsx scripts/capture-kalshi-commodity-snapshot.ts` run shows `open_market_count > 0` for Corn, Soybeans, or Wheat.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-16: Repaired stale USDA export-sales source data and refreshed thesis packets. Live Supabase now has export sales through `2026-05-07` for ALL WHEAT, CORN, SOYBEANS, BARLEY, and OATS; `thesis_packet_cache` was force-refreshed to 21 rows. Next product focus is narrowed to the Bullish/Bearish first major-lane board only: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats.
 - 2026-05-10: Canola predictive harness Patch Set 2G added a CGC historical replay input builder and first real public-data replay bundle from `data\CGC Weekly\gsw-shg-en.csv`. The tracked bundle covers 2025-2026 Weeks 1-3, produced 0 historical training candidates and 3 review-only revision-tainted labels, and rebuilds to package hash `sha256:00d5b0053a99929343355a77ef41af66012952bbe4c3bd20cd46340ee1cf5122`. The builder handles quoted CGC numbers, requires explicit timing assumptions, records estimated publication availability assumptions, and keeps historical candidates separate from forward calibration. Gemini correctly flagged annual-CGC revision risk and fake-thesis-verdict overclaim; the bundle is now review-only unless point-in-time source certification is explicit.
 - 2026-05-10: Canola predictive harness Patch Set 2H added point-in-time CGC weekly snapshot capture. `npx tsx scripts/capture-cgc-weekly-snapshot.ts --output-dir "data\CGC Weekly Snapshots"` captured the current public CGC CSV as local ignored artifacts for 2025-2026 Week 39, week ending 2026-05-03, with raw CSV hash `sha256:6d75c3b7fda56997416ce0234228809a63325bfa30538a916aa1f03484d20c2a`. A second run returned `already_current`, proving idempotency. This is the first clean point-in-time source capture for future historical replay.
 - 2026-05-10: Created active Codex Automation `cgc-weekly-point-in-time-snapshot-capture` for Thursdays at 1:25 PM MT. It captures the as-published CGC weekly CSV before the 1:35 PM importer, reports hashes/paths, and keeps raw snapshots local-only and ignored by git.

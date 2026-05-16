@@ -76,6 +76,8 @@ Gemini package-level audit timed out with no usable output. Treat the completed 
 
 ## Where This Leaves Off
 
+2026-05-16 update: the old release-mechanics note below is superseded for the next session. The active continuation point is now `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`: first major-lane scope only (Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, Oats), Kalshi parked, pulses/flax/minor grains excluded, USDA export sales current through `2026-05-07`, and thesis cache force-refreshed to 21 rows.
+
 - Commit, push, and Vercel deploy are the remaining release mechanics for this wrap-up.
 - After deploy, verify `/thesis`, `/overview`, and `/seeding` from the deployed URL.
 - Point scheduled collector routines to the new `npm run collect:*` wrappers.
