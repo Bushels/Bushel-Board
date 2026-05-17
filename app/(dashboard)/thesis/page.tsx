@@ -55,20 +55,22 @@ function confidenceClass(confidence: string): string {
 }
 
 function stanceClass(score: number): string {
-  if (score >= 20) return "text-prairie";
-  if (score <= -20) return "text-amber-700 dark:text-amber-300";
+  if (score > 0) return "text-prairie";
+  if (score < 0) return "text-amber-700 dark:text-amber-300";
   return "text-muted-foreground";
 }
 
 function directionalIndicatorLabel(score: number): string {
-  if (score > 0) return "Bullish indicator";
-  if (score < 0) return "Bearish indicator";
-  return "Balanced indicator";
+  if (score >= 20) return "Bull tilt";
+  if (score > 0) return "Lean bull";
+  if (score <= -20) return "Bear tilt";
+  if (score < 0) return "Lean bear";
+  return "Balanced";
 }
 
 function stanceFillClass(score: number): string {
-  if (score >= 20) return "bg-prairie";
-  if (score <= -20) return "bg-amber-600";
+  if (score > 0) return "bg-prairie";
+  if (score < 0) return "bg-amber-600";
   return "bg-muted-foreground";
 }
 
@@ -208,6 +210,10 @@ function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
           <p className="text-sm leading-6 text-muted-foreground">
             Canada and US major-grain calls in one read. Country markers show where
             the evidence differs; V1 excludes smaller CGC labels plus US rice and cotton.
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Score guide: negative leans bearish, positive leans bullish; confidence reflects source
+            completeness and freshness, not price-advice certainty.
           </p>
         </div>
         <Badge variant="outline" className="w-fit border-border bg-white/60">
@@ -541,7 +547,7 @@ export default async function ThesisPage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          label="Markets"
+          label="Source Packets"
           value={String(data.totals.itemCount)}
           detail={`${data.canadaItems.length} Canadian grains and ${data.usItems.length} US markets.`}
           icon={BarChart3}

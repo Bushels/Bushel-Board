@@ -199,6 +199,37 @@ describe("thesis board packet normalization", () => {
     expect(titles).not.toContain("Tight carryout context");
   });
 
+  it("labels modest non-zero scores as lean calls instead of hiding them as balanced", () => {
+    const leanBull = buildCanadaThesisBoardItem(canola, {
+      prices: [
+        {
+          settlement_price: 728.7,
+          change_pct: 1.2,
+          currency: "CAD",
+          unit: "tonne",
+          price_date: "2026-05-08",
+        },
+      ],
+      freshness: [{ source_name: "grain_prices", freshness_status: "strong" }],
+    });
+    const leanBear = buildCanadaThesisBoardItem(canola, {
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 500,
+        },
+        exports: {
+          current_week_kt: 20,
+        },
+      },
+      freshness: [{ source_name: "cgc_observations", freshness_status: "strong" }],
+    });
+
+    expect(leanBull.stanceScore).toBe(12);
+    expect(leanBull.stanceLabel).toBe("Lean bull");
+    expect(leanBear.stanceScore).toBe(-18);
+    expect(leanBear.stanceLabel).toBe("Lean bear");
+  });
+
   it("caps driver confidence when the source freshness row is stale", () => {
     const item = buildCanadaThesisBoardItem(canola, {
       demand: {

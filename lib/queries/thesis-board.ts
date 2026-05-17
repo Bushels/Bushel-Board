@@ -315,8 +315,10 @@ function addDriver(
 function stanceLabel(score: number): string {
   if (score >= 60) return "Strong bull tilt";
   if (score >= 20) return "Bull tilt";
+  if (score > 0) return "Lean bull";
   if (score <= -60) return "Strong bear tilt";
   if (score <= -20) return "Bear tilt";
+  if (score < 0) return "Lean bear";
   return "Balanced";
 }
 
@@ -795,8 +797,8 @@ function driverConfidenceWeight(confidence: ThesisConfidence): number {
 
 function stanceDirection(item: ThesisBoardItem | null): "bullish" | "bearish" | "balanced" | "missing" {
   if (!item) return "missing";
-  if (item.stanceScore >= 20) return "bullish";
-  if (item.stanceScore <= -20) return "bearish";
+  if (item.stanceScore > 0) return "bullish";
+  if (item.stanceScore < 0) return "bearish";
   return "balanced";
 }
 

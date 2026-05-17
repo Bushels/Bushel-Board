@@ -9,8 +9,10 @@ import { loadEnvConfig } from "@next/env";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { parseArgs } from "node:util";
 
-import { ALL_GRAINS } from "@/lib/constants/grains";
-import { US_OVERVIEW_MARKETS } from "@/lib/constants/us-markets";
+import {
+  THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES,
+  THESIS_BOARD_MAJOR_US_MARKET_NAMES,
+} from "@/lib/queries/thesis-board";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { CURRENT_US_MARKET_YEAR } from "@/lib/queries/us-intelligence";
 import { writeSourceRun } from "./source-run";
@@ -28,8 +30,8 @@ Options:
   --crop-year <year>       Canada crop year. Default: current crop year
   --grain-week <week>      Optional CGC grain week. Default: latest packet week
   --market-year <year>     US market year. Default: current US market year
-  --canada-grains <list>   Comma-separated Canada grain names. Default: all dashboard grains
-  --us-markets <list>      Comma-separated US market names. Default: all overview markets
+  --canada-grains <list>   Comma-separated Canada grain names. Default: V1 board source-backed Canada grains
+  --us-markets <list>      Comma-separated US market names. Default: V1 board source-backed US markets
   --force                  Refresh even when cache already matches source_runs
   --help                   Show this help
 
@@ -179,11 +181,11 @@ async function main() {
   const marketYear = Number(values["market-year"] ?? CURRENT_US_MARKET_YEAR);
   const canadaGrains = listValue(
     values["canada-grains"],
-    ALL_GRAINS.map((grain) => grain.name),
+    [...THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES],
   );
   const usMarkets = listValue(
     values["us-markets"],
-    US_OVERVIEW_MARKETS.map((market) => market.name),
+    [...THESIS_BOARD_MAJOR_US_MARKET_NAMES],
   );
   const expectedCount = canadaGrains.length + usMarkets.length;
 
