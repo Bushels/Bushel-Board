@@ -17,6 +17,7 @@ export type ThesisComparisonStatus =
   | "aligned_bearish"
   | "aligned_balanced"
   | "mixed"
+  | "mapping_needed"
   | "canada_only"
   | "us_only";
 
@@ -866,6 +867,7 @@ function comparisonStatusLabel(status: ThesisComparisonStatus): string {
     aligned_bearish: "Aligned bear",
     aligned_balanced: "Both balanced",
     mixed: "Country split",
+    mapping_needed: "Mapping needed",
     canada_only: "Canada only",
     us_only: "US only",
   };
@@ -917,7 +919,10 @@ export function buildMajorThesisComparisonRows(
     const grain = lane.lane;
     const canada = lane.canadaSourceName ? (canadaByName.get(lane.canadaSourceName) ?? null) : null;
     const us = lane.usSourceName ? (usByName.get(lane.usSourceName) ?? null) : null;
-    const status = comparisonStatusFor(canada, us);
+    const status =
+      !canada && !us && SOURCE_MAPPING_NEEDED_LANES.has(grain)
+        ? "mapping_needed"
+        : comparisonStatusFor(canada, us);
     const strongestBullPoints = [
       ...strongestPointsFor(canada, "CA", "bull"),
       ...strongestPointsFor(us, "US", "bull"),

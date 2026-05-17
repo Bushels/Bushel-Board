@@ -431,12 +431,15 @@ describe("thesis board packet normalization", () => {
     const rows = buildMajorThesisComparisonRows([], []);
 
     expect(rows.map((row) => row.grain)).toEqual(THESIS_BOARD_V1_GRAIN_LANES);
-    expect(rows.find((row) => row.grain === "Spring Wheat")?.explanation).toContain(
-      "source mapping needed",
-    );
-    expect(rows.find((row) => row.grain === "Winter Wheat")?.explanation).toContain(
-      "source mapping needed",
-    );
+    const springWheatRow = rows.find((row) => row.grain === "Spring Wheat");
+    const winterWheatRow = rows.find((row) => row.grain === "Winter Wheat");
+
+    expect(springWheatRow?.status).toBe("mapping_needed");
+    expect(springWheatRow?.statusLabel).toBe("Mapping needed");
+    expect(springWheatRow?.explanation).toContain("source mapping needed");
+    expect(winterWheatRow?.status).toBe("mapping_needed");
+    expect(winterWheatRow?.statusLabel).toBe("Mapping needed");
+    expect(winterWheatRow?.explanation).toContain("source mapping needed");
     expect(rows.find((row) => row.grain === "Amber Durum")).toBeUndefined();
   });
 

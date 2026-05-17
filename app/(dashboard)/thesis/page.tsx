@@ -84,6 +84,9 @@ function comparisonClass(status: ThesisComparisonRow["status"]): string {
   if (status === "mixed") {
     return "border-canola/30 bg-canola/10 text-canola";
   }
+  if (status === "mapping_needed") {
+    return "border-border bg-muted/60 text-muted-foreground";
+  }
   return "border-border bg-muted/50 text-muted-foreground";
 }
 
@@ -198,6 +201,96 @@ function ComparisonPointList({
         </div>
       ))}
     </div>
+  );
+}
+
+function rowAverageScore(row: ThesisComparisonRow): number | null {
+  const scores = [row.canada?.stanceScore, row.us?.stanceScore].filter(
+    (score): score is number => typeof score === "number",
+  );
+  if (scores.length === 0) return null;
+  return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+}
+
+function signedAverageScore(row: ThesisComparisonRow): string {
+  const score = rowAverageScore(row);
+  if (score === null) return "no score";
+  return score > 0 ? `+${score}` : String(score);
+}
+
+function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
+  const scoredRows = rows
+    .map((row) => ({ row, score: rowAverageScore(row) }))
+    .filter((entry): entry is { row: ThesisComparisonRow; score: number } => entry.score !== null);
+  const strongestBull = scoredRows.reduce<(typeof scoredRows)[number] | null>(
+    (best, entry) => (entry.score > 0 && (!best || entry.score > best.score) ? entry : best),
+    null,
+  );
+  const strongestBear = scoredRows.reduce<(typeof scoredRows)[number] | null>(
+    (best, entry) => (entry.score < 0 && (!best || entry.score < best.score) ? entry : best),
+    null,
+  );
+  const countrySplits = rows.filter((row) => row.status === "mixed" && (row.canada || row.us)).length;
+  const sourceMappingGaps = rows.filter((row) => !row.canada && !row.us).length;
+
+  const leadLine = strongestBull
+    ? `${strongestBull.row.grain} has the cleanest bull lean at ${signedAverageScore(strongestBull.row)}.`
+    : "No grain has a clean bull lean in the current packets.";
+  const riskLine = strongestBear
+    ? `${strongestBear.row.grain} has the clearest bear pressure at ${signedAverageScore(strongestBear.row)}.`
+    : "No grain has a clean bear lean in the current packets.";
+
+  return (
+    <Card className="rounded-lg border-canola/30 bg-gradient-to-br from-canola/10 via-card to-prairie/8 py-5 shadow-sm">
+      <CardHeader className="gap-3 px-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <Badge variant="outline" className="mb-3 border-canola/35 bg-background/70 text-canola">
+              Farmer read first
+            </Badge>
+            <CardTitle className="font-display text-2xl">Top takeaway</CardTitle>
+            <CardDescription className="mt-2 max-w-3xl text-sm leading-6">
+              One pass before the big table: what looks most constructive, what needs caution,
+              and where Canada/US disagree.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2 lg:justify-end">
+            <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+              {countrySplits} country split{countrySplits === 1 ? "" : "s"}
+            </Badge>
+            <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+              {sourceMappingGaps} mapping gap{sourceMappingGaps === 1 ? "" : "s"}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 px-5 lg:grid-cols-3">
+        <div className="rounded-lg border border-prairie/20 bg-background/70 p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-prairie">
+            <TrendingUp className="h-4 w-4" aria-hidden="true" />
+            Most constructive
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">{leadLine}</p>
+        </div>
+        <div className="rounded-lg border border-amber-600/20 bg-background/70 p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+            <TrendingDown className="h-4 w-4" aria-hidden="true" />
+            Most cautious
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">{riskLine}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-background/70 p-4">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Flag className="h-4 w-4 text-canola" aria-hidden="true" />
+            How to use it
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Treat this as a scouting sheet, not a trade signal. Start with split markets, then
+            open the row drivers before changing a pricing plan.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -575,6 +668,8 @@ export default async function ThesisPage() {
           icon={DatabaseZap}
         />
       </section>
+
+      <TopTakeawayCard rows={data.comparisonRows} />
 
       <MajorThesisMatrix rows={data.comparisonRows} />
 
