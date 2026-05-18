@@ -578,6 +578,108 @@ function SummaryCard({
   );
 }
 
+function CompactMarketSignal({
+  item,
+  country,
+}: {
+  item: ThesisBoardItem | null;
+  country: "CA" | "US";
+}) {
+  if (!item) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground">
+        {country}: source mapping needed
+      </div>
+    );
+  }
+
+  const halfWidth = Math.min(50, Math.abs(item.stanceScore) / 2);
+  const positive = item.stanceScore > 0;
+
+  return (
+    <Link
+      href={item.lane === "canada" ? `/grain/${item.slug}` : `/us/${item.slug}`}
+      className="block rounded-md border border-border bg-background px-3 py-2 transition-colors hover:border-canola/40 hover:bg-canola/5"
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-muted-foreground">{country}</span>
+        <span className={cn("text-lg font-semibold tabular-nums", stanceClass(item.stanceScore))}>
+          {item.stanceScore > 0 ? `+${item.stanceScore}` : item.stanceScore}
+        </span>
+      </div>
+      <div className="relative h-2 rounded-full bg-muted" aria-label={`${country} stance score ${item.stanceScore}`}>
+        <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
+        <span
+          className={cn(
+            "absolute top-0 h-full rounded-full",
+            stanceFillClass(item.stanceScore),
+            positive ? "left-1/2" : "right-1/2",
+          )}
+          style={{ width: `${halfWidth}%` }}
+          aria-hidden="true"
+        />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{item.stanceLabel}</span>
+        <span>{item.confidenceScore}%</span>
+      </div>
+    </Link>
+  );
+}
+
+function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-display text-2xl font-semibold">All Grains at a Glance</h2>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            Quick scan first: every V1 grain, Canada and US side by side, with the current
+            bull/bear lean. The reasoning breakdown stays below for the rows worth digging into.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-border bg-white/60">
+          {rows.length} grain rows
+        </Badge>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div className="grid grid-cols-1 border-b border-border bg-muted/35 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:gap-4">
+          <span>Grain</span>
+          <span className="hidden md:block">Canada</span>
+          <span className="hidden md:block">US</span>
+          <span className="hidden md:block">Read</span>
+        </div>
+        <div className="divide-y divide-border/70">
+          {rows.map((row) => (
+            <div
+              key={`quick-${row.grain}`}
+              className="grid gap-3 px-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:items-center md:gap-4"
+            >
+              <div>
+                <p className="font-semibold text-foreground">{row.grain}</p>
+                <Badge variant="outline" className={cn("mt-2 md:hidden", comparisonClass(row.status))}>
+                  {row.statusLabel}
+                </Badge>
+              </div>
+              <CompactMarketSignal item={row.canada} country="CA" />
+              <CompactMarketSignal item={row.us} country="US" />
+              <div className="hidden space-y-2 md:block">
+                <Badge variant="outline" className={comparisonClass(row.status)}>
+                  {row.statusLabel}
+                </Badge>
+                <p className="text-xs leading-5 text-muted-foreground">{row.explanation}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function EmptyLaneState({ label }: { label: string }) {
   return (
     <Card className="rounded-lg border-dashed py-6 shadow-none">
@@ -668,6 +770,8 @@ export default async function ThesisPage() {
           icon={DatabaseZap}
         />
       </section>
+
+      <ThesisQuickGlanceBoard rows={data.comparisonRows} />
 
       <TopTakeawayCard rows={data.comparisonRows} />
 
