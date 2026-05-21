@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { CURRENT_US_MARKET_YEAR } from "@/lib/queries/us-intelligence";
 import type { ThesisArtifactV1 } from "@/lib/thesis/artifact-contract";
+import { getVikingL2Context, type VikingL2Chunk } from "@/lib/knowledge/viking-l2";
 
 type JsonRecord = Record<string, unknown>;
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
