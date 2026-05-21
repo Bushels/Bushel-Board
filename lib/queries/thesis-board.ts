@@ -74,6 +74,7 @@ export interface ThesisBoardItem {
   sourceCount: number;
   strongSourceCount: number;
   staleSourceCount: number;
+  vikingL2Chunks: VikingL2Chunk[];
 }
 
 export interface ThesisComparisonPoint {
@@ -576,6 +577,7 @@ export function buildCanadaThesisBoardItem(
     bearDrivers,
     freshness,
     warnings,
+    vikingL2Chunks: [],
     ...sourceCounts(freshness),
   };
 }
@@ -787,8 +789,64 @@ export function buildUsThesisBoardItem(
     bearDrivers,
     freshness,
     warnings,
+    vikingL2Chunks: [],
     ...sourceCounts(freshness),
   };
+}
+
+function vikingL2TopicsForUsItem(item: ThesisBoardItem): Parameters<typeof getVikingL2Context>[0]["topics"] {
+  const sourceNames = new Set(item.freshness.map((row) => row.sourceName));
+  const driverText = [...item.bullDrivers, ...item.bearDrivers]
+    .map((driver) => `${driver.title} ${driver.body} ${driver.sourceName}`)
+    .join(" ")
+    .toLowerCase();
+  const topics: NonNullable<Parameters<typeof getVikingL2Context>[0]["topics"]> = [];
+
+  if (sourceNames.has("usda_wasde_mapped") || driverText.includes("wasde")) {
+    topics.push("wasde_revisions");
+  }
+  if (sourceNames.has("usda_crop_progress") || driverText.includes("crop")) {
+    topics.push("crop_progress_signals");
+  }
+  if (sourceNames.has("usda_export_sales") || driverText.includes("export")) {
+    topics.push("export_sales_pace");
+  }
+  if (sourceNames.has("cftc_cot_positions") || driverText.includes("managed money")) {
+    topics.push("cot_positioning");
+  }
+
+  return topics.length > 0 ? topics : ["grain_specifics", "market_structure"];
+}
+
+function vikingL2KeywordsForUsItem(item: ThesisBoardItem): string[] {
+  const words = new Set<string>([item.name]);
+  for (const driver of [...item.bullDrivers, ...item.bearDrivers]) {
+    for (const candidate of [driver.title, driver.sourceName, driver.metricLabel]) {
+      candidate
+        .split(/[^A-Za-z]+/)
+        .map((word) => word.toLowerCase())
+        .filter((word) => word.length >= 5)
+        .slice(0, 4)
+        .forEach((word) => words.add(word));
+    }
+  }
+  return [...words].slice(0, 12);
+}
+
+async function enrichUsThesisBoardItemsWithVikingL2(
+  items: ThesisBoardItem[],
+): Promise<ThesisBoardItem[]> {
+  return Promise.all(
+    items.map(async (item) => {
+      const chunks = await getVikingL2Context({
+        grain: item.name,
+        topics: vikingL2TopicsForUsItem(item),
+        keywords: vikingL2KeywordsForUsItem(item),
+        maxChunks: 3,
+      });
+      return { ...item, vikingL2Chunks: chunks };
+    }),
+  );
 }
 
 function driverConfidenceWeight(confidence: ThesisConfidence): number {
@@ -1007,7 +1065,7 @@ async function fetchUsPacket(
   return buildUsThesisBoardItem(market, data);
 }
 
-function buildBoardData({
+async function buildBoardData({
   generatedAt,
   packetMode,
   cacheStatus,
@@ -1023,9 +1081,11 @@ function buildBoardData({
   cacheItemCount: number;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
-}): ThesisBoardData {
+}): Promise<ThesisBoardData> {
   const majorCanadaItems = canadaItems.filter((item) => isMajorCanadaThesisGrain(item.name));
-  const majorUsItems = usItems.filter((item) => isMajorUsThesisMarket(item.name));
+  const majorUsItems = await enrichUsThesisBoardItemsWithVikingL2(
+    usItems.filter((item) => isMajorUsThesisMarket(item.name)),
+  );
   const allItems = [...majorCanadaItems, ...majorUsItems];
   return {
     generatedAt,
@@ -1093,7 +1153,7 @@ function findUsMarket(packet: JsonRecord, index: number): UsMarketDef {
 function buildBoardDataFromCachedPackets(
   packets: CachedBoardPackets,
   cacheStatus: ThesisBoardData["cacheStatus"],
-): ThesisBoardData {
+): Promise<ThesisBoardData> {
   const canadaItems = packets.canadaPackets.map((packet, index) =>
     buildCanadaThesisBoardItem(findCanadaGrain(packet, index), packet),
   );
@@ -1158,7 +1218,7 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
     usItems.push(await fetchUsPacket(supabase, market));
   }
 
-  return buildBoardData({
+  return await buildBoardData({
     generatedAt: new Date().toISOString(),
     packetMode: "live_rpc_fallback",
     cacheStatus: "fallback",
@@ -1174,7 +1234,7 @@ export async function getThesisBoardData(): Promise<ThesisBoardData> {
   const cachedPackets = await fetchCachedBoardPackets(supabase);
 
   if (cachedPackets && cachedPackets.cacheItemCount > 0) {
-    return buildBoardDataFromCachedPackets(cachedPackets, cacheStatusFor(cachedPackets));
+    return await buildBoardDataFromCachedPackets(cachedPackets, cacheStatusFor(cachedPackets));
   }
 
   return fetchLiveFallbackBoardData(supabase);

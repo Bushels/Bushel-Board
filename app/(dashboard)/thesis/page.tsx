@@ -422,6 +422,38 @@ function DriverList({
   );
 }
 
+
+function VikingL2ContextPanel({ item }: { item: ThesisBoardItem }) {
+  if (item.lane !== "us" || item.vikingL2Chunks.length === 0) return null;
+
+  return (
+    <details className="rounded-lg border border-canola/20 bg-canola/5 px-4 py-3">
+      <summary className="cursor-pointer text-sm font-semibold text-foreground">
+        Viking L2 interpretation support ({item.vikingL2Chunks.length})
+      </summary>
+      <div className="mt-3 space-y-3">
+        <p className="text-xs leading-5 text-muted-foreground">
+          Local-only distilled book context used as interpretation support. Current source packets still
+          control the stance score.
+        </p>
+        {item.vikingL2Chunks.map((chunk) => (
+          <div key={`${item.id}-${chunk.source}-${chunk.id}`} className="rounded-md border border-border bg-background p-3">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-canola/30 bg-canola/10 text-canola">
+                {chunk.topic.replaceAll("_", " ")}
+              </Badge>
+              <p className="text-xs font-medium text-muted-foreground">
+                {chunk.source}{chunk.pageHint ? ` · ${chunk.pageHint}` : ""}
+              </p>
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">{chunk.text}</p>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function FreshnessStrip({ item }: { item: ThesisBoardItem }) {
   const visibleRows = item.freshness.slice(0, 6);
   return (
@@ -477,6 +509,8 @@ function ThesisCard({ item }: { item: ThesisBoardItem }) {
           <DriverList title="Bull Case" tone="bull" drivers={item.bullDrivers} />
           <DriverList title="Bear Case" tone="bear" drivers={item.bearDrivers} />
         </div>
+
+        <VikingL2ContextPanel item={item} />
 
         <div className="rounded-lg border border-border bg-muted/20 p-4">
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
