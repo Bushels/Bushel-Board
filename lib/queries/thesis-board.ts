@@ -52,6 +52,24 @@ export interface ThesisWarning {
   severity: "info" | "watch" | "blocker";
 }
 
+export type ThesisSourceHealthCategory = "core_public" | "optional_local";
+
+export interface ThesisSourceHealthEntry {
+  sourceName: string;
+  category: ThesisSourceHealthCategory;
+  statuses: string[];
+  itemCount: number;
+}
+
+export interface ThesisSourceHealthSummary {
+  strongSourceCount: number;
+  watchSourceInstanceCount: number;
+  uniqueWatchSourceCount: number;
+  optionalSourceCount: number;
+  uniqueWatchSources: ThesisSourceHealthEntry[];
+  optionalSources: ThesisSourceHealthEntry[];
+}
+
 export interface ThesisBoardItem {
   id: string;
   lane: ThesisLane;
@@ -74,6 +92,7 @@ export interface ThesisBoardItem {
   sourceCount: number;
   strongSourceCount: number;
   staleSourceCount: number;
+  optionalSourceCount: number;
   vikingL2Chunks: VikingL2Chunk[];
 }
 
@@ -103,6 +122,7 @@ export interface ThesisBoardData {
   packetMode: "cached" | "live_rpc_fallback";
   cacheStatus: "fresh" | "stale" | "fallback";
   sourceRunWatermark: string | null;
+  latestAvailableSourceRunAt: string | null;
   cacheItemCount: number;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
@@ -111,8 +131,12 @@ export interface ThesisBoardData {
     itemCount: number;
     strongSourceCount: number;
     staleSourceCount: number;
+    watchSourceInstanceCount: number;
+    uniqueWatchSourceCount: number;
+    optionalSourceCount: number;
     blockerCount: number;
   };
+  sourceHealth: ThesisSourceHealthSummary;
 }
 
 // Canonical frozen artifact contract alignment for upcoming roundtable publish path.
@@ -163,6 +187,29 @@ const MAJOR_US_MARKET_NAMES = new Set<string>(THESIS_BOARD_MAJOR_US_MARKET_NAMES
 const SOURCE_MAPPING_NEEDED_LANES = new Set<string>(
   THESIS_BOARD_V1_LANE_SOURCE_MAP.filter((lane) => lane.placeholderReason).map((lane) => lane.lane),
 );
+
+const OPTIONAL_LOCAL_THESIS_SOURCES = new Set([
+  "crop_plan_deliveries",
+  "crop_plans",
+  "posted_prices",
+  "weather_cache",
+]);
+
+function sourceHealthCategory(sourceName: string): ThesisSourceHealthCategory {
+  return OPTIONAL_LOCAL_THESIS_SOURCES.has(sourceName) ? "optional_local" : "core_public";
+}
+
+function isOptionalLocalSource(sourceName: string): boolean {
+  return sourceHealthCategory(sourceName) === "optional_local";
+}
+
+function isStrongStatus(status: string): boolean {
+  return status.toLowerCase() === "strong";
+}
+
+function isWatchStatus(status: string): boolean {
+  return !isStrongStatus(status);
+}
 
 export const EXPECTED_THESIS_BOARD_PACKET_COUNT =
   THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES.length + THESIS_BOARD_MAJOR_US_MARKET_NAMES.length;
@@ -239,7 +286,8 @@ function formatPrice(value: number | null, currency: string | null, unit: string
   })}${suffix}`;
 }
 
-function statusSeverity(status: string): "info" | "watch" | "blocker" {
+function statusSeverity(sourceName: string, status: string): "info" | "watch" | "blocker" {
+  if (isOptionalLocalSource(sourceName)) return "info";
   const normalized = status.toLowerCase();
   if (normalized === "broken" || normalized === "empty") return "blocker";
   if (normalized.includes("stale") || normalized === "legacy" || normalized === "failed") {
@@ -267,11 +315,12 @@ function normalizeFreshness(packet: JsonRecord): ThesisFreshnessRow[] {
 function normalizeWarnings(packet: JsonRecord): ThesisWarning[] {
   return asArray(packet.quality_warnings).map((row) => {
     const status = textValue(row, "status") ?? "unknown";
+    const sourceName = textValue(row, "source_name") ?? "unknown";
     return {
-      sourceName: textValue(row, "source_name") ?? "unknown",
+      sourceName,
       status,
       actionHint: textValue(row, "action_hint"),
-      severity: statusSeverity(status),
+      severity: statusSeverity(sourceName, status),
     };
   });
 }
@@ -282,7 +331,9 @@ function confidenceFromFreshness(
 ): { confidence: ThesisConfidence; score: number } {
   const blockers = warnings.filter((warning) => warning.severity === "blocker").length;
   const watch = warnings.filter((warning) => warning.severity === "watch").length;
-  const stale = freshness.filter((row) => row.freshnessStatus !== "strong").length;
+  const stale = freshness.filter(
+    (row) => !isOptionalLocalSource(row.sourceName) && isWatchStatus(row.freshnessStatus),
+  ).length;
   const score = Math.max(20, Math.min(90, 82 - blockers * 22 - watch * 10 - stale * 4));
   if (score >= 70) return { confidence: "high", score };
   if (score >= 45) return { confidence: "medium", score };
@@ -344,12 +395,71 @@ function caseSummary(label: string, drivers: ThesisDriver[]): string {
 }
 
 function sourceCounts(freshness: ThesisFreshnessRow[]) {
-  const strongSourceCount = freshness.filter((row) => row.freshnessStatus === "strong").length;
-  const staleSourceCount = freshness.filter((row) => row.freshnessStatus !== "strong").length;
+  const publicRows = freshness.filter((row) => !isOptionalLocalSource(row.sourceName));
+  const optionalSourceCount = freshness.filter((row) => isOptionalLocalSource(row.sourceName)).length;
+  const strongSourceCount = publicRows.filter((row) => isStrongStatus(row.freshnessStatus)).length;
+  const staleSourceCount = publicRows.filter((row) => isWatchStatus(row.freshnessStatus)).length;
   return {
     sourceCount: freshness.length,
     strongSourceCount,
     staleSourceCount,
+    optionalSourceCount,
+  };
+}
+
+export function buildSourceHealthSummary(items: ThesisBoardItem[]): ThesisSourceHealthSummary {
+  const watchBySource = new Map<string, ThesisSourceHealthEntry>();
+  const optionalBySource = new Map<string, ThesisSourceHealthEntry>();
+  let strongSourceCount = 0;
+  let watchSourceInstanceCount = 0;
+  let optionalSourceCount = 0;
+
+  const addEntry = (
+    map: Map<string, ThesisSourceHealthEntry>,
+    sourceName: string,
+    category: ThesisSourceHealthCategory,
+    status: string,
+  ) => {
+    const current = map.get(sourceName) ?? {
+      sourceName,
+      category,
+      statuses: [],
+      itemCount: 0,
+    };
+    current.itemCount += 1;
+    if (!current.statuses.includes(status)) {
+      current.statuses = [...current.statuses, status].sort();
+    }
+    map.set(sourceName, current);
+  };
+
+  for (const item of items) {
+    for (const row of item.freshness) {
+      if (isOptionalLocalSource(row.sourceName)) {
+        optionalSourceCount += 1;
+        addEntry(optionalBySource, row.sourceName, "optional_local", row.freshnessStatus);
+        continue;
+      }
+      if (isStrongStatus(row.freshnessStatus)) {
+        strongSourceCount += 1;
+      } else {
+        watchSourceInstanceCount += 1;
+        addEntry(watchBySource, row.sourceName, "core_public", row.freshnessStatus);
+      }
+    }
+  }
+
+  const sortEntries = (entries: ThesisSourceHealthEntry[]) =>
+    entries.sort((a, b) => b.itemCount - a.itemCount || a.sourceName.localeCompare(b.sourceName));
+
+  const uniqueWatchSources = sortEntries([...watchBySource.values()]);
+  return {
+    strongSourceCount,
+    watchSourceInstanceCount,
+    uniqueWatchSourceCount: uniqueWatchSources.length,
+    optionalSourceCount,
+    uniqueWatchSources,
+    optionalSources: sortEntries([...optionalBySource.values()]),
   };
 }
 
@@ -1070,6 +1180,7 @@ async function buildBoardData({
   packetMode,
   cacheStatus,
   sourceRunWatermark,
+  latestAvailableSourceRunAt,
   cacheItemCount,
   canadaItems,
   usItems,
@@ -1078,6 +1189,7 @@ async function buildBoardData({
   packetMode: ThesisBoardData["packetMode"];
   cacheStatus: ThesisBoardData["cacheStatus"];
   sourceRunWatermark: string | null;
+  latestAvailableSourceRunAt: string | null;
   cacheItemCount: number;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
@@ -1087,24 +1199,30 @@ async function buildBoardData({
     usItems.filter((item) => isMajorUsThesisMarket(item.name)),
   );
   const allItems = [...majorCanadaItems, ...majorUsItems];
+  const sourceHealth = buildSourceHealthSummary(allItems);
   return {
     generatedAt,
     packetMode,
     cacheStatus,
     sourceRunWatermark,
+    latestAvailableSourceRunAt,
     cacheItemCount,
     canadaItems: majorCanadaItems,
     usItems: majorUsItems,
     comparisonRows: buildMajorThesisComparisonRows(majorCanadaItems, majorUsItems),
     totals: {
       itemCount: allItems.length,
-      strongSourceCount: allItems.reduce((total, item) => total + item.strongSourceCount, 0),
-      staleSourceCount: allItems.reduce((total, item) => total + item.staleSourceCount, 0),
+      strongSourceCount: sourceHealth.strongSourceCount,
+      staleSourceCount: sourceHealth.watchSourceInstanceCount,
+      watchSourceInstanceCount: sourceHealth.watchSourceInstanceCount,
+      uniqueWatchSourceCount: sourceHealth.uniqueWatchSourceCount,
+      optionalSourceCount: sourceHealth.optionalSourceCount,
       blockerCount: allItems.reduce(
         (total, item) => total + item.warnings.filter((warning) => warning.severity === "blocker").length,
         0,
       ),
     },
+    sourceHealth,
   };
 }
 
@@ -1153,6 +1271,7 @@ function findUsMarket(packet: JsonRecord, index: number): UsMarketDef {
 function buildBoardDataFromCachedPackets(
   packets: CachedBoardPackets,
   cacheStatus: ThesisBoardData["cacheStatus"],
+  latestAvailableSourceRunAt: string | null,
 ): Promise<ThesisBoardData> {
   const canadaItems = packets.canadaPackets.map((packet, index) =>
     buildCanadaThesisBoardItem(findCanadaGrain(packet, index), packet),
@@ -1166,6 +1285,7 @@ function buildBoardDataFromCachedPackets(
     packetMode: "cached",
     cacheStatus,
     sourceRunWatermark: packets.sourceRunWatermark,
+    latestAvailableSourceRunAt,
     cacheItemCount: packets.cacheItemCount,
     canadaItems,
     usItems,
@@ -1178,20 +1298,61 @@ function dateValue(value: string | null): number | null {
   return Number.isFinite(time) ? time : null;
 }
 
-function cacheStatusFor(packets: CachedBoardPackets): ThesisBoardData["cacheStatus"] {
+export function cacheStatusForSourceState({
+  cachedMajorPacketCount,
+  expectedMajorPacketCount,
+  packetGeneratedAt,
+  packetSourceRunWatermark,
+  latestAvailableSourceRunAt,
+}: {
+  cachedMajorPacketCount: number;
+  expectedMajorPacketCount: number;
+  packetGeneratedAt: string | null;
+  packetSourceRunWatermark: string | null;
+  latestAvailableSourceRunAt: string | null;
+}): ThesisBoardData["cacheStatus"] {
+  if (cachedMajorPacketCount < expectedMajorPacketCount) return "stale";
+  const sourceRunTime = dateValue(packetSourceRunWatermark);
+  const cacheTime = dateValue(packetGeneratedAt);
+  if (sourceRunTime === null || cacheTime === null) return "stale";
+  const latestSourceRunTime = dateValue(latestAvailableSourceRunAt);
+  if (latestSourceRunTime !== null && latestSourceRunTime > sourceRunTime) return "stale";
+  return sourceRunTime > cacheTime ? "stale" : "fresh";
+}
+
+function cacheStatusFor(
+  packets: CachedBoardPackets,
+  latestAvailableSourceRunAt: string | null,
+): ThesisBoardData["cacheStatus"] {
   const cachedMajorCanadaCount = packets.canadaPackets.filter((packet, index) =>
     isMajorCanadaThesisGrain(textValue(packet, "grain") ?? ALL_GRAINS[index]?.name ?? ""),
   ).length;
   const cachedMajorUsCount = packets.usPackets.filter((packet, index) =>
     isMajorUsThesisMarket(textValue(packet, "market_name") ?? US_OVERVIEW_MARKETS[index]?.name ?? ""),
   ).length;
-  if (cachedMajorCanadaCount + cachedMajorUsCount < EXPECTED_THESIS_BOARD_PACKET_COUNT) {
-    return "stale";
-  }
-  const sourceRunTime = dateValue(packets.sourceRunWatermark);
-  const cacheTime = dateValue(packets.generatedAt);
-  if (sourceRunTime === null || cacheTime === null) return "stale";
-  return sourceRunTime > cacheTime ? "stale" : "fresh";
+  return cacheStatusForSourceState({
+    cachedMajorPacketCount: cachedMajorCanadaCount + cachedMajorUsCount,
+    expectedMajorPacketCount: EXPECTED_THESIS_BOARD_PACKET_COUNT,
+    packetGeneratedAt: packets.generatedAt,
+    packetSourceRunWatermark: packets.sourceRunWatermark,
+    latestAvailableSourceRunAt,
+  });
+}
+
+async function fetchLatestAvailableSourceRunAt(
+  supabase: SupabaseServerClient,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("source_runs")
+    .select("finished_at")
+    .in("status", ["success", "partial"])
+    .neq("source_name", "thesis-packet-cache")
+    .order("finished_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return null;
+  return typeof data?.finished_at === "string" ? data.finished_at : null;
 }
 
 async function fetchCachedBoardPackets(
@@ -1223,6 +1384,7 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
     packetMode: "live_rpc_fallback",
     cacheStatus: "fallback",
     sourceRunWatermark: null,
+    latestAvailableSourceRunAt: null,
     cacheItemCount: 0,
     canadaItems,
     usItems,
@@ -1231,10 +1393,18 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
 
 export async function getThesisBoardData(): Promise<ThesisBoardData> {
   const supabase = await createClient();
-  const cachedPackets = await fetchCachedBoardPackets(supabase);
+  const [cachedPackets, latestAvailableSourceRunAt] = await Promise.all([
+    fetchCachedBoardPackets(supabase),
+    fetchLatestAvailableSourceRunAt(supabase),
+  ]);
 
   if (cachedPackets && cachedPackets.cacheItemCount > 0) {
-    return await buildBoardDataFromCachedPackets(cachedPackets, cacheStatusFor(cachedPackets));
+    const cacheStatus = cacheStatusFor(cachedPackets, latestAvailableSourceRunAt);
+    return await buildBoardDataFromCachedPackets(
+      cachedPackets,
+      cacheStatus,
+      latestAvailableSourceRunAt,
+    );
   }
 
   return fetchLiveFallbackBoardData(supabase);

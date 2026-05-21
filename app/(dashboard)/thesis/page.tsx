@@ -768,7 +768,10 @@ export default async function ThesisPage() {
               </p>
             )}
             {data.sourceRunWatermark && (
-              <p>Latest source run: {formatDateTime(data.sourceRunWatermark)}</p>
+              <p>Packet source watermark: {formatDateTime(data.sourceRunWatermark)}</p>
+            )}
+            {data.latestAvailableSourceRunAt && (
+              <p>Latest live source run: {formatDateTime(data.latestAvailableSourceRunAt)}</p>
             )}
           </CardContent>
         </Card>
@@ -789,8 +792,8 @@ export default async function ThesisPage() {
         />
         <SummaryCard
           label="Watch Sources"
-          value={String(data.totals.staleSourceCount)}
-          detail="Rows that are stale, empty, legacy, lagged, or otherwise not strong."
+          value={String(data.totals.uniqueWatchSourceCount)}
+          detail={`${data.totals.watchSourceInstanceCount} packet rows need attention; optional farmer-local empties excluded from confidence.`}
           icon={AlertTriangle}
         />
         <SummaryCard
@@ -798,7 +801,7 @@ export default async function ThesisPage() {
           value={data.packetMode === "cached" ? "Cached" : "Live"}
           detail={
             data.packetMode === "cached"
-              ? `${data.cacheItemCount} cached packets from the current packet RPC spine; ${data.cacheStatus} against source_runs.`
+              ? `${data.cacheItemCount} cached packets; ${data.cacheStatus} against live source-run watermark.`
               : "Fallback mode: reading Canada and US packet RPCs directly."
           }
           icon={DatabaseZap}

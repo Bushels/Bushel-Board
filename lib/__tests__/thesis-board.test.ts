@@ -5,6 +5,8 @@ import {
   THESIS_BOARD_V1_GRAIN_LANES,
   buildCanadaThesisBoardItem,
   buildMajorThesisComparisonRows,
+  buildSourceHealthSummary,
+  cacheStatusForSourceState,
   buildUsThesisBoardItem,
 } from "@/lib/queries/thesis-board";
 
@@ -425,6 +427,84 @@ describe("thesis board packet normalization", () => {
     expect(wheatRow?.explanation).toContain("US -30 Bear tilt");
     expect(wheatRow?.strongestBullPoints.map((point) => point.country)).toContain("CA");
     expect(wheatRow?.strongestBearPoints.map((point) => point.country)).toContain("US");
+  });
+
+  it("does not let empty optional farmer-local sources reduce public thesis confidence", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 500,
+        },
+        exports: {
+          current_week_kt: 260,
+        },
+      },
+      freshness: [
+        { source_name: "cgc_observations", freshness_status: "strong" },
+        { source_name: "crop_plan_deliveries", freshness_status: "empty" },
+        { source_name: "posted_prices", freshness_status: "empty" },
+        { source_name: "weather_cache", freshness_status: "empty" },
+      ],
+      quality_warnings: [
+        { source_name: "crop_plan_deliveries", status: "empty" },
+        { source_name: "posted_prices", status: "empty" },
+        { source_name: "weather_cache", status: "empty" },
+      ],
+    });
+
+    expect(item.confidenceScore).toBe(82);
+    expect(item.confidence).toBe("high");
+    expect(item.staleSourceCount).toBe(0);
+    expect(item.optionalSourceCount).toBe(3);
+    expect(item.warnings.map((warning) => warning.severity)).toEqual(["info", "info", "info"]);
+  });
+
+  it("summarizes watch sources uniquely instead of double-counting each grain packet", () => {
+    const first = buildCanadaThesisBoardItem(canola, {
+      freshness: [
+        { source_name: "cgc_observations", freshness_status: "strong" },
+        { source_name: "usda_wasde_mapped", freshness_status: "empty" },
+        { source_name: "posted_prices", freshness_status: "empty" },
+      ],
+    });
+    const second = buildUsThesisBoardItem(corn, {
+      freshness: [
+        { source_name: "usda_crop_progress", freshness_status: "strong" },
+        { source_name: "usda_wasde_mapped", freshness_status: "empty" },
+        { source_name: "posted_prices", freshness_status: "empty" },
+      ],
+    });
+
+    const summary = buildSourceHealthSummary([first, second]);
+
+    expect(summary.strongSourceCount).toBe(2);
+    expect(summary.watchSourceInstanceCount).toBe(2);
+    expect(summary.uniqueWatchSourceCount).toBe(1);
+    expect(summary.optionalSourceCount).toBe(2);
+    expect(summary.uniqueWatchSources.map((source) => source.sourceName)).toEqual(["usda_wasde_mapped"]);
+    expect(summary.optionalSources.map((source) => source.sourceName)).toEqual(["posted_prices"]);
+  });
+
+  it("marks the cache stale when newer live source runs exist after the packet watermark", () => {
+    expect(
+      cacheStatusForSourceState({
+        cachedMajorPacketCount: 12,
+        expectedMajorPacketCount: 12,
+        packetGeneratedAt: "2026-05-18T16:41:18.836754Z",
+        packetSourceRunWatermark: "2026-05-16T18:17:52.357752Z",
+        latestAvailableSourceRunAt: "2026-05-21T12:46:08.789Z",
+      }),
+    ).toBe("stale");
+
+    expect(
+      cacheStatusForSourceState({
+        cachedMajorPacketCount: 12,
+        expectedMajorPacketCount: 12,
+        packetGeneratedAt: "2026-05-21T12:50:00Z",
+        packetSourceRunWatermark: "2026-05-21T12:46:08.789Z",
+        latestAvailableSourceRunAt: "2026-05-21T12:46:08.789Z",
+      }),
+    ).toBe("fresh");
   });
 
   it("builds comparison rows in exact V1 lane order with wheat-class placeholders", () => {

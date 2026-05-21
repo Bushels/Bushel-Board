@@ -38,6 +38,8 @@ function thesisItem(name: string, stanceScore: number): ThesisBoardItem {
     sourceCount: 0,
     strongSourceCount: 0,
     staleSourceCount: 0,
+    optionalSourceCount: 0,
+    vikingL2Chunks: [],
   };
 }
 
