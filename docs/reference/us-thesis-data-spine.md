@@ -2,7 +2,7 @@
 
 **Purpose:** Define the minimum viable data foundation for high-quality US Bullish/Bearish thesis generation on the `/thesis` board. This document prioritizes missing data, identifies powerful compound signals, and establishes clear staleness rules so the thesis never relies on outdated information.
 
-**Last Updated:** 2026-05-18
+**Last Updated:** 2026-05-22
 **Owner:** Bushel Board US Desk
 
 ---
@@ -17,8 +17,9 @@
 | CFTC COT | `cftc_cot_positions` | Weekly (Fri) | Limited | Strong on wheat classes |
 | Grain Prices | `grain_prices` | Daily | Indirect | Futures settlement |
 | Quarterly Stocks | `usda_quarterly_stocks` | Quarterly | Yes | Measured NASS stocks now flow into `get_us_thesis_packet()` and `/thesis` cache as stocks-surprise supply context. |
+| Acreage | `crop_acreage_estimates` | Annual (Mar/Jun/Jan revisions) | Yes | National USDA acreage rows now flow into `get_us_thesis_packet().supply.acreage`, thesis freshness, cache, and acreage-aware planting-progress drivers. |
 
-**Assessment:** We have decent raw feeds, and USDA quarterly grain stocks are now admitted into the US packet spine. Synthesis into compound thesis drivers remains thin on the US side compared to Canada, especially acreage, export inspections, and WASDE revision analysis.
+**Assessment:** We have decent raw feeds, and USDA quarterly grain stocks plus acreage are now admitted into the US packet spine. Synthesis into compound thesis drivers remains thin on the US side compared to Canada, especially export inspections, WASDE revision analysis, and cross-source scoring rules.
 
 ---
 
@@ -29,7 +30,7 @@
 | Priority | Data Source | Why It Matters | Compound Value | Suggested Table |
 |----------|-------------|----------------|----------------|-----------------|
 | 1 | **USDA Quarterly Grain Stocks** | Actual measured stocks vs WASDE estimates. Large surprises move markets. | Ending Stocks revision + Export pace | `usda_quarterly_stocks` |
-| 2 | **USDA Prospective Plantings + June Acreage** | Planted acres for corn, soybeans, spring wheat. Critical for supply thesis. | Planted acres + Crop Progress trajectory | `usda_acreage` |
+| 2 | **USDA Prospective Plantings + June Acreage** | Planted acres for corn, soybeans, spring wheat. Critical for supply thesis. | Planted acres + Crop Progress trajectory | `crop_acreage_estimates` |
 | 3 | **WASDE Revision Analysis** | Track month-over-month changes in ending stocks, exports, and crush. | WASDE revision magnitude + COT shift | Enhance `usda_wasde_mapped` |
 | 4 | **Weekly Export Inspections** | More timely than cumulative Export Sales. Often cited in market commentary. | Inspections vs Export Sales pace | `usda_export_inspections` |
 
@@ -88,7 +89,8 @@ These combinations are more powerful than individual data points:
 
 1. **Data Layer**
    - Keep `usda_quarterly_stocks` refreshed through scheduled/collector operation.
-   - Add new importers for remaining Tier 1 gaps (Acreage, Export Inspections).
+   - Keep `crop_acreage_estimates` refreshed for March/June/January acreage revisions.
+   - Add new importers for remaining Tier 1 gaps (Export Inspections).
    - Continue using `get_thesis_data_freshness()` as the shared staleness/freshness helper per source.
 
 2. **Thesis Packet Layer**
@@ -110,7 +112,7 @@ These combinations are more powerful than individual data points:
 
 - [x] Build importer for `usda_quarterly_stocks`
 - [x] Wire `usda_quarterly_stocks` into `get_us_thesis_packet()`, source freshness, `/thesis` cache, and deterministic US supply drivers
-- [ ] Build importer for `usda_acreage` (March + June)
+- [x] Wire `crop_acreage_estimates` acreage into `get_us_thesis_packet()`, source freshness, `/thesis` cache, and deterministic planting-progress drivers
 - [ ] Enhance `usda_wasde_mapped` with revision tracking
 - [x] Add source-freshness quality warnings to thesis packet RPC
 - [ ] Define compound signal scoring rules for Export Sales + WASDE
