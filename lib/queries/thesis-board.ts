@@ -703,6 +703,7 @@ export function buildUsThesisBoardItem(
   const demand = asRecord(packet.demand);
   const exportSales = asRecord(demand.export_sales);
   const wasde = asRecord(supply.wasde);
+  const quarterlyStocks = asRecord(supply.quarterly_stocks);
   const prices = asArray(packet.prices);
   const positioning = asArray(packet.positioning);
   const freshness = normalizeFreshness(packet);
@@ -811,6 +812,42 @@ export function buildUsThesisBoardItem(
         sourceName: "usda_wasde_mapped",
         metricLabel: stocksToUse !== null ? `${stocksToUse.toFixed(1)}% stocks/use` : "ending stocks up",
         confidence: sourceConfidence("medium", "usda_wasde_mapped", freshness),
+      });
+    }
+  }
+
+  const stocksSurpriseKt = numberValue(quarterlyStocks, "vs_wasde_estimate_kt");
+  const stocksYoyPct = numberValue(quarterlyStocks, "change_vs_year_ago_pct");
+  const totalStocksKt = numberValue(quarterlyStocks, "total_stocks_kt");
+  const stocksReportDate = textValue(quarterlyStocks, "report_date");
+  if (stocksSurpriseKt !== null || stocksYoyPct !== null) {
+    if (
+      (stocksSurpriseKt !== null && stocksSurpriseKt <= -1_000) ||
+      (stocksYoyPct !== null && stocksYoyPct <= -5)
+    ) {
+      addDriver(bullDrivers, {
+        tone: "bull",
+        title: "Quarterly stocks tighter than expected",
+        body: `USDA quarterly stocks show ${formatKt(totalStocksKt)} on hand${
+          stocksReportDate ? ` as of ${stocksReportDate}` : ""
+        }, with a ${stocksSurpriseKt !== null ? formatKt(stocksSurpriseKt) : "not available"} surprise versus WASDE context and ${formatPct(stocksYoyPct)} versus year ago.`,
+        sourceName: "usda_quarterly_stocks",
+        metricLabel: stocksSurpriseKt !== null ? `${formatKt(stocksSurpriseKt)} vs WASDE` : formatPct(stocksYoyPct),
+        confidence: sourceConfidence("high", "usda_quarterly_stocks", freshness),
+      });
+    } else if (
+      (stocksSurpriseKt !== null && stocksSurpriseKt >= 1_000) ||
+      (stocksYoyPct !== null && stocksYoyPct >= 5)
+    ) {
+      addDriver(bearDrivers, {
+        tone: "bear",
+        title: "Quarterly stocks heavier than expected",
+        body: `USDA quarterly stocks show ${formatKt(totalStocksKt)} on hand${
+          stocksReportDate ? ` as of ${stocksReportDate}` : ""
+        }, with a ${stocksSurpriseKt !== null ? formatKt(stocksSurpriseKt) : "not available"} surprise versus WASDE context and ${formatPct(stocksYoyPct)} versus year ago.`,
+        sourceName: "usda_quarterly_stocks",
+        metricLabel: stocksSurpriseKt !== null ? `${formatKt(stocksSurpriseKt)} vs WASDE` : formatPct(stocksYoyPct),
+        confidence: sourceConfidence("high", "usda_quarterly_stocks", freshness),
       });
     }
   }

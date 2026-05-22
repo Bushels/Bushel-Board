@@ -16,8 +16,9 @@
 | WASDE | `usda_wasde_mapped` | Monthly | Weak | Full balance sheet exists but under-used |
 | CFTC COT | `cftc_cot_positions` | Weekly (Fri) | Limited | Strong on wheat classes |
 | Grain Prices | `grain_prices` | Daily | Indirect | Futures settlement |
+| Quarterly Stocks | `usda_quarterly_stocks` | Quarterly | Yes | Measured NASS stocks now flow into `get_us_thesis_packet()` and `/thesis` cache as stocks-surprise supply context. |
 
-**Assessment:** We have decent raw feeds, but synthesis into thesis drivers and stance scoring remains thin on the US side compared to Canada.
+**Assessment:** We have decent raw feeds, and USDA quarterly grain stocks are now admitted into the US packet spine. Synthesis into compound thesis drivers remains thin on the US side compared to Canada, especially acreage, export inspections, and WASDE revision analysis.
 
 ---
 
@@ -86,8 +87,9 @@ These combinations are more powerful than individual data points:
 ## 5. Integration Plan into Thesis Workflow
 
 1. **Data Layer**
-   - Add new importers for Tier 1 gaps (Quarterly Stocks, Acreage, Export Inspections).
-   - Create `usda_data_freshness` helper that returns staleness status per commodity.
+   - Keep `usda_quarterly_stocks` refreshed through scheduled/collector operation.
+   - Add new importers for remaining Tier 1 gaps (Acreage, Export Inspections).
+   - Continue using `get_thesis_data_freshness()` as the shared staleness/freshness helper per source.
 
 2. **Thesis Packet Layer**
    - Update `get_us_thesis_packet()` to pull from `usda_wasde_mapped`, `usda_export_sales`, `usda_crop_progress`, and new tables.
@@ -106,10 +108,11 @@ These combinations are more powerful than individual data points:
 
 ## 6. Next Actions
 
-- [ ] Build importer for `usda_quarterly_stocks`
+- [x] Build importer for `usda_quarterly_stocks`
+- [x] Wire `usda_quarterly_stocks` into `get_us_thesis_packet()`, source freshness, `/thesis` cache, and deterministic US supply drivers
 - [ ] Build importer for `usda_acreage` (March + June)
 - [ ] Enhance `usda_wasde_mapped` with revision tracking
-- [ ] Add `data_freshness` logic to thesis packet RPC
+- [x] Add source-freshness quality warnings to thesis packet RPC
 - [ ] Define compound signal scoring rules for Export Sales + WASDE
 
 ---

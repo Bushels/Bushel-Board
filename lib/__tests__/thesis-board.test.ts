@@ -157,6 +157,43 @@ describe("thesis board packet normalization", () => {
     expect(item.confidence).toBe("high");
   });
 
+  it("turns USDA quarterly stocks surprises into US thesis drivers", () => {
+    const tightStocks = buildUsThesisBoardItem(corn, {
+      supply: {
+        quarterly_stocks: {
+          report_date: "2026-03-01",
+          total_stocks_kt: 218_450,
+          vs_wasde_estimate_kt: -5_200,
+          change_vs_year_ago_pct: -7.4,
+        },
+      },
+      freshness: [{ source_name: "usda_quarterly_stocks", freshness_status: "strong" }],
+      quality_warnings: [],
+    });
+    const heavyStocks = buildUsThesisBoardItem(corn, {
+      supply: {
+        quarterly_stocks: {
+          report_date: "2026-03-01",
+          total_stocks_kt: 235_900,
+          vs_wasde_estimate_kt: 4_100,
+          change_vs_year_ago_pct: 6.2,
+        },
+      },
+      freshness: [{ source_name: "usda_quarterly_stocks", freshness_status: "strong" }],
+      quality_warnings: [],
+    });
+
+    expect(tightStocks.bullDrivers.map((driver) => driver.title)).toContain(
+      "Quarterly stocks tighter than expected",
+    );
+    expect(tightStocks.bullDrivers[0]?.sourceName).toBe("usda_quarterly_stocks");
+    expect(tightStocks.stanceScore).toBeGreaterThan(0);
+    expect(heavyStocks.bearDrivers.map((driver) => driver.title)).toContain(
+      "Quarterly stocks heavier than expected",
+    );
+    expect(heavyStocks.stanceScore).toBeLessThan(0);
+  });
+
   it("returns a safe balanced Canada item for an empty packet", () => {
     const item = buildCanadaThesisBoardItem(canola, {});
 

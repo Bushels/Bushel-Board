@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified implementation checkpoint:** USDA quarterly grain-stocks data layer + live source import on branch `codex/data-layer-foundation-v1`
+**Last verified implementation checkpoint:** USDA quarterly grain-stocks integrated into live US thesis packet/cache on branch `codex/data-layer-foundation-v1`
 **As of:** 2026-05-22
 
 ## Active task
@@ -12,8 +12,8 @@ Completed local work since the Kalshi parking update:
 - Phase 3A multi-grain harness refactor: shared grain profiles and grain-agnostic forecast harness path while preserving Canola compatibility. This remains no-write and not connected to production/dashboard writes.
 - Phase 3B `/thesis` major-grain matrix exists, but the product scope is now narrowed further for V1: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Pulses, flax, smaller CGC labels, US rice/cotton, and Kalshi are excluded from the next pass.
 - USDA export-sales freshness was repaired 2026-05-16. Live Supabase now has `usda_export_sales.week_ending = 2026-05-07` with 5 rows / 5 commodities for the latest week: ALL WHEAT, CORN, SOYBEANS, BARLEY, OATS.
-- USDA quarterly grain stocks were added and imported 2026-05-22. Live Supabase now has `public.usda_quarterly_stocks` with 47 rows for BARLEY, CANOLA, CORN, OATS, SOYBEANS, and WHEAT; latest regular quarterly stock report is `2026-03-01` for all except CANOLA (`2025-06-01`, because NASS only returned June canola stock rows for this pull). The importer writes a `source_runs` row under `usda_quarterly_stocks`.
-- `thesis_packet_cache` was force-refreshed after the export-sales import. Verification: 21 cache rows, `max(refreshed_at)=2026-05-16 18:19:28+00`, `max(source_run_watermark)=2026-05-16 18:17:52+00`.
+- USDA quarterly grain stocks were added, imported, and wired into the US thesis packet/cache 2026-05-22. Live Supabase now has `public.usda_quarterly_stocks` with 47 rows for BARLEY, CANOLA, CORN, OATS, SOYBEANS, and WHEAT; latest regular quarterly stock report is `2026-03-01` for all except CANOLA (`2025-06-01`, because NASS only returned June canola stock rows for this pull). `get_us_thesis_packet()` now emits `supply.quarterly_stocks`, `get_thesis_data_freshness()` includes `usda_quarterly_stocks`, and the `/thesis` cache has 5 US packets with quarterly-stocks payloads/freshness rows after force refresh.
+- `thesis_packet_cache` was force-refreshed after the quarterly-stocks packet integration. Verification: 21 cache rows, 5 US packets with `supply.quarterly_stocks` and `usda_quarterly_stocks` freshness rows, `max(source_run_watermark)=2026-05-22 03:15:41.812+00`.
 
 Primary next-session handoff: `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
 
@@ -44,10 +44,11 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 1. Open a new clean session with `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
 2. Build the Bullish/Bearish board around this first major-lane scope only: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats.
 3. Do not expand to Peas, Lentils, Flaxseed, Rye, Mustard Seed, Canaryseed, Chick Peas, Sunflower, Beans, US rice/cotton, global commodity boards, or Kalshi until this board is polished and verified.
-4. Continue the board UI/data polish: audit `/thesis` against the fixed major-grain scope, then improve at-a-glance bull driver, bear driver, stance, freshness, and country-divergence explanations.
+4. Continue the board UI/data polish: audit `/thesis` after the quarterly-stocks packet integration, then improve at-a-glance bull driver, bear driver, stance, freshness, and country-divergence explanations.
 5. Leave Kalshi parked unless a fresh `npx tsx scripts/capture-kalshi-commodity-snapshot.ts` run shows `open_market_count > 0` for Corn, Soybeans, or Wheat.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-22: Integrated USDA Quarterly Grain Stocks into the live US thesis packet/cache. Migration `20260522035638_wire_usda_quarterly_stocks_into_us_thesis` is applied; `get_us_thesis_packet()` emits `supply.quarterly_stocks`, `get_thesis_data_freshness()` reports `usda_quarterly_stocks`, `buildUsThesisBoardItem()` can surface measured stocks-surprise supply drivers, and `thesis_packet_cache` was force-refreshed to 21 rows with 5 US quarterly-stocks payloads. Verification: live RPC/cache SQL checks plus focused Vitest passed locally.
 - 2026-05-22: Added USDA Quarterly Grain Stocks as a tested US data-spine source. Live Supabase migration `20260521184630_create_usda_quarterly_stocks` is applied; `public.usda_quarterly_stocks` has 47 imported rows from 2024+ NASS QuickStats for BARLEY, CANOLA, CORN, OATS, SOYBEANS, and WHEAT. The importer handles `FIRST OF ...` reference periods, filters wheat subclass rows so all-wheat stocks are not overwritten by Durum, converts bushel and pound units correctly, writes `source_runs`, and has 8 focused Vitest tests. Verification: focused Vitest, scoped ESLint, and `npm run build` passed locally.
 - 2026-05-17: Audited `/thesis` against the V1 major-grain lane list. Visible rows are exactly Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats; excluded grains/US rice/cotton/Kalshi do not appear. Polished stance language so modest non-zero scores show as `Lean bull` / `Lean bear` instead of contradictory balanced copy, renamed the top summary from Markets to Source Packets, added a score/confidence guide, and added a farmer-read `Top takeaway` card above the matrix. Wheat-class placeholder rows now label as `Mapping needed` instead of `Country split`. Console was clean, focused tests passed, and `npm run build` passed locally.
 - 2026-05-17: Patched collector-triggered thesis-cache refresh behavior from the USDA export-sales repair. `scripts/run-collector-with-thesis-cache-refresh.ts` now force-refreshes thesis packets after successful collectors so stale cache watermarks cannot hide newly imported source data; dry-run collectors still skip refresh. `refresh-thesis-packet-cache.ts` defaults to the V1 source-backed board grains only, and focused wrapper/thesis-board tests plus `npm run build` passed locally.
