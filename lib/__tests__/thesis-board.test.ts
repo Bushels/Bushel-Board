@@ -194,6 +194,43 @@ describe("thesis board packet normalization", () => {
     expect(heavyStocks.stanceScore).toBeLessThan(0);
   });
 
+  it("uses USDA acreage to make planting pace drivers farmer-readable", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      supply: {
+        crop_progress: {
+          us_total: {
+            planted_pct_vs_avg: 7,
+          },
+        },
+        acreage: [
+          {
+            region_code: "IA",
+            planted_acres: 13_100_000,
+            source_release_date: "2026-01-12",
+          },
+          {
+            region_code: "US TOTAL",
+            planted_acres: 98_788_000,
+            source_program: "SURVEY",
+            source_release_date: "2026-01-12",
+          },
+        ],
+      },
+      freshness: [
+        { source_name: "usda_crop_progress", freshness_status: "strong" },
+        { source_name: "crop_acreage_estimates", freshness_status: "strong" },
+      ],
+      quality_warnings: [],
+    });
+
+    const driver = item.bearDrivers.find((candidate) => candidate.title === "Planting pace comfortable");
+
+    expect(driver?.body).toContain("98.8M planted acre base");
+    expect(driver?.body).toContain("2026-01-12");
+    expect(driver?.metricLabel).toBe("98.8M ac; +7.0% vs avg");
+    expect(driver?.sourceName).toBe("usda_crop_progress + crop_acreage_estimates");
+  });
+
   it("returns a safe balanced Canada item for an empty packet", () => {
     const item = buildCanadaThesisBoardItem(canola, {});
 

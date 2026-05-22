@@ -277,6 +277,11 @@ function formatPct(value: number | null): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
+function formatMillionAcres(value: number | null): string {
+  if (value === null) return "not available";
+  return `${(value / 1_000_000).toFixed(1)}M ac`;
+}
+
 function formatPrice(value: number | null, currency: string | null, unit: string | null): string {
   if (value === null) return "not available";
   const prefix = currency === "USD" || currency === "CAD" ? `${currency} ` : "";
@@ -349,6 +354,45 @@ function sourceConfidence(
     .find((row) => row.sourceName === sourceName)
     ?.freshnessStatus.toLowerCase();
   return status === "strong" ? requested : "low";
+}
+
+function latestNationalAcreage(acreageRows: JsonRecord[]): JsonRecord | null {
+  const rows = acreageRows
+    .filter((row) => textValue(row, "region_code")?.toUpperCase() === "US TOTAL")
+    .filter((row) => numberValue(row, "planted_acres") !== null)
+    .sort((a, b) => {
+      const dateCompare = String(textValue(b, "source_release_date") ?? "").localeCompare(
+        String(textValue(a, "source_release_date") ?? ""),
+      );
+      if (dateCompare !== 0) return dateCompare;
+      return String(textValue(b, "source_program") ?? "").localeCompare(
+        String(textValue(a, "source_program") ?? ""),
+      );
+    });
+  return rows[0] ?? null;
+}
+
+function acreagePlantingContext(
+  acreageRow: JsonRecord | null,
+  plantedVsAvg: number,
+): { sourceName: string; metricLabel: string; bodySuffix: string } {
+  const plantedAcres = acreageRow ? numberValue(acreageRow, "planted_acres") : null;
+  const releaseDate = acreageRow ? textValue(acreageRow, "source_release_date") : null;
+  if (plantedAcres === null) {
+    return {
+      sourceName: "usda_crop_progress",
+      metricLabel: `${formatPct(plantedVsAvg)} versus average`,
+      bodySuffix: "",
+    };
+  }
+
+  return {
+    sourceName: "usda_crop_progress + crop_acreage_estimates",
+    metricLabel: `${formatMillionAcres(plantedAcres)}; ${formatPct(plantedVsAvg)} vs avg`,
+    bodySuffix: ` against a ${formatMillionAcres(plantedAcres).replace(" ac", "")} planted acre base${
+      releaseDate ? ` from ${releaseDate}` : ""
+    }`,
+  };
 }
 
 function ratioPct(numerator: number | null, denominator: number | null): number | null {
@@ -704,6 +748,7 @@ export function buildUsThesisBoardItem(
   const exportSales = asRecord(demand.export_sales);
   const wasde = asRecord(supply.wasde);
   const quarterlyStocks = asRecord(supply.quarterly_stocks);
+  const acreage = latestNationalAcreage(asArray(supply.acreage));
   const prices = asArray(packet.prices);
   const positioning = asArray(packet.positioning);
   const freshness = normalizeFreshness(packet);
@@ -742,22 +787,23 @@ export function buildUsThesisBoardItem(
   }
 
   if (plantedVsAvg !== null) {
+    const plantingContext = acreagePlantingContext(acreage, plantedVsAvg);
     if (plantedVsAvg <= -5) {
       addDriver(bullDrivers, {
         tone: "bull",
         title: "Planting pace risk",
-        body: "The latest US crop progress row shows planting behind normal pace.",
-        sourceName: "usda_crop_progress",
-        metricLabel: `${formatPct(plantedVsAvg)} versus average`,
+        body: `The latest US crop progress row shows planting behind normal pace${plantingContext.bodySuffix}.`,
+        sourceName: plantingContext.sourceName,
+        metricLabel: plantingContext.metricLabel,
         confidence: sourceConfidence("medium", "usda_crop_progress", freshness),
       });
     } else if (plantedVsAvg >= 5) {
       addDriver(bearDrivers, {
         tone: "bear",
         title: "Planting pace comfortable",
-        body: "The latest US crop progress row shows planting ahead of normal pace.",
-        sourceName: "usda_crop_progress",
-        metricLabel: `${formatPct(plantedVsAvg)} versus average`,
+        body: `The latest US crop progress row shows planting ahead of normal pace${plantingContext.bodySuffix}.`,
+        sourceName: plantingContext.sourceName,
+        metricLabel: plantingContext.metricLabel,
         confidence: sourceConfidence("medium", "usda_crop_progress", freshness),
       });
     }
