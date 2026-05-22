@@ -162,9 +162,40 @@ Verification:
 Pending live follow-up:
 1. Move into Export Sales pace vs WASDE export projection compound scoring.
 
+### Export Sales + WASDE projection compound scoring
+
+App-side scoring is implemented and verified, but live visibility needs the next data-admission slice.
+
+Files changed:
+- `lib/queries/thesis-board.ts`
+- `lib/__tests__/thesis-board.test.ts`
+- `PROJECT_STATE.md`
+- `docs/plans/STATUS.md`
+
+What changed:
+- `buildUsThesisBoardItem()` now computes export-sales pace from either `export_pace_pct` or `total_commitments_mt / usda_projection_mt`.
+- The board can emit compound drivers when export sales outrun or lag WASDE export projection:
+  - `Export sales confirm raised WASDE projection`
+  - `Export sales challenge WASDE export cut`
+  - `Export sales execution risk against WASDE raise`
+  - `Export sales confirm WASDE export cut`
+  - `Export sales outrunning WASDE projection`
+  - `Export sales lag WASDE projection`
+- These drivers include WASDE export-revision context when `exports_change_kt` is present.
+
+Verification:
+- `npx vitest run lib/__tests__/thesis-board.test.ts --pool=threads --reporter=dot` passed: 22/22 tests.
+- `npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts` passed.
+- `npm run build` passed.
+
+Live-data caveat:
+- Direct live inspection showed current `usda_export_sales.export_pace_pct` and `usda_projection_mt` are null.
+- I intentionally did not derive production-visible projection pace from raw WASDE fields inside the app because live FAS/WASDE year/unit alignment produced obvious bad comparisons for some commodities.
+- Next slice should populate/backfill `usda_export_sales.export_pace_pct` / `usda_projection_mt` through a trusted WASDE-aligned source path, refresh thesis cache, then verify the compound drivers visibly appear in `/thesis`.
+
 ### Project truth docs updated
 
-Updated, committed, and pushed:
+Updated:
 - `PROJECT_STATE.md`
 - `docs/plans/STATUS.md`
 - `docs/reference/us-thesis-data-spine.md`

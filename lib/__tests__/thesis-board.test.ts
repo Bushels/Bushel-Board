@@ -222,6 +222,76 @@ describe("thesis board packet normalization", () => {
     expect(looserBalance.stanceScore).toBeLessThan(0);
   });
 
+  it("turns export-sales pace versus WASDE projection into compound US thesis drivers", () => {
+    const demandConfirmed = buildUsThesisBoardItem(corn, {
+      supply: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 725,
+        },
+      },
+      demand: {
+        export_sales: {
+          net_sales_mt: 620_000,
+          total_commitments_mt: 52_500_000,
+          usda_projection_mt: 50_000_000,
+        },
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 725,
+        },
+      },
+      freshness: [
+        { source_name: "usda_export_sales", freshness_status: "strong" },
+        { source_name: "usda_wasde_mapped", freshness_status: "strong" },
+      ],
+      quality_warnings: [],
+    });
+    const executionRisk = buildUsThesisBoardItem(corn, {
+      supply: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 800,
+        },
+      },
+      demand: {
+        export_sales: {
+          net_sales_mt: 120_000,
+          total_commitments_mt: 39_000_000,
+          usda_projection_mt: 50_000_000,
+        },
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 800,
+        },
+      },
+      freshness: [
+        { source_name: "usda_export_sales", freshness_status: "strong" },
+        { source_name: "usda_wasde_mapped", freshness_status: "strong" },
+      ],
+      quality_warnings: [],
+    });
+
+    expect(demandConfirmed.bullDrivers.map((driver) => driver.title)).toContain(
+      "Export sales confirm raised WASDE projection",
+    );
+    expect(
+      demandConfirmed.bullDrivers.find(
+        (driver) => driver.title === "Export sales confirm raised WASDE projection",
+      )?.metricLabel,
+    ).toBe("+105.0% of WASDE export projection");
+    expect(executionRisk.bearDrivers.map((driver) => driver.title)).toContain(
+      "Export sales execution risk against WASDE raise",
+    );
+    expect(executionRisk.bearDrivers.find((driver) => driver.title === "Export sales execution risk against WASDE raise")?.body).toContain(
+      "39,000,000 mt committed versus 50,000,000 mt projected",
+    );
+  });
+
   it("turns USDA quarterly stocks surprises into US thesis drivers", () => {
     const tightStocks = buildUsThesisBoardItem(corn, {
       supply: {

@@ -289,6 +289,13 @@ function formatKtDelta(value: number | null): string {
   })} kt`;
 }
 
+function formatMtDelta(value: number | null): string {
+  if (value === null) return "not available";
+  return `${value.toLocaleString("en-US", {
+    maximumFractionDigits: 0,
+  })} mt`;
+}
+
 function wasdeRevisionWindow(wasde: JsonRecord): string {
   const previous = textValue(wasde, "previous_report_month");
   const current = textValue(wasde, "report_month");
@@ -413,6 +420,15 @@ function acreagePlantingContext(
 function ratioPct(numerator: number | null, denominator: number | null): number | null {
   if (numerator === null || denominator === null || denominator <= 0) return null;
   return (numerator / denominator) * 100;
+}
+
+function exportProjectionPacePct(exportSales: JsonRecord): number | null {
+  const explicitPace = numberValue(exportSales, "export_pace_pct");
+  if (explicitPace !== null) return explicitPace;
+
+  const commitmentsMt = numberValue(exportSales, "total_commitments_mt");
+  const projectionMt = numberValue(exportSales, "usda_projection_mt");
+  return ratioPct(commitmentsMt, projectionMt);
 }
 
 function addDriver(
@@ -826,7 +842,7 @@ export function buildUsThesisBoardItem(
   }
 
   const netSales = numberValue(exportSales, "net_sales_mt");
-  const exportPace = numberValue(exportSales, "export_pace_pct");
+  const exportPace = exportProjectionPacePct(exportSales);
   if (netSales !== null) {
     if (netSales > 0 && exportPace !== null && exportPace >= 95) {
       addDriver(bullDrivers, {
@@ -886,6 +902,54 @@ export function buildUsThesisBoardItem(
     numberValue(wasde, "domestic_consumption_change_kt");
   const demandChangeKt = crushChangeKt ?? domesticConsumptionChangeKt;
   const revisionWindow = wasdeRevisionWindow(wasde);
+  const exportProjectionMt = numberValue(exportSales, "usda_projection_mt");
+  const exportCommitmentsMt = numberValue(exportSales, "total_commitments_mt");
+
+  if (exportPace !== null && (exportProjectionMt !== null || exportCommitmentsMt !== null)) {
+    const metricLabel = `${formatPct(exportPace)} of WASDE export projection`;
+    const commitmentsCopy =
+      exportCommitmentsMt !== null && exportProjectionMt !== null
+        ? `${formatMtDelta(exportCommitmentsMt)} committed versus ${formatMtDelta(exportProjectionMt)} projected`
+        : `export pace at ${exportPace.toFixed(1)}%`;
+
+    if (exportPace >= 102) {
+      addDriver(bullDrivers, {
+        tone: "bull",
+        title:
+          exportsChangeKt !== null && exportsChangeKt <= -500
+            ? "Export sales challenge WASDE export cut"
+            : exportsChangeKt !== null && exportsChangeKt >= 500
+              ? "Export sales confirm raised WASDE projection"
+              : "Export sales outrunning WASDE projection",
+        body: `USDA export-sales commitments are running ahead of the WASDE export target: ${commitmentsCopy}${
+          exportsChangeKt !== null
+            ? `, while WASDE exports changed ${formatKtDelta(exportsChangeKt)}${revisionWindow}`
+            : ""
+        }.`,
+        sourceName: "usda_export_sales + usda_wasde_mapped",
+        metricLabel,
+        confidence: sourceConfidence("high", "usda_export_sales", freshness),
+      });
+    } else if (exportPace <= 85) {
+      addDriver(bearDrivers, {
+        tone: "bear",
+        title:
+          exportsChangeKt !== null && exportsChangeKt >= 500
+            ? "Export sales execution risk against WASDE raise"
+            : exportsChangeKt !== null && exportsChangeKt <= -500
+              ? "Export sales confirm WASDE export cut"
+              : "Export sales lag WASDE projection",
+        body: `USDA export-sales commitments are lagging the WASDE export target: ${commitmentsCopy}${
+          exportsChangeKt !== null
+            ? `, while WASDE exports changed ${formatKtDelta(exportsChangeKt)}${revisionWindow}`
+            : ""
+        }.`,
+        sourceName: "usda_export_sales + usda_wasde_mapped",
+        metricLabel,
+        confidence: sourceConfidence("high", "usda_export_sales", freshness),
+      });
+    }
+  }
 
   if (endingStocksChangeKt !== null) {
     if (endingStocksChangeKt <= -500) {
