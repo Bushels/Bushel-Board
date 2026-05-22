@@ -129,7 +129,7 @@ Verification:
 
 ### US WASDE revision-analysis slice
 
-Implemented locally; live migration/cache refresh pending because Supabase MCP is disconnected and Supabase CLI is unavailable in this shell.
+Implemented locally and applied live. Supabase MCP was reconnected through the configured `supabase_bushel` token path; the local migration was applied as live migration `20260522183715_add_wasde_revision_context_to_us_thesis_packet`, then `thesis_packet_cache` was force-refreshed.
 
 Files changed:
 - `supabase/migrations/20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`
@@ -155,13 +155,13 @@ Verification:
 - `npx vitest run lib/__tests__/thesis-board.test.ts --pool=threads --reporter=dot` passed: 21/21 tests.
 - `npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts` passed.
 - `npm run build` passed.
-- REST check against live `get_us_thesis_packet('Corn', 2026)` showed no revision fields yet, which is expected because the migration has not been applied live.
+- `npm run refresh-thesis-cache -- --force` succeeded after live migration: 12 requested source-backed rows refreshed, 0 failures, 21 total cache rows.
+- Live cache SQL verification confirmed US Corn/Soybeans/Wheat 2025 cached packets include `previous_report_month`, `ending_stocks_change_kt`, `exports_change_kt`, and demand/crush revision fields where available.
+- Browser audit of `http://127.0.0.1:3000/thesis?audit=1` confirmed the route loads, shows fresh cached-board status, shows all 9 V1 quick-scan rows, surfaces WASDE revision copy such as soybean crush raised/export cut drivers, and has a clean console.
+- Note: `get_us_thesis_packet('Corn'|'Soybeans'|'Wheat', 2026)` still returns null WASDE payloads because current live mapped WASDE rows for these markets are keyed to market year 2025, which is the cache refresh script's current US market-year default.
 
 Pending live follow-up:
-1. Apply migration `20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`.
-2. Refresh `thesis_packet_cache`.
-3. Verify US Corn/Soybeans/Wheat cached packets include `ending_stocks_change_kt` and `exports_change_kt`.
-4. Browser-audit `/thesis?audit=1` for the new WASDE driver copy.
+1. Move into Export Sales pace vs WASDE export projection compound scoring.
 
 ### Project truth docs updated
 
@@ -203,19 +203,18 @@ Excluded until explicitly redirected:
 
 ## Recommended next move
 
-Recommendation: finish live rollout for the WASDE revision-analysis slice, then move to Export Sales + WASDE projection compound scoring.
+Recommendation: move to Export Sales + WASDE projection compound scoring.
 
 Why:
 - Quarterly stocks and acreage are admitted.
-- WASDE revision fields and local drivers now exist.
-- Live migration/cache refresh is still pending, then the next quality jump is compound scoring: export sales pace + WASDE export projection + CFTC/stocks.
+- WASDE revision fields and deterministic drivers now exist live and in cache.
+- The next quality jump is compound scoring: export sales pace + WASDE export projection + CFTC/stocks.
 
 Suggested implementation shape:
-1. Apply the WASDE revision migration live once Supabase write tooling is available.
-2. Refresh thesis cache and verify live packets.
-3. Browser-audit `/thesis?audit=1`.
-4. Then define Export Sales pace vs WASDE export projection scoring rules.
-5. Keep all work hard-gated to the V1 major-grain scope.
+1. Define Export Sales pace vs WASDE export projection scoring rules.
+2. Implement the compound signal in the facts/scoring layer with focused tests.
+3. Refresh thesis cache and verify driver output.
+4. Keep all work hard-gated to the V1 major-grain scope.
 
 ## Alternative next move
 
@@ -254,4 +253,4 @@ Expected status after committing docs:
 
 ## One-line handoff prompt for new session
 
-Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `docs/plans/2026-05-22-bushel-board-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; preserve the untracked `scripts/generate-usda-crop-progress-infographic.ts`; then finish live rollout of the local US WASDE revision-analysis slice, or move to Export Sales + WASDE projection compound scoring if the migration/cache is already applied.
+Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `docs/plans/2026-05-22-bushel-board-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; preserve the untracked `scripts/generate-usda-crop-progress-infographic.ts`; then move into Export Sales + WASDE projection compound scoring for the V1 major-grain thesis board.

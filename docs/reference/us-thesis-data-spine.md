@@ -113,8 +113,8 @@ These combinations are more powerful than individual data points:
 - [x] Build importer for `usda_quarterly_stocks`
 - [x] Wire `usda_quarterly_stocks` into `get_us_thesis_packet()`, source freshness, `/thesis` cache, and deterministic US supply drivers
 - [x] Wire `crop_acreage_estimates` acreage into `get_us_thesis_packet()`, source freshness, `/thesis` cache, and deterministic planting-progress drivers
-- [x] Add local WASDE revision fields to US thesis packet migration and deterministic board drivers
-- [ ] Apply WASDE revision migration live and refresh thesis packet cache
+- [x] Add WASDE revision fields to US thesis packet migration and deterministic board drivers
+- [x] Apply WASDE revision migration live and refresh thesis packet cache
 - [x] Add source-freshness quality warnings to thesis packet RPC
 - [ ] Define compound signal scoring rules for Export Sales + WASDE
 
