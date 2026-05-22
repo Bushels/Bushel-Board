@@ -90,6 +90,20 @@ function comparisonClass(status: ThesisComparisonRow["status"]): string {
   return "border-border bg-muted/50 text-muted-foreground";
 }
 
+function missingMarketCopy(row: ThesisComparisonRow, country: "CA" | "US"): string {
+  if (row.status === "mapping_needed") return `${country}: source mapping needed`;
+  if (row.grain === "Durum" && country === "US") return "US: not modeled in V1";
+  if (row.grain === "Canola" && country === "US") return "US: Canada-first lane";
+  return `${country}: not modeled in V1`;
+}
+
+function shortSourceHealthRead(data: Awaited<ReturnType<typeof getThesisBoardData>>): string {
+  if (data.totals.uniqueWatchSourceCount === 0) {
+    return "All rendered public source groups are currently clean.";
+  }
+  return `${data.totals.uniqueWatchSourceCount} source group${data.totals.uniqueWatchSourceCount === 1 ? "" : "s"} need attention across ${data.totals.watchSourceInstanceCount} packet rows.`;
+}
+
 function freshnessClass(status: string): string {
   if (status === "strong") return "border-prairie/25 bg-prairie/10 text-prairie";
   if (status === "empty" || status === "broken") {
@@ -117,15 +131,17 @@ function CountryTag({ country }: { country: "CA" | "US" }) {
 function MarketIndicator({
   item,
   country,
+  missingLabel,
 }: {
   item: ThesisBoardItem | null;
   country: "CA" | "US";
+  missingLabel: string;
 }) {
   if (!item) {
     return (
       <div className="space-y-2">
         <CountryTag country={country} />
-        <p className="text-sm font-medium text-muted-foreground">Not modeled in V1</p>
+        <p className="text-sm font-medium text-muted-foreground">{missingLabel}</p>
       </div>
     );
   }
@@ -338,10 +354,10 @@ function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
                     <p className="font-semibold text-foreground">{row.grain}</p>
                   </td>
                   <td className="px-4 py-4">
-                    <MarketIndicator item={row.canada} country="CA" />
+                    <MarketIndicator item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
                   </td>
                   <td className="px-4 py-4">
-                    <MarketIndicator item={row.us} country="US" />
+                    <MarketIndicator item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
                   </td>
                   <td className="px-4 py-4">
                     <ComparisonPointList
@@ -615,14 +631,16 @@ function SummaryCard({
 function CompactMarketSignal({
   item,
   country,
+  missingLabel,
 }: {
   item: ThesisBoardItem | null;
   country: "CA" | "US";
+  missingLabel: string;
 }) {
   if (!item) {
     return (
       <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground">
-        {country}: source mapping needed
+        {missingLabel}
       </div>
     );
   }
@@ -679,6 +697,21 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
         </Badge>
       </div>
 
+      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <Badge variant="outline" className="border-prairie/25 bg-prairie/10 text-prairie">
+          Aligned bull = CA and US both constructive
+        </Badge>
+        <Badge variant="outline" className="border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+          Aligned bear = both defensive
+        </Badge>
+        <Badge variant="outline" className="border-canola/30 bg-canola/10 text-canola">
+          Country split = evidence disagrees
+        </Badge>
+        <Badge variant="outline" className="border-border bg-muted/60 text-muted-foreground">
+          Mapping needed = no class-safe source yet
+        </Badge>
+      </div>
+
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="grid grid-cols-1 border-b border-border bg-muted/35 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:gap-4">
           <span>Grain</span>
@@ -698,8 +731,8 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
                   {row.statusLabel}
                 </Badge>
               </div>
-              <CompactMarketSignal item={row.canada} country="CA" />
-              <CompactMarketSignal item={row.us} country="US" />
+              <CompactMarketSignal item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
+              <CompactMarketSignal item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
               <div className="hidden space-y-2 md:block">
                 <Badge variant="outline" className={comparisonClass(row.status)}>
                   {row.statusLabel}
@@ -711,6 +744,42 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesisBoardData>> }) {
+  const hasWatchSources = data.totals.uniqueWatchSourceCount > 0;
+  const isStaleCache = data.packetMode === "cached" && data.cacheStatus !== "fresh";
+  const borderClass = isStaleCache
+    ? "border-red-500/30 bg-red-500/8"
+    : hasWatchSources
+      ? "border-canola/35 bg-canola/8"
+      : "border-prairie/25 bg-prairie/8";
+  const title = isStaleCache
+    ? "Board freshness needs a refresh before use"
+    : hasWatchSources
+      ? "Use this as a provisional market read"
+      : "Source health is clean for this board";
+
+  return (
+    <Card className={cn("rounded-lg py-4 shadow-none", borderClass)}>
+      <CardContent className="flex flex-col gap-3 px-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {shortSourceHealthRead(data)} Confidence is source-completeness, not price-advice certainty.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 md:justify-end">
+          <Badge variant="outline" className={freshnessClass(isStaleCache ? "stale" : hasWatchSources ? "lagged" : "strong")}>
+            {data.packetMode === "cached" ? `Cached board: ${data.cacheStatus}` : "Live packet fallback"}
+          </Badge>
+          <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+            Last source run {formatDateTime(data.latestAvailableSourceRunAt)}
+          </Badge>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -808,9 +877,11 @@ export default async function ThesisPage() {
         />
       </section>
 
-      <ThesisQuickGlanceBoard rows={data.comparisonRows} />
+      <DataQualityBanner data={data} />
 
       <TopTakeawayCard rows={data.comparisonRows} />
+
+      <ThesisQuickGlanceBoard rows={data.comparisonRows} />
 
       <MajorThesisMatrix rows={data.comparisonRows} />
 
