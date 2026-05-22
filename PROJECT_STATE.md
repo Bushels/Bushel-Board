@@ -17,7 +17,7 @@ Completed local work since the Kalshi parking update:
 - US WASDE month-over-month revision context is live. Local migration `20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql` was applied through Supabase MCP as live migration `20260522183715_add_wasde_revision_context_to_us_thesis_packet`; it adds previous-report deltas for ending stocks, stocks-to-use, exports, domestic use, crush, and production into `get_us_thesis_packet().supply.wasde` / `.demand.wasde`; `buildUsThesisBoardItem()` turns material WASDE ending-stocks/export/domestic-demand revisions into deterministic bull/bear drivers.
 - `thesis_packet_cache` was force-refreshed after the WASDE revision migration. Verification: 21 cache rows; US Corn/Soybeans/Wheat 2025 cached packets now contain `previous_report_month`, `ending_stocks_change_kt`, `exports_change_kt`, and demand/crush revision fields where available. Cache refresh completed at `2026-05-22T18:38:06Z` with 12 requested source-backed rows refreshed and 0 failures. Browser audit of `/thesis?audit=1` loaded successfully, showed fresh cached-board status, showed all 9 V1 quick-scan rows, surfaced WASDE revision driver copy such as soybean crush/export revisions, and had a clean console.
 
-Primary next-session handoff: `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
+Primary next-session handoff: `docs/plans/2026-05-22-bushel-board-handoff.md`.
 
 Background harness handoff: `docs/plans/2026-05-10-multi-grain-weekly-thesis-harness-handoff.md`.
 

@@ -5,16 +5,11 @@
 Branch: `codex/data-layer-foundation-v1`
 
 Latest pushed code commit:
-- `4287293 feat: add USDA acreage thesis context`
+- `d594e95 docs: record live WASDE revision rollout`
 
-Latest local slice to commit:
-- `supabase/migrations/20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`
-- `lib/queries/thesis-board.ts`
-- `lib/__tests__/thesis-board.test.ts`
-- `PROJECT_STATE.md`
-- `docs/plans/STATUS.md`
-- `docs/reference/us-thesis-data-spine.md`
-- this handoff file
+Latest production slice completed, verified, committed, and pushed:
+- US WASDE month-over-month revision context in thesis packets/cache.
+- Current docs already reflect the live rollout.
 
 Working tree at handoff should remain clean except one intentionally unrelated untracked file:
 - `scripts/generate-usda-crop-progress-infographic.ts`
@@ -129,7 +124,11 @@ Verification:
 
 ### US WASDE revision-analysis slice
 
-Implemented locally and applied live. Supabase MCP was reconnected through the configured `supabase_bushel` token path; the local migration was applied as live migration `20260522183715_add_wasde_revision_context_to_us_thesis_packet`, then `thesis_packet_cache` was force-refreshed.
+Complete and pushed as:
+- `31c6dc6 feat: add WASDE revision thesis drivers`
+- `d594e95 docs: record live WASDE revision rollout`
+
+Supabase MCP was reconnected through the configured `supabase_bushel` token path; the local migration was applied as live migration `20260522183715_add_wasde_revision_context_to_us_thesis_packet`, then `thesis_packet_cache` was force-refreshed.
 
 Files changed:
 - `supabase/migrations/20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`
@@ -165,7 +164,7 @@ Pending live follow-up:
 
 ### Project truth docs updated
 
-Updated locally and ready to commit:
+Updated, committed, and pushed:
 - `PROJECT_STATE.md`
 - `docs/plans/STATUS.md`
 - `docs/reference/us-thesis-data-spine.md`
