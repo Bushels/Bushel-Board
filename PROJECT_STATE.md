@@ -1,6 +1,6 @@
 # Bushel Board - Current State
 
-**Last verified implementation checkpoint:** USDA acreage context added to US thesis freshness/cache and `/thesis` acreage-aware planting drivers verified on branch `codex/data-layer-foundation-v1`
+**Last verified implementation checkpoint:** US WASDE month-over-month revision context implemented locally for thesis packets and `/thesis` deterministic drivers on branch `codex/data-layer-foundation-v1`
 **As of:** 2026-05-22
 
 ## Active task
@@ -14,7 +14,9 @@ Completed local work since the Kalshi parking update:
 - USDA export-sales freshness was repaired 2026-05-16. Live Supabase now has `usda_export_sales.week_ending = 2026-05-07` with 5 rows / 5 commodities for the latest week: ALL WHEAT, CORN, SOYBEANS, BARLEY, OATS.
 - USDA quarterly grain stocks were added, imported, and wired into the US thesis packet/cache 2026-05-22. Live Supabase now has `public.usda_quarterly_stocks` with 47 rows for BARLEY, CANOLA, CORN, OATS, SOYBEANS, and WHEAT; latest regular quarterly stock report is `2026-03-01` for all except CANOLA (`2025-06-01`, because NASS only returned June canola stock rows for this pull). `get_us_thesis_packet()` now emits `supply.quarterly_stocks`, `get_thesis_data_freshness()` includes `usda_quarterly_stocks`, and the `/thesis` board has been visually audited/polished with a source-health banner, farmer-read top takeaway before the quick scan, clearer quick-scan legend, and more accurate missing-market copy for Durum/Canola US lanes.
 - USDA acreage is now admitted into the US thesis context. Existing `crop_acreage_estimates` rows flow through `get_us_thesis_packet().supply.acreage`, `get_thesis_data_freshness()` reports `crop_acreage_estimates` for the US lane, and deterministic `/thesis` planting-progress drivers now express progress against the actual planted-acre base instead of percentage-only reads.
+- US WASDE month-over-month revision context is implemented locally. New migration `20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql` adds previous-report deltas for ending stocks, stocks-to-use, exports, domestic use, crush, and production into `get_us_thesis_packet().supply.wasde` / `.demand.wasde`; `buildUsThesisBoardItem()` now turns material WASDE ending-stocks/export/domestic-demand revisions into deterministic bull/bear drivers.
 - `thesis_packet_cache` was force-refreshed after the acreage packet/freshness integration. Verification: 21 cache rows, US Corn cache contains both `supply.acreage` and `supply.quarterly_stocks`, and live Corn freshness reports `crop_acreage_estimates` as strong with 157 rows available and latest period end `2026-03-31`.
+- WASDE revision slice verification is local-only so far because Supabase MCP is disconnected and Supabase CLI is unavailable in this shell. Focused `thesis-board` Vitest, scoped ESLint, and `npm run build` pass. REST check against live `get_us_thesis_packet('Corn', 2026)` confirmed live packets do not yet expose revision fields until the migration is applied and cache refreshed.
 
 Primary next-session handoff: `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
 
@@ -42,13 +44,14 @@ GitHub CLI is authenticated for account `Bushels` with HTTPS protocol. `gh repo 
 - Supabase MCP still reports `public.prediction_scorecard` has RLS disabled. Do not blindly enable RLS without defining read/write policies first; enabling RLS alone can break app reads/writes.
 
 ## Next action
-1. Open a new clean session with `docs/plans/2026-05-16-bullish-bearish-major-grains-next-session.md`.
-2. Build the Bullish/Bearish board around this first major-lane scope only: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats.
-3. Do not expand to Peas, Lentils, Flaxseed, Rye, Mustard Seed, Canaryseed, Chick Peas, Sunflower, Beans, US rice/cotton, global commodity boards, or Kalshi until this board is polished and verified.
-4. Continue the board UI/data polish: audit `/thesis` after the quarterly-stocks packet integration, then improve at-a-glance bull driver, bear driver, stance, freshness, and country-divergence explanations.
-5. Leave Kalshi parked unless a fresh `npx tsx scripts/capture-kalshi-commodity-snapshot.ts` run shows `open_market_count > 0` for Corn, Soybeans, or Wheat.
+1. Apply migration `20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql` when Supabase write tooling is available.
+2. Refresh `thesis_packet_cache` after the migration and verify US Corn/Soybeans/Wheat packets contain `ending_stocks_change_kt` and `exports_change_kt` in the WASDE payload.
+3. Browser-audit `/thesis?audit=1` for the new WASDE revision driver copy once live cache contains the fields.
+4. Continue the Bullish/Bearish board around the first major-lane scope only: Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats.
+5. Do not expand to Peas, Lentils, Flaxseed, Rye, Mustard Seed, Canaryseed, Chick Peas, Sunflower, Beans, US rice/cotton, global commodity boards, or Kalshi until this board is polished and verified.
 
 ## Recent milestones (rolling 30 days)
+- 2026-05-22: Implemented US WASDE month-over-month revision context for the thesis board. New packet migration computes previous-report deltas for ending stocks, stocks-to-use, exports, domestic use, crush, and production; deterministic `/thesis` drivers now surface material ending-stocks cuts/raises, export projection changes, and domestic/crush demand revisions. Verification: focused `thesis-board` Vitest, scoped ESLint, and `npm run build` passed. Live application/cache refresh remains pending until Supabase write tooling is available.
 - 2026-05-22: Added USDA acreage context to the US thesis board. Existing `crop_acreage_estimates` national rows now appear in thesis freshness as `crop_acreage_estimates`, cache rows include `supply.acreage`, and `/thesis` planting-progress drivers show progress against actual planted-acre bases. Verification: live REST checks, focused `us-acreage` + `thesis-board` Vitest suites, scoped ESLint, and `npm run build` passed.
 - 2026-05-22: Visually audited and polished `/thesis` after quarterly-stocks drivers landed. Added a source-health/provisional-use banner above the farmer read, moved `Top takeaway` before the all-grains quick scan, added an explicit quick-scan legend, and corrected missing-market copy so Durum/Canola US cells do not imply a broken source mapping when the V1 board intentionally has no matching US overview lane. Verification: browser visual audit, scoped ESLint, focused `thesis-board` Vitest, and `npm run build` passed.
 - 2026-05-22: Integrated USDA Quarterly Grain Stocks into the live US thesis packet/cache. Migration `20260522035638_wire_usda_quarterly_stocks_into_us_thesis` is applied; `get_us_thesis_packet()` emits `supply.quarterly_stocks`, `get_thesis_data_freshness()` reports `usda_quarterly_stocks`, `buildUsThesisBoardItem()` can surface measured stocks-surprise supply drivers, and `thesis_packet_cache` was force-refreshed to 21 rows with 5 US quarterly-stocks payloads. Verification: live RPC/cache SQL checks, focused `thesis-board`/quarterly-stocks Vitest suites, scoped ESLint, and `npm run build` passed.

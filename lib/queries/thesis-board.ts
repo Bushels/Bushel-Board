@@ -282,6 +282,21 @@ function formatMillionAcres(value: number | null): string {
   return `${(value / 1_000_000).toFixed(1)}M ac`;
 }
 
+function formatKtDelta(value: number | null): string {
+  if (value === null) return "not available";
+  return `${value.toLocaleString("en-CA", {
+    maximumFractionDigits: 0,
+  })} kt`;
+}
+
+function wasdeRevisionWindow(wasde: JsonRecord): string {
+  const previous = textValue(wasde, "previous_report_month");
+  const current = textValue(wasde, "report_month");
+  if (previous && current) return ` from ${previous} to ${current}`;
+  if (current) return ` in the ${current} WASDE row`;
+  return " in the latest mapped WASDE rows";
+}
+
 function formatPrice(value: number | null, currency: string | null, unit: string | null): string {
   if (value === null) return "not available";
   const prefix = currency === "USD" || currency === "CAD" ? `${currency} ` : "";
@@ -747,6 +762,7 @@ export function buildUsThesisBoardItem(
   const demand = asRecord(packet.demand);
   const exportSales = asRecord(demand.export_sales);
   const wasde = asRecord(supply.wasde);
+  const demandWasde = asRecord(demand.wasde);
   const quarterlyStocks = asRecord(supply.quarterly_stocks);
   const acreage = latestNationalAcreage(asArray(supply.acreage));
   const prices = asArray(packet.prices);
@@ -857,6 +873,93 @@ export function buildUsThesisBoardItem(
         body: `Ending stocks are ${endingStocksMmt !== null ? `${endingStocksMmt.toFixed(2)} mmt` : "available"} in the latest mapped WASDE row.`,
         sourceName: "usda_wasde_mapped",
         metricLabel: stocksToUse !== null ? `${stocksToUse.toFixed(1)}% stocks/use` : "ending stocks up",
+        confidence: sourceConfidence("medium", "usda_wasde_mapped", freshness),
+      });
+    }
+  }
+
+  const endingStocksChangeKt = numberValue(wasde, "ending_stocks_change_kt");
+  const exportsChangeKt = numberValue(demandWasde, "exports_change_kt") ?? numberValue(wasde, "exports_change_kt");
+  const crushChangeKt = numberValue(demandWasde, "crush_change_kt") ?? numberValue(wasde, "crush_change_kt");
+  const domesticConsumptionChangeKt =
+    numberValue(demandWasde, "domestic_consumption_change_kt") ??
+    numberValue(wasde, "domestic_consumption_change_kt");
+  const demandChangeKt = crushChangeKt ?? domesticConsumptionChangeKt;
+  const revisionWindow = wasdeRevisionWindow(wasde);
+
+  if (endingStocksChangeKt !== null) {
+    if (endingStocksChangeKt <= -500) {
+      addDriver(bullDrivers, {
+        tone: "bull",
+        title: "WASDE ending stocks cut",
+        body: `USDA lowered ending stocks${revisionWindow}, tightening the balance by ${formatKtDelta(
+          endingStocksChangeKt,
+        )}.`,
+        sourceName: "usda_wasde_mapped",
+        metricLabel: `${formatKtDelta(endingStocksChangeKt)} ending stocks`,
+        confidence: sourceConfidence("high", "usda_wasde_mapped", freshness),
+      });
+    } else if (endingStocksChangeKt >= 500) {
+      addDriver(bearDrivers, {
+        tone: "bear",
+        title: "WASDE ending stocks raised",
+        body: `USDA raised ending stocks${revisionWindow}, loosening the balance by ${formatKtDelta(
+          endingStocksChangeKt,
+        )}.`,
+        sourceName: "usda_wasde_mapped",
+        metricLabel: `${formatKtDelta(endingStocksChangeKt)} ending stocks`,
+        confidence: sourceConfidence("high", "usda_wasde_mapped", freshness),
+      });
+    }
+  }
+
+  if (exportsChangeKt !== null) {
+    if (exportsChangeKt >= 500) {
+      addDriver(bullDrivers, {
+        tone: "bull",
+        title: "WASDE export projection raised",
+        body: `USDA lifted projected exports${revisionWindow}, adding ${formatKtDelta(
+          exportsChangeKt,
+        )} of demand against the balance sheet.`,
+        sourceName: "usda_wasde_mapped",
+        metricLabel: `${formatKtDelta(exportsChangeKt)} exports`,
+        confidence: sourceConfidence("medium", "usda_wasde_mapped", freshness),
+      });
+    } else if (exportsChangeKt <= -500) {
+      addDriver(bearDrivers, {
+        tone: "bear",
+        title: "WASDE export projection cut",
+        body: `USDA cut projected exports${revisionWindow}, removing ${formatKtDelta(
+          Math.abs(exportsChangeKt),
+        )} of demand from the balance sheet.`,
+        sourceName: "usda_wasde_mapped",
+        metricLabel: `${formatKtDelta(exportsChangeKt)} exports`,
+        confidence: sourceConfidence("medium", "usda_wasde_mapped", freshness),
+      });
+    }
+  }
+
+  if (demandChangeKt !== null) {
+    if (demandChangeKt >= 500) {
+      addDriver(bullDrivers, {
+        tone: "bull",
+        title: crushChangeKt !== null ? "WASDE crush demand raised" : "WASDE domestic use raised",
+        body: `USDA lifted ${crushChangeKt !== null ? "crush" : "domestic use"}${revisionWindow}, adding ${formatKtDelta(
+          demandChangeKt,
+        )} of non-export demand.`,
+        sourceName: "usda_wasde_mapped",
+        metricLabel: `${formatKtDelta(demandChangeKt)} ${crushChangeKt !== null ? "crush" : "domestic use"}`,
+        confidence: sourceConfidence("medium", "usda_wasde_mapped", freshness),
+      });
+    } else if (demandChangeKt <= -500) {
+      addDriver(bearDrivers, {
+        tone: "bear",
+        title: crushChangeKt !== null ? "WASDE crush demand cut" : "WASDE domestic use cut",
+        body: `USDA cut ${crushChangeKt !== null ? "crush" : "domestic use"}${revisionWindow}, removing ${formatKtDelta(
+          Math.abs(demandChangeKt),
+        )} of non-export demand.`,
+        sourceName: "usda_wasde_mapped",
+        metricLabel: `${formatKtDelta(demandChangeKt)} ${crushChangeKt !== null ? "crush" : "domestic use"}`,
         confidence: sourceConfidence("medium", "usda_wasde_mapped", freshness),
       });
     }

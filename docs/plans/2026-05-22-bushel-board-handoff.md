@@ -7,7 +7,10 @@ Branch: `codex/data-layer-foundation-v1`
 Latest pushed code commit:
 - `4287293 feat: add USDA acreage thesis context`
 
-Latest local docs update to commit:
+Latest local slice to commit:
+- `supabase/migrations/20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`
+- `lib/queries/thesis-board.ts`
+- `lib/__tests__/thesis-board.test.ts`
 - `PROJECT_STATE.md`
 - `docs/plans/STATUS.md`
 - `docs/reference/us-thesis-data-spine.md`
@@ -123,6 +126,43 @@ Verification:
 - `npx eslint lib/queries/us-acreage.ts lib/queries/thesis-board.ts lib/__tests__/us-acreage.test.ts lib/__tests__/thesis-board.test.ts` passed.
 - `npm run build` passed.
 
+
+### US WASDE revision-analysis slice
+
+Implemented locally; live migration/cache refresh pending because Supabase MCP is disconnected and Supabase CLI is unavailable in this shell.
+
+Files changed:
+- `supabase/migrations/20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`
+- `lib/queries/thesis-board.ts`
+- `lib/__tests__/thesis-board.test.ts`
+- `PROJECT_STATE.md`
+- `docs/plans/STATUS.md`
+- `docs/reference/us-thesis-data-spine.md`
+
+What changed:
+- `get_us_thesis_packet()` migration now computes month-over-month WASDE deltas from the latest row to the previous report for the same market/country/market year.
+- New packet fields include `previous_report_month`, `ending_stocks_change_kt`, `stocks_to_use_change_pct`, `exports_change_kt`, `domestic_consumption_change_kt`, `crush_change_kt`, and `production_change_kt`.
+- The same WASDE payload is exposed under both `supply.wasde` and `demand.wasde`, matching the existing packet shape.
+- `buildUsThesisBoardItem()` now creates deterministic drivers for material WASDE revisions:
+  - ending-stocks cuts => bull driver
+  - ending-stocks raises => bear driver
+  - export projection raises => bull driver
+  - export projection cuts => bear driver
+  - domestic/crush demand raises/cuts => bull/bear drivers
+- Materiality threshold is currently 500 kt for these revision deltas.
+
+Verification:
+- `npx vitest run lib/__tests__/thesis-board.test.ts --pool=threads --reporter=dot` passed: 21/21 tests.
+- `npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts` passed.
+- `npm run build` passed.
+- REST check against live `get_us_thesis_packet('Corn', 2026)` showed no revision fields yet, which is expected because the migration has not been applied live.
+
+Pending live follow-up:
+1. Apply migration `20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`.
+2. Refresh `thesis_packet_cache`.
+3. Verify US Corn/Soybeans/Wheat cached packets include `ending_stocks_change_kt` and `exports_change_kt`.
+4. Browser-audit `/thesis?audit=1` for the new WASDE driver copy.
+
 ### Project truth docs updated
 
 Updated locally and ready to commit:
@@ -163,21 +203,19 @@ Excluded until explicitly redirected:
 
 ## Recommended next move
 
-Recommendation: do a focused US WASDE revision-analysis slice next.
+Recommendation: finish live rollout for the WASDE revision-analysis slice, then move to Export Sales + WASDE projection compound scoring.
 
 Why:
-- Quarterly stocks and acreage are now admitted.
-- WASDE exists but remains weak/under-used.
-- The next quality jump is compound signal scoring: acreage + crop progress + WASDE ending-stock/export revision + CFTC/exports.
+- Quarterly stocks and acreage are admitted.
+- WASDE revision fields and local drivers now exist.
+- Live migration/cache refresh is still pending, then the next quality jump is compound scoring: export sales pace + WASDE export projection + CFTC/stocks.
 
 Suggested implementation shape:
-1. Inspect current `usda_wasde_mapped` schema, importer, and packet usage.
-2. Add a query/helper that computes month-over-month revisions for ending stocks, production, exports, feed/residual, crush where available.
-3. Add focused tests for revision classification and stale/missing WASDE behavior.
-4. Wire revision payload into `get_us_thesis_packet()` and `get_thesis_data_freshness()` if freshness is missing/incomplete.
-5. Add deterministic board drivers only where the revision is material and source freshness is strong.
-6. Refresh thesis cache and verify live packets.
-7. Update docs/state and commit/push focused slices.
+1. Apply the WASDE revision migration live once Supabase write tooling is available.
+2. Refresh thesis cache and verify live packets.
+3. Browser-audit `/thesis?audit=1`.
+4. Then define Export Sales pace vs WASDE export projection scoring rules.
+5. Keep all work hard-gated to the V1 major-grain scope.
 
 ## Alternative next move
 
@@ -216,4 +254,4 @@ Expected status after committing docs:
 
 ## One-line handoff prompt for new session
 
-Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `docs/plans/2026-05-22-bushel-board-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; preserve the untracked `scripts/generate-usda-crop-progress-infographic.ts`; then start the US WASDE revision-analysis slice unless I redirect to the `prediction_scorecard` RLS safety pass.
+Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `docs/plans/2026-05-22-bushel-board-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; preserve the untracked `scripts/generate-usda-crop-progress-infographic.ts`; then finish live rollout of the local US WASDE revision-analysis slice, or move to Export Sales + WASDE projection compound scoring if the migration/cache is already applied.

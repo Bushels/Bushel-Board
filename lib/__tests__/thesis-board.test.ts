@@ -157,6 +157,71 @@ describe("thesis board packet normalization", () => {
     expect(item.confidence).toBe("high");
   });
 
+  it("turns WASDE month-over-month revisions into US thesis drivers", () => {
+    const tighterBalance = buildUsThesisBoardItem(corn, {
+      supply: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          ending_stocks_kt: 39_200,
+          stocks_to_use_pct: 9.5,
+          ending_stocks_change_kt: -1_850,
+          exports_change_kt: 725,
+        },
+      },
+      demand: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 725,
+        },
+      },
+      freshness: [{ source_name: "usda_wasde_mapped", freshness_status: "strong" }],
+      quality_warnings: [],
+    });
+    const looserBalance = buildUsThesisBoardItem(corn, {
+      supply: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          ending_stocks_kt: 52_100,
+          stocks_to_use_pct: 21.2,
+          ending_stocks_change_kt: 2_250,
+          exports_change_kt: -600,
+        },
+      },
+      demand: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: -600,
+        },
+      },
+      freshness: [{ source_name: "usda_wasde_mapped", freshness_status: "strong" }],
+      quality_warnings: [],
+    });
+
+    expect(tighterBalance.bullDrivers.map((driver) => driver.title)).toContain(
+      "WASDE ending stocks cut",
+    );
+    expect(tighterBalance.bullDrivers.map((driver) => driver.title)).toContain(
+      "WASDE export projection raised",
+    );
+    expect(tighterBalance.bullDrivers.find((driver) => driver.title === "WASDE ending stocks cut")?.body).toContain(
+      "2026-04-01 to 2026-05-01",
+    );
+    expect(tighterBalance.bullDrivers.find((driver) => driver.title === "WASDE ending stocks cut")?.metricLabel).toBe(
+      "-1,850 kt ending stocks",
+    );
+    expect(looserBalance.bearDrivers.map((driver) => driver.title)).toContain(
+      "WASDE ending stocks raised",
+    );
+    expect(looserBalance.bearDrivers.map((driver) => driver.title)).toContain(
+      "WASDE export projection cut",
+    );
+    expect(looserBalance.stanceScore).toBeLessThan(0);
+  });
+
   it("turns USDA quarterly stocks surprises into US thesis drivers", () => {
     const tightStocks = buildUsThesisBoardItem(corn, {
       supply: {
