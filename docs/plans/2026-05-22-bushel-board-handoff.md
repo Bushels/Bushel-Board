@@ -5,16 +5,18 @@
 Branch: `codex/data-layer-foundation-v1`
 
 Latest pushed code commit:
-- `d594e95 docs: record live WASDE revision rollout`
+- `e385008 feat: add guarded export sales projection drivers`
 
 Latest production slice completed, verified, committed, and pushed:
-- US WASDE month-over-month revision context in thesis packets/cache.
-- Current docs already reflect the live rollout.
+- Guarded Export Sales + WASDE projection compound drivers in the thesis board app layer.
+- The driver is code/test/docs complete, but live visibility is intentionally blocked until `usda_export_sales.export_pace_pct` / `usda_projection_mt` are populated through a trusted WASDE-aligned source path.
 
-Working tree at handoff should remain clean except one intentionally unrelated untracked file:
-- `scripts/generate-usda-crop-progress-infographic.ts`
+Working tree at handoff should remain clean for committed thesis-board files. Unrelated local WIP remains and must not be included in the Export Sales projection slice unless explicitly redirected:
+- modified: `scripts/import-canada-crop-progress.py`
+- untracked: `scripts/generate-canada-crop-progress-infographic.py`
+- untracked: `scripts/generate-usda-crop-progress-infographic.ts`
 
-Do not accidentally include that infographic script in a production slice unless explicitly working that separate crop-progress infographic task.
+Do not accidentally include those Canada crop progress / infographic files in a production slice unless explicitly working that separate crop-progress infographic task.
 
 ## What was completed
 
@@ -193,6 +195,11 @@ Live-data caveat:
 - I intentionally did not derive production-visible projection pace from raw WASDE fields inside the app because live FAS/WASDE year/unit alignment produced obvious bad comparisons for some commodities.
 - Next slice should populate/backfill `usda_export_sales.export_pace_pct` / `usda_projection_mt` through a trusted WASDE-aligned source path, refresh thesis cache, then verify the compound drivers visibly appear in `/thesis`.
 
+Commit/push checkpoint:
+- Committed and pushed as `e385008 feat: add guarded export sales projection drivers`.
+- Verification rerun at handoff: focused `thesis-board` Vitest passed 22/22; scoped ESLint passed; `npm run build` passed after rerun with a longer timeout.
+- Direct Supabase MCP fallback live check: `thesis_packet_cache` has 21 rows; `usda_export_sales` has 247 rows; latest `week_ending` is `2026-05-07`; rows with projection or pace populated = 0.
+
 ### Project truth docs updated
 
 Updated:
@@ -233,18 +240,19 @@ Excluded until explicitly redirected:
 
 ## Recommended next move
 
-Recommendation: move to Export Sales + WASDE projection compound scoring.
+Recommendation: finish the Export Sales projection-field admission/backfill slice.
 
 Why:
-- Quarterly stocks and acreage are admitted.
-- WASDE revision fields and deterministic drivers now exist live and in cache.
-- The next quality jump is compound scoring: export sales pace + WASDE export projection + CFTC/stocks.
+- Quarterly stocks, acreage, and WASDE revision fields are admitted.
+- App-side compound Export Sales + WASDE projection driver logic is implemented, tested, committed, and pushed.
+- Live `usda_export_sales.export_pace_pct` / `usda_projection_mt` are still null, so the driver cannot visibly affect `/thesis` until projection/pace fields are admitted safely.
 
 Suggested implementation shape:
-1. Define Export Sales pace vs WASDE export projection scoring rules.
-2. Implement the compound signal in the facts/scoring layer with focused tests.
-3. Refresh thesis cache and verify driver output.
-4. Keep all work hard-gated to the V1 major-grain scope.
+1. Inspect the trusted WASDE-aligned source path for export projections, market year, units, and commodity mappings.
+2. Backfill/populate `usda_export_sales.usda_projection_mt` and/or `export_pace_pct` without using the unsafe naive live join.
+3. Refresh `thesis_packet_cache`.
+4. Verify cached packets and `/thesis?audit=1` show compound export-sales drivers where warranted.
+5. Keep all work hard-gated to the V1 major-grain scope.
 
 ## Alternative next move
 
@@ -263,12 +271,16 @@ git status --short --branch
 git log --oneline -5
 ```
 
-Expected status after committing docs:
+Expected status at this handoff:
 
 ```text
 ## codex/data-layer-foundation-v1...origin/codex/data-layer-foundation-v1
+ M scripts/import-canada-crop-progress.py
+?? scripts/generate-canada-crop-progress-infographic.py
 ?? scripts/generate-usda-crop-progress-infographic.ts
 ```
+
+Those three files are unrelated local WIP and were intentionally left untouched.
 
 ## Key files to open first next session
 
@@ -277,10 +289,11 @@ Expected status after committing docs:
 - `docs/reference/us-thesis-data-spine.md`
 - `lib/queries/thesis-board.ts`
 - `lib/queries/us-acreage.ts`
-- `supabase/migrations/20260522123500_add_crop_acreage_to_thesis_freshness.sql`
-- `scripts/import-usda-acreage.py`
-- `supabase/migrations/20260428000300_crop_acreage_estimates.sql`
+- `scripts/import-usda-export-sales.py`
+- `supabase/migrations/20260412171107_create_usda_export_sales.sql`
+- `supabase/migrations/20260522151000_add_wasde_revision_context_to_us_thesis_packet.sql`
+- `docs/reference/us-thesis-data-spine.md`
 
 ## One-line handoff prompt for new session
 
-Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `docs/plans/2026-05-22-bushel-board-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; preserve the untracked `scripts/generate-usda-crop-progress-infographic.ts`; then move into Export Sales + WASDE projection compound scoring for the V1 major-grain thesis board.
+Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `docs/plans/2026-05-22-bushel-board-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; preserve unrelated local WIP in `scripts/import-canada-crop-progress.py`, `scripts/generate-canada-crop-progress-infographic.py`, and `scripts/generate-usda-crop-progress-infographic.ts`; then finish Export Sales projection-field admission/backfill by safely populating `usda_export_sales.export_pace_pct` / `usda_projection_mt`, refreshing thesis cache, and verifying compound export-sales drivers on `/thesis`.
