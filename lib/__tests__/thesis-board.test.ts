@@ -222,7 +222,7 @@ describe("thesis board packet normalization", () => {
     expect(looserBalance.stanceScore).toBeLessThan(0);
   });
 
-  it("turns export-sales pace versus WASDE projection into compound US thesis drivers", () => {
+  it("turns USDA export-sales pace versus WASDE projection into guarded drivers", () => {
     const demandConfirmed = buildUsThesisBoardItem(corn, {
       supply: {
         wasde: {
@@ -290,6 +290,34 @@ describe("thesis board packet normalization", () => {
     expect(executionRisk.bearDrivers.find((driver) => driver.title === "Export sales execution risk against WASDE raise")?.body).toContain(
       "39,000,000 mt committed versus 50,000,000 mt projected",
     );
+  });
+
+  it("does not show empty-source warnings when cached freshness has a latest source period", () => {
+    const item = buildUsThesisBoardItem(usWheat, {
+      supply: {
+        wasde: { stocks_to_use_pct: 46.3 },
+      },
+      freshness: [
+        {
+          source_name: "usda_wasde_mapped",
+          freshness_status: "empty",
+          latest_period_end: "2999-01-01",
+          action_hint: "Build or seed this source before thesis use.",
+        },
+      ],
+      quality_warnings: [
+        {
+          source_name: "usda_wasde_mapped",
+          status: "empty",
+          action_hint: "Build or seed this source before thesis use.",
+        },
+      ],
+    });
+
+    expect(item.freshness[0]?.freshnessStatus).toBe("strong");
+    expect(item.freshness[0]?.actionHint).toBe("No immediate action.");
+    expect(item.warnings).toEqual([]);
+    expect(item.bearDrivers.find((driver) => driver.sourceName === "usda_wasde_mapped")?.confidence).toBe("medium");
   });
 
   it("turns USDA quarterly stocks surprises into US thesis drivers", () => {

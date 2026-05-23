@@ -323,33 +323,91 @@ function statusSeverity(sourceName: string, status: string): "info" | "watch" | 
   return "info";
 }
 
-function normalizeFreshness(packet: JsonRecord): ThesisFreshnessRow[] {
-  return asArray(packet.freshness).map((row) => ({
-    sourceName: textValue(row, "source_name") ?? "unknown",
-    sourceLane: textValue(row, "source_lane"),
-    expectedCadence: textValue(row, "expected_cadence"),
-    latestPeriod: textValue(row, "latest_period"),
-    latestPeriodEnd: textValue(row, "latest_period_end"),
-    rowsAvailable: numberValue(row, "rows_available"),
-    freshnessStatus: textValue(row, "freshness_status") ?? "unknown",
-    thesisUse: textValue(row, "thesis_use"),
-    lastSuccessAt: textValue(row, "last_success_at"),
-    lastRunStatus: textValue(row, "last_run_status"),
-    actionHint: textValue(row, "action_hint"),
-  }));
+function sourceFreshnessThresholdDays(sourceName: string): { strong: number; stale: number } {
+  switch (sourceName) {
+    case "cgc_observations":
+    case "cgc_imports":
+      return { strong: 10, stale: 17 };
+    case "usda_crop_progress":
+    case "cftc_cot_positions":
+      return { strong: 10, stale: 17 };
+    case "usda_export_sales":
+      return { strong: 14, stale: 21 };
+    case "usda_wasde_mapped":
+    case "usda_wasde_raw":
+      return { strong: 45, stale: 75 };
+    case "usda_quarterly_stocks":
+      return { strong: 100, stale: 125 };
+    case "crop_acreage_estimates":
+      return { strong: 365, stale: 455 };
+    case "grain_prices":
+      return { strong: 3, stale: 7 };
+    default:
+      return { strong: 30, stale: 60 };
+  }
 }
 
-function normalizeWarnings(packet: JsonRecord): ThesisWarning[] {
-  return asArray(packet.quality_warnings).map((row) => {
-    const status = textValue(row, "status") ?? "unknown";
-    const sourceName = textValue(row, "source_name") ?? "unknown";
-    return {
-      sourceName,
-      status,
+function coerceFreshnessStatus(row: ThesisFreshnessRow): ThesisFreshnessRow {
+  if (row.freshnessStatus !== "empty" || !row.latestPeriodEnd) return row;
+
+  const periodEnd = new Date(`${row.latestPeriodEnd}T00:00:00Z`);
+  if (Number.isNaN(periodEnd.getTime())) return row;
+
+  const now = new Date();
+  const ageDays = Math.max(
+    0,
+    Math.floor((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - periodEnd.getTime()) / 86_400_000),
+  );
+  const thresholds = sourceFreshnessThresholdDays(row.sourceName);
+  const freshnessStatus =
+    ageDays <= thresholds.strong
+      ? "strong"
+      : ageDays <= thresholds.stale
+        ? "usable but stale-risk"
+        : "usable but stale-risk";
+
+  return {
+    ...row,
+    freshnessStatus,
+    actionHint:
+      freshnessStatus === "strong"
+        ? "No immediate action."
+        : "Latest row exists, but source age should be reviewed before thesis generation.",
+  };
+}
+
+function normalizeFreshness(packet: JsonRecord): ThesisFreshnessRow[] {
+  return asArray(packet.freshness)
+    .map((row) => ({
+      sourceName: textValue(row, "source_name") ?? "unknown",
+      sourceLane: textValue(row, "source_lane"),
+      expectedCadence: textValue(row, "expected_cadence"),
+      latestPeriod: textValue(row, "latest_period"),
+      latestPeriodEnd: textValue(row, "latest_period_end"),
+      rowsAvailable: numberValue(row, "rows_available"),
+      freshnessStatus: textValue(row, "freshness_status") ?? "unknown",
+      thesisUse: textValue(row, "thesis_use"),
+      lastSuccessAt: textValue(row, "last_success_at"),
+      lastRunStatus: textValue(row, "last_run_status"),
       actionHint: textValue(row, "action_hint"),
-      severity: statusSeverity(sourceName, status),
-    };
-  });
+    }))
+    .map(coerceFreshnessStatus);
+}
+
+function normalizeWarnings(packet: JsonRecord, freshness: ThesisFreshnessRow[]): ThesisWarning[] {
+  return asArray(packet.quality_warnings)
+    .map((row) => {
+      const sourceName = textValue(row, "source_name") ?? "unknown";
+      const freshnessRow = freshness.find((source) => source.sourceName === sourceName);
+      const status = freshnessRow?.freshnessStatus ?? textValue(row, "status") ?? "unknown";
+      return {
+        sourceName,
+        status,
+        actionHint: freshnessRow?.actionHint ?? textValue(row, "action_hint"),
+        severity: statusSeverity(sourceName, status),
+      };
+    })
+    .filter((warning) => !isStrongStatus(warning.status));
 }
 
 function confidenceFromFreshness(
@@ -739,7 +797,7 @@ export function buildCanadaThesisBoardItem(
     }
   }
 
-  const warnings = normalizeWarnings(packet);
+  const warnings = normalizeWarnings(packet, freshness);
   const confidence = confidenceFromFreshness(freshness, warnings);
   const stanceScore = scoreDrivers(bullDrivers, bearDrivers);
 
@@ -1126,7 +1184,7 @@ export function buildUsThesisBoardItem(
     }
   }
 
-  const warnings = normalizeWarnings(packet);
+  const warnings = normalizeWarnings(packet, freshness);
   const confidence = confidenceFromFreshness(freshness, warnings);
   const stanceScore = scoreDrivers(bullDrivers, bearDrivers);
 
