@@ -59,6 +59,20 @@ HEARTBEAT_MARKETS_BY_COMMODITY = {
     "OATS": "Oats",
 }
 
+# Export Sales commitments and WASDE export projections can only be compared when
+# commodity, marketing-year, and units line up. The public FAS/WASDE paths have
+# shown bad-looking joins for some commodities, so projection enrichment is
+# admitted only when the implied commitments-vs-projection pace is plausible.
+WASDE_MARKET_BY_COMMODITY = {
+    "ALL WHEAT": "Wheat",
+    "CORN": "Corn",
+    "SOYBEANS": "Soybeans",
+    "BARLEY": "Barley",
+    "OATS": "Oats",
+}
+MIN_REASONABLE_EXPORT_PACE_PCT = 60.0
+MAX_REASONABLE_EXPORT_PACE_PCT = 140.0
+
 COMMODITIES = [
     {"commodity_code": 107, "commodity": "ALL WHEAT", "cgc_grain": "Wheat", "mapping_type": "primary"},
     {"commodity_code": 104, "commodity": "CORN", "cgc_grain": "Corn", "mapping_type": "primary"},
@@ -150,6 +164,84 @@ def current_market_year() -> int:
 
 def format_market_year(market_year_end: int) -> str:
     return f"{market_year_end - 1}-{market_year_end}"
+
+
+def wasde_market_year_from_export_sales(market_year: str) -> str | None:
+    """Convert FAS label `2025-2026` to WASDE start-year key `2025`."""
+    if not market_year:
+        return None
+    start = market_year.split("-", 1)[0].strip()
+    return start if start.isdigit() else None
+
+
+def iso_date(value: Any) -> dt.date | None:
+    if value in (None, ""):
+        return None
+    try:
+        return dt.date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def projection_candidate(
+    record: dict[str, Any],
+    wasde_rows: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Return latest WASDE projection row available by the FAS week ending."""
+    market_name = WASDE_MARKET_BY_COMMODITY.get(str(record.get("commodity")))
+    wasde_year = wasde_market_year_from_export_sales(str(record.get("market_year") or ""))
+    week_ending = iso_date(record.get("week_ending"))
+    if not market_name or not wasde_year or week_ending is None:
+        return None
+
+    candidates: list[tuple[dt.date, dict[str, Any]]] = []
+    for row in wasde_rows:
+        if str(row.get("market_name")) != market_name:
+            continue
+        if str(row.get("market_year")) != wasde_year:
+            continue
+        report_month = iso_date(row.get("report_month"))
+        if report_month is None or report_month > week_ending:
+            continue
+        candidates.append((report_month, row))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def apply_wasde_export_projection(
+    record: dict[str, Any],
+    wasde_rows: list[dict[str, Any]],
+) -> tuple[bool, str | None]:
+    """Populate WASDE projection fields if a safe, aligned projection is available.
+
+    Returns `(applied, warning)`. The warning is informational and deliberately
+    non-fatal: failed admission should leave projection fields null rather than
+    writing misleading pace signals.
+    """
+    candidate = projection_candidate(record, wasde_rows)
+    if candidate is None:
+        return False, None
+
+    exports_kt = number(candidate.get("exports_kt"))
+    commitments_mt = number(record.get("total_commitments_mt"))
+    if exports_kt <= 0 or commitments_mt <= 0:
+        return False, None
+
+    projection_mt = exports_kt * 1000.0
+    pace_pct = commitments_mt / projection_mt * 100.0
+    if not (MIN_REASONABLE_EXPORT_PACE_PCT <= pace_pct <= MAX_REASONABLE_EXPORT_PACE_PCT):
+        return (
+            False,
+            f"{record.get('commodity')} {record.get('market_year')} {record.get('week_ending')}: "
+            f"skipped WASDE export projection admission; implied pace {pace_pct:.1f}% "
+            f"outside {MIN_REASONABLE_EXPORT_PACE_PCT:.0f}-{MAX_REASONABLE_EXPORT_PACE_PCT:.0f}% guardrail",
+        )
+
+    record["usda_projection_mt"] = round(projection_mt, 3)
+    record["export_pace_pct"] = round(pace_pct, 3)
+    return True, None
 
 
 def choose_commodities(filters: list[str] | None) -> list[dict[str, Any]]:
@@ -384,7 +476,7 @@ def fetch_latest_week(
         {
             "commodity": f"eq.{commodity}",
             "market_year": f"eq.{market_year}",
-            "select": "commodity_code,commodity,market_year,week_ending,net_sales_mt,exports_mt,outstanding_mt,top_buyers",
+            "select": "commodity_code,commodity,market_year,week_ending,net_sales_mt,exports_mt,outstanding_mt,total_commitments_mt,usda_projection_mt,export_pace_pct,top_buyers",
             "order": "week_ending.desc",
             "limit": "1",
         }
@@ -403,6 +495,73 @@ def fetch_latest_week(
     if isinstance(payload, list) and payload:
         return payload[0]
     return None
+
+
+def fetch_wasde_export_projection_rows(
+    supabase_url: str,
+    service_role_key: str,
+    market_years: list[int],
+) -> list[dict[str, Any]]:
+    """Fetch candidate US WASDE export projections for FAS market years.
+
+    FAS `--market-year 2026` labels records as `2025-2026`; WASDE rows use
+    the starting year (`2025`) as `market_year`. Pull only the canonical US
+    markets used by Export Sales so later enrichment can apply strict row-level
+    timing and pace guardrails.
+    """
+    wasde_years = sorted({str(year - 1) for year in market_years})
+    markets = sorted(set(WASDE_MARKET_BY_COMMODITY.values()))
+    params = urllib.parse.urlencode(
+        {
+            "country_code": "eq.US",
+            "market_year": f"in.({','.join(wasde_years)})",
+            "market_name": f"in.({','.join(markets)})",
+            "exports_kt": "not.is.null",
+            "select": "market_name,market_year,report_month,exports_kt",
+            "order": "report_month.desc",
+        }
+    )
+    url = f"{supabase_url.rstrip('/')}/rest/v1/usda_wasde_mapped?{params}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=SUPABASE_TIMEOUT_SECONDS) as response:
+        payload = json.load(response)
+    if not isinstance(payload, list):
+        return []
+    return payload
+
+
+def enrich_records_with_wasde_projections(
+    records: list[dict[str, Any]],
+    wasde_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    admitted = 0
+    skipped_by_commodity: dict[str, int] = defaultdict(int)
+    warnings: list[str] = []
+
+    for record in records:
+        applied, warning = apply_wasde_export_projection(record, wasde_rows)
+        commodity = str(record.get("commodity") or "unknown")
+        if applied:
+            admitted += 1
+            continue
+        if warning:
+            skipped_by_commodity[commodity] += 1
+            # Keep the source-run metadata useful without dumping every week.
+            if skipped_by_commodity[commodity] <= 3:
+                warnings.append(warning)
+
+    return {
+        "admitted_rows": admitted,
+        "skipped_by_commodity": dict(sorted(skipped_by_commodity.items())),
+        "warnings": warnings,
+    }
 
 
 def build_heartbeat_rows(
@@ -524,6 +683,8 @@ def build_and_write_heartbeats(
             "exports_mt": row.get("exports_mt"),
             "outstanding_mt": row.get("outstanding_mt"),
             "cumulative_exports_mt": row.get("cumulative_exports_mt"),
+            "total_commitments_mt": row.get("total_commitments_mt"),
+            "usda_projection_mt": row.get("usda_projection_mt"),
             "export_pace_pct": row.get("export_pace_pct"),
             "top_buyers": row.get("top_buyers", [])[:3],
         }
@@ -606,6 +767,26 @@ def main() -> None:
         if commodity_had_data:
             commodities_imported += 1
 
+    projection_admission = {"admitted_rows": 0, "skipped_by_commodity": {}, "warnings": []}
+    if all_rows:
+        try:
+            wasde_rows = fetch_wasde_export_projection_rows(
+                supabase_url,
+                service_role_key,
+                market_years,
+            )
+            projection_admission = enrich_records_with_wasde_projections(all_rows, wasde_rows)
+            warnings.extend(projection_admission["warnings"])
+            eprint(
+                "WASDE export-projection admission: "
+                f"{projection_admission['admitted_rows']} rows admitted; "
+                f"skips={projection_admission['skipped_by_commodity']}"
+            )
+        except Exception as exc:
+            warning = f"WASDE export-projection admission failed; leaving projection fields null: {exc}"
+            warnings.append(warning)
+            eprint(f"  WARNING: {warning}")
+
     heartbeat_preview: list[dict[str, Any]] = []
     if args.dry_run:
         for row in build_heartbeat_rows(all_rows, market_years):
@@ -627,6 +808,7 @@ def main() -> None:
             "market_years": [str(y) for y in market_years],
             "warnings": warnings,
             "errors": errors,
+            "projection_admission": projection_admission,
             "duration_ms": duration_ms,
             "sample_rows": all_rows[:5],
             "heartbeat_preview": heartbeat_preview,
@@ -680,6 +862,7 @@ def main() -> None:
                     "commodity_filters": args.commodity,
                     "warnings": warnings,
                     "errors": errors,
+                    "projection_admission": projection_admission,
                     "trajectory": heartbeat_result,
                 },
             )
@@ -693,6 +876,7 @@ def main() -> None:
         "market_years": [str(y) for y in market_years],
         "warnings": warnings,
         "errors": errors,
+        "projection_admission": projection_admission,
         "verification": verification,
         "trajectory": heartbeat_result,
         "source_run": source_run,

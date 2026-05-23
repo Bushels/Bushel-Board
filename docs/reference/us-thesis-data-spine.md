@@ -2,7 +2,7 @@
 
 **Purpose:** Define the minimum viable data foundation for high-quality US Bullish/Bearish thesis generation on the `/thesis` board. This document prioritizes missing data, identifies powerful compound signals, and establishes clear staleness rules so the thesis never relies on outdated information.
 
-**Last Updated:** 2026-05-22
+**Last Updated:** 2026-05-23
 **Owner:** Bushel Board US Desk
 
 ---
@@ -11,15 +11,15 @@
 
 | Source | Table | Cadence | Used in Thesis? | Notes |
 |--------|-------|---------|------------------|-------|
-| Export Sales | `usda_export_sales` | Weekly (Thu 8:30 AM ET) | Partially | Good pace + outstanding data |
+| Export Sales | `usda_export_sales` | Weekly (Thu 8:30 AM ET) | Yes, guarded | Latest rows flow into `get_us_thesis_packet().demand.export_sales`; WASDE projection enrichment is admitted only when commodity, FAS/WASDE market year, report timing, units, and implied pace are plausible. |
 | Crop Progress | `usda_crop_progress` | Weekly (Mon) | Yes (after fix) | National + state level |
-| WASDE | `usda_wasde_mapped` | Monthly | Improving | Full balance sheet exists; local packet migration now computes month-over-month revision deltas, pending live application/cache refresh. |
+| WASDE | `usda_wasde_mapped` | Monthly | Yes | Full balance sheet exists; packet migration computes month-over-month revision deltas, and Export Sales projection admission uses `exports_kt * 1000` only for trusted pace rows. |
 | CFTC COT | `cftc_cot_positions` | Weekly (Fri) | Limited | Strong on wheat classes |
 | Grain Prices | `grain_prices` | Daily | Indirect | Futures settlement |
 | Quarterly Stocks | `usda_quarterly_stocks` | Quarterly | Yes | Measured NASS stocks now flow into `get_us_thesis_packet()` and `/thesis` cache as stocks-surprise supply context. |
 | Acreage | `crop_acreage_estimates` | Annual (Mar/Jun/Jan revisions) | Yes | National USDA acreage rows now flow into `get_us_thesis_packet().supply.acreage`, thesis freshness, cache, and acreage-aware planting-progress drivers. |
 
-**Assessment:** We have decent raw feeds, and USDA quarterly grain stocks plus acreage are now admitted into the US packet spine. Synthesis into compound thesis drivers remains thin on the US side compared to Canada, especially export inspections, live WASDE revision cache rollout, and cross-source scoring rules.
+**Assessment:** We have decent raw feeds, and USDA quarterly grain stocks, acreage, WASDE revisions, and guarded Export Sales pace are now admitted into the US packet spine. Current live verification admits Wheat export pace at 102.315% for 2026-05-14 against a 24.494 MMT WASDE export projection; Corn, Soybeans, Barley, and Oats remain null for projection pace because their implied commitments-vs-WASDE paces fail the 60–140% admission guardrail. Next US-side gains should come from export inspections and fixing non-wheat Export Sales/WASDE alignment before broadening pace scoring.
 
 ---
 
@@ -77,7 +77,7 @@ These combinations are more powerful than individual data points:
 
 | Compound Signal | Bullish Trigger | Bearish Trigger | Data Sources Required |
 |-----------------|-----------------|-----------------|-----------------------|
-| **Export Pace vs WASDE Export Projection** | Current pace running >15% above WASDE projection | Pace lagging projection significantly | Export Sales + WASDE |
+| **Export Pace vs WASDE Export Projection** | Current admitted pace running >15% above WASDE projection | Admitted pace lagging projection significantly | Export Sales + WASDE; requires commodity, market year, timing, unit, and 60–140% plausibility guardrails |
 | **Stocks Surprise + Managed Money** | Quarterly Stocks much tighter than WASDE + Specs net long | Stocks much larger + Specs adding shorts | Quarterly Stocks + CFTC COT |
 | **Spring Wheat Condition + Canadian Progress** | US poor + Canada also poor | US strong + Canada strong | Crop Progress (US + Canada) |
 | **China Outstanding Sales + Basis Strength** | Large outstanding sales to China + strong basis | Outstanding sales dropping + wide basis | Export Sales + local basis |
@@ -116,6 +116,8 @@ These combinations are more powerful than individual data points:
 - [x] Add WASDE revision fields to US thesis packet migration and deterministic board drivers
 - [x] Apply WASDE revision migration live and refresh thesis packet cache
 - [x] Add source-freshness quality warnings to thesis packet RPC
+- [x] Admit Export Sales pace vs WASDE projection only through importer guardrails: commodity mapping, FAS market-year end label to WASDE start year, report month no later than sales week, `exports_kt * 1000` unit conversion, and 60–140% implied pace plausibility
+- [ ] Fix non-wheat Export Sales/WASDE alignment before enabling projection pace for Corn, Soybeans, Barley, or Oats
 - [ ] Define compound signal scoring rules for Export Sales + WASDE
 
 ---
