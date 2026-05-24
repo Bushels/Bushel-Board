@@ -1439,7 +1439,7 @@ function comparisonExplanation(
     return `${grain} has a US packet in V1, but no matching Canada major-grain packet is modeled on this board.`;
   }
   if (!canada && !us && SOURCE_MAPPING_NEEDED_LANES.has(grain)) {
-    return `${grain} is in V1 scope, but source mapping needed before class-specific evidence can be shown.`;
+    return `${grain} is in V1 scope, but class-specific source mapping is still pending. Generic Wheat is not used as a proxy for this row.`;
   }
   if (!canada || !us) {
     return "No Canada or US packet is available for this V1 row.";

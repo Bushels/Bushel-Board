@@ -91,7 +91,7 @@ function comparisonClass(status: ThesisComparisonRow["status"]): string {
 }
 
 function missingMarketCopy(row: ThesisComparisonRow, country: "CA" | "US"): string {
-  if (row.status === "mapping_needed") return `${country}: source mapping needed`;
+  if (row.status === "mapping_needed") return `${country}: class mapping pending`;
   if (row.grain === "Durum" && country === "US") return "US: not modeled in V1";
   if (row.grain === "Canola" && country === "US") return "US: Canada-first lane";
   return `${country}: not modeled in V1`;

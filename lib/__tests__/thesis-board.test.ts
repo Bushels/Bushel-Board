@@ -776,11 +776,57 @@ describe("thesis board packet normalization", () => {
 
     expect(springWheatRow?.status).toBe("mapping_needed");
     expect(springWheatRow?.statusLabel).toBe("Mapping needed");
-    expect(springWheatRow?.explanation).toContain("source mapping needed");
+    expect(springWheatRow?.explanation).toContain("class-specific source mapping is still pending");
+    expect(springWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
     expect(winterWheatRow?.status).toBe("mapping_needed");
     expect(winterWheatRow?.statusLabel).toBe("Mapping needed");
-    expect(winterWheatRow?.explanation).toContain("source mapping needed");
+    expect(winterWheatRow?.explanation).toContain("class-specific source mapping is still pending");
+    expect(winterWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
     expect(rows.find((row) => row.grain === "Amber Durum")).toBeUndefined();
+  });
+
+  it("does not alias generic Wheat packets into Spring or Winter Wheat rows", () => {
+    const canadaWheat = buildCanadaThesisBoardItem(wheat, {
+      lane: "canada",
+      grain: "Wheat",
+      crop_year: "2025-2026",
+      grain_week: 38,
+      demand: {
+        exports: {
+          current_week_kt: 260,
+        },
+      },
+      freshness: [{ source_name: "cgc_observations", freshness_status: "strong" }],
+    });
+    const usWheatItem = buildUsThesisBoardItem(usWheat, {
+      lane: "us",
+      market_name: "Wheat",
+      market_year: 2025,
+      supply: {
+        crop_progress: {
+          us_total: {
+            planted_pct_vs_avg: 8,
+          },
+        },
+      },
+      freshness: [{ source_name: "usda_crop_progress", freshness_status: "strong" }],
+    });
+
+    const rows = buildMajorThesisComparisonRows([canadaWheat], [usWheatItem]);
+    const genericWheatRow = rows.find((row) => row.grain === "Wheat");
+    const springWheatRow = rows.find((row) => row.grain === "Spring Wheat");
+    const winterWheatRow = rows.find((row) => row.grain === "Winter Wheat");
+
+    expect(genericWheatRow?.canada).toBe(canadaWheat);
+    expect(genericWheatRow?.us).toBe(usWheatItem);
+    expect(springWheatRow?.canada).toBeNull();
+    expect(springWheatRow?.us).toBeNull();
+    expect(springWheatRow?.strongestBullPoints).toEqual([]);
+    expect(springWheatRow?.strongestBearPoints).toEqual([]);
+    expect(winterWheatRow?.canada).toBeNull();
+    expect(winterWheatRow?.us).toBeNull();
+    expect(winterWheatRow?.strongestBullPoints).toEqual([]);
+    expect(winterWheatRow?.strongestBearPoints).toEqual([]);
   });
 
   it("labels Canadian Amber Durum source data as the Durum product lane", () => {
