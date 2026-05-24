@@ -18,7 +18,7 @@ Completed local work since the Kalshi parking update:
 - Export Sales + WASDE projection compound scoring is implemented and live in `buildUsThesisBoardItem()`. Wheat currently admits guarded projection pace because live `usda_export_sales.export_pace_pct = 102.315` and `usda_projection_mt = 24,494,000` passed the 60–140% guardrail against `total_commitments_mt = 25,061,015`; `/thesis` shows this as `Export sales outrunning WASDE projection`. Corn, Soybeans, Barley, and Oats intentionally keep projection pace null because their implied paces failed the guardrail, so `/thesis` does not render fake projection-pace drivers for those markets.
 - `thesis_packet_cache` was force-refreshed after the Export Sales projection-admission migration. Verification: 21 cache rows; Wheat 2025 cached packet contains admitted export pace/projection fields; Corn/Soybeans/Barley/Oats cached packets keep projection fields null by design. Browser audit of `/thesis?audit=1` loaded successfully, showed fresh cached-board status, showed all 9 V1 quick-scan rows, surfaced Wheat's guarded export-sales/WASDE projection driver, did not show projection-pace claims for the null-guarded non-wheat US markets, displayed WASDE/quarterly-stocks freshness as usable/strong rather than false empty-seed warnings when cached latest periods exist, and had a clean console.
 
-Primary next-session handoff: `docs/plans/2026-05-23-bushel-board-handoff.md`.
+Primary next-session handoff: `docs/plans/2026-05-24-bushel-board-handoff.md`. Previous handoff `docs/plans/2026-05-23-bushel-board-handoff.md` is superseded but remains useful for the prior browser-audit slice.
 
 Background harness handoff: `docs/plans/2026-05-10-multi-grain-weekly-thesis-harness-handoff.md`.
 

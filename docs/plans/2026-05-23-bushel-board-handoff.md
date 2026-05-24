@@ -1,5 +1,7 @@
 # Bushel Board handoff — 2026-05-23
 
+Superseded by `docs/plans/2026-05-24-bushel-board-handoff.md` for the current next-session resume point. Keep this file as history for the 2026-05-23 browser-audit and cached-freshness normalization slice.
+
 ## Session status
 
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
