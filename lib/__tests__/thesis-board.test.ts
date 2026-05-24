@@ -52,6 +52,22 @@ describe("thesis board packet normalization", () => {
       supply: {
         total_supply_kt: 22000,
         carry_out_kt: 4800,
+        canada_crop_progress: [
+          {
+            province_code: "AB",
+            region_scope: "province",
+            metric: "seeded_pct",
+            value_pct: 30.5,
+            report_date: "2026-05-19",
+          },
+          {
+            province_code: "SK",
+            region_scope: "province",
+            metric: "seeded_pct",
+            value_pct: 14.7,
+            report_date: "2026-05-18",
+          },
+        ],
       },
       logistics: {
         grain_monitor: {
@@ -85,6 +101,10 @@ describe("thesis board packet normalization", () => {
           source_name: "grain_prices",
           freshness_status: "stale",
         },
+        {
+          source_name: "canada_crop_progress",
+          freshness_status: "strong",
+        },
       ],
       quality_warnings: [
         {
@@ -96,9 +116,12 @@ describe("thesis board packet normalization", () => {
     });
 
     expect(item.bullDrivers.map((driver) => driver.title)).toContain("Export pull visible");
+    expect(item.bullDrivers.map((driver) => driver.title)).toContain(
+      "Canadian seeding delay risk",
+    );
     expect(item.bearDrivers.map((driver) => driver.title)).toContain("Heavy carryout context");
     expect(item.bearDrivers.map((driver) => driver.title)).toContain("Futures pressure");
-    expect(item.freshness).toHaveLength(2);
+    expect(item.freshness).toHaveLength(3);
     expect(item.confidence).toBe("medium");
   });
 

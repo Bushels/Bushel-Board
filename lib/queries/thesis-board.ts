@@ -329,6 +329,7 @@ function sourceFreshnessThresholdDays(sourceName: string): { strong: number; sta
     case "cgc_imports":
       return { strong: 10, stale: 17 };
     case "usda_crop_progress":
+    case "canada_crop_progress":
     case "cftc_cot_positions":
       return { strong: 10, stale: 17 };
     case "usda_export_sales":
@@ -473,6 +474,51 @@ function acreagePlantingContext(
       releaseDate ? ` from ${releaseDate}` : ""
     }`,
   };
+}
+
+function latestCanadaProvinceSeededRows(rows: JsonRecord[]): JsonRecord[] {
+  const byProvince = new Map<string, JsonRecord>();
+  for (const row of rows) {
+    if (textValue(row, "metric") !== "seeded_pct") continue;
+    if (textValue(row, "region_scope") !== "province") continue;
+    if (numberValue(row, "value_pct") === null) continue;
+    const province = textValue(row, "province_code");
+    if (!province) continue;
+    const existing = byProvince.get(province);
+    if (!existing) {
+      byProvince.set(province, row);
+      continue;
+    }
+    const existingDate = textValue(existing, "report_date") ?? "";
+    const rowDate = textValue(row, "report_date") ?? "";
+    if (rowDate.localeCompare(existingDate) > 0) byProvince.set(province, row);
+  }
+  return Array.from(byProvince.values());
+}
+
+function averageCanadaSeededPct(rows: JsonRecord[]): number | null {
+  const seeded = rows
+    .map((row) => numberValue(row, "value_pct"))
+    .filter((value): value is number => value !== null);
+  if (seeded.length === 0) return null;
+  return seeded.reduce((sum, value) => sum + value, 0) / seeded.length;
+}
+
+function latestCanadaCropProgressDate(rows: JsonRecord[]): string | null {
+  return rows
+    .map((row) => textValue(row, "report_date"))
+    .filter((date): date is string => Boolean(date))
+    .sort((a, b) => b.localeCompare(a))[0] ?? null;
+}
+
+function canadaCropProgressSummary(rows: JsonRecord[]): string {
+  return rows
+    .map((row) => {
+      const province = textValue(row, "province_code") ?? "?";
+      const value = numberValue(row, "value_pct");
+      return `${province} ${value !== null ? value.toFixed(1) : "n/a"}%`;
+    })
+    .join(", ");
 }
 
 function ratioPct(numerator: number | null, denominator: number | null): number | null {
@@ -625,6 +671,7 @@ export function buildCanadaThesisBoardItem(
   const currentDelivery = asRecord(demand.producer_deliveries_current_week);
   const exports = asRecord(demand.exports);
   const supply = asRecord(packet.supply);
+  const cropProgressRows = latestCanadaProvinceSeededRows(asArray(supply.canada_crop_progress));
   const logistics = asRecord(packet.logistics);
   const grainMonitor = asRecord(logistics.grain_monitor);
   const prices = asArray(packet.prices);
@@ -705,6 +752,35 @@ export function buildCanadaThesisBoardItem(
         sourceName: "supply_disposition",
         metricLabel: `${formatPct(carryOutShare)} of total supply`,
         confidence: sourceConfidence("medium", "supply_disposition", freshness),
+      });
+    }
+  }
+
+  const seededPct = averageCanadaSeededPct(cropProgressRows);
+  if (seededPct !== null) {
+    const reportDate = latestCanadaCropProgressDate(cropProgressRows);
+    const provinceSummary = canadaCropProgressSummary(cropProgressRows);
+    if (seededPct <= 25) {
+      addDriver(bullDrivers, {
+        tone: "bull",
+        title: "Canadian seeding delay risk",
+        body: `Provincial crop-progress rows show ${grain.name} seeding only ${formatPct(seededPct)} complete on average${
+          reportDate ? ` as of ${reportDate}` : ""
+        }${provinceSummary ? ` (${provinceSummary})` : ""}.`,
+        sourceName: "canada_crop_progress",
+        metricLabel: `${formatPct(seededPct)} seeded avg`,
+        confidence: sourceConfidence("medium", "canada_crop_progress", freshness),
+      });
+    } else if (seededPct >= 75) {
+      addDriver(bearDrivers, {
+        tone: "bear",
+        title: "Canadian seeding progress cushions supply",
+        body: `Provincial crop-progress rows show ${grain.name} seeding ${formatPct(seededPct)} complete on average${
+          reportDate ? ` as of ${reportDate}` : ""
+        }${provinceSummary ? ` (${provinceSummary})` : ""}.`,
+        sourceName: "canada_crop_progress",
+        metricLabel: `${formatPct(seededPct)} seeded avg`,
+        confidence: sourceConfidence("medium", "canada_crop_progress", freshness),
       });
     }
   }

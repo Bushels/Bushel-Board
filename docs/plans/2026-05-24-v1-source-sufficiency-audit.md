@@ -24,7 +24,7 @@ The main public source families are present and mostly fresh. The remaining gap 
 
 1. WASDE is now refreshed through May 2026 and source freshness reports strong after the post-audit import.
 2. Spring Wheat and Winter Wheat are still V1 visible lanes with source-mapping placeholders, not direct packet lanes.
-3. Canada crop progress exists in the database, but cached Canada thesis packets do not yet expose a dedicated crop-progress field.
+3. Canada crop progress is now admitted into Canada thesis packets where directly mapped (`supply.canada_crop_progress`); generic Wheat remains unmapped rather than silently aliasing Spring/Winter Wheat classes.
 4. Export Sales + WASDE projection pace is intentionally admitted only where the importer passed sanity guardrails; currently Wheat passes while Corn/Soybeans/Barley/Oats remain null-guarded.
 5. Farmer-local sources remain optional and should not be counted as public thesis blockers.
 
@@ -37,6 +37,7 @@ Checked live through Supabase on 2026-05-24.
 | cgc_imports | system | 2026-05-14 | 35 | strong | No immediate action |
 | grain_monitor_snapshots | Canada | 2026-05-19 | 33 | strong | No immediate action |
 | producer_car_allocations | Canada | 2026-05-22 | 382 | strong | No immediate action |
+| canada_crop_progress | Canada | 2026-05-20 | 491 | strong | No immediate action |
 | crop_acreage_estimates | US | 2026-03-31 | 157 | strong | No immediate action |
 | usda_quarterly_stocks | US | 2026-03-01 | 47 | strong | No immediate action |
 | usda_wasde_raw | international | 2026-05-01 | 2,112 | strong | No immediate action |
@@ -52,7 +53,7 @@ Note: `usda_quarterly_stocks` previously showed `rows_available = 0` because the
 
 ## Cached thesis packet coverage
 
-Live cache rows were refreshed again after the May WASDE import at `2026-05-24 18:02 UTC` with source watermark `2026-05-24 18:02 UTC` for active V1 source-backed lanes.
+Live cache rows were refreshed again after the Canada crop-progress packet admission at `2026-05-24 18:28 UTC` with source watermark `2026-05-24 18:02 UTC` for active V1 source-backed lanes.
 
 Legend:
 - `Y` = field family appears in cached packet JSON.
@@ -61,21 +62,23 @@ Legend:
 
 | V1 grain | Canada packet | US packet | Canada core fields | US core fields | Readiness |
 |---|---|---|---|---|---|
-| Corn | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; improve WASDE freshness/projection guardrail |
-| Soybeans | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; improve WASDE freshness/projection guardrail |
-| Wheat | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Strongest US compound lane today; guarded Export Sales/WASDE projection admitted |
+| Corn | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; improve projection guardrail |
+| Soybeans | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; improve projection guardrail |
+| Wheat | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars; generic Wheat has no direct Canada crop-progress row to avoid aliasing class data | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Strongest US compound lane today; guarded Export Sales/WASDE projection admitted |
 | Spring Wheat | Placeholder | Placeholder | No direct packet row | No direct packet row | Needs source mapping before final V1 confidence |
 | Winter Wheat | Placeholder | Placeholder | No direct packet row | No direct packet row | Needs source mapping before final V1 confidence |
-| Durum | Y via `Amber Durum` | — | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | No intentional US lane in current V1 | Canada-first usable; US lane intentionally absent |
-| Canola | Y | — | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars, Canola Council / StatsCan baseline | No intentional US lane in current V1 | Canada-first usable; US lane intentionally absent |
-| Barley | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; projection pace null-guarded |
-| Oats | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; projection pace null-guarded |
+| Durum | Y via `Amber Durum` | — | supply, crop progress via Durum, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | No intentional US lane in current V1 | Canada-first usable; US lane intentionally absent |
+| Canola | Y | — | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars, Canola Council / StatsCan baseline | No intentional US lane in current V1 | Canada-first usable; US lane intentionally absent |
+| Barley | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; projection pace null-guarded |
+| Oats | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; projection pace null-guarded |
 
-## Data families that are present but not yet fully admitted
+## Data families that are now admitted, with remaining caveats
 
 ### Canada crop progress
 
-`public.canada_crop_progress` exists and recent source runs show successful imports through `2026-05-20`, but cached Canada thesis packets currently do not expose a dedicated `supply.canada_crop_progress` field. Canada crop progress should be wired into packet JSON before saying seeded/crop-condition signals are fully admitted to thesis scoring.
+`public.canada_crop_progress` exists, freshness is strong through `2026-05-20`, and Canada thesis packets now expose mapped rows under `supply.canada_crop_progress`. Cache refresh verified crop-progress payloads for Amber Durum, Barley, Canola, Corn, Oats, and Soybeans. Generic Canada Wheat intentionally has no crop-progress payload until Spring/Winter Wheat class mapping is decided; do not silently alias class-specific crop-progress rows into generic Wheat.
+
+## Data families that are present but not yet fully admitted
 
 ### Spring Wheat / Winter Wheat class split
 
@@ -91,25 +94,19 @@ WASDE raw and mapped context are present, and cached US packets expose WASDE rev
 
 ## Recommended next slices, in order
 
-1. **Canada crop-progress vertical slice**
-   - Wire `canada_crop_progress` into Canada thesis packets under a stable supply/crop-progress field.
-   - Add freshness RPC visibility if needed.
-   - Add deterministic farmer-readable drivers for seeded progress / condition only where mapped and fresh.
-   - Refresh cache and inspect Canada V1 grains.
-
-2. **Wheat class mapping decision**
+1. **Wheat class mapping decision**
    - Decide whether Spring Wheat and Winter Wheat should remain placeholder rows for V1 or be mapped to actual class-specific source packets.
    - If mapping, do it deliberately; do not alias both to generic Wheat without a label explaining the proxy.
 
-3. **Guarded projection admission expansion**
+2. **Guarded projection admission expansion**
    - Continue importer-layer sanity checks for Corn/Soybeans/Barley/Oats Export Sales vs WASDE projection.
    - Only admit `export_pace_pct` when market-year, report-month, unit conversion, and 60–140% sanity guardrails pass.
 
-4. **Final source-sufficiency gate before public thesis authorization**
+3. **Final source-sufficiency gate before public thesis authorization**
    - Run `/thesis?audit=1` browser check.
    - Confirm source-health banner shows no false blockers.
    - Confirm every V1 row is either public-V1 usable, Canada-first intentional, or explicit mapping-needed.
-   - Label output as scouting-quality until Spring/Winter mapping and WASDE freshness are settled.
+   - Label output as scouting-quality until Spring/Winter mapping and guarded projection expansion are settled.
 
 ## Security note
 
