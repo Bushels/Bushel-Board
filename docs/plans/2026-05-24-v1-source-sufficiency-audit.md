@@ -22,7 +22,7 @@ The public-data spine is strong enough for a **scouting-quality V1 thesis board*
 
 The main public source families are present and mostly fresh. The remaining gap is not “empty database”; it is source sufficiency and admission discipline:
 
-1. WASDE is present but stale-risk relative to the current clock.
+1. WASDE is now refreshed through May 2026 and source freshness reports strong after the post-audit import.
 2. Spring Wheat and Winter Wheat are still V1 visible lanes with source-mapping placeholders, not direct packet lanes.
 3. Canada crop progress exists in the database, but cached Canada thesis packets do not yet expose a dedicated crop-progress field.
 4. Export Sales + WASDE projection pace is intentionally admitted only where the importer passed sanity guardrails; currently Wheat passes while Corn/Soybeans/Barley/Oats remain null-guarded.
@@ -39,7 +39,7 @@ Checked live through Supabase on 2026-05-24.
 | producer_car_allocations | Canada | 2026-05-22 | 382 | strong | No immediate action |
 | crop_acreage_estimates | US | 2026-03-31 | 157 | strong | No immediate action |
 | usda_quarterly_stocks | US | 2026-03-01 | 47 | strong | No immediate action |
-| usda_wasde_raw | international | 2026-04-01 | 1,981 | usable but stale-risk | Refresh or explicitly accept stale-risk before thesis generation |
+| usda_wasde_raw | international | 2026-05-01 | 2,112 | strong | No immediate action |
 | market_analysis | analysis | 2026-03-13 | 98 | usable but stale-risk | Do not treat as live source truth |
 | us_market_analysis | analysis | 2026-04-20 | 0 estimated | legacy | Do not use for live source truth |
 | x_market_signals | analysis | 2026-04-24 | 935 | legacy | Do not use for live source truth |
@@ -52,7 +52,7 @@ Note: `usda_quarterly_stocks` previously showed `rows_available = 0` because the
 
 ## Cached thesis packet coverage
 
-Live cache rows are refreshed through `2026-05-23 17:07 UTC` with source watermark `2026-05-23 17:06 UTC` for active V1 source-backed lanes.
+Live cache rows were refreshed again after the May WASDE import at `2026-05-24 18:02 UTC` with source watermark `2026-05-24 18:02 UTC` for active V1 source-backed lanes.
 
 Legend:
 - `Y` = field family appears in cached packet JSON.
@@ -87,31 +87,25 @@ Wheat has admitted guarded projection fields and can show `Export sales outrunni
 
 ### WASDE
 
-WASDE raw and mapped context are present, and cached US packets expose WASDE revision fields. Freshness still reports stale-risk because latest report month is `2026-04-01`. Before final thesis authorization, refresh/import the current WASDE cycle or explicitly mark the thesis as using April WASDE context.
+WASDE raw and mapped context are present, and cached US packets expose WASDE revision fields. The post-audit import refreshed the live source through `2026-05-01` and thesis freshness now reports `strong`. May-vs-April revision deltas are visible in cached US packets for Corn, Soybeans, Wheat, and Barley. Oats old-crop `2025` remains on the latest available April packet because the May PSD response had no 2025 Oats rows; new-crop 2026 Oats rows are present in `usda_wasde_raw`.
 
 ## Recommended next slices, in order
 
-1. **WASDE refresh/admission check**
-   - Confirm whether May 2026 WASDE should be present.
-   - If missing, import/refresh it.
-   - Refresh thesis packet cache.
-   - Verify cached US packets still expose latest-vs-previous revision deltas.
-
-2. **Canada crop-progress vertical slice**
+1. **Canada crop-progress vertical slice**
    - Wire `canada_crop_progress` into Canada thesis packets under a stable supply/crop-progress field.
    - Add freshness RPC visibility if needed.
    - Add deterministic farmer-readable drivers for seeded progress / condition only where mapped and fresh.
    - Refresh cache and inspect Canada V1 grains.
 
-3. **Wheat class mapping decision**
+2. **Wheat class mapping decision**
    - Decide whether Spring Wheat and Winter Wheat should remain placeholder rows for V1 or be mapped to actual class-specific source packets.
    - If mapping, do it deliberately; do not alias both to generic Wheat without a label explaining the proxy.
 
-4. **Guarded projection admission expansion**
+3. **Guarded projection admission expansion**
    - Continue importer-layer sanity checks for Corn/Soybeans/Barley/Oats Export Sales vs WASDE projection.
    - Only admit `export_pace_pct` when market-year, report-month, unit conversion, and 60–140% sanity guardrails pass.
 
-5. **Final source-sufficiency gate before public thesis authorization**
+4. **Final source-sufficiency gate before public thesis authorization**
    - Run `/thesis?audit=1` browser check.
    - Confirm source-health banner shows no false blockers.
    - Confirm every V1 row is either public-V1 usable, Canada-first intentional, or explicit mapping-needed.
