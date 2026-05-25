@@ -112,6 +112,8 @@ export interface ThesisComparisonRow {
   us: ThesisBoardItem | null;
   status: ThesisComparisonStatus;
   statusLabel: string;
+  readinessLabel: string;
+  readinessDetail: string;
   explanation: string;
   strongestBullPoints: ThesisComparisonPoint[];
   strongestBearPoints: ThesisComparisonPoint[];
@@ -1427,6 +1429,46 @@ function comparisonStatusLabel(status: ThesisComparisonStatus): string {
   return labels[status];
 }
 
+function comparisonReadiness(
+  grain: string,
+  status: ThesisComparisonStatus,
+  canada: ThesisBoardItem | null,
+  us: ThesisBoardItem | null,
+): { readinessLabel: string; readinessDetail: string } {
+  if (status === "mapping_needed") {
+    return {
+      readinessLabel: "Mapping pending",
+      readinessDetail: `Needs class-safe ${grain} source mapping before this row can produce a thesis read.`,
+    };
+  }
+
+  if (status === "canada_only") {
+    return {
+      readinessLabel: "Canada-first",
+      readinessDetail: "Canada packet is present; no matching US overview market is modeled for this V1 row.",
+    };
+  }
+
+  if (status === "us_only") {
+    return {
+      readinessLabel: "US-first",
+      readinessDetail: "US packet is present; no matching Canada major-grain packet is modeled for this V1 row.",
+    };
+  }
+
+  if (canada && us) {
+    return {
+      readinessLabel: "Source-backed",
+      readinessDetail: "Canada and US packets are present; use this as a scouting-quality thesis row, not final price advice.",
+    };
+  }
+
+  return {
+    readinessLabel: "Source gap",
+    readinessDetail: "No source-backed Canada or US packet is available for this V1 row.",
+  };
+}
+
 function comparisonExplanation(
   grain: string,
   canada: ThesisBoardItem | null,
@@ -1485,12 +1527,16 @@ export function buildMajorThesisComparisonRows(
       ...strongestPointsFor(us, "US", "bear"),
     ].sort((a, b) => driverConfidenceWeight(b.confidence) - driverConfidenceWeight(a.confidence));
 
+    const readiness = comparisonReadiness(grain, status, canada, us);
+
     return {
       grain,
       canada,
       us,
       status,
       statusLabel: comparisonStatusLabel(status),
+      readinessLabel: readiness.readinessLabel,
+      readinessDetail: readiness.readinessDetail,
       explanation: comparisonExplanation(grain, canada, us),
       strongestBullPoints,
       strongestBearPoints,

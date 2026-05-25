@@ -373,10 +373,16 @@ function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
                   </td>
                   <td className="px-4 py-4">
                     <div className="space-y-2">
-                      <Badge variant="outline" className={comparisonClass(row.status)}>
-                        {row.statusLabel}
-                      </Badge>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className={comparisonClass(row.status)}>
+                          {row.statusLabel}
+                        </Badge>
+                        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                          {row.readinessLabel}
+                        </Badge>
+                      </div>
                       <p className="text-sm leading-6 text-muted-foreground">{row.explanation}</p>
+                      <p className="text-xs leading-5 text-muted-foreground">{row.readinessDetail}</p>
                     </div>
                   </td>
                 </tr>
@@ -730,14 +736,21 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
                 <Badge variant="outline" className={cn("mt-2 md:hidden", comparisonClass(row.status))}>
                   {row.statusLabel}
                 </Badge>
+                <p className="mt-1 text-[11px] text-muted-foreground md:hidden">{row.readinessLabel}</p>
               </div>
               <CompactMarketSignal item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
               <CompactMarketSignal item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
               <div className="hidden space-y-2 md:block">
-                <Badge variant="outline" className={comparisonClass(row.status)}>
-                  {row.statusLabel}
-                </Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className={comparisonClass(row.status)}>
+                    {row.statusLabel}
+                  </Badge>
+                  <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                    {row.readinessLabel}
+                  </Badge>
+                </div>
                 <p className="text-xs leading-5 text-muted-foreground">{row.explanation}</p>
+                <p className="text-[11px] leading-5 text-muted-foreground">{row.readinessDetail}</p>
               </div>
             </div>
           ))}

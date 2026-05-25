@@ -683,6 +683,8 @@ describe("thesis board packet normalization", () => {
     );
 
     expect(wheatRow?.status).toBe("mixed");
+    expect(wheatRow?.readinessLabel).toBe("Source-backed");
+    expect(wheatRow?.readinessDetail).toContain("Canada and US packets are present");
     expect(wheatRow?.explanation).toContain("CA +36 Bull tilt");
     expect(wheatRow?.explanation).toContain("US -30 Bear tilt");
     expect(wheatRow?.strongestBullPoints.map((point) => point.country)).toContain("CA");
@@ -776,10 +778,14 @@ describe("thesis board packet normalization", () => {
 
     expect(springWheatRow?.status).toBe("mapping_needed");
     expect(springWheatRow?.statusLabel).toBe("Mapping needed");
+    expect(springWheatRow?.readinessLabel).toBe("Mapping pending");
+    expect(springWheatRow?.readinessDetail).toContain("class-safe Spring Wheat source mapping");
     expect(springWheatRow?.explanation).toContain("class-specific source mapping is still pending");
     expect(springWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
     expect(winterWheatRow?.status).toBe("mapping_needed");
     expect(winterWheatRow?.statusLabel).toBe("Mapping needed");
+    expect(winterWheatRow?.readinessLabel).toBe("Mapping pending");
+    expect(winterWheatRow?.readinessDetail).toContain("class-safe Winter Wheat source mapping");
     expect(winterWheatRow?.explanation).toContain("class-specific source mapping is still pending");
     expect(winterWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
     expect(rows.find((row) => row.grain === "Amber Durum")).toBeUndefined();
