@@ -75,13 +75,13 @@ MAX_REASONABLE_EXPORT_PACE_PCT = 140.0
 
 COMMODITIES = [
     {"commodity_code": 107, "commodity": "ALL WHEAT", "cgc_grain": "Wheat", "mapping_type": "primary"},
-    {"commodity_code": 104, "commodity": "CORN", "cgc_grain": "Corn", "mapping_type": "primary"},
-    {"commodity_code": 201, "commodity": "SOYBEANS", "cgc_grain": "Canola", "mapping_type": "proxy"},
-    {"commodity_code": 207, "commodity": "SOYBEAN OIL", "cgc_grain": "Canola", "mapping_type": "proxy"},
-    {"commodity_code": 206, "commodity": "SOYBEAN MEAL", "cgc_grain": "Canola", "mapping_type": "proxy"},
-    {"commodity_code": 101, "commodity": "BARLEY", "cgc_grain": "Barley", "mapping_type": "primary"},
-    {"commodity_code": 105, "commodity": "OATS", "cgc_grain": "Oats", "mapping_type": "primary"},
-    {"commodity_code": 108, "commodity": "SORGHUM", "cgc_grain": "Sorghum", "mapping_type": "reference"},
+    {"commodity_code": 401, "commodity": "CORN", "cgc_grain": "Corn", "mapping_type": "primary"},
+    {"commodity_code": 801, "commodity": "SOYBEANS", "cgc_grain": "Canola", "mapping_type": "proxy"},
+    {"commodity_code": 902, "commodity": "SOYBEAN OIL", "cgc_grain": "Canola", "mapping_type": "proxy"},
+    {"commodity_code": 901, "commodity": "SOYBEAN MEAL", "cgc_grain": "Canola", "mapping_type": "proxy"},
+    {"commodity_code": 301, "commodity": "BARLEY", "cgc_grain": "Barley", "mapping_type": "primary"},
+    {"commodity_code": 601, "commodity": "OATS", "cgc_grain": "Oats", "mapping_type": "primary"},
+    {"commodity_code": 701, "commodity": "SORGHUM", "cgc_grain": "Sorghum", "mapping_type": "reference"},
 ]
 
 

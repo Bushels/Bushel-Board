@@ -4,8 +4,8 @@
 
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
 Branch: `codex/data-layer-foundation-v1`
-Latest pushed commit: `ccbf32d docs: record wheat class mapping decision`
-Working tree at handoff prep: clean and synced with `origin/codex/data-layer-foundation-v1`.
+Latest pushed commit before this session: `0c19fca docs: refresh thesis board handoff`
+Working tree after this session: Export Sales commodity-code fix, focused Python unittest, docs updates; not clean until committed/pushed.
 
 Start a new session by reading these files first:
 
@@ -109,11 +109,40 @@ Rationale:
 - It ships source-honest scouting value without inventing class-specific precision.
 - Class-specific Spring/Winter packet mapping can be a future deliberate patch if Kyle asks for it.
 
+### 3. Export Sales importer commodity-code fix (this session)
+
+Files changed in this slice:
+
+- `scripts/import-usda-export-sales.py`
+- `tests/scripts/test_import_usda_export_sales.py`
+- `PROJECT_STATE.md`
+- `docs/plans/STATUS.md`
+- `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`
+- `docs/plans/2026-05-25-bushel-board-handoff.md`
+
+Root cause:
+
+- Non-wheat ESR imports were using wheat-class-era commodity codes: Corn `104`, Soybeans `201`, Barley `101`, Oats `105`, Sorghum `108`.
+- The public USDA ESR commodity catalog says the correct codes are Corn `401`, Soybeans `801`, Soybean Oil `902`, Soybean Meal `901`, Barley `301`, Oats `601`, Sorghum `701`.
+- The wrong codes produced implausibly low non-wheat commitments and kept Corn/Soybeans projection pace null-guarded.
+
+Behavior now:
+
+- A focused Python unittest locks the USDA ESR code map.
+- Live re-import for Corn/Soybeans/Barley/Oats market year 2026 upserted 135 rows through `2026-05-14`.
+- Thesis cache was force-refreshed to 21 rows with source-run watermark `2026-05-25T17:06:49.103632+00:00`.
+- Cached US Corn now has `export_pace_pct = 95.287`, `usda_projection_mt = 83,824,000`.
+- Cached US Soybeans now has `export_pace_pct = 94.551`, `usda_projection_mt = 41,640,000`.
+- Cached US Wheat remains admitted at `export_pace_pct = 102.315`, `usda_projection_mt = 24,494,000`.
+- Barley and Oats remain null-guarded; do not infer projection pace in UI.
+
 ## Verification run this session
 
 Commands run after the latest state:
 
 ```bash
+python3 -m unittest tests/scripts/test_import_usda_export_sales.py
+python3 -m py_compile scripts/import-usda-export-sales.py tests/scripts/test_import_usda_export_sales.py
 npx vitest run lib/__tests__/thesis-board.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --reporter=dot
 npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts app/'(dashboard)'/thesis/page.tsx --max-warnings=0
 npm run validate-data-layer
@@ -122,10 +151,12 @@ npm run build
 
 Results:
 
-- focused `thesis-board` Vitest: 25 passed
+- focused Python unittest: 2 passed
+- Python compile check: passed
+- focused `thesis-board` Vitest: 25 passed (`--pool=threads`; default fork worker timed out once under WSL)
 - scoped ESLint: passed
 - `npm run validate-data-layer`: passed
-  - `source_runs_table`: 117 rows
+  - `source_runs_table`: 119 rows
   - `grain_market_mappings_seeded`: 68 rows
   - freshness RPC: 21 rows
   - Canada packet RPC shape: ok
@@ -137,17 +168,16 @@ Browser / route verification:
 Local `/thesis?audit=1` check returned HTTP 200 and contained:
 
 - `Bull/Bear Thesis Board`
+- `Corn`
+- `Soybeans`
 - `Spring Wheat`
 - `Winter Wheat`
 - `Mapping needed`
 - `Mapping pending`
 - `Generic Wheat is not used as a proxy`
+- `Export sales`
 
-Browser console was clean.
-
-Vercel preview `/thesis?audit=1` check returned HTTP 200 and contained the same strings.
-
-Production `/thesis` check returned HTTP 200 but did not contain the current Spring/Winter Wheat strings because production is still old `master` commit `4398413`.
+Local browser audit of `/thesis?audit=1` was console-clean. The supplied Vercel preview URL currently redirects this unauthenticated tool session to Vercel login / returns 401, so the post-patch route smoke was done locally against the production build. Production `/thesis` is still old `master` until this branch is promoted/deployed.
 
 ## Known unrelated state
 
@@ -166,31 +196,23 @@ Known unrelated technical debt from `PROJECT_STATE.md` still applies:
 
 ## Next best step
 
-### Recommended first patch: guarded Export Sales + WASDE projection admission expansion
+### Recommended first patch: deploy/preview verify the Export Sales commodity-code repair
 
-Problem:
+Resolved in this session:
 
-- Wheat has a guarded importer/admission-layer `export_pace_pct` and can show the compound Export Sales + WASDE projection driver.
-- Corn, Soybeans, Barley, and Oats currently do not show projection-pace claims because their guarded fields remain null.
-- UI-side inference is banned; do not compute projection pace in `lib/queries/thesis-board.ts` from raw commitments/projection fields.
+- The root cause for Corn/Soybeans being null-guarded was wrong USDA ESR commodity codes in the importer, not missing UI inference.
+- Corn and Soybeans now have importer-admitted guarded `export_pace_pct` in cached US packets.
+- Barley and Oats remain null-guarded because the safe public FAS/WASDE comparison still does not pass the admission guardrails.
+- UI-side inference remains banned; do not compute projection pace in `lib/queries/thesis-board.ts` from raw commitments/projection fields.
 
-Patch direction:
+Recommended next action:
 
-1. Inspect importer/admission logic for Export Sales + WASDE projection mapping.
-2. Determine why Corn/Soybeans/Barley/Oats are null-guarded.
-3. Fix only where commodity/year/report-month/unit sanity checks support it.
-4. Backfill/refresh source packets/cache if the importer/admission fix changes admitted fields.
-5. Keep missing/failed admissions silent in the board rather than inventing a driver.
-
-Acceptance criteria:
-
-- `/thesis` still renders exactly the 9 V1 rows.
-- No UI-side projection-pace inference returns.
-- If Corn/Soybeans/Barley/Oats get `export_pace_pct`, tests prove the admitted field is required before a driver renders.
-- If some markets remain null, the UI stays silent and source-honest.
-- Spring/Winter Wheat remain mapping-needed placeholders unless Kyle explicitly redirects to class-specific mapping.
-- Focused thesis tests, scoped ESLint, `npm run validate-data-layer`, and `npm run build` pass.
-- Browser or route smoke check of `/thesis?audit=1` confirms the board is readable and console-clean.
+1. Commit/push this branch if not already done.
+2. Use the new Vercel preview URL generated for the pushed commit, or an authenticated Vercel preview session, to browser-check `/thesis?audit=1`.
+3. Confirm `/thesis` still renders exactly the 9 V1 rows.
+4. Confirm Corn/Soybeans remain source-backed after the cache refresh, and Barley/Oats stay silent on projection pace.
+5. Keep Spring/Winter Wheat as mapping-needed placeholders unless Kyle explicitly redirects to class-specific mapping.
+6. Decide whether to promote this branch to production once the preview is clean, because production is still old `master`.
 
 Suggested commands:
 
@@ -215,4 +237,4 @@ vercel curl /thesis?audit=1 --deployment <preview-url> -- --location --max-time 
 
 ## One-line prompt for the next session
 
-Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `PROJECT_STATE.md`, `docs/plans/STATUS.md`, `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`, and `docs/plans/2026-05-25-bushel-board-handoff.md`; keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only; preserve unrelated stashes; use preview URL `https://bushel-board-9b5onjzpr-kyles-projects-d3ab6818.vercel.app/thesis?audit=1` for the current board because production is still old `master`; Spring/Winter Wheat are intentionally `Mapping needed` placeholders with no generic-Wheat proxy; next best patch is guarded Export Sales + WASDE projection admission expansion for non-wheat markets at the importer/admission layer, not UI inference.
+Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `PROJECT_STATE.md`, `docs/plans/STATUS.md`, `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`, and `docs/plans/2026-05-25-bushel-board-handoff.md`; keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only; preserve unrelated stashes; production is still old `master`; Spring/Winter Wheat are intentionally `Mapping needed` placeholders with no generic-Wheat proxy; Export Sales importer commodity codes were corrected and live cache now admits guarded projection pace for Corn/Soybeans while Barley/Oats remain null-guarded; next best step is commit/push plus authenticated Vercel preview verification, not UI inference.

@@ -25,7 +25,7 @@ The main public source families are present and mostly fresh. The remaining gap 
 1. WASDE is now refreshed through May 2026 and source freshness reports strong after the post-audit import.
 2. Spring Wheat and Winter Wheat are still V1 visible lanes with source-mapping placeholders, not direct packet lanes.
 3. Canada crop progress is now admitted into Canada thesis packets where directly mapped (`supply.canada_crop_progress`); generic Wheat remains unmapped rather than silently aliasing Spring/Winter Wheat classes.
-4. Export Sales + WASDE projection pace is intentionally admitted only where the importer passed sanity guardrails; currently Wheat passes while Corn/Soybeans/Barley/Oats remain null-guarded.
+4. Export Sales + WASDE projection pace is intentionally admitted only where the importer passed sanity guardrails; Wheat, Corn, and Soybeans now pass after the USDA ESR commodity-code correction, while Barley and Oats remain null-guarded.
 5. Farmer-local sources remain optional and should not be counted as public thesis blockers.
 
 ## Live source freshness snapshot
@@ -62,8 +62,8 @@ Legend:
 
 | V1 grain | Canada packet | US packet | Canada core fields | US core fields | Readiness |
 |---|---|---|---|---|---|
-| Corn | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; improve projection guardrail |
-| Soybeans | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; improve projection guardrail |
+| Corn | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; guarded projection pace now admitted |
+| Soybeans | Y | Y | supply, crop progress, demand, logistics, positioning, prices, Grain Monitor, Producer Cars | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Public V1 usable; guarded projection pace now admitted |
 | Wheat | Y | Y | supply, demand, logistics, positioning, prices, Grain Monitor, Producer Cars; generic Wheat has no direct Canada crop-progress row to avoid aliasing class data | WASDE, quarterly stocks, acreage, crop progress, Export Sales, logistics, positioning, prices | Strongest US compound lane today; guarded Export Sales/WASDE projection admitted |
 | Spring Wheat | Placeholder | Placeholder | No direct packet row | No direct packet row | Needs source mapping before final V1 confidence |
 | Winter Wheat | Placeholder | Placeholder | No direct packet row | No direct packet row | Needs source mapping before final V1 confidence |
@@ -86,7 +86,7 @@ The V1 UI keeps Spring Wheat and Winter Wheat visible, but `THESIS_BOARD_V1_LANE
 
 ### Export Sales + WASDE projection pace
 
-Wheat has admitted guarded projection fields and can show `Export sales outrunning WASDE projection`. Corn, Soybeans, Barley, and Oats correctly avoid fake projection-pace claims while their importer-admitted `export_pace_pct` fields remain null. The UI must not recompute projection pace from commitments/projection fields; any future expansion belongs in importer/admission logic.
+Wheat, Corn, and Soybeans have admitted guarded projection fields and can show Export Sales + WASDE projection compound drivers. Barley and Oats correctly avoid fake projection-pace claims while their importer-admitted `export_pace_pct` fields remain null. The UI must not recompute projection pace from commitments/projection fields; any future expansion belongs in importer/admission logic. The 2026-05-25 root cause for the previous Corn/Soybeans null state was wrong USDA ESR commodity codes in the importer, not UI inference.
 
 ### WASDE
 
@@ -99,9 +99,10 @@ WASDE raw and mapped context are present, and cached US packets expose WASDE rev
    - Generic Wheat is not aliased into either class-specific row.
    - Future class-specific mapping must be deliberate; do not backslide into fake generic-Wheat precision.
 
-2. **Guarded projection admission expansion**
-   - Continue importer-layer sanity checks for Corn/Soybeans/Barley/Oats Export Sales vs WASDE projection.
-   - Only admit `export_pace_pct` when market-year, report-month, unit conversion, and 60–140% sanity guardrails pass.
+2. **Guarded projection admission expansion — partially resolved 2026-05-25**
+   - USDA ESR commodity codes were corrected in the importer.
+   - Corn and Soybeans now admit `export_pace_pct` after commodity/year/report-month/unit and 60–140% sanity guardrails pass.
+   - Barley and Oats remain null-guarded; keep them silent unless a future importer-layer check proves a safe projection comparison.
 
 3. **Final source-sufficiency gate before public thesis authorization**
    - Run `/thesis?audit=1` browser check.
