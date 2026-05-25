@@ -258,6 +258,7 @@ describe("thesis board packet normalization", () => {
         export_sales: {
           net_sales_mt: 620_000,
           total_commitments_mt: 52_500_000,
+          export_pace_pct: 105,
           usda_projection_mt: 50_000_000,
         },
         wasde: {
@@ -284,6 +285,7 @@ describe("thesis board packet normalization", () => {
         export_sales: {
           net_sales_mt: 120_000,
           total_commitments_mt: 39_000_000,
+          export_pace_pct: 78,
           usda_projection_mt: 50_000_000,
         },
         wasde: {
@@ -312,6 +314,42 @@ describe("thesis board packet normalization", () => {
     );
     expect(executionRisk.bearDrivers.find((driver) => driver.title === "Export sales execution risk against WASDE raise")?.body).toContain(
       "39,000,000 mt committed versus 50,000,000 mt projected",
+    );
+  });
+
+  it("does not infer export-sales projection pace from unadmitted projection fields", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      supply: {
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 725,
+        },
+      },
+      demand: {
+        export_sales: {
+          net_sales_mt: 620_000,
+          total_commitments_mt: 52_500_000,
+          usda_projection_mt: 50_000_000,
+        },
+        wasde: {
+          report_month: "2026-05-01",
+          previous_report_month: "2026-04-01",
+          exports_change_kt: 725,
+        },
+      },
+      freshness: [
+        { source_name: "usda_export_sales", freshness_status: "strong" },
+        { source_name: "usda_wasde_mapped", freshness_status: "strong" },
+      ],
+      quality_warnings: [],
+    });
+
+    expect(item.bullDrivers.map((driver) => driver.title)).not.toContain(
+      "Export sales confirm raised WASDE projection",
+    );
+    expect(item.bullDrivers.map((driver) => driver.title)).not.toContain(
+      "Export sales outrunning WASDE projection",
     );
   });
 

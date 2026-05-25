@@ -86,7 +86,7 @@ The V1 UI keeps Spring Wheat and Winter Wheat visible, but `THESIS_BOARD_V1_LANE
 
 ### Export Sales + WASDE projection pace
 
-Wheat has admitted guarded projection fields and can show `Export sales outrunning WASDE projection`. Corn, Soybeans, Barley, and Oats correctly avoid fake projection-pace claims while their fields remain null. Next improvement belongs in importer/admission logic, not UI-side inference.
+Wheat has admitted guarded projection fields and can show `Export sales outrunning WASDE projection`. Corn, Soybeans, Barley, and Oats correctly avoid fake projection-pace claims while their importer-admitted `export_pace_pct` fields remain null. The UI must not recompute projection pace from commitments/projection fields; any future expansion belongs in importer/admission logic.
 
 ### WASDE
 

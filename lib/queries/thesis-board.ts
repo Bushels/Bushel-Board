@@ -529,12 +529,10 @@ function ratioPct(numerator: number | null, denominator: number | null): number 
 }
 
 function exportProjectionPacePct(exportSales: JsonRecord): number | null {
-  const explicitPace = numberValue(exportSales, "export_pace_pct");
-  if (explicitPace !== null) return explicitPace;
-
-  const commitmentsMt = numberValue(exportSales, "total_commitments_mt");
-  const projectionMt = numberValue(exportSales, "usda_projection_mt");
-  return ratioPct(commitmentsMt, projectionMt);
+  // Projection pace is an importer-admitted field. Do not recompute it in the UI
+  // from total commitments and a projection value, because that bypasses the
+  // commodity/year/report-month/unit/60-140% guardrails in import-usda-export-sales.py.
+  return numberValue(exportSales, "export_pace_pct");
 }
 
 function addDriver(
