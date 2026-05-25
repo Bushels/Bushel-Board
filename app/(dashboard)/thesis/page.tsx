@@ -22,6 +22,7 @@ import {
 import {
   getThesisBoardData,
   buildFarmerReadSummary,
+  buildSourceHealthRead,
   type ThesisBoardItem,
   type ThesisComparisonPoint,
   type ThesisComparisonRow,
@@ -96,13 +97,6 @@ function missingMarketCopy(row: ThesisComparisonRow, country: "CA" | "US"): stri
   if (row.grain === "Durum" && country === "US") return "US: not modeled in V1";
   if (row.grain === "Canola" && country === "US") return "US: Canada-first lane";
   return `${country}: not modeled in V1`;
-}
-
-function shortSourceHealthRead(data: Awaited<ReturnType<typeof getThesisBoardData>>): string {
-  if (data.totals.uniqueWatchSourceCount === 0) {
-    return "All rendered public source groups are currently clean.";
-  }
-  return `${data.totals.uniqueWatchSourceCount} source group${data.totals.uniqueWatchSourceCount === 1 ? "" : "s"} need attention across ${data.totals.watchSourceInstanceCount} packet rows.`;
 }
 
 function freshnessClass(status: string): string {
@@ -761,18 +755,17 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
 }
 
 function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesisBoardData>> }) {
+  const sourceHealthRead = buildSourceHealthRead(data.totals);
   const hasWatchSources = data.totals.uniqueWatchSourceCount > 0;
   const isStaleCache = data.packetMode === "cached" && data.cacheStatus !== "fresh";
-  const borderClass = isStaleCache
+  const borderClass = isStaleCache || sourceHealthRead.tone === "blocker"
     ? "border-red-500/30 bg-red-500/8"
-    : hasWatchSources
+    : sourceHealthRead.tone === "watch"
       ? "border-canola/35 bg-canola/8"
       : "border-prairie/25 bg-prairie/8";
   const title = isStaleCache
     ? "Board freshness needs a refresh before use"
-    : hasWatchSources
-      ? "Use this as a provisional market read"
-      : "Source health is clean for this board";
+    : sourceHealthRead.title;
 
   return (
     <Card className={cn("rounded-lg py-4 shadow-none", borderClass)}>
@@ -780,11 +773,11 @@ function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesis
         <div>
           <p className="text-sm font-semibold text-foreground">{title}</p>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            {shortSourceHealthRead(data)} Confidence is source-completeness, not price-advice certainty.
+            {sourceHealthRead.description} Confidence is source-completeness, not price-advice certainty.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <Badge variant="outline" className={freshnessClass(isStaleCache ? "stale" : hasWatchSources ? "lagged" : "strong")}>
+          <Badge variant="outline" className={freshnessClass(isStaleCache ? "stale" : sourceHealthRead.tone === "blocker" ? "broken" : hasWatchSources ? "lagged" : "strong")}>
             {data.packetMode === "cached" ? `Cached board: ${data.cacheStatus}` : "Live packet fallback"}
           </Badge>
           <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">

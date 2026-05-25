@@ -6,6 +6,7 @@ import {
   buildCanadaThesisBoardItem,
   buildFarmerReadSummary,
   buildMajorThesisComparisonRows,
+  buildSourceHealthRead,
   buildSourceHealthSummary,
   cacheStatusForSourceState,
   buildUsThesisBoardItem,
@@ -34,6 +35,20 @@ const usWheat = {
 };
 
 describe("thesis board packet normalization", () => {
+  it("summarizes cadence-lagged sources without calling them blockers", () => {
+    const read = buildSourceHealthRead({
+      blockerCount: 0,
+      uniqueWatchSourceCount: 2,
+      watchSourceInstanceCount: 12,
+    });
+
+    expect(read.title).toBe("Usable board with cadence-lagged sources");
+    expect(read.description).toBe(
+      "No source blockers; 2 source groups are cadence-lagged or stale-risk across 12 packet rows.",
+    );
+    expect(read.tone).toBe("watch");
+  });
+
   it("derives Canada bull and bear drivers from a facts-only packet", () => {
     const item = buildCanadaThesisBoardItem(canola, {
       lane: "canada",

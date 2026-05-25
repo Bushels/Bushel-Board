@@ -70,6 +70,18 @@ export interface ThesisSourceHealthSummary {
   optionalSources: ThesisSourceHealthEntry[];
 }
 
+export interface ThesisSourceHealthReadInput {
+  blockerCount: number;
+  uniqueWatchSourceCount: number;
+  watchSourceInstanceCount: number;
+}
+
+export interface ThesisSourceHealthRead {
+  title: string;
+  description: string;
+  tone: "clean" | "watch" | "blocker";
+}
+
 export interface ThesisBoardItem {
   id: string;
   lane: ThesisLane;
@@ -583,6 +595,28 @@ function sourceCounts(freshness: ThesisFreshnessRow[]) {
     strongSourceCount,
     staleSourceCount,
     optionalSourceCount,
+  };
+}
+
+export function buildSourceHealthRead(totals: ThesisSourceHealthReadInput): ThesisSourceHealthRead {
+  if (totals.blockerCount > 0) {
+    return {
+      title: "Source blockers need repair before a clean read",
+      description: `${totals.blockerCount} blocker${totals.blockerCount === 1 ? "" : "s"} need repair before treating this as a source-clean read.`,
+      tone: "blocker",
+    };
+  }
+  if (totals.uniqueWatchSourceCount === 0) {
+    return {
+      title: "Source health is clean for this board",
+      description: "All rendered public source groups are currently clean.",
+      tone: "clean",
+    };
+  }
+  return {
+    title: "Usable board with cadence-lagged sources",
+    description: `No source blockers; ${totals.uniqueWatchSourceCount} source group${totals.uniqueWatchSourceCount === 1 ? " is" : "s are"} cadence-lagged or stale-risk across ${totals.watchSourceInstanceCount} packet rows.`,
+    tone: "watch",
   };
 }
 
