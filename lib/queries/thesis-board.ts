@@ -1494,6 +1494,33 @@ function comparisonExplanation(
   )} ${us.stanceLabel}${usDetail}.`;
 }
 
+export interface ThesisFarmerReadSummary {
+  coverageLine: string;
+  mappingLine: string;
+  actionLine: string;
+}
+
+export function buildFarmerReadSummary(rows: ThesisComparisonRow[]): ThesisFarmerReadSummary {
+  const sourceBackedOrIntentionalRows = rows.filter(
+    (row) => row.status !== "mapping_needed" && (row.canada || row.us),
+  ).length;
+  const mappingRows = rows.filter((row) => row.status === "mapping_needed");
+  const wheatClassMappingRows = mappingRows.filter((row) => row.grain.includes("Wheat"));
+  const wheatClassNames = wheatClassMappingRows.map((row) => row.grain);
+  const mappingCount = mappingRows.length;
+  const mappingNoun = mappingCount === 1 ? "row is" : "rows are";
+
+  return {
+    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`,
+    mappingLine:
+      wheatClassNames.length > 0
+        ? `${wheatClassNames.join(" and ")} stay visible but unscored: generic Wheat is not used as a proxy.`
+        : "No wheat-class proxy rows are being scored without direct source mapping.",
+    actionLine:
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+  };
+}
+
 export function buildMajorThesisComparisonRows(
   canadaItems: ThesisBoardItem[],
   usItems: ThesisBoardItem[],

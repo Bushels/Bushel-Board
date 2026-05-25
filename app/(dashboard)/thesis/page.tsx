@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/card";
 import {
   getThesisBoardData,
+  buildFarmerReadSummary,
   type ThesisBoardItem,
   type ThesisComparisonPoint,
   type ThesisComparisonRow,
@@ -249,6 +250,8 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
   const countrySplits = rows.filter((row) => row.status === "mixed" && (row.canada || row.us)).length;
   const sourceMappingGaps = rows.filter((row) => !row.canada && !row.us).length;
 
+  const farmerSummary = buildFarmerReadSummary(rows);
+
   const leadLine = strongestBull
     ? `${strongestBull.row.grain} has the cleanest bull lean at ${signedAverageScore(strongestBull.row)}.`
     : "No grain has a clean bull lean in the current packets.";
@@ -266,8 +269,7 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             </Badge>
             <CardTitle className="font-display text-2xl">Top takeaway</CardTitle>
             <CardDescription className="mt-2 max-w-3xl text-sm leading-6">
-              One pass before the big table: what looks most constructive, what needs caution,
-              and where Canada/US disagree.
+              One pass before the big table: {farmerSummary.coverageLine}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -300,10 +302,8 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             <Flag className="h-4 w-4 text-canola" aria-hidden="true" />
             How to use it
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Treat this as a scouting sheet, not a trade signal. Start with split markets, then
-            open the row drivers before changing a pricing plan.
-          </p>
+          <p className="text-sm leading-6 text-muted-foreground">{farmerSummary.actionLine}</p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">{farmerSummary.mappingLine}</p>
         </div>
       </CardContent>
     </Card>
