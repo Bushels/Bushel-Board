@@ -90,7 +90,7 @@ These are farmer-value sources, but they should wait until Tier 1 freshness and 
 | `weather` | Weather risk | `weather_cache` or future weather tables | Empty in latest audit | Do not use for thesis until source, cadence, station/region mapping, and forecast horizon are defined. |
 | `fx_rates` | Canada/US price context | FX table/importer | Importer writes `source_runs`; `grain_prices` CAD normalization uses latest USD/CAD rate on or before the price date | Use for price translation, not standalone thesis prose. |
 | `x_market_signals` | Social/sentiment | `x_market_signals` | Legacy/archive mixed `x` and `web` sources | Keep as archive until direct X API v2 lane is rebuilt and provenance is tight. |
-| `kalshi` | Prediction-market validation | `predictive_market_briefs` / future live market table | Editorial context, not source truth | Keep in validation/comparison lane. Do not feed it back into market-analysis writers. |
+| `kalshi` | Prediction-market validation | `predictive_market_briefs` / read-only `capture-kalshi:commodities` snapshot output | Live public Trade API metadata normalized for Corn, Soybeans, and Wheat weekly/monthly commodity series; no Supabase write path in V1 | Keep in validation/comparison lane. Do not feed it back into market-analysis writers, thesis prompts, scorecards, or training candidates. |
 
 ## Canola Public Baseline Facts
 

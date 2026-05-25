@@ -21,6 +21,7 @@ import datetime as dt
 import json
 import os
 import subprocess
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -271,7 +272,7 @@ def invoke_heartbeat(preview: dict[str, Any]) -> dict[str, Any]:
         'market_year': preview['market_year'],
     }
     cmd = [
-        'python', str(HEARTBEAT_CLI),
+        sys.executable, str(HEARTBEAT_CLI),
         '--side', 'us',
         '--market', preview['market_name'],
         '--scan-type', TRAJECTORY_SCAN_TYPE,

@@ -16,6 +16,20 @@ import {
 } from "@/lib/knowledge/viking-retrieval";
 import type { ChatContext, FarmerGrainContext, GrainPriceContext, XSignalContext } from "./types";
 
+export interface FarmerMemoryRow {
+  memory_key: string;
+  memory_value: string;
+  grain: string | null;
+  updated_at: string;
+}
+
+type DurableMemoryBuckets = {
+  stableProfile: string[];
+  lastConfirmedPreferences: string[];
+  openQuestions: string[];
+  excludedCount: number;
+};
+
 const STORAGE_QUESTION_PATTERN = /\b(store|storage|hold|haul|bin|carry)\b/i;
 const BASIS_VALUE_PATTERN =
   /\bbasis\b[^\n]{0,24}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
@@ -25,6 +39,66 @@ const MONTH_SPREAD_VALUE_PATTERN =
   /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-/ ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b[^\n]{0,16}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
 const STORAGE_COST_PATTERN =
   /\b(?:storage cost|cost to store|bin cost|interest)\b[^\n]{0,24}(?:[$-]?\d+(?:\.\d+)?|\d+\s*(?:c|cent|cents|points?|pts?))/i;
+
+const STABLE_FACT_KEYS = ["farm_size", "farm_size_acres", "primary_grains", "home_fsa", "operation_type"];
+const PREFERENCE_KEYS = ["preferred_elevator", "delivery_preference", "last_rec_"];
+
+function isStableFactKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return STABLE_FACT_KEYS.some((part) => normalized.includes(part));
+}
+
+function isPreferenceKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return PREFERENCE_KEYS.some((part) => normalized.includes(part));
+}
+
+function ageInDays(nowIso: string, pastIso: string): number {
+  const now = Date.parse(nowIso);
+  const past = Date.parse(pastIso);
+  if (!Number.isFinite(now) || !Number.isFinite(past)) return Number.POSITIVE_INFINITY;
+  return (now - past) / (1000 * 60 * 60 * 24);
+}
+
+export function buildDurableMemoryContext(
+  rows: FarmerMemoryRow[],
+  nowIso = new Date().toISOString(),
+): DurableMemoryBuckets {
+  const stableProfile: string[] = [];
+  const lastConfirmedPreferences: string[] = [];
+  const openQuestions: string[] = [];
+  let excludedCount = 0;
+
+  for (const row of rows) {
+    const key = row.memory_key;
+    const ageDays = ageInDays(nowIso, row.updated_at);
+
+    if (key.toLowerCase().startsWith("last_rec_") && ageDays > 30) {
+      excludedCount += 1;
+      continue;
+    }
+
+    if (isStableFactKey(key)) {
+      stableProfile.push(`${key}: ${row.memory_value}`);
+      continue;
+    }
+
+    if (isPreferenceKey(key)) {
+      const scope = row.grain ? ` (${row.grain})` : "";
+      lastConfirmedPreferences.push(`${key}${scope}: ${row.memory_value}`);
+      continue;
+    }
+
+    openQuestions.push(`Reconfirm ${key}${row.grain ? ` for ${row.grain}` : ""}.`);
+  }
+
+  return {
+    stableProfile,
+    lastConfirmedPreferences,
+    openQuestions,
+    excludedCount,
+  };
+}
 
 function formatNaturalList(values: string[]): string {
   if (values.length === 0) return "";
@@ -210,6 +284,20 @@ export async function buildChatContext(
   const supabase = await createClient();
   const targetGrain = grainHint ?? farmerGrains[0] ?? null;
 
+  let durableMemory = buildDurableMemoryContext([]);
+  try {
+    const { data: farmerMemoryRows } = await supabase
+      .from("farmer_memory")
+      .select("memory_key,memory_value,grain,updated_at")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(200);
+
+    durableMemory = buildDurableMemoryContext((farmerMemoryRows ?? []) as FarmerMemoryRow[]);
+  } catch {
+    // Durable memory is optional fallback.
+  }
+
   let knowledgeText: string | null = null;
   let decisionSupportText: string | null = null;
   if (targetGrain) {
@@ -285,6 +373,7 @@ export async function buildChatContext(
     },
     knowledgeText,
     decisionSupportText,
+    durableMemory,
     logisticsSnapshot,
     cotSummary,
     priceContext,

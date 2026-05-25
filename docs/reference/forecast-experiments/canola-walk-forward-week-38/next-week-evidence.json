@@ -1,0 +1,78 @@
+{
+  "next_week_evidence": [
+    {
+      "evidence_key": "cgc-week-39-movement",
+      "source_key": "cgc_weekly",
+      "evidence_type": "official_data",
+      "observed_period": "2025-2026 week 39 ending 2026-04-26",
+      "published_at": "2026-04-30T13:00:00-06:00",
+      "available_at": "2026-04-30T13:10:00-06:00",
+      "summary": "The next official movement fixture kept deliveries firm but showed exports easing.",
+      "directional_effect": "mixed",
+      "materiality": "high",
+      "payload": {
+        "deliveries_signal": "supportive",
+        "exports_signal": "contradictory",
+        "week_ending_date": "2026-04-26",
+        "fixture_note": "Synthetic next-week evidence available before the review cutoff."
+      }
+    },
+    {
+      "evidence_key": "public-crush-maintenance-note",
+      "source_key": "source_runs",
+      "evidence_type": "public_news",
+      "observed_period": "public context through 2026-04-29",
+      "published_at": "2026-04-29T09:00:00-06:00",
+      "available_at": "2026-04-29T09:05:00-06:00",
+      "summary": "Public context fixture noted temporary crush-maintenance risk, limiting confidence in a clean bullish read.",
+      "directional_effect": "bearish",
+      "materiality": "medium",
+      "payload": {
+        "context_signal": "temporary demand risk",
+        "fixture_note": "Synthetic public-context evidence."
+      }
+    },
+    {
+      "evidence_key": "already-known-week-38",
+      "source_key": "cgc_weekly",
+      "evidence_type": "official_data",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "published_at": "2026-04-24T13:00:00-06:00",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "summary": "Already-known Week 38 evidence must be blocked from next-week review.",
+      "directional_effect": "bullish",
+      "materiality": "low",
+      "payload": {
+        "fixture_note": "Should be blocked because it was already available at forecast cutoff."
+      }
+    },
+    {
+      "evidence_key": "late-week-40-rumour",
+      "source_key": "source_runs",
+      "evidence_type": "public_news",
+      "observed_period": "post-review context",
+      "published_at": "2026-05-04T09:00:00-06:00",
+      "available_at": "2026-05-04T09:05:00-06:00",
+      "summary": "Future evidence must be blocked from this review packet.",
+      "directional_effect": "bearish",
+      "materiality": "medium",
+      "payload": {
+        "fixture_note": "Should be blocked because it is after review cutoff."
+      }
+    },
+    {
+      "evidence_key": "private-chat-signal",
+      "source_key": "private_chat_data",
+      "evidence_type": "warning",
+      "observed_period": "private context",
+      "published_at": "2026-04-30T11:00:00-06:00",
+      "available_at": "2026-04-30T11:05:00-06:00",
+      "summary": "Private chat evidence must be blocked from fixture learning.",
+      "directional_effect": "mixed",
+      "materiality": "high",
+      "payload": {
+        "fixture_note": "Should be blocked because private_chat_data is forbidden."
+      }
+    }
+  ]
+}

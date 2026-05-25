@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Runs a data collector, then refreshes the cached Bull/Bear Thesis packets.
+ * Runs a data collector, then force-refreshes the cached Bull/Bear Thesis packets.
  *
  * Output: child process output is passed through; diagnostics go to stderr.
  */
@@ -23,18 +23,23 @@ Behavior:
   - Wrapper options must appear before the collector command.
   - Passes collector output through unchanged.
   - Skips thesis cache refresh if the collector command includes --help, -h, or --dry-run.
-  - Refreshes thesis cache only after a successful collector exit.
+  - Force-refreshes thesis cache only after a successful collector exit so a stale cached watermark cannot hide newly imported source data.
   - Exits non-zero if the refresh fails so stale thesis cache is visible.
   - Collector commands must stay idempotent because external orchestrators may retry the full command.
 `;
 
-interface WrapperOptions {
+export interface WrapperOptions {
   name: string | null;
   skipRefresh: boolean;
   help: boolean;
 }
 
-function parseWrapperArgs(args: string[]): { options: WrapperOptions; collectorCommand: string[] } {
+export interface RefreshCommand {
+  command: string;
+  args: string[];
+}
+
+export function parseWrapperArgs(args: string[]): { options: WrapperOptions; collectorCommand: string[] } {
   const options: WrapperOptions = { name: null, skipRefresh: false, help: false };
   let index = 0;
 
@@ -67,20 +72,6 @@ function parseWrapperArgs(args: string[]): { options: WrapperOptions; collectorC
   }
 
   return { options, collectorCommand: args.slice(index) };
-}
-
-const parsed = parseWrapperArgs(process.argv.slice(2));
-const { options, collectorCommand } = parsed;
-
-if (options.help) {
-  console.error(helpText);
-  process.exit(0);
-}
-
-if (collectorCommand.length === 0) {
-  console.error(helpText);
-  console.error("Missing collector command.");
-  process.exit(2);
 }
 
 const windowsCommandShims = new Set(["jest", "npm", "npx", "pnpm", "tsc", "tsx", "vitest", "yarn"]);
@@ -127,40 +118,67 @@ function run(command: string, args: string[], label: string): Promise<number> {
   });
 }
 
-function shouldSkipRefresh(): boolean {
+export function shouldSkipRefresh(options: WrapperOptions, collectorCommand: string[]): boolean {
   return (
     options.skipRefresh ||
     collectorCommand.some((arg) => arg === "--help" || arg === "-h" || arg.startsWith("--dry-run"))
   );
 }
 
-async function main() {
-  const collectorName = options.name ?? collectorCommand[0] ?? "collector";
-  const [command, ...args] = collectorCommand;
+export function buildRefreshCommand(): RefreshCommand {
+  return {
+    command: "npx",
+    args: ["tsx", "scripts/refresh-thesis-packet-cache.ts", "--force"],
+  };
+}
 
-  const collectorExitCode = await run(command, args, collectorName);
+export async function main(args = process.argv.slice(2)) {
+  const { options, collectorCommand } = parseWrapperArgs(args);
+
+  if (options.help) {
+    console.error(helpText);
+    return 0;
+  }
+
+  if (collectorCommand.length === 0) {
+    console.error(helpText);
+    console.error("Missing collector command.");
+    return 2;
+  }
+
+  const collectorName = options.name ?? collectorCommand[0] ?? "collector";
+  const [command, ...collectorArgs] = collectorCommand;
+
+  const collectorExitCode = await run(command, collectorArgs, collectorName);
   if (collectorExitCode !== 0) {
     console.error(`[${collectorName}] collector failed; thesis cache refresh skipped.`);
-    process.exit(collectorExitCode);
+    return collectorExitCode;
   }
 
-  if (shouldSkipRefresh()) {
+  if (shouldSkipRefresh(options, collectorCommand)) {
     console.error(`[${collectorName}] thesis cache refresh skipped by option/help/dry-run.`);
-    return;
+    return 0;
   }
 
+  const refreshCommand = buildRefreshCommand();
   const refreshExitCode = await run(
-    "npx",
-    ["tsx", "scripts/refresh-thesis-packet-cache.ts"],
+    refreshCommand.command,
+    refreshCommand.args,
     "refresh-thesis-cache",
   );
   if (refreshExitCode !== 0) {
     console.error(`[${collectorName}] collector succeeded, but thesis cache refresh failed.`);
-    process.exit(refreshExitCode);
+    return refreshExitCode;
   }
+
+  return 0;
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/run-collector-with-thesis-cache-refresh.ts")) {
+  main().then((code) => {
+    process.exitCode = code;
+  }).catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

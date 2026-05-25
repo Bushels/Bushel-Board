@@ -52,7 +52,8 @@ CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now ru
 - `collect-crop-progress` uses the USDA NASS QuickStats API directly (not Firecrawl)
 - `collect-grain-monitor`, `collect-export-sales`, `collect-producer-cars`, `collect-wasde` use their source-specific fetch paths
 - All collectors write data freshness metadata (source dates, grain weeks)
-- Scheduled thesis-relevant collectors should use the `npm run collect:*` wrapper commands. The wrapper runs the mechanical importer first, then runs `npm run refresh-thesis-cache` only after success. If the refresh fails, the wrapper exits non-zero so stale thesis cache is visible; collectors must remain idempotent because an external runner may retry the full command. For dry runs, keep using importer-specific dry-run commands or call the wrapper directly with the child `--dry-run` flag; npm argument forwarding was not reliable in the Windows runner.
+- Scheduled thesis-relevant collectors should use the `npm run collect:*` wrapper commands. The wrapper runs the mechanical importer first, then force-refreshes the thesis cache only after success. If the refresh fails, the wrapper exits non-zero so stale thesis cache is visible; collectors must remain idempotent because an external runner may retry the full command. For dry runs, keep using importer-specific dry-run commands or call the wrapper directly with the child `--dry-run` flag; npm argument forwarding was not reliable in the Windows runner.
+- 2026-05-17 patch: collector-triggered thesis-cache refresh now passes `--force`, so a stale cached `source_run_watermark` cannot cause a successful source import to leave `thesis_packet_cache` unchanged. Direct `npm run refresh-thesis-cache` still keeps the normal skip behavior unless `-- --force` is provided.
 - If a collector fails, the Friday swarm runs with stale data and flags it
 
 ## Two-Phase Collector Architecture

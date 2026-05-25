@@ -33,6 +33,12 @@ const mockContext: ChatContext = {
   },
   knowledgeText: "### Basis Signal Matrix\nNarrowing basis = bullish",
   decisionSupportText: null,
+  durableMemory: {
+    stableProfile: ["farm_size_acres: 2800", "home_fsa: T0L"],
+    lastConfirmedPreferences: ["preferred_elevator (Canola): Regina Inland"],
+    openQuestions: ["Reconfirm weather_rumor for Canola."],
+    excludedCount: 1,
+  },
   logisticsSnapshot: { vessels_vancouver: 26 },
   cotSummary: "Managed Money: net short 52,858 contracts",
   priceContext: [
@@ -62,6 +68,15 @@ describe("buildAdvisorSystemPrompt", () => {
   it("includes knowledge text", () => {
     const prompt = buildAdvisorSystemPrompt(mockContext);
     expect(prompt).toContain("Basis Signal Matrix");
+  });
+
+  it("includes durable memory sections and open questions", () => {
+    const prompt = buildAdvisorSystemPrompt(mockContext);
+    expect(prompt).toContain("Durable Farmer Memory");
+    expect(prompt).toContain("Stable profile");
+    expect(prompt).toContain("Last confirmed preferences");
+    expect(prompt).toContain("Open questions to reconfirm");
+    expect(prompt).toContain("farm_size_acres: 2800");
   });
 
   it("includes sentiment data as aggregate", () => {

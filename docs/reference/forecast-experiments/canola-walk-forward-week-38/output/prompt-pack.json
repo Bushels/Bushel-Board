@@ -1,0 +1,36 @@
+{
+  "schema_version": "canola-forecast-prompt-pack-v1",
+  "prompt_version": "canola-forecast-prompt-v1",
+  "created_at": "2026-04-24T16:35:00-06:00",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "grain_week": 38,
+  "as_of_date": "2026-04-24",
+  "source_cutoff_at": "2026-04-24T16:30:00-06:00",
+  "snapshot_schema_version": "canola-forecast-snapshot-v1",
+  "snapshot_hash": "sha256:0b4e51e35581337fe40a4f7efbc6a9daad7f06e30a092da3c3f2b088747a4431",
+  "horizon_days": 7,
+  "price_contract": {
+    "exchange": "ICE",
+    "commodity": "Canola",
+    "contract_code": "RSN26",
+    "contract_month": "2026-07",
+    "roll_policy": "fixed_contract_no_roll"
+  },
+  "model_training_cutoff": "2026-03-31",
+  "system_prompt": "You are generating a Canola forecast experiment output for Bushel Board.\nUse only the supplied snapshot records and source clocks.\nDo not use private farmer data, production dashboard data, model memory, or outside market facts.\nReturn one JSON object only. Do not wrap it in Markdown.",
+  "user_prompt": "Snapshot hash: sha256:0b4e51e35581337fe40a4f7efbc6a9daad7f06e30a092da3c3f2b088747a4431\nSource cutoff: 2026-04-24T16:30:00-06:00\nAs-of date: 2026-04-24\nForecast horizon days: 7\nPrice contract: {\"commodity\":\"Canola\",\"contract_code\":\"RSN26\",\"contract_month\":\"2026-07\",\"exchange\":\"ICE\",\"roll_policy\":\"fixed_contract_no_roll\"}\nModel training cutoff: 2026-03-31\n\nOutput contract:\n{\"horizon_days\":7,\"output\":\"single_json_object\",\"price_contract\":{\"commodity\":\"Canola\",\"contract_code\":\"RSN26\",\"contract_month\":\"2026-07\",\"exchange\":\"ICE\",\"roll_policy\":\"fixed_contract_no_roll\"},\"schema_version\":\"canola-forecast-v1\"}\n\nSnapshot JSON:\n{\"as_of_date\":\"2026-04-24\",\"blocked_sources\":[],\"crop_year\":\"2025-2026\",\"grain\":\"Canola\",\"grain_week\":38,\"records\":[{\"available_at\":\"2026-04-24T13:10:00-06:00\",\"observed_period\":\"2025-2026 week 38 ending 2026-04-19\",\"payload\":{\"fixture_note\":\"Synthetic fixture value shaped like a CGC weekly fact.\",\"grain\":\"Canola\",\"metric\":\"Exports\",\"region\":\"Canada\",\"unit\":\"Ktonnes\",\"value\":221.7,\"week_ending_date\":\"2026-04-19\",\"worksheet\":\"Summary\"},\"published_at\":\"2026-04-24T13:00:00-06:00\",\"record_type\":\"fact\",\"source_key\":\"cgc_weekly\"},{\"available_at\":\"2026-04-24T13:10:00-06:00\",\"observed_period\":\"2025-2026 week 38 ending 2026-04-19\",\"payload\":{\"fixture_note\":\"Synthetic fixture value shaped like a CGC weekly fact.\",\"grain\":\"Canola\",\"metric\":\"Deliveries\",\"region\":\"Saskatchewan\",\"unit\":\"Ktonnes\",\"value\":812.4,\"week_ending_date\":\"2026-04-19\",\"worksheet\":\"Primary\"},\"published_at\":\"2026-04-24T13:00:00-06:00\",\"record_type\":\"fact\",\"source_key\":\"cgc_weekly\"},{\"available_at\":\"2026-04-24T13:17:00-06:00\",\"observed_period\":\"collector freshness through 2026-04-24\",\"payload\":{\"fixture_note\":\"Synthetic fixture row proving source freshness was known before cutoff.\",\"latest_observed_period\":\"2025-2026 week 38\",\"source_id\":\"cgc_weekly_stats\",\"status\":\"success\"},\"published_at\":\"2026-04-24T13:16:00-06:00\",\"record_type\":\"fact\",\"source_key\":\"source_runs\"},{\"available_at\":\"2026-04-24T14:05:00-06:00\",\"observed_period\":\"2025-2026 week 38 read\",\"payload\":{\"confidence\":\"medium\",\"driver\":\"Deliveries and exports both stayed firm in the fixture source packet.\",\"fixture_note\":\"Synthetic deterministic read for harness testing only.\",\"source_cutoff_supported\":true,\"stance\":\"bullish\",\"warning\":\"Fixture deliberately excludes full price history.\"},\"published_at\":\"2026-04-24T14:00:00-06:00\",\"record_type\":\"interpretation\",\"source_key\":\"canola_market_read\"}],\"revision_taint_status\":\"untainted\",\"schema_version\":\"canola-forecast-snapshot-v1\",\"snapshot_hash\":\"sha256:0b4e51e35581337fe40a4f7efbc6a9daad7f06e30a092da3c3f2b088747a4431\",\"snapshot_mode\":\"strict_artifact_mode\",\"source_clocks\":[{\"available_at\":\"2026-04-24T13:10:00-06:00\",\"freshness_hours\":3.33,\"observed_period\":\"2025-2026 week 38 ending 2026-04-19\",\"published_at\":\"2026-04-24T13:00:00-06:00\",\"source_key\":\"cgc_weekly\"},{\"available_at\":\"2026-04-24T13:10:00-06:00\",\"freshness_hours\":3.33,\"observed_period\":\"2025-2026 week 38 ending 2026-04-19\",\"published_at\":\"2026-04-24T13:00:00-06:00\",\"source_key\":\"cgc_weekly\"},{\"available_at\":\"2026-04-24T13:17:00-06:00\",\"freshness_hours\":3.22,\"observed_period\":\"collector freshness through 2026-04-24\",\"published_at\":\"2026-04-24T13:16:00-06:00\",\"source_key\":\"source_runs\"},{\"available_at\":\"2026-04-24T14:05:00-06:00\",\"freshness_hours\":2.42,\"observed_period\":\"2025-2026 week 38 read\",\"published_at\":\"2026-04-24T14:00:00-06:00\",\"source_key\":\"canola_market_read\"}],\"source_cutoff_at\":\"2026-04-24T16:30:00-06:00\",\"warnings\":[]}",
+  "response_contract": {
+    "schema_version": "canola-forecast-v1",
+    "output": "single_json_object",
+    "horizon_days": 7,
+    "price_contract": {
+      "exchange": "ICE",
+      "commodity": "Canola",
+      "contract_code": "RSN26",
+      "contract_month": "2026-07",
+      "roll_policy": "fixed_contract_no_roll"
+    }
+  },
+  "prompt_hash": "sha256:3e0a885c2340a10f94a2a4994bd077badb6aa0dc147c7301d5345cc8a22ed58c"
+}

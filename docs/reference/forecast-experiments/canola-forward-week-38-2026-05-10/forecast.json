@@ -1,0 +1,94 @@
+{
+  "schema_version": "canola-forecast-v1",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "grain_week": 38,
+  "as_of_date": "2026-05-10",
+  "source_cutoff_at": "2026-05-10T08:55:00-06:00",
+  "model_training_cutoff": "2024-06-01",
+  "pretraining_taint_status": "untainted",
+  "horizon_days": 7,
+  "price_contract": {
+    "exchange": "ICE",
+    "commodity": "Canola",
+    "contract_code": "RSN26",
+    "contract_month": "2026-07",
+    "roll_policy": "fixed_contract_no_roll"
+  },
+  "direction": "bullish",
+  "stance_score": 32,
+  "confidence_pct": 61,
+  "expected_move_pct_range": {
+    "low": 0.5,
+    "high": 2.5
+  },
+  "recommendation": "WATCH",
+  "top_drivers": [
+    {
+      "driver": "CGC Week 38 exports were 379.2 Ktonnes and rose 38.4% week over week while producer deliveries rose 6.6%, giving the frozen snapshot a bullish commercial-pull signal.",
+      "directional_effect": "bullish",
+      "evidence_source": "canola_market_read",
+      "evidence_clock": "2026-05-10T14:52:22.733Z",
+      "confidence": "medium"
+    },
+    {
+      "driver": "Producer deliveries were 433.3 Ktonnes and exports equaled 87.5% of weekly deliveries, while the source read also preserved domestic crush as a separate demand pull.",
+      "directional_effect": "bullish",
+      "evidence_source": "canola_market_read",
+      "evidence_clock": "2026-05-10T14:52:22.733Z",
+      "confidence": "medium"
+    },
+    {
+      "driver": "Grain Monitor context showed 20 vessels waiting at Vancouver, 71% terminal capacity, and aligned Week 38 logistics timing, which supports a firm physical-flow read rather than a loose logistics read.",
+      "directional_effect": "bullish",
+      "evidence_source": "canola_market_read",
+      "evidence_clock": "2026-05-10T14:52:22.733Z",
+      "confidence": "medium"
+    },
+    {
+      "driver": "Managed-money net position of 89,108 contracts and an ICE Canola futures sample at 743.2 CAD/tonne are supportive context, but CFTC proxy mapping and price-source warnings keep this below a high-confidence price call.",
+      "directional_effect": "bullish",
+      "evidence_source": "canola_market_read",
+      "evidence_clock": "2026-05-10T14:52:22.733Z",
+      "confidence": "low"
+    },
+    {
+      "driver": "The exporter redacted or omitted unadmitted/private, posted-price, weather, and WASDE lanes, so the thesis should be judged first by next-week public movement evidence rather than broad outside context.",
+      "directional_effect": "neutral",
+      "evidence_source": "canola_market_read",
+      "evidence_clock": "2026-05-10T14:52:22.733Z",
+      "confidence": "high"
+    }
+  ],
+  "invalidating_triggers": [
+    "Next CGC movement evidence shows exports and producer deliveries falling enough to erase the Week 38 commercial-pull signal.",
+    "Grain Monitor logistics context loosens materially, with vessel pressure or terminal capacity no longer supporting the bullish read.",
+    "A verified ICE Canola RSN26 settlement refresh contradicts the bullish thesis after the forecast cutoff.",
+    "A direct Canola COT update weakens the managed-money support once proxy rows are separated from direct Canola truth."
+  ],
+  "known_blind_spots": [
+    "This forecast uses the filtered deterministic Canola Market Read artifact only; the raw market-read JSON is not forecast input.",
+    "Unadmitted or forbidden source lanes were redacted or omitted and must not be reconstructed from memory.",
+    "CFTC positioning includes secondary/proxy mappings and is context only, not direct Canola truth.",
+    "The price row is context for a named ICE contract, not proof of forecast price skill.",
+    "Weather, WASDE, private crop plans, posted prices, and dashboard-derived facts are outside this forecast input."
+  ],
+  "source_warnings": [
+    {
+      "source": "canola_market_read",
+      "warning": "Forecast uses only the committed filtered source artifact; raw market-read lanes that were forbidden or unadmitted are not forecast inputs."
+    },
+    {
+      "source": "cftc_cot_positions",
+      "warning": "CFTC context includes proxy mappings and should not be treated as direct Canola truth without next-step separation."
+    },
+    {
+      "source": "grain_prices",
+      "warning": "Price context uses the named ICE Canola RSN26 contract, but price-skill scoring still requires a separately admitted outcome window."
+    },
+    {
+      "source": "forecast_protocol",
+      "warning": "This model output must be judged only against accepted next-week public evidence and must not use outside market facts."
+    }
+  ]
+}

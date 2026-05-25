@@ -50,6 +50,7 @@ lint-results*.json
 
 # large data files (downloaded at import time)
 data/grain-monitor-data-tables.xlsx
+data/CGC Weekly Snapshots/
 data/CGC Weekly/*.xlsx
 data/Railcar Data/*.xlsx
 data/usda-export-scout-*.json

@@ -10,6 +10,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applyMemorySupersession, type DurableMemoryEntry } from "./memory-supersession.ts";
 
 export interface LastRecommendation {
   stance: string;          // "Bullish +20", "Bearish -10", "Neutral"
@@ -70,13 +71,51 @@ export async function saveRecommendation(
     date: new Date().toISOString(),
   };
 
+  const nowIso = new Date().toISOString();
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from("farmer_memory")
+    .select("memory_key, memory_value, grain, updated_at, source_thread_id")
+    .eq("user_id", userId)
+    .eq("memory_key", memoryKey)
+    .eq("grain", grain);
+
+  if (existingError) {
+    console.error("saveRecommendation load existing error:", existingError);
+  }
+
+  const existing: DurableMemoryEntry[] = (existingRows ?? []).map((row) => ({
+    key: row.memory_key as string,
+    value: row.memory_value as string,
+    grain: (row.grain as string | null) ?? null,
+    confidence_score: 0.9,
+    memory_class: "preference",
+    source_thread_id: (row.source_thread_id as string | null) ?? null,
+    extracted_at: (row.updated_at as string) ?? nowIso,
+  }));
+
+  const supersession = applyMemorySupersession(existing, {
+    key: memoryKey,
+    value: JSON.stringify(value),
+    grain,
+    confidence_score: 0.9,
+    memory_class: "preference",
+    source_thread_id: threadId,
+    extracted_at: nowIso,
+  }, nowIso);
+
+  if (supersession.decision === "reject") {
+    console.warn("saveRecommendation supersession rejected:", supersession.reason);
+    return;
+  }
+
   const { error } = await supabase.from("farmer_memory").upsert(
     {
       user_id: userId,
       memory_key: memoryKey,
       memory_value: JSON.stringify(value),
       grain,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
       source_thread_id: threadId,
     },
     { onConflict: "user_id,memory_key,grain" }

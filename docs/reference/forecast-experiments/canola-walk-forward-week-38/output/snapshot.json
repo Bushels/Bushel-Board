@@ -1,0 +1,107 @@
+{
+  "schema_version": "canola-forecast-snapshot-v1",
+  "grain": "Canola",
+  "crop_year": "2025-2026",
+  "grain_week": 38,
+  "as_of_date": "2026-04-24",
+  "source_cutoff_at": "2026-04-24T16:30:00-06:00",
+  "snapshot_mode": "strict_artifact_mode",
+  "revision_taint_status": "untainted",
+  "source_clocks": [
+    {
+      "source_key": "cgc_weekly",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "published_at": "2026-04-24T13:00:00-06:00",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "freshness_hours": 3.33
+    },
+    {
+      "source_key": "cgc_weekly",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "published_at": "2026-04-24T13:00:00-06:00",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "freshness_hours": 3.33
+    },
+    {
+      "source_key": "source_runs",
+      "observed_period": "collector freshness through 2026-04-24",
+      "published_at": "2026-04-24T13:16:00-06:00",
+      "available_at": "2026-04-24T13:17:00-06:00",
+      "freshness_hours": 3.22
+    },
+    {
+      "source_key": "canola_market_read",
+      "observed_period": "2025-2026 week 38 read",
+      "published_at": "2026-04-24T14:00:00-06:00",
+      "available_at": "2026-04-24T14:05:00-06:00",
+      "freshness_hours": 2.42
+    }
+  ],
+  "records": [
+    {
+      "source_key": "cgc_weekly",
+      "record_type": "fact",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "published_at": "2026-04-24T13:00:00-06:00",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "payload": {
+        "fixture_note": "Synthetic fixture value shaped like a CGC weekly fact.",
+        "grain": "Canola",
+        "metric": "Exports",
+        "region": "Canada",
+        "unit": "Ktonnes",
+        "value": 221.7,
+        "week_ending_date": "2026-04-19",
+        "worksheet": "Summary"
+      }
+    },
+    {
+      "source_key": "cgc_weekly",
+      "record_type": "fact",
+      "observed_period": "2025-2026 week 38 ending 2026-04-19",
+      "published_at": "2026-04-24T13:00:00-06:00",
+      "available_at": "2026-04-24T13:10:00-06:00",
+      "payload": {
+        "fixture_note": "Synthetic fixture value shaped like a CGC weekly fact.",
+        "grain": "Canola",
+        "metric": "Deliveries",
+        "region": "Saskatchewan",
+        "unit": "Ktonnes",
+        "value": 812.4,
+        "week_ending_date": "2026-04-19",
+        "worksheet": "Primary"
+      }
+    },
+    {
+      "source_key": "source_runs",
+      "record_type": "fact",
+      "observed_period": "collector freshness through 2026-04-24",
+      "published_at": "2026-04-24T13:16:00-06:00",
+      "available_at": "2026-04-24T13:17:00-06:00",
+      "payload": {
+        "fixture_note": "Synthetic fixture row proving source freshness was known before cutoff.",
+        "latest_observed_period": "2025-2026 week 38",
+        "source_id": "cgc_weekly_stats",
+        "status": "success"
+      }
+    },
+    {
+      "source_key": "canola_market_read",
+      "record_type": "interpretation",
+      "observed_period": "2025-2026 week 38 read",
+      "published_at": "2026-04-24T14:00:00-06:00",
+      "available_at": "2026-04-24T14:05:00-06:00",
+      "payload": {
+        "confidence": "medium",
+        "driver": "Deliveries and exports both stayed firm in the fixture source packet.",
+        "fixture_note": "Synthetic deterministic read for harness testing only.",
+        "source_cutoff_supported": true,
+        "stance": "bullish",
+        "warning": "Fixture deliberately excludes full price history."
+      }
+    }
+  ],
+  "warnings": [],
+  "blocked_sources": [],
+  "snapshot_hash": "sha256:0b4e51e35581337fe40a4f7efbc6a9daad7f06e30a092da3c3f2b088747a4431"
+}
