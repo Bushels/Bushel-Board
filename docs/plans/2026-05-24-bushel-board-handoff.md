@@ -1,5 +1,7 @@
 # Bushel Board handoff — 2026-05-24
 
+> Superseded for next-session startup by `docs/plans/2026-05-25-bushel-board-handoff.md`. Use this file only for historical context on the 2026-05-24 source-sufficiency audit.
+
 ## Fast resume
 
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`

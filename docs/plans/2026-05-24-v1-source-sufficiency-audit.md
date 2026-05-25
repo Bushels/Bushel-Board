@@ -94,9 +94,10 @@ WASDE raw and mapped context are present, and cached US packets expose WASDE rev
 
 ## Recommended next slices, in order
 
-1. **Wheat class mapping decision**
-   - Decide whether Spring Wheat and Winter Wheat should remain placeholder rows for V1 or be mapped to actual class-specific source packets.
-   - If mapping, do it deliberately; do not alias both to generic Wheat without a label explaining the proxy.
+1. **Wheat class mapping decision — resolved 2026-05-25**
+   - Spring Wheat and Winter Wheat remain visible V1 placeholder rows with explicit `Mapping needed` / `Mapping pending` copy.
+   - Generic Wheat is not aliased into either class-specific row.
+   - Future class-specific mapping must be deliberate; do not backslide into fake generic-Wheat precision.
 
 2. **Guarded projection admission expansion**
    - Continue importer-layer sanity checks for Corn/Soybeans/Barley/Oats Export Sales vs WASDE projection.

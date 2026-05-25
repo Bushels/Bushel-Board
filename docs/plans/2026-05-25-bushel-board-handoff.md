@@ -4,8 +4,8 @@
 
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
 Branch: `codex/data-layer-foundation-v1`
-Latest implementation commit before this handoff session: `831332a feat: admit canada crop progress to thesis packets`
-Working tree at handoff prep: local edits ready to commit for UI projection-pace guardrail + docs.
+Latest pushed commit: `ccbf32d docs: record wheat class mapping decision`
+Working tree at handoff prep: clean and synced with `origin/codex/data-layer-foundation-v1`.
 
 Start a new session by reading these files first:
 
@@ -46,13 +46,34 @@ Explicitly excluded unless Kyle redirects:
 - Kalshi expansion
 - predictive harness production wiring
 
-Do not broaden scope. The current job is to make the nine-lane `/thesis` board source-honest, farmer-readable, and stable.
+Do not broaden scope. The current job is to keep the nine-lane `/thesis` board source-honest, farmer-readable, and stable.
 
-## What changed in this session
+## Current deployment reality
 
-### Projection-pace guardrail tightened in the UI
+Current branch preview is the latest thesis board:
 
-Files changed:
+- Preview URL: `https://bushel-board-9b5onjzpr-kyles-projects-d3ab6818.vercel.app/thesis?audit=1`
+- Vercel target: preview
+- Branch: `codex/data-layer-foundation-v1`
+- Commit: `ccbf32d`
+- Status: Ready
+
+Production is not current:
+
+- Production URL: `https://bushel-board-app.vercel.app/thesis`
+- Vercel target: production
+- Branch: `master`
+- Commit: `4398413`
+- Created: 2026-05-09
+- It does not show the current Spring/Winter Wheat placeholder rows.
+
+If Kyle wants the public production URL to show the current board, the branch must be merged/deployed to production. Do not assume the production URL is current.
+
+## What changed in the latest slices
+
+### 1. Projection-pace guardrail tightened in the UI
+
+Files changed in prior slice:
 
 - `lib/queries/thesis-board.ts`
 - `lib/__tests__/thesis-board.test.ts`
@@ -68,22 +89,35 @@ Behavior locked:
 - Wheat still keeps its admitted guarded projection driver because live cache has `export_pace_pct = 102.315` and `usda_projection_mt = 24,494,000`.
 - Corn, Soybeans, Barley, and Oats remain silent on projection-pace claims while their importer-admitted `export_pace_pct` fields are null.
 
-Test coverage added:
+### 2. Spring/Winter Wheat mapping decision resolved for V1
 
-- Existing positive/negative projection driver tests now include explicit admitted `export_pace_pct`.
-- New regression test: `does not infer export-sales projection pace from unadmitted projection fields`.
-- That test failed red before the code change and passed after removing UI-side inference.
+Files changed in latest docs slice:
+
+- `PROJECT_STATE.md`
+
+Behavior already present and verified in code/UI:
+
+- Spring Wheat and Winter Wheat stay visible in V1.
+- Both rows are explicit `Mapping needed` / `Mapping pending` placeholders.
+- Generic Canada/US Wheat packets are not aliased into Spring Wheat or Winter Wheat rows.
+- Copy says: `Generic Wheat is not used as a proxy for this row.`
+- The row cells show `CA: class mapping pending` and `US: class mapping pending`.
+
+Rationale:
+
+- This is the safest V1 decision.
+- It ships source-honest scouting value without inventing class-specific precision.
+- Class-specific Spring/Winter packet mapping can be a future deliberate patch if Kyle asks for it.
 
 ## Verification run this session
 
-Commands run:
+Commands run after the latest state:
 
 ```bash
 npx vitest run lib/__tests__/thesis-board.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --reporter=dot
-npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts app/'(dashboard)'/thesis/page.tsx
+npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts app/'(dashboard)'/thesis/page.tsx --max-warnings=0
 npm run validate-data-layer
 npm run build
-git diff --check
 ```
 
 Results:
@@ -97,9 +131,23 @@ Results:
   - Canada packet RPC shape: ok
   - US packet RPC shape: ok
 - `npm run build`: passed
-- `git diff --check`: passed
 
-No browser audit was run in this 2026-05-25 slice. Next session should browser-check `/thesis?audit=1` before calling the latest board visually checked.
+Browser / route verification:
+
+Local `/thesis?audit=1` check returned HTTP 200 and contained:
+
+- `Bull/Bear Thesis Board`
+- `Spring Wheat`
+- `Winter Wheat`
+- `Mapping needed`
+- `Mapping pending`
+- `Generic Wheat is not used as a proxy`
+
+Browser console was clean.
+
+Vercel preview `/thesis?audit=1` check returned HTTP 200 and contained the same strings.
+
+Production `/thesis` check returned HTTP 200 but did not contain the current Spring/Winter Wheat strings because production is still old `master` commit `4398413`.
 
 ## Known unrelated state
 
@@ -118,39 +166,31 @@ Known unrelated technical debt from `PROJECT_STATE.md` still applies:
 
 ## Next best step
 
-### Recommended first patch: Spring/Winter Wheat mapping decision
+### Recommended first patch: guarded Export Sales + WASDE projection admission expansion
 
 Problem:
 
-- `/thesis` intentionally displays Spring Wheat and Winter Wheat as V1 rows.
-- Current source-backed cache has generic Wheat, plus class-specific crop-progress source rows in Canada.
-- Canada generic Wheat packet does not receive `canada_crop_progress` because silently aliasing class data into generic Wheat would create fake precision.
+- Wheat has a guarded importer/admission-layer `export_pace_pct` and can show the compound Export Sales + WASDE projection driver.
+- Corn, Soybeans, Barley, and Oats currently do not show projection-pace claims because their guarded fields remain null.
+- UI-side inference is banned; do not compute projection pace in `lib/queries/thesis-board.ts` from raw commitments/projection fields.
 
-Decision needed:
+Patch direction:
 
-1. Keep Spring Wheat and Winter Wheat as explicit `Mapping needed` placeholders for V1.
-   - Fastest and safest.
-   - Public copy must clearly say class-specific source mapping is pending.
-   - Do not use generic Wheat as a hidden proxy.
+1. Inspect importer/admission logic for Export Sales + WASDE projection mapping.
+2. Determine why Corn/Soybeans/Barley/Oats are null-guarded.
+3. Fix only where commodity/year/report-month/unit sanity checks support it.
+4. Backfill/refresh source packets/cache if the importer/admission fix changes admitted fields.
+5. Keep missing/failed admissions silent in the board rather than inventing a driver.
 
-2. Build class-specific packet mapping.
-   - Add explicit packet/source mapping for Spring Wheat and Winter Wheat.
-   - Label any proxy fields honestly.
-   - Preserve generic Wheat as generic Wheat, not as a catch-all for class claims.
+Acceptance criteria:
 
-Recommendation:
-
-- Pick option 1 for V1 unless Kyle specifically wants class-specific mapping now.
-- Reason: ship source-honest V1 before inventing class precision.
-
-Acceptance criteria for next patch:
-
-- `/thesis` still renders all 9 V1 rows.
-- Spring Wheat and Winter Wheat labels make mapping status explicit.
-- No hidden generic-Wheat alias creates class-specific precision.
-- Source-health/banner copy does not imply broken data for intentionally unmapped rows.
-- Focused `thesis-board` tests pass.
-- Browser audit of `/thesis?audit=1` has clean console and farmer-readable mapping copy.
+- `/thesis` still renders exactly the 9 V1 rows.
+- No UI-side projection-pace inference returns.
+- If Corn/Soybeans/Barley/Oats get `export_pace_pct`, tests prove the admitted field is required before a driver renders.
+- If some markets remain null, the UI stays silent and source-honest.
+- Spring/Winter Wheat remain mapping-needed placeholders unless Kyle explicitly redirects to class-specific mapping.
+- Focused thesis tests, scoped ESLint, `npm run validate-data-layer`, and `npm run build` pass.
+- Browser or route smoke check of `/thesis?audit=1` confirms the board is readable and console-clean.
 
 Suggested commands:
 
@@ -158,19 +198,21 @@ Suggested commands:
 cd /mnt/c/Users/kyle/Agriculture/bushel-board-app
 git status --short --branch
 git log --oneline -8
+git stash list
 npx vitest run lib/__tests__/thesis-board.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --reporter=dot
-npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts app/'(dashboard)'/thesis/page.tsx
+npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts app/'(dashboard)'/thesis/page.tsx --max-warnings=0
 npm run validate-data-layer
 npm run build
 ```
 
-For browser audit:
+For Vercel preview verification after a push:
 
 ```bash
-npm run dev
-# open http://127.0.0.1:3000/thesis?audit=1
+vercel ls bushel-board-app
+vercel inspect <preview-url> --logs
+vercel curl /thesis?audit=1 --deployment <preview-url> -- --location --max-time 90 --silent --output /tmp/vercel-thesis.html --write-out "%{http_code} %{time_total} %{url_effective}\n"
 ```
 
 ## One-line prompt for the next session
 
-Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `PROJECT_STATE.md`, `docs/plans/STATUS.md`, `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`, and `docs/plans/2026-05-25-bushel-board-handoff.md`; keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only; preserve unrelated stashes; do not infer export projection pace in UI from `usda_projection_mt`; next best patch is the Spring/Winter Wheat mapping decision with no fake generic-Wheat aliasing.
+Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `PROJECT_STATE.md`, `docs/plans/STATUS.md`, `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`, and `docs/plans/2026-05-25-bushel-board-handoff.md`; keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only; preserve unrelated stashes; use preview URL `https://bushel-board-9b5onjzpr-kyles-projects-d3ab6818.vercel.app/thesis?audit=1` for the current board because production is still old `master`; Spring/Winter Wheat are intentionally `Mapping needed` placeholders with no generic-Wheat proxy; next best patch is guarded Export Sales + WASDE projection admission expansion for non-wheat markets at the importer/admission layer, not UI inference.
