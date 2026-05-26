@@ -12,10 +12,13 @@
 | Task ID | Cron (local / MT) | Day | Time (MT) | Time (ET, DST) | Source | Target Table |
 |---------|-------------------|-----|-----------|----------------|--------|-------------|
 | `collect-crop-progress` | `32 16 * * 1` | Mon | 4:32 PM | 6:32 PM | USDA NASS | `usda_crop_progress` |
+| `collect-canada-crop-progress-mb` | proposed | Tue + Wed retry | 12:45 PM Tue / 10:30 AM Wed | 2:45 PM Tue / 12:30 PM Wed | Manitoba Agriculture Crop Report | `canada_crop_progress` |
 | `collect-grain-monitor` | `17 14 * * 3` | Wed | 2:17 PM | 4:17 PM | grainmonitor.ca (weekly PDF) | `grain_monitor_snapshots` |
+| `collect-canada-crop-progress-sk` | proposed | Thu | 11:15 AM | 1:15 PM | Saskatchewan Crop Report / Publications Saskatchewan | `canada_crop_progress` |
 | `collect-export-sales` | `3 9 * * 4` | Thu | 9:03 AM | 11:03 AM | USDA FAS | `usda_export_sales` |
 | `collect-cgc` | Codex weekly automation | Thu | 1:35 PM | 3:35 PM | grainscanada.gc.ca (Codex CSV fetch -> `import-cgc-weekly`) | `cgc_observations` + `score_trajectory` |
 | `collect-producer-cars` | `0 16 * * 4` | Thu | 4:00 PM | 6:00 PM | grainscanada.gc.ca Producer Car CSV | `producer_car_allocations` |
+| `collect-canada-crop-progress-ab` | proposed | Fri | 1:45 PM + 3:30 PM retry | 3:45 PM + 5:30 PM retry | Alberta Crop Reports / Open Alberta | `canada_crop_progress` |
 | `collect-cftc-cot` | `0 14 * * 5` | Fri | 2:00 PM | 4:00 PM | cftc.gov | `cftc_cot_positions` |
 | `collect-wasde` | `33 12 10-14 * 5` | Fri (10th–14th) | 12:33 PM | 2:33 PM | usda.gov | `usda_wasde_raw` / `usda_wasde_mapped` |
 | `collect-wasde-archive` | `0 13 13 * *` (UTC: `0 19 13 * *`) | 13th of month | 1:00 PM | 3:00 PM | esmis.nal.usda.gov (.xls archive) | `usda_wasde_raw` (revision history) |
@@ -24,13 +27,18 @@
 
 ```
 MON  4:32 PM MT (6:32 PM ET) — USDA Crop Progress (Apr-Nov only)
+TUE 12:45 PM MT (2:45 PM ET) — Manitoba Crop Report normal-week check
+WED 10:30 AM MT (12:30 PM ET) — Manitoba Crop Report holiday/late-week retry
 WED  2:17 PM MT (4:17 PM ET) — Government Grain Monitor
 THU  9:03 AM MT (11:03 AM ET) — USDA Export Sales
+THU 11:15 AM MT (1:15 PM ET) — Saskatchewan Crop Report / Seeding Progress Table
 THU  1:35 PM MT (3:35 PM ET) — CGC Weekly Grain Stats (Codex CSV fetch → import-cgc-weekly EF)
 THU  4:00 PM MT (6:00 PM ET) — CGC Producer Cars (direct CSV → producer_car_allocations)
 FRI 12:33 PM MT (2:33 PM ET)  — USDA WASDE PSD API (monthly only, 10th-14th)
 13th 1:00 PM MT (3:00 PM ET)  — USDA WASDE archive .xls (monthly, day after typical PSD release)
+FRI  1:45 PM MT (3:45 PM ET) — Alberta Crop Report after official ~1:30 PM release target
 FRI  2:00 PM MT (4:00 PM ET)  — CFTC COT (triggers existing Edge Function)
+FRI  3:30 PM MT (5:30 PM ET) — Alberta retry / full-Prairie crop-progress checkpoint
 FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected data)
 ```
 
@@ -43,6 +51,12 @@ CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now ru
 ### Producer Cars Timing Rationale
 
 `scripts/import-producer-cars.mjs` builds the source URL from the current long-form crop year (`YYYY-YYYY`) and fetches `https://www.grainscanada.gc.ca/en/grain-research/statistics/producer-car/{cropYear}/pca-hwp-en.csv`. That CGC source follows the same weekly Thursday publishing cadence as the main grain statistics release. The `collect-producer-cars` slot sits at 4:00 PM MT — 27 minutes after `collect-cgc` — so the main CGC import lands first and Producer Cars refreshes before the Friday CAD swarm.
+
+### Canada Crop Progress Timing Rationale
+
+Canada crop progress is not a single weekly release. The Prairie sources are province-staggered: Manitoba normally posts Tuesday reports with Wednesday holiday/late-week exceptions, Saskatchewan publishes the Tuesday-to-Monday report/table on Thursday, and Alberta's official 2026 crop reporting calendar says Tuesday survey conditions are released publicly Friday by approximately 1:30 PM MT. See `docs/reference/canada-crop-progress-release-schedule.md` for source URLs and verification notes.
+
+The Friday Alberta checkpoint is the first safe point to treat the Prairie crop-progress package as complete. Earlier Manitoba/Saskatchewan imports may refresh partial source rows, but thesis automation should label the week `partial_prairie_week` until Alberta lands or the Friday retry explicitly records Alberta stale/missing. Do not let a Tuesday or Thursday Canada crop-progress run write a full-week thesis interpretation.
 
 ## Design Notes
 

@@ -198,6 +198,7 @@ Each weekday Claude Desktop Routine runs its collector's Phase 1 importer, parse
 | Collector | Side | Markets to review | Phase 2 scan_type |
 |---|---|---|---|
 | `collect-crop-progress` | US | Corn, Soybeans, Wheat, Oats *(Apr–Nov only)* | `opus_review_crop_progress` |
+| `collect-canada-crop-progress` | CAD | Directly mapped V1 Canada grains only; province-staggered MB Tue/Wed retry, SK Thu, AB Fri | Mechanical/cache refresh only until CAD `opus_review_crop_progress` scan type is deliberately added |
 | `collect-grain-monitor` | CAD | 16 canonical CAD grains | `opus_review_grain_monitor` |
 | `collect-export-sales` | US | Corn, Soybeans, Wheat, Barley, Oats | `opus_review_export_sales` |
 | `collect-cgc` | CAD | 16 canonical CAD grains | `opus_review_cgc` |
