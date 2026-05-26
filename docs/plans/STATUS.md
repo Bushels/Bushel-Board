@@ -4,7 +4,7 @@ Last updated: 2026-05-26
 
 ## Feature Tracks
 
-Current active track note (2026-05-26): Track 51 remains the active product lane. Use `docs/plans/2026-05-26-bushel-board-handoff.md` for the current session trail. Keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Export Sales + WASDE projection diagnostics prove Barley/Oats should stay null-guarded unless future importer-layer evidence passes the guardrail. Canada crop-progress importer now records MB/SK/AB source-discovery evidence and `prairie_week_status`; package-level collector wrappers are wired for the province-staggered routine cadence, but the external routines still need to be registered/updated before live scheduled operation.
+Current active track note (2026-05-26): Track 51 remains the active product lane. Use `docs/plans/2026-05-26-bushel-board-handoff.md` for the current session trail. Keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Export Sales + WASDE projection diagnostics prove Barley/Oats should stay null-guarded unless future importer-layer evidence passes the guardrail. Canada crop-progress importer now records MB/SK/AB source-discovery evidence and `prairie_week_status`; package-level collector wrappers are wired for the province-staggered routine cadence. Hermes now has 13 active script-only cron jobs for the full mechanical weekly/monthly collector spine; monitor first live runs before layering reasoning/soft-review automation on top.
 
 | # | Feature | Status | Date | Key Files |
 |---|---------|--------|------|-----------|
