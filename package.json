@@ -49,6 +49,7 @@
     "evaluate-predictions": "npx tsx scripts/evaluate-predictions.ts",
     "validate-data-layer": "npx tsx scripts/validate-data-layer-foundation.ts",
     "refresh-thesis-cache": "npx tsx scripts/refresh-thesis-packet-cache.ts",
+    "check:source-freshness": "npx tsx scripts/check-bushel-source-freshness.ts",
     "compress:premium-memory": "npx tsx scripts/compress-premium-chat-memory.ts --dry --days 7",
     "canola-market-read": "npx tsx scripts/generate-canola-market-read.ts",
     "backfill-score-trajectory": "npx tsx scripts/backfill-score-trajectory.ts",

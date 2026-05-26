@@ -22,6 +22,8 @@
 | `collect-cftc-cot` | `0 14 * * 5` | Fri | 2:00 PM | 4:00 PM | cftc.gov | `cftc_cot_positions` |
 | `collect-wasde` | `33 12 10-14 * *` | Monthly 10th–14th window | 12:33 PM | 2:33 PM | usda.gov | `usda_wasde_raw` / `usda_wasde_mapped` |
 | `collect-wasde-archive` | `0 13 13 * *` (UTC: `0 19 13 * *`) | 13th of month | 1:00 PM | 3:00 PM | esmis.nal.usda.gov (.xls archive) | `usda_wasde_raw` (revision history) |
+| `source-freshness-watchdog-tue` | `20 13 * * 2` | Tue | 1:20 PM | 3:20 PM | Hermes read-only watchdog | `source_runs` / `thesis_packet_cache` checks |
+| `source-freshness-watchdog-mon-wed-fri` | `45 16 * * 1,3-5` | Mon/Wed/Thu/Fri | 4:45 PM | 6:45 PM | Hermes read-only watchdog | `source_runs` / `thesis_packet_cache` checks |
 
 ## Weekly Timeline (MT local, ET parenthesised)
 
@@ -39,6 +41,8 @@ FRI  2:00 PM MT (4:00 PM ET)  — CFTC COT (triggers existing Edge Function)
 FRI  3:30 PM MT (5:30 PM ET) — Alberta retry / full-Prairie crop-progress checkpoint
 10th-14th 12:33 PM MT (2:33 PM ET) — USDA WASDE PSD API (monthly release window)
 13th 1:00 PM MT (3:00 PM ET)  — USDA WASDE archive .xls (monthly, day after typical PSD release)
+TUE  1:20 PM MT (3:20 PM ET) — source-freshness watchdog after Manitoba collector
+MON/WED/THU/FRI 4:45 PM MT (6:45 PM ET) — source-freshness watchdog after daily mechanical collectors
 FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected data)
 ```
 
@@ -76,6 +80,7 @@ Use these scheduler commands:
 - Scheduled thesis-relevant collectors should use the `npm run collect:*` wrapper commands. The wrapper runs the mechanical importer first, then force-refreshes the thesis cache only after success. If the refresh fails, the wrapper exits non-zero so stale thesis cache is visible; collectors must remain idempotent because an external runner may retry the full command. For dry runs, keep using importer-specific dry-run commands or call the wrapper directly with the child `--dry-run` flag; npm argument forwarding was not reliable in the Windows runner.
 - 2026-05-17 patch: collector-triggered thesis-cache refresh now passes `--force`, so a stale cached `source_run_watermark` cannot cause a successful source import to leave `thesis_packet_cache` unchanged. Direct `npm run refresh-thesis-cache` still keeps the normal skip behavior unless `-- --force` is provided.
 - If a collector fails, the Friday swarm runs with stale data and flags it
+- Hermes source-freshness watchdogs run after the daily mechanical collector windows. They are read-only, no-agent script jobs using `npm run check:source-freshness`; success is silent, and alerts cover missing same-day due runs, failed/latest non-success source runs, thesis-cache lag/count drift, and Friday Prairie partial-week status. They do not write source data, mark Alberta missing, or run reasoning.
 
 ## Two-Phase Collector Architecture
 
