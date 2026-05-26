@@ -1,8 +1,10 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-05-24
+Last updated: 2026-05-26
 
 ## Feature Tracks
+
+Current active track note (2026-05-26): Track 51 remains the active product lane. Use `docs/plans/2026-05-26-bushel-board-handoff.md` for the current session trail. Keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Export Sales + WASDE projection diagnostics prove Barley/Oats should stay null-guarded unless future importer-layer evidence passes the guardrail. Canada crop-progress importer now records MB/SK/AB source-discovery evidence and `prairie_week_status`; dry-runs are verified, but the province-staggered scheduler/live cadence still needs review/commit/push and wiring.
 
 | # | Feature | Status | Date | Key Files |
 |---|---------|--------|------|-----------|

@@ -64,6 +64,14 @@ ALBERTA_REPORT_URL = (
     "agi-tedab-alberta-crop-report-2026-05-05.pdf"
 )
 
+PROVINCE_SOURCE_PAGES = {
+    "MB": MANITOBA_PAGE_URL,
+    "SK": SASKATCHEWAN_PAGE_URL,
+    "AB": ALBERTA_PAGE_URL,
+}
+
+PROVINCE_RELEASE_SEQUENCE = ["MB", "SK", "AB"]
+
 CANONICAL_GRAIN_MAP = {
     "Spring Wheat": "Spring Wheat",
     "Durum": "Durum",
@@ -230,11 +238,19 @@ def parse_report_date(label: str) -> str | None:
     return dt.date(int(year), MONTHS[month], int(day)).isoformat()
 
 
-def latest_alberta_report_url() -> str:
+def latest_alberta_report_info() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "province": "AB",
+        "source_page": ALBERTA_PAGE_URL,
+        "dataset_api_url": ALBERTA_DATASET_API_URL,
+        "report_url": ALBERTA_REPORT_URL,
+        "discovery_status": "fallback_seed_url",
+    }
     try:
         data = fetch_json(ALBERTA_DATASET_API_URL)
-        resources = data.get("result", {}).get("resources", [])
-        candidates: list[tuple[str, str, str | None]] = []
+        result = data.get("result", {}) if isinstance(data.get("result"), dict) else {}
+        resources = result.get("resources", [])
+        candidates: list[dict[str, Any]] = []
         for resource in resources:
             if not isinstance(resource, dict):
                 continue
@@ -245,18 +261,52 @@ def latest_alberta_report_url() -> str:
                 continue
             if "crop" not in name.lower():
                 continue
-            candidates.append((name, url, parse_report_date(name)))
-        dated = [item for item in candidates if item[2]]
-        if dated:
-            return sorted(dated, key=lambda item: item[2] or "")[-1][1]
-        if candidates:
-            return candidates[-1][1]
-    except Exception:
-        pass
-    return ALBERTA_REPORT_URL
+            candidates.append(
+                {
+                    "name": name,
+                    "url": url,
+                    "report_date": parse_report_date(name),
+                    "created": resource.get("created"),
+                    "last_modified": resource.get("last_modified"),
+                    "resource_id": resource.get("id"),
+                }
+            )
+        dated = [item for item in candidates if item.get("report_date")]
+        selected = (
+            sorted(dated, key=lambda item: str(item.get("report_date") or ""))[-1]
+            if dated
+            else (candidates[-1] if candidates else None)
+        )
+        if selected:
+            info.update(
+                {
+                    "report_url": selected["url"],
+                    "report_date": selected.get("report_date"),
+                    "resource_name": selected.get("name"),
+                    "resource_id": selected.get("resource_id"),
+                    "resource_created": selected.get("created"),
+                    "resource_last_modified": selected.get("last_modified"),
+                    "package_date_modified": result.get("date_modified"),
+                    "candidate_count": len(candidates),
+                    "discovery_status": "discovered_latest_resource",
+                }
+            )
+    except Exception as exc:
+        info["discovery_error"] = str(exc)
+    return info
 
 
-def latest_manitoba_report_url() -> str:
+def latest_alberta_report_url() -> str:
+    return str(latest_alberta_report_info()["report_url"])
+
+
+def latest_manitoba_report_info() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "province": "MB",
+        "source_page": MANITOBA_PAGE_URL,
+        "report_url": MANITOBA_REPORT_URL,
+        "discovery_status": "fallback_seed_url",
+    }
     try:
         html = fetch_bytes(MANITOBA_PAGE_URL)[0].decode("utf-8", "ignore")
         links = re.findall(
@@ -270,13 +320,32 @@ def latest_manitoba_report_url() -> str:
             if match:
                 dated.append((match.group(1), urllib.parse.urljoin(MANITOBA_PAGE_URL, href)))
         if dated:
-            return sorted(dated, key=lambda item: item[0])[-1][1]
-    except Exception:
-        pass
-    return MANITOBA_REPORT_URL
+            report_date, url = sorted(dated, key=lambda item: item[0])[-1]
+            info.update(
+                {
+                    "report_url": url,
+                    "report_date": report_date,
+                    "candidate_count": len(dated),
+                    "discovery_status": "discovered_latest_pdf_link",
+                }
+            )
+    except Exception as exc:
+        info["discovery_error"] = str(exc)
+    return info
 
 
-def latest_saskatchewan_links() -> tuple[str, str]:
+def latest_manitoba_report_url() -> str:
+    return str(latest_manitoba_report_info()["report_url"])
+
+
+def latest_saskatchewan_links_info() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "province": "SK",
+        "source_page": SASKATCHEWAN_PAGE_URL,
+        "report_url": SASKATCHEWAN_REPORT_API_URL,
+        "table_url": SASKATCHEWAN_TABLE_API_URL,
+        "discovery_status": "fallback_product_format_urls",
+    }
     try:
         html = fetch_bytes(SASKATCHEWAN_PAGE_URL)[0].decode("utf-8", "ignore")
         link_matches = re.finditer(
@@ -286,17 +355,33 @@ def latest_saskatchewan_links() -> tuple[str, str]:
         )
         report_url = None
         table_url = None
+        discovered_labels: list[str] = []
         for match in link_matches:
             href = match.group(1).replace(":443", "")
             text = re.sub(r"\s+", " ", match.group(2)).strip().lower()
             absolute = urllib.parse.urljoin(SASKATCHEWAN_PAGE_URL, href)
             if text == "download crop report":
                 report_url = absolute
+                discovered_labels.append(text)
             elif text == "seeding progress table":
                 table_url = absolute
-        return report_url or SASKATCHEWAN_REPORT_API_URL, table_url or SASKATCHEWAN_TABLE_API_URL
-    except Exception:
-        return SASKATCHEWAN_REPORT_API_URL, SASKATCHEWAN_TABLE_API_URL
+                discovered_labels.append(text)
+        info.update(
+            {
+                "report_url": report_url or SASKATCHEWAN_REPORT_API_URL,
+                "table_url": table_url or SASKATCHEWAN_TABLE_API_URL,
+                "discovered_labels": discovered_labels,
+                "discovery_status": "discovered_page_links" if report_url or table_url else "fallback_product_format_urls",
+            }
+        )
+    except Exception as exc:
+        info["discovery_error"] = str(exc)
+    return info
+
+
+def latest_saskatchewan_links() -> tuple[str, str]:
+    info = latest_saskatchewan_links_info()
+    return str(info["report_url"]), str(info["table_url"])
 
 
 def pct(value: str) -> float | None:
@@ -670,11 +755,62 @@ def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]],
     return rows, document_url
 
 
+def source_discovery_for_province(province: str, *, alberta_url: str | None = None) -> dict[str, Any]:
+    if province == "MB":
+        return latest_manitoba_report_info()
+    if province == "SK":
+        return latest_saskatchewan_links_info()
+    if province == "AB":
+        info = latest_alberta_report_info()
+        if alberta_url:
+            info.update(
+                {
+                    "report_url": alberta_url,
+                    "override_url": alberta_url,
+                    "discovery_status": "override_url",
+                }
+            )
+        return info
+    raise ValueError(f"Unsupported province: {province}")
+
+
+def validate_missing_provinces(provinces: list[str], missing_provinces: list[str]) -> None:
+    parsed = set(provinces)
+    missing = set(missing_provinces)
+    overlap = parsed & missing
+    if overlap:
+        joined = ", ".join(sorted(overlap))
+        raise ValueError(f"missing_province cannot also be collected: {joined}")
+
+
+def prairie_week_status(provinces: list[str], *, missing_provinces: list[str] | None = None) -> str:
+    parsed = set(provinces)
+    missing = set(missing_provinces or [])
+    validate_missing_provinces(provinces, sorted(missing))
+    accounted = parsed | missing
+    if missing and set(PROVINCE_RELEASE_SEQUENCE).issubset(accounted):
+        return "complete_with_missing_province"
+    if set(PROVINCE_RELEASE_SEQUENCE).issubset(parsed):
+        return "complete_mb_sk_ab"
+    if {"MB", "SK"}.issubset(parsed):
+        return "partial_mb_sk"
+    if "MB" in parsed:
+        return "partial_mb_only"
+    return "partial_prairie_week"
+
+
+def province_source_url(provinces: list[str]) -> str:
+    if len(provinces) == 1:
+        return PROVINCE_SOURCE_PAGES[provinces[0]]
+    return ",".join(PROVINCE_SOURCE_PAGES[province] for province in PROVINCE_RELEASE_SEQUENCE if province in provinces)
+
+
 def collect(provinces: list[str], *, alberta_url: str | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
 
     for province in provinces:
+        discovery = source_discovery_for_province(province, alberta_url=alberta_url)
         if province == "MB":
             province_rows, source_url = parse_manitoba()
         elif province == "SK":
@@ -691,6 +827,7 @@ def collect(provinces: list[str], *, alberta_url: str | None = None) -> tuple[li
                 "source_url": source_url,
                 "rows": len(province_rows),
                 "status": "parsed",
+                "discovery": discovery,
             }
         )
 
@@ -751,6 +888,13 @@ def parse_args() -> argparse.Namespace:
         "--alberta-url",
         help="Override the Alberta report PDF URL. Defaults to Open Alberta latest-report discovery.",
     )
+    parser.add_argument(
+        "--missing-province",
+        action="append",
+        choices=["MB", "SK", "AB"],
+        default=[],
+        help="Record an explicitly stale/missing province after its retry window. Use with province-specific runs only after verification.",
+    )
     return parser.parse_args()
 
 
@@ -759,6 +903,7 @@ def main() -> int:
     args = parse_args()
     requested = args.province or ["all"]
     provinces = ["MB", "SK", "AB"] if "all" in requested else requested
+    missing_provinces = sorted(set(args.missing_province or []))
 
     started_at = utc_now()
     status = "success"
@@ -766,7 +911,9 @@ def main() -> int:
     source_run_payload = None
 
     try:
+        validate_missing_provinces(provinces, missing_provinces)
         rows, summaries = collect(provinces, alberta_url=args.alberta_url)
+        week_status = prairie_week_status(provinces, missing_provinces=missing_provinces)
         written_rows: list[dict[str, Any]] = []
         if not args.dry_run:
             supabase_url = env_value("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
@@ -787,9 +934,15 @@ def main() -> int:
                     source_period_end=max((row["report_date"] for row in rows), default=None),
                     latest_source_label=", ".join(sorted({row["report_label"] for row in rows})),
                     rows_inserted=len(written_rows),
-                    source_url=SASKATCHEWAN_PAGE_URL if "SK" in provinces else MANITOBA_PAGE_URL,
+                    source_url=province_source_url(provinces),
                     started_at=started_at,
-                    metadata={"province_summaries": summaries, "dry_run": False},
+                    metadata={
+                        "province_summaries": summaries,
+                        "dry_run": False,
+                        "prairie_week_status": week_status,
+                        "missing_provinces": missing_provinces,
+                        "province_release_sequence": PROVINCE_RELEASE_SEQUENCE,
+                    },
                 )
                 if source_run_payload and source_run_payload.get("id"):
                     rows_with_source_run = [
@@ -808,6 +961,8 @@ def main() -> int:
             "rows_parsed": len(rows),
             "rows_written": len(written_rows),
             "province_summaries": summaries,
+            "prairie_week_status": week_status,
+            "missing_provinces": missing_provinces,
             "source_run": source_run_payload,
             "error": error_message,
             "sample_rows": rows[:20],
