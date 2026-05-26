@@ -4,16 +4,21 @@
 
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
 Branch: `codex/data-layer-foundation-v1`
-Current HEAD at handoff creation: `be78981 docs: verify Canada crop progress schedule`
-Working tree at handoff creation: docs-only changes for this handoff; preserve unrelated stashes.
+Current HEAD at original handoff creation: `be78981 docs: verify Canada crop progress schedule`
+Base HEAD before fresh-session docs-only handoff refresh: `e6a6891 Add source freshness watchdog`
+Fresh-session docs commit: this docs-only handoff commit (`git log -1 --oneline` after pull).
+Working tree at fresh-session handoff refresh: tracked files clean before docs-only handoff update; preserve unrelated stashes and the unrelated untracked X-signal valuation proposal.
 
 Start a new session by reading these files first:
 
 1. `PROJECT_STATE.md`
 2. `docs/plans/STATUS.md`
-3. `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`
-4. `docs/reference/canada-crop-progress-release-schedule.md`
-5. This handoff: `docs/plans/2026-05-26-bushel-board-handoff.md`
+3. `docs/plans/2026-05-26-bushel-board-fresh-session-handoff.md`
+4. This full handoff: `docs/plans/2026-05-26-bushel-board-handoff.md`
+5. `docs/reference/collector-task-configs.md`
+6. `docs/reference/canada-crop-progress-release-schedule.md`
+7. `docs/reference/usda-export-sales-wasde-projection-admission.md`
+8. `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`
 
 ## Fixed V1 scope
 
@@ -236,4 +241,4 @@ Known unrelated technical debt still applies:
 
 ## One-line prompt for the next session
 
-Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `PROJECT_STATE.md`, `docs/plans/STATUS.md`, `docs/plans/2026-05-24-v1-source-sufficiency-audit.md`, `docs/reference/canada-crop-progress-release-schedule.md`, `docs/reference/collector-task-configs.md`, `docs/reference/usda-export-sales-wasde-projection-admission.md`, and `docs/plans/2026-05-26-bushel-board-handoff.md`; keep `/thesis` scoped exactly to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats; preserve unrelated stashes and the untracked X signal valuation proposal unless Kyle explicitly redirects; use preview URL `https://bushel-board-9b5onjzpr-kyles-projects-d3ab6818.vercel.app/thesis?audit=1` because production is still old `master`; Spring/Winter Wheat are intentionally `Mapping needed` placeholders with no generic-Wheat proxy; Export Sales + WASDE projection admission is resolved for current V1 with Wheat/Corn/Soybeans admitted and Barley/Oats null-guarded by diagnostics; Canada crop-progress importer now has province-specific discovery evidence plus `prairie_week_status`, and package scripts are wired for the province-staggered cadence (`collect:canada-crop-progress:mb`, `:mb-sk`, `:all`, `:missing-ab`). Hermes now owns the mechanical collector cron suite with 13 `no_agent=true` jobs for the weekly/monthly source spine plus two no-agent source-freshness watchdog jobs; next best step is monitoring the first live watchdog/collector outputs, then adding reasoning/soft-review only after the data plumbing proves boring.
+Continue Bushel Board from `/mnt/c/Users/kyle/Agriculture/bushel-board-app` on branch `codex/data-layer-foundation-v1`. Read `PROJECT_STATE.md`, `docs/plans/STATUS.md`, `docs/plans/2026-05-26-bushel-board-fresh-session-handoff.md`, `docs/plans/2026-05-26-bushel-board-handoff.md`, `docs/reference/collector-task-configs.md`, `docs/reference/canada-crop-progress-release-schedule.md`, and `docs/reference/usda-export-sales-wasde-projection-admission.md`; keep `/thesis` scoped exactly to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats; preserve unrelated stashes and the untracked X signal valuation proposal unless Kyle explicitly redirects; use preview URL `https://bushel-board-9b5onjzpr-kyles-projects-d3ab6818.vercel.app/thesis?audit=1` because production is still old `master`; Spring/Winter Wheat are intentional `Mapping needed` placeholders with no generic-Wheat proxy; Barley/Oats Export Sales + WASDE projection claims remain null-guarded unless importer-layer evidence passes the admission guardrail; Canada crop-progress collection is province-staggered with `prairie_week_status`; Hermes owns 13 no-agent collector jobs plus 2 no-agent source-freshness watchdog jobs; next step is to monitor first live collector/watchdog runs and only add reasoning/soft-review after the mechanical data layer proves boring.
