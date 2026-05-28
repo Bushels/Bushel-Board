@@ -352,7 +352,7 @@ function writeHeartbeat({ grain, cropYear, grainWeek, weekEndingDate }) {
   const signalNote = `CGC week ${grainWeek} refreshed (${weekEndingDate ?? "unknown date"})`;
 
   const result = spawnSync(
-    "python",
+    "python3",
     [
       path.join("scripts", "write-collector-heartbeat.py"),
       "--side",

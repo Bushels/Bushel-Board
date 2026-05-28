@@ -712,7 +712,7 @@ function invokeHeartbeat(
     country_deliveries_yoy_pct: row.country_deliveries_yoy_pct,
   };
   const result = spawnSync(
-    "python",
+    "python3",
     [
       HEARTBEAT_CLI,
       "--side",
