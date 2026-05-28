@@ -1,10 +1,10 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-05-26
+Last updated: 2026-05-28
 
 ## Feature Tracks
 
-Current active track note (2026-05-26): Track 51 remains the active product lane. Use `docs/plans/2026-05-26-bushel-board-fresh-session-handoff.md` to restart cleanly and `docs/plans/2026-05-26-bushel-board-handoff.md` for the full session trail. Keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Export Sales + WASDE projection diagnostics prove Barley/Oats should stay null-guarded unless future importer-layer evidence passes the guardrail. Canada crop-progress importer now records MB/SK/AB source-discovery evidence and `prairie_week_status`; package-level collector wrappers are wired for the province-staggered routine cadence. Hermes now has script-only cron jobs for the full mechanical weekly/monthly collector spine plus no-agent source-freshness watchdogs; monitor first live runs before layering reasoning/soft-review automation on top.
+Current active track note (2026-05-28): Track 51 remains the active product lane. Use `docs/plans/2026-05-28-bushel-board-live-run-handoff.md` first, then `docs/plans/2026-05-26-bushel-board-fresh-session-handoff.md` for the full mechanical-collector setup context. Keep `/thesis` scoped to Corn, Soybeans, Wheat, Spring Wheat, Winter Wheat, Durum, Canola, Barley, and Oats only. Export Sales + WASDE projection diagnostics prove Barley/Oats should stay null-guarded unless future importer-layer evidence passes the guardrail. Canada crop-progress importer now records MB/SK/AB source-discovery evidence and `prairie_week_status`; package-level collector wrappers are wired for the province-staggered routine cadence. Wednesday CGC/Grain Monitor heartbeat fanout needed WSL `python3` fixes, now pushed at `3f55d8f`. Thursday pre-noon Export Sales and MB+SK crop-progress live checks are source/cache-current, but the 16:55 MT monitor still needs to classify remaining CGC, Producer Cars, watchdog, and the odd Export Sales cron metadata/null-status finding before layering reasoning/soft-review automation on top.
 
 | # | Feature | Status | Date | Key Files |
 |---|---------|--------|------|-----------|
