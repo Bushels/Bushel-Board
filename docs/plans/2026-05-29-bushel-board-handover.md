@@ -2,7 +2,7 @@
 
 ## Resume instruction for new session
 
-Open the repo and continue Bushel Board transparent thesis rating work from Task 7.
+Open the repo and continue Bushel Board transparent thesis rating work from Task 8.
 
 ```bash
 cd /mnt/c/Users/kyle/Agriculture/bushel-board-app
@@ -17,18 +17,19 @@ Important: there are unrelated local modifications in this working tree. Do not 
 
 - Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
 - Branch: `codex/data-layer-foundation-v1`
-- Remote pushed through latest Task 6 commit.
+- Remote pushed through latest Task 7 commit.
 - Push command that works from WSL:
 
 ```bash
 git -c credential.helper='/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe' push
 ```
 
-## Current git state after Task 5
+## Current git state after Task 7
 
 Latest pushed commits:
 
 ```text
+f252062 feat: add thesis scorecard audit mode
 7070bef feat: attach thesis rating scorecards to board items
 8bb5463 feat: map thesis packets to rating domains
 d7cafdf feat: aggregate thesis domain scorecards
@@ -207,6 +208,57 @@ no Task 6 typecheck matches for ratingScorecard / kalshi-commodity-markets / The
 
 Spec review: PASS. Code quality re-review: APPROVED.
 
+### Task 7 — scorecard audit UI on `/thesis?audit=1`
+
+Committed and pushed:
+
+```text
+f252062 feat: add thesis scorecard audit mode
+```
+
+Files changed:
+
+- `app/(dashboard)/thesis/page.tsx`
+- `app/(dashboard)/thesis/page.test.tsx`
+
+Implemented:
+
+- `/thesis` keeps scorecard audit details hidden by default.
+- `/thesis?audit=1` renders a `Scorecard audit` panel inside each country thesis card.
+- Audit panel exposes:
+  - overall score and label,
+  - confidence score and label,
+  - domain chips with score and weight,
+  - quality adjustment count,
+  - missing required sources,
+  - blocked claims from both scorecard-level and domain-level blocked-claim arrays.
+- Normal farmer-facing stance fields and layout remain unchanged outside audit mode.
+
+Focused verification after Task 7:
+
+```bash
+npx vitest run 'app/(dashboard)/thesis/page.test.tsx' lib/__tests__/thesis-board.test.ts lib/__tests__/thesis-rating-model.test.ts lib/__tests__/thesis-rating-domain-mappers.test.ts lib/__tests__/kalshi-commodity-markets.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --environment=node
+
+npx eslint 'app/(dashboard)/thesis/page.tsx' 'app/(dashboard)/thesis/page.test.tsx' lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts lib/__tests__/kalshi-commodity-markets.test.ts
+```
+
+Result:
+
+```text
+77 tests passed
+eslint passed
+```
+
+Typecheck note:
+
+```text
+npx tsc --noEmit --pretty false
+```
+
+still reports pre-existing non-Task-7 errors in seeding/forecast/bushy/weather tests. A targeted grep for Task 7 paths and rating scorecard symbols produced no matches.
+
+Spec review: PASS. Code quality review: APPROVED.
+
 ## Critical product/data context
 
 Current CGC state:
@@ -271,76 +323,43 @@ not exact `toBe(1)`.
 - Contradictions reduce confidence by 20 per contradiction.
 - Do not add new data sources in Task 6; just attach scorecard audit data using current packet fields and mapper output.
 
-## Next best move — Task 7
+## Next best move — Task 8
 
-Task 7 from plan:
+Task 8 from plan:
 
 ```text
-Add audit UI for scorecard details on `/thesis?audit=1` only.
+Add LLM consumption guardrails.
 ```
 
 Objective:
 
-- Expose scorecard audit detail without cluttering normal farmer view.
-- Keep normal `/thesis` unchanged unless `audit=1` is present.
-- Show enough scorecard detail for model/source audit, not farmer-facing polish yet.
+- Keep downstream LLM explanation/authorization from inventing claims outside the deterministic scorecard.
+- Ensure LLM-facing payloads separate allowed claims from blocked/missing-source claims.
+- Preserve the rating model as the source of truth: LLM can explain/audit, not recompute or override scores.
 
 Likely files:
 
-- Modify: thesis page/component files that render comparison rows and detail cards.
-- Modify/add: tests covering audit query behavior.
+- Modify/add: thesis prompt/context builders or forecast/thesis review prompt-pack files that consume board items or scorecards.
+- Modify/add: tests proving LLM payloads include allowed claims, blocked claims, missing required sources, score/label/confidence, and explicit non-overwrite instructions.
 
-Task 7 should expose scorecard audit detail only in audit mode:
+Task 8 caution:
 
-- overall score/label,
-- confidence score/label,
-- domain chips with score/weight,
-- quality adjustment count,
-- missing/blocked claims.
-
-## Task 7 caution
-
-There are still unrelated local modifications in:
-
-- `lib/queries/thesis-board.ts`
-- `lib/__tests__/thesis-board.test.ts`
-
-Before editing Task 7, inspect these diffs carefully so you do not overwrite unrelated user/worktree changes:
-
-```bash
-git diff -- lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts
-```
-
-If you edit those files, stage only the intended hunks for Task 7.
-
-## After Task 6
-
-Next tasks from plan:
-
-- Task 7: Add audit UI for scorecard details on `/thesis?audit=1` only.
-- Task 8: Add LLM consumption guardrails.
-
-Task 7 should expose scorecard audit detail without cluttering normal farmer view:
-
-- overall score/label,
-- confidence score/label,
-- domain chips with score/weight,
-- quality adjustment count,
-- missing/blocked claims.
+- There are still unrelated local modifications in `lib/queries/thesis-board.ts` and `lib/__tests__/thesis-board.test.ts`; inspect before touching and stage only intended hunks.
+- Avoid adding new market data sources or changing visible `/thesis` scoring as part of LLM guardrails.
 
 ## Final known-good commands
 
 ```bash
 cd /mnt/c/Users/kyle/Agriculture/bushel-board-app
 
-npx vitest run lib/__tests__/thesis-board.test.ts lib/__tests__/thesis-rating-model.test.ts lib/__tests__/thesis-rating-domain-mappers.test.ts lib/__tests__/kalshi-commodity-markets.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node
+npx vitest run 'app/(dashboard)/thesis/page.test.tsx' lib/__tests__/thesis-board.test.ts lib/__tests__/thesis-rating-model.test.ts lib/__tests__/thesis-rating-domain-mappers.test.ts lib/__tests__/kalshi-commodity-markets.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --environment=node
 
-npx eslint lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts lib/__tests__/kalshi-commodity-markets.test.ts
+npx eslint 'app/(dashboard)/thesis/page.tsx' 'app/(dashboard)/thesis/page.test.tsx' lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts lib/__tests__/kalshi-commodity-markets.test.ts
 ```
 
 Known result from latest run:
 
 ```text
-75 tests passed
+77 tests passed
 eslint passed
 ```
