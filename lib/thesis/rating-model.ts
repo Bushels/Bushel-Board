@@ -72,6 +72,30 @@ export interface ThesisRatingScorecard {
   llm_blocked_claims: string[];
 }
 
+export interface BuildRatingDomainInput {
+  domain: RatingDomainId;
+  score: number;
+  confidence: RatingConfidenceLabel;
+  freshness_status: SourceFreshnessStatus;
+  sources: string[];
+  positive_evidence?: string[];
+  negative_evidence?: string[];
+  blocked_claims?: string[];
+  isRequired?: boolean;
+  isProxy?: boolean;
+  missingFreshnessProof?: boolean;
+  isPrimaryDirectSource?: boolean;
+  structurallyAbsent?: boolean;
+}
+
+export interface BuildRatingScorecardInput {
+  grain: string;
+  lane: RatingLane;
+  period_anchor: string;
+  source_watermark: string | null;
+  domains: BuildRatingDomainInput[];
+}
+
 export type DomainWeights = Readonly<Record<RatingDomainId, number>>;
 export type NormalizedDomainWeights = Readonly<Partial<Record<RatingDomainId, number>>>;
 
@@ -281,6 +305,201 @@ export function scoreToRatingLabel(score: number): RatingLabel {
   if (clampedScore >= -29) return "lean_bear";
   if (clampedScore >= -69) return "bear";
   return "strong_bear";
+}
+
+function confidenceScoreToLabel(score: number): RatingConfidenceLabel {
+  const clampedScore = clampConfidenceScore(score);
+
+  if (clampedScore >= 75) return "high";
+  if (clampedScore >= 50) return "medium";
+  return "low";
+}
+
+function emptyScorecard(
+  input: Pick<BuildRatingScorecardInput, "grain" | "lane" | "period_anchor" | "source_watermark">,
+  qualityAdjustments: string[],
+  missingRequiredSources: string[] = [],
+): ThesisRatingScorecard {
+  return {
+    grain: input.grain,
+    lane: input.lane,
+    period_anchor: input.period_anchor,
+    source_watermark: input.source_watermark,
+    overall_score: 0,
+    overall_label: "balanced",
+    confidence_score: 0,
+    confidence_label: "low",
+    domains: [],
+    contradictions: [],
+    quality_adjustments: qualityAdjustments,
+    missing_required_sources: missingRequiredSources,
+    llm_allowed_claims: [],
+    llm_blocked_claims: [],
+  };
+}
+
+function confidencePenalty(confidence: RatingConfidenceLabel): number {
+  if (confidence === "medium") return -10;
+  if (confidence === "low") return -20;
+  return 0;
+}
+
+function findContradictions(domains: RatingDomainScore[]): string[] {
+  const contradictions: string[] = [];
+  const highConfidenceDomains = domains
+    .filter((domain) => domain.confidence === "high")
+    .sort((left, right) => RATING_DOMAIN_IDS.indexOf(left.domain) - RATING_DOMAIN_IDS.indexOf(right.domain));
+
+  for (let leftIndex = 0; leftIndex < highConfidenceDomains.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < highConfidenceDomains.length; rightIndex += 1) {
+      const left = highConfidenceDomains[leftIndex];
+      const right = highConfidenceDomains[rightIndex];
+
+      if (Math.abs(left.score - right.score) > 40 && left.score * right.score < 0) {
+        contradictions.push(`contradiction:${left.domain}_vs_${right.domain}`);
+      }
+    }
+  }
+
+  return contradictions;
+}
+
+function hasUsablePrimaryDirectSource(domain: BuildRatingDomainInput): boolean {
+  return domain.isPrimaryDirectSource === true && domain.sources.length > 0 && domain.freshness_status !== "empty";
+}
+
+function isRequiredSourceMissing(domain: BuildRatingDomainInput): boolean {
+  return (
+    domain.isRequired === true &&
+    (domain.freshness_status === "empty" || domain.sources.length === 0 || domain.missingFreshnessProof === true)
+  );
+}
+
+function findDuplicateActiveDomains(domains: BuildRatingDomainInput[]): RatingDomainId[] {
+  const seenDomains = new Set<RatingDomainId>();
+  const duplicateDomains = new Set<RatingDomainId>();
+
+  for (const domain of domains) {
+    if (seenDomains.has(domain.domain)) {
+      duplicateDomains.add(domain.domain);
+      continue;
+    }
+
+    seenDomains.add(domain.domain);
+  }
+
+  return RATING_DOMAIN_IDS.filter((domain) => duplicateDomains.has(domain));
+}
+
+export function buildRatingScorecard(input: BuildRatingScorecardInput): ThesisRatingScorecard {
+  if (!isRatingSupportedGrain(input.grain)) {
+    const unsupportedMetadata = getUnsupportedRatingLaneMetadata(input.grain);
+
+    return emptyScorecard(input, [`unsupported_rating_lane:${unsupportedMetadata.status}:${unsupportedMetadata.reason}`]);
+  }
+
+  const activeDomainInputs = input.domains.filter((domain) => !domain.structurallyAbsent);
+  const duplicateDomains = findDuplicateActiveDomains(activeDomainInputs);
+
+  if (duplicateDomains.length > 0) {
+    const duplicateSourceReasons = duplicateDomains.map((domain) => `duplicate_domain:${domain}`);
+
+    return emptyScorecard(
+      input,
+      duplicateSourceReasons.map((reason) => `insufficient_data:${reason}`),
+      duplicateSourceReasons,
+    );
+  }
+
+  const hasPrimaryDirectSource = activeDomainInputs.some(hasUsablePrimaryDirectSource);
+
+  if (!hasPrimaryDirectSource) {
+    return emptyScorecard(
+      input,
+      ["insufficient_data:no_primary_direct_source"],
+      ["primary_direct_source"],
+    );
+  }
+
+  const structurallyAbsentDomains = input.domains
+    .filter((domain) => domain.structurallyAbsent)
+    .map((domain) => domain.domain);
+  const weights = getDomainWeights(input.lane, { structurallyAbsentDomains });
+  const qualityAdjustments: string[] = [];
+  const missingRequiredSources: string[] = [];
+  const llmAllowedClaims: string[] = [];
+  const llmBlockedClaims: string[] = [];
+  let confidenceScore = 85;
+
+  const domains = activeDomainInputs.map((domainInput) => {
+    const qualityAdjustment = qualityAdjustmentForSource({
+      freshnessStatus: domainInput.freshness_status,
+      isRequired: domainInput.isRequired,
+      isProxy: domainInput.isProxy,
+      missingFreshnessProof: domainInput.missingFreshnessProof,
+    });
+    const requiredSourceMissing = isRequiredSourceMissing(domainInput);
+    const adjustedScore = requiredSourceMissing
+      ? 0
+      : clampRatingScore(domainInput.score) * qualityAdjustment.scoreMultiplier;
+    const domainScore = clampRatingScore(adjustedScore);
+    const domainWeight = weights[domainInput.domain] ?? 0;
+
+    confidenceScore += qualityAdjustment.confidenceAdjustment + confidencePenalty(domainInput.confidence);
+    qualityAdjustments.push(...qualityAdjustment.reasons.map((reason) => `${domainInput.domain}:${reason}`));
+
+    if (requiredSourceMissing) {
+      missingRequiredSources.push(domainInput.domain);
+    }
+
+    llmAllowedClaims.push(...(domainInput.positive_evidence ?? []), ...(domainInput.negative_evidence ?? []));
+    llmBlockedClaims.push(...(domainInput.blocked_claims ?? []));
+
+    return {
+      domain: domainInput.domain,
+      score: domainScore,
+      weight: domainWeight,
+      weighted_score: domainScore * domainWeight,
+      confidence: domainInput.confidence,
+      freshness_status: domainInput.freshness_status,
+      sources: domainInput.sources,
+      positive_evidence: domainInput.positive_evidence ?? [],
+      negative_evidence: domainInput.negative_evidence ?? [],
+      blocked_claims: domainInput.blocked_claims ?? [],
+    } satisfies RatingDomainScore;
+  });
+
+  const contradictions = findContradictions(domains);
+  confidenceScore += contradictions.length * -20;
+
+  const uniqueMissingRequiredSources = Array.from(new Set(missingRequiredSources));
+
+  if (uniqueMissingRequiredSources.length > 0) {
+    qualityAdjustments.push(
+      ...uniqueMissingRequiredSources.map((source) => `insufficient_data:required_source_missing:${source}`),
+    );
+    confidenceScore = 0;
+  }
+
+  const overallScore = clampRatingScore(domains.reduce((total, domain) => total + domain.weighted_score, 0));
+  const clampedConfidenceScore = clampConfidenceScore(confidenceScore);
+
+  return {
+    grain: input.grain,
+    lane: input.lane,
+    period_anchor: input.period_anchor,
+    source_watermark: input.source_watermark,
+    overall_score: overallScore,
+    overall_label: scoreToRatingLabel(overallScore),
+    confidence_score: clampedConfidenceScore,
+    confidence_label: confidenceScoreToLabel(clampedConfidenceScore),
+    domains,
+    contradictions,
+    quality_adjustments: qualityAdjustments,
+    missing_required_sources: uniqueMissingRequiredSources,
+    llm_allowed_claims: llmAllowedClaims,
+    llm_blocked_claims: llmBlockedClaims,
+  };
 }
 
 export function isRatingSupportedGrain(grain: string): grain is SupportedRatingGrain {

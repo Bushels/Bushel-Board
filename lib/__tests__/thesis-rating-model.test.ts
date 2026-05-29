@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildRatingScorecard,
   CANADA_RATING_DOMAIN_WEIGHTS,
   clampConfidenceScore,
   clampRatingScore,
@@ -12,6 +13,38 @@ import {
   scoreToRatingLabel,
   US_RATING_DOMAIN_WEIGHTS,
 } from "@/lib/thesis/rating-model";
+
+const baseScorecardInput = {
+  grain: "Canola",
+  lane: "canada" as const,
+  period_anchor: "2026-05-29",
+  source_watermark: "2026-05-29T00:00:00.000Z",
+};
+
+const domainInput = (overrides: {
+  domain: "supply" | "demand" | "movement" | "logistics" | "price" | "positioning" | "weather" | "farmer_local";
+  score: number;
+  confidence?: "high" | "medium" | "low";
+  freshness_status?: "strong" | "watch" | "stale" | "empty" | "partial" | "expected_lag";
+  sources?: string[];
+  positive_evidence?: string[];
+  negative_evidence?: string[];
+  blocked_claims?: string[];
+  isRequired?: boolean;
+  isProxy?: boolean;
+  missingFreshnessProof?: boolean;
+  isPrimaryDirectSource?: boolean;
+  structurallyAbsent?: boolean;
+}) => ({
+  confidence: "high" as const,
+  freshness_status: "strong" as const,
+  sources: [`${overrides.domain}_source`],
+  positive_evidence: [`${overrides.domain}_positive`],
+  negative_evidence: [],
+  blocked_claims: [],
+  isPrimaryDirectSource: true,
+  ...overrides,
+});
 
 describe("thesis rating model shape", () => {
   it("locks Canada domain weights to the V1 reference table", () => {
@@ -208,5 +241,199 @@ describe("thesis rating model shape", () => {
     }
 
     expect(isRatingSupportedGrain("Rye")).toBe(false);
+  });
+
+  it("aggregates weighted bullish domains into a bullish overall label", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 40 }),
+        domainInput({ domain: "demand", score: 60 }),
+        domainInput({ domain: "movement", score: 45 }),
+        domainInput({ domain: "logistics", score: 20 }),
+        domainInput({ domain: "price", score: 55 }),
+        domainInput({ domain: "positioning", score: 10 }),
+        domainInput({ domain: "weather", score: 0 }),
+      ],
+    });
+
+    expect(scorecard.overall_score).toBeCloseTo(42.75, 6);
+    expect(scorecard.overall_label).toBe("bull");
+    expect(scorecard.confidence_score).toBe(85);
+    expect(scorecard.confidence_label).toBe("high");
+    expect(scorecard.domains.find((domain) => domain.domain === "demand")?.weighted_score).toBeCloseTo(15, 6);
+    expect(scorecard.llm_allowed_claims).toContain("demand_positive");
+  });
+
+  it("lowers confidence and records contradiction notes for balanced conflicting domains", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: -60, negative_evidence: ["supply_bearish"] }),
+        domainInput({ domain: "demand", score: 60, positive_evidence: ["demand_bullish"] }),
+        domainInput({ domain: "movement", score: 0 }),
+        domainInput({ domain: "logistics", score: 0 }),
+        domainInput({ domain: "price", score: 0 }),
+        domainInput({ domain: "positioning", score: 0 }),
+        domainInput({ domain: "weather", score: 0 }),
+      ],
+    });
+
+    expect(scorecard.overall_score).toBeCloseTo(3, 6);
+    expect(scorecard.overall_label).toBe("balanced");
+    expect(scorecard.contradictions).toContain("contradiction:supply_vs_demand");
+    expect(scorecard.confidence_score).toBe(65);
+    expect(scorecard.confidence_label).toBe("medium");
+  });
+
+  it("zeros empty required demand source and reduces confidence", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 40 }),
+        domainInput({ domain: "demand", score: 80, freshness_status: "empty", sources: [], isRequired: true }),
+        domainInput({ domain: "movement", score: 40 }),
+        domainInput({ domain: "logistics", score: 40 }),
+        domainInput({ domain: "price", score: 40 }),
+        domainInput({ domain: "positioning", score: 40 }),
+        domainInput({ domain: "weather", score: 40 }),
+      ],
+    });
+
+    const demand = scorecard.domains.find((domain) => domain.domain === "demand");
+    expect(demand?.score).toBe(0);
+    expect(demand?.weighted_score).toBe(0);
+    expect(scorecard.overall_score).toBeCloseTo(30, 6);
+    expect(scorecard.missing_required_sources).toContain("demand");
+    expect(scorecard.quality_adjustments).toContain("demand:required_source_empty");
+    expect(scorecard.quality_adjustments).toContain("insufficient_data:required_source_missing:demand");
+    expect(scorecard.confidence_score).toBe(0);
+    expect(scorecard.confidence_label).toBe("low");
+  });
+
+  it("zeros required source domains that have no admitted source rows even if freshness was mislabeled strong", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 40, isPrimaryDirectSource: true }),
+        domainInput({ domain: "demand", score: 80, freshness_status: "strong", sources: [], isRequired: true, isPrimaryDirectSource: false }),
+      ],
+    });
+
+    const demand = scorecard.domains.find((domain) => domain.domain === "demand");
+    expect(demand?.score).toBe(0);
+    expect(demand?.weighted_score).toBe(0);
+    expect(scorecard.missing_required_sources).toContain("demand");
+    expect(scorecard.quality_adjustments).toContain("insufficient_data:required_source_missing:demand");
+    expect(scorecard.confidence_score).toBe(0);
+  });
+
+  it("marks required sources missing freshness proof as insufficient data", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 40, isPrimaryDirectSource: true }),
+        domainInput({ domain: "demand", score: 80, isRequired: true, missingFreshnessProof: true, isPrimaryDirectSource: false }),
+      ],
+    });
+
+    const demand = scorecard.domains.find((domain) => domain.domain === "demand");
+    expect(demand?.score).toBe(0);
+    expect(scorecard.missing_required_sources).toContain("demand");
+    expect(scorecard.quality_adjustments).toContain("demand:missing_freshness_proof");
+    expect(scorecard.quality_adjustments).toContain("insufficient_data:required_source_missing:demand");
+    expect(scorecard.confidence_score).toBe(0);
+  });
+
+  it("returns insufficient-data scorecard when no primary direct source is present", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 55, isPrimaryDirectSource: false, isProxy: true }),
+        domainInput({ domain: "demand", score: 55, isPrimaryDirectSource: false, isProxy: true }),
+      ],
+    });
+
+    expect(scorecard.overall_score).toBe(0);
+    expect(scorecard.overall_label).toBe("balanced");
+    expect(scorecard.confidence_score).toBe(0);
+    expect(scorecard.confidence_label).toBe("low");
+    expect(scorecard.missing_required_sources).toContain("primary_direct_source");
+    expect(scorecard.quality_adjustments).toContain("insufficient_data:no_primary_direct_source");
+  });
+
+  it("clamps scorecard scores after quality-adjusted aggregation", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 150 }),
+        domainInput({ domain: "demand", score: 150 }),
+        domainInput({ domain: "movement", score: 150 }),
+        domainInput({ domain: "logistics", score: 150 }),
+        domainInput({ domain: "price", score: 150 }),
+        domainInput({ domain: "positioning", score: 150 }),
+        domainInput({ domain: "weather", score: 150 }),
+      ],
+    });
+
+    expect(scorecard.overall_score).toBe(100);
+    expect(scorecard.overall_label).toBe("strong_bull");
+    expect(scorecard.domains.every((domain) => domain.score <= 100)).toBe(true);
+  });
+
+  it("does not count empty primary direct sources as sufficient data", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [domainInput({ domain: "supply", score: 55, freshness_status: "empty", sources: ["declared_but_empty"], isPrimaryDirectSource: true })],
+    });
+
+    expect(scorecard.overall_score).toBe(0);
+    expect(scorecard.confidence_score).toBe(0);
+    expect(scorecard.missing_required_sources).toContain("primary_direct_source");
+    expect(scorecard.quality_adjustments).toContain("insufficient_data:no_primary_direct_source");
+  });
+
+  it("returns insufficient data when duplicate domain inputs would double-count a weight", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [
+        domainInput({ domain: "supply", score: 60 }),
+        domainInput({ domain: "supply", score: 60 }),
+        domainInput({ domain: "demand", score: 60 }),
+      ],
+    });
+
+    expect(scorecard.overall_score).toBe(0);
+    expect(scorecard.confidence_score).toBe(0);
+    expect(scorecard.missing_required_sources).toContain("duplicate_domain:supply");
+    expect(scorecard.quality_adjustments).toContain("insufficient_data:duplicate_domain:supply");
+  });
+
+  it("keeps contradiction reason strings stable regardless of input order", () => {
+    const firstOrder = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [domainInput({ domain: "demand", score: 60 }), domainInput({ domain: "supply", score: -60 })],
+    });
+    const secondOrder = buildRatingScorecard({
+      ...baseScorecardInput,
+      domains: [domainInput({ domain: "supply", score: -60 }), domainInput({ domain: "demand", score: 60 })],
+    });
+
+    expect(firstOrder.contradictions).toEqual(["contradiction:supply_vs_demand"]);
+    expect(secondOrder.contradictions).toEqual(["contradiction:supply_vs_demand"]);
+  });
+
+  it("rejects unsupported grains through the scorecard builder", () => {
+    const scorecard = buildRatingScorecard({
+      ...baseScorecardInput,
+      grain: "Spring Wheat",
+      domains: [domainInput({ domain: "supply", score: 60 })],
+    });
+
+    expect(scorecard.overall_score).toBe(0);
+    expect(scorecard.confidence_score).toBe(0);
+    expect(scorecard.quality_adjustments).toEqual([
+      "unsupported_rating_lane:parked:grain_class_mapping_unresolved",
+    ]);
   });
 });
