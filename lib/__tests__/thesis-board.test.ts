@@ -123,6 +123,15 @@ describe("thesis board packet normalization", () => {
     expect(item.bearDrivers.map((driver) => driver.title)).toContain("Futures pressure");
     expect(item.freshness).toHaveLength(3);
     expect(item.confidence).toBe("medium");
+    expect(item.ratingScorecard).toMatchObject({
+      grain: "Canola",
+      lane: "canada",
+      period_anchor: "2025-2026:week:38",
+      source_watermark: "2026-05-08T18:00:00Z",
+    });
+    expect(item.ratingScorecard.domains.map((domain) => domain.domain)).toContain("demand");
+    expect(item.ratingScorecard.overall_score).toBeGreaterThan(0);
+    expect(["balanced", "lean_bull", "bull", "strong_bull"]).toContain(item.ratingScorecard.overall_label);
   });
 
   it("derives US demand and supply drivers from a facts-only packet", () => {
@@ -178,6 +187,16 @@ describe("thesis board packet normalization", () => {
     expect(item.stanceScore).toBe(0);
     expect(item.stanceLabel).toBe("Balanced");
     expect(item.confidence).toBe("high");
+    expect(item.ratingScorecard).toMatchObject({
+      grain: "Corn",
+      lane: "us",
+      period_anchor: "2025",
+      source_watermark: "2026-05-08T18:00:00Z",
+    });
+    expect(item.ratingScorecard.domains.map((domain) => domain.domain)).toContain("demand");
+    expect(item.ratingScorecard.overall_score).toBeGreaterThan(0);
+    expect(["balanced", "lean_bull", "bull", "strong_bull"]).toContain(item.ratingScorecard.overall_label);
+    expect(item.stanceLabel).toBe("Balanced");
   });
 
   it("turns WASDE month-over-month revisions into US thesis drivers", () => {

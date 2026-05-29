@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { CURRENT_US_MARKET_YEAR } from "@/lib/queries/us-intelligence";
 import type { ThesisArtifactV1 } from "@/lib/thesis/artifact-contract";
+import { buildRatingScorecard, type ThesisRatingScorecard } from "@/lib/thesis/rating-model";
+import { mapCanadaPacketToDomainInputs, mapUsPacketToDomainInputs } from "@/lib/thesis/rating-domain-mappers";
 import { getVikingL2Context, type VikingL2Chunk } from "@/lib/knowledge/viking-l2";
 
 type JsonRecord = Record<string, unknown>;
@@ -94,6 +96,7 @@ export interface ThesisBoardItem {
   staleSourceCount: number;
   optionalSourceCount: number;
   vikingL2Chunks: VikingL2Chunk[];
+  ratingScorecard: ThesisRatingScorecard;
 }
 
 export interface ThesisComparisonPoint {
@@ -876,16 +879,26 @@ export function buildCanadaThesisBoardItem(
   const warnings = normalizeWarnings(packet, freshness);
   const confidence = confidenceFromFreshness(freshness, warnings);
   const stanceScore = scoreDrivers(bullDrivers, bearDrivers);
+  const cropYear = textValue(packet, "crop_year");
+  const grainWeek = numberValue(packet, "grain_week");
+  const packetGeneratedAt = textValue(packet, "packet_generated_at");
+  const ratingScorecard = buildRatingScorecard({
+    grain: grain.name,
+    lane: "canada",
+    period_anchor: `${cropYear ?? "unknown"}:week:${grainWeek ?? "latest"}`,
+    source_watermark: packetGeneratedAt,
+    domains: mapCanadaPacketToDomainInputs(packet),
+  });
 
   return {
     id: `ca-${grain.slug}`,
     lane: "canada",
     name: grain.name,
     slug: grain.slug,
-    cropYear: textValue(packet, "crop_year"),
-    grainWeek: numberValue(packet, "grain_week"),
+    cropYear,
+    grainWeek,
     marketYear: null,
-    packetGeneratedAt: textValue(packet, "packet_generated_at"),
+    packetGeneratedAt,
     stanceScore,
     stanceLabel: stanceLabel(stanceScore),
     confidence: confidence.confidence,
@@ -897,6 +910,7 @@ export function buildCanadaThesisBoardItem(
     freshness,
     warnings,
     vikingL2Chunks: [],
+    ratingScorecard,
     ...sourceCounts(freshness),
   };
 }
@@ -1263,6 +1277,15 @@ export function buildUsThesisBoardItem(
   const warnings = normalizeWarnings(packet, freshness);
   const confidence = confidenceFromFreshness(freshness, warnings);
   const stanceScore = scoreDrivers(bullDrivers, bearDrivers);
+  const marketYear = numberValue(packet, "market_year") ?? CURRENT_US_MARKET_YEAR;
+  const packetGeneratedAt = textValue(packet, "packet_generated_at");
+  const ratingScorecard = buildRatingScorecard({
+    grain: market.name,
+    lane: "us",
+    period_anchor: String(marketYear),
+    source_watermark: packetGeneratedAt,
+    domains: mapUsPacketToDomainInputs(packet),
+  });
 
   return {
     id: `us-${market.slug}`,
@@ -1271,8 +1294,8 @@ export function buildUsThesisBoardItem(
     slug: market.slug,
     cropYear: null,
     grainWeek: null,
-    marketYear: numberValue(packet, "market_year") ?? CURRENT_US_MARKET_YEAR,
-    packetGeneratedAt: textValue(packet, "packet_generated_at"),
+    marketYear,
+    packetGeneratedAt,
     stanceScore,
     stanceLabel: stanceLabel(stanceScore),
     confidence: confidence.confidence,
@@ -1284,6 +1307,7 @@ export function buildUsThesisBoardItem(
     freshness,
     warnings,
     vikingL2Chunks: [],
+    ratingScorecard,
     ...sourceCounts(freshness),
   };
 }
