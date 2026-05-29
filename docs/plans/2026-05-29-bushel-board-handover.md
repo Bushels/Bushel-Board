@@ -2,7 +2,7 @@
 
 ## Resume instruction for new session
 
-Open the repo and continue Bushel Board transparent thesis rating work from Task 9 (full verification pass).
+Open the repo and continue after the transparent thesis rating V1 verification pass. The rating-model/audit/LLM guardrail slice is complete through Task 9; next move is production-preview review/promotion planning or the next source-quality work package, not more rating-model scope creep.
 
 ```bash
 cd /mnt/c/Users/kyle/Agriculture/bushel-board-app
@@ -17,18 +17,19 @@ Important: there are unrelated local modifications in this working tree. Do not 
 
 - Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
 - Branch: `codex/data-layer-foundation-v1`
-- Remote pushed through Task 8 code commit plus this handover update.
+- Remote pushed through Task 9 verification handover update.
 - Push command that works from WSL:
 
 ```bash
 git -c credential.helper='/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe' push
 ```
 
-## Current git state after Task 8
+## Current git state after Task 9
 
 Latest pushed commits:
 
 ```text
+latest docs commit docs: update Bushel Board handover after task 9
 ab0a761 feat: add thesis scorecard LLM guardrails
 2037515 docs: update Bushel Board handover after task 7
 f252062 feat: add thesis scorecard audit mode
@@ -314,6 +315,54 @@ Review notes:
 - All requested changes were fixed with additional tests.
 - Code quality re-review: APPROVED.
 
+### Task 9 — full verification pass
+
+Documentation update committed in closeout:
+
+```text
+docs: update Bushel Board handover after task 9
+```
+
+Verification performed:
+
+```bash
+npx vitest run 'app/(dashboard)/thesis/page.test.tsx' lib/__tests__/thesis-board.test.ts lib/__tests__/thesis-rating-model.test.ts lib/__tests__/thesis-rating-domain-mappers.test.ts lib/__tests__/kalshi-commodity-markets.test.ts lib/__tests__/thesis-scorecard-llm-guardrails.test.ts lib/__tests__/roundtable-prompt-pack.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --environment=node
+
+npx eslint 'app/(dashboard)/thesis/page.tsx' 'app/(dashboard)/thesis/page.test.tsx' lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts lib/__tests__/kalshi-commodity-markets.test.ts lib/thesis/scorecard-llm-guardrails.ts lib/thesis/roundtable/build-role-prompt-pack.ts lib/__tests__/thesis-scorecard-llm-guardrails.test.ts lib/__tests__/roundtable-prompt-pack.test.ts
+
+npx tsc --noEmit --pretty false
+
+npm run build
+```
+
+Results:
+
+```text
+86 focused tests passed
+eslint passed
+npm run build passed
+full tsc still reports pre-existing unrelated errors in seeding/forecast/bushy/weather/overview tests
+targeted tsc grep for thesis/rating/scorecard/roundtable/kalshi paths produced no matches
+```
+
+Spring/Winter Wheat and placeholder audit:
+
+- Active `/thesis` page search found no Spring/Winter Wheat row copy.
+- Active board lane source is exactly `Corn, Soybeans, Wheat, Durum, Canola, Barley, Oats`.
+- `rating-model.ts` keeps Spring/Winter Wheat as parked unsupported metadata.
+- Tests assert Spring/Winter Wheat do not render as comparison rows and generic Wheat does not fan out into Spring/Winter rows.
+- `Mapping needed = no class-safe source yet` appears as legend copy only; browser-rendered board reported `0 mapping gaps`.
+
+Browser/local smoke:
+
+- `npm run build` completed successfully.
+- `npm run start` served `http://127.0.0.1:3000`.
+- `/thesis` returned HTTP 200, rendered `7 grain rows`, did not include `Scorecard audit`, and did not include Spring/Winter Wheat.
+- `/thesis?audit=1` returned HTTP 200, rendered scorecard audit panels including Overall/Confidence/Missing required sources/Blocked claims, and did not include Spring/Winter Wheat.
+- Browser snapshot confirmed normal `/thesis` farmer-readable board and audit-mode query behavior.
+
+Transparent thesis rating V1 plan status: complete through Task 9.
+
 ## Critical product/data context
 
 Current CGC state:
@@ -378,27 +427,18 @@ not exact `toBe(1)`.
 - Contradictions reduce confidence by 20 per contradiction.
 - Do not add new market data sources or change visible `/thesis` scoring during verification; the scorecard remains deterministic source of truth and the LLM can only explain/audit supplied fields.
 
-## Next best move — Task 9
+## Next best move
 
-Task 9 from plan:
+Transparent thesis rating V1 is complete through Task 9. Recommended next move depends on product intent:
 
-```text
-Full verification pass.
-```
+1. If Kyle wants this slice live: do preview/production promotion verification for `codex/data-layer-foundation-v1` before merging/deploying. Verify branch containment, production alias, rendered `/thesis`, and audit-only behavior.
+2. If not promoting yet: start the next source-quality work package, not another rating-model expansion. Prioritize source freshness/collector continuity and official-source cadence before adding more signal domains.
 
-Objective:
-
-- Verify implementation, docs, and UI are coherent after Tasks 1-8.
-- Run the focused transparent rating/thesis suites and lint.
-- Attempt build/typecheck, but distinguish pre-existing unrelated seeding/forecast/bushy/weather test errors from Task 8 regressions.
-- Search for stale Spring/Winter Wheat and mapping-placeholder assumptions in active board paths.
-- Browser-check `/thesis` and `/thesis?audit=1` if local app can run cleanly.
-
-Task 9 caution:
+Caution:
 
 - Preserve unrelated local modifications in `lib/queries/thesis-board.ts`, `lib/__tests__/thesis-board.test.ts`, project docs, and untracked plan/reference files.
-- Do not expand source scope or promote parked Spring/Winter Wheat as part of verification.
-- Do not change visible farmer-facing score behavior unless verification exposes a real regression.
+- Do not expand source scope or promote parked Spring/Winter Wheat unless Kyle explicitly reopens that scope.
+- Do not change visible farmer-facing score behavior without a deliberate migration plan.
 
 ## Final known-good commands
 
@@ -410,10 +450,11 @@ npx vitest run 'app/(dashboard)/thesis/page.test.tsx' lib/__tests__/thesis-board
 npx eslint 'app/(dashboard)/thesis/page.tsx' 'app/(dashboard)/thesis/page.test.tsx' lib/queries/thesis-board.ts lib/__tests__/thesis-board.test.ts lib/__tests__/kalshi-commodity-markets.test.ts lib/thesis/scorecard-llm-guardrails.ts lib/thesis/roundtable/build-role-prompt-pack.ts lib/__tests__/thesis-scorecard-llm-guardrails.test.ts lib/__tests__/roundtable-prompt-pack.test.ts
 ```
 
-Known result from latest focused runs:
+Known result from Task 9:
 
 ```text
-Task 7 suite: 77 tests passed
-Task 8 suite: 48 tests passed
-eslint passed for Task 7 and Task 8 touched files
+86 focused tests passed
+eslint passed
+npm run build passed
+full tsc has pre-existing unrelated test fixture errors; targeted thesis/rating/scorecard grep was clean
 ```
