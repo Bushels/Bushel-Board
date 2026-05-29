@@ -72,6 +72,13 @@ export interface ThesisRatingScorecard {
   llm_blocked_claims: string[];
 }
 
+export type DomainWeights = Readonly<Record<RatingDomainId, number>>;
+export type NormalizedDomainWeights = Readonly<Partial<Record<RatingDomainId, number>>>;
+
+export interface DomainWeightOptions {
+  structurallyAbsentDomains?: readonly RatingDomainId[];
+}
+
 export type UnsupportedRatingLaneStatus = "parked" | "unsupported";
 export type UnsupportedRatingLaneReason = "grain_class_mapping_unresolved" | "outside_v1_scope";
 
@@ -97,6 +104,102 @@ export type SupportedRatingGrain = (typeof SUPPORTED_RATING_GRAINS)[number];
 
 const SUPPORTED_RATING_GRAIN_SET = new Set<string>(SUPPORTED_RATING_GRAINS);
 const PARKED_WHEAT_CLASS_SET = new Set(["Spring Wheat", "Winter Wheat"]);
+
+const RATING_DOMAIN_IDS: readonly RatingDomainId[] = [
+  "supply",
+  "demand",
+  "movement",
+  "logistics",
+  "price",
+  "positioning",
+  "weather",
+  "farmer_local",
+] as const;
+
+export const CANADA_RATING_DOMAIN_WEIGHTS: DomainWeights = Object.freeze({
+  supply: 0.2,
+  demand: 0.25,
+  movement: 0.2,
+  logistics: 0.1,
+  price: 0.15,
+  positioning: 0.05,
+  weather: 0.05,
+  farmer_local: 0,
+});
+
+export const US_RATING_DOMAIN_WEIGHTS: DomainWeights = Object.freeze({
+  supply: 0.25,
+  demand: 0.25,
+  movement: 0.1,
+  logistics: 0.05,
+  price: 0.15,
+  positioning: 0.1,
+  weather: 0.1,
+  farmer_local: 0,
+});
+
+function roundDomainWeight(weight: number): number {
+  return Math.round(weight * 1_000_000) / 1_000_000;
+}
+
+export function normalizeDomainWeights(
+  weights: DomainWeights,
+  structurallyAbsentDomains: readonly RatingDomainId[] = [],
+): NormalizedDomainWeights {
+  const structurallyAbsentDomainSet = new Set(structurallyAbsentDomains);
+  const includedDomains = RATING_DOMAIN_IDS.filter((domain) => !structurallyAbsentDomainSet.has(domain));
+  const includedPositiveDomains = includedDomains.filter((domain) => weights[domain] > 0);
+  const includedPositiveWeightTotal = includedPositiveDomains.reduce((total, domain) => total + weights[domain], 0);
+  const normalizedWeights: Partial<Record<RatingDomainId, number>> = {};
+
+  if (includedPositiveWeightTotal <= 0) {
+    for (const domain of includedDomains) {
+      normalizedWeights[domain] = 0;
+    }
+
+    return Object.freeze(normalizedWeights);
+  }
+
+  let roundedPositiveWeightTotal = 0;
+  const lastPositiveDomain = includedPositiveDomains[includedPositiveDomains.length - 1];
+
+  for (const domain of includedDomains) {
+    if (weights[domain] <= 0) {
+      normalizedWeights[domain] = 0;
+      continue;
+    }
+
+    if (domain === lastPositiveDomain) {
+      normalizedWeights[domain] = roundDomainWeight(1 - roundedPositiveWeightTotal);
+      continue;
+    }
+
+    const normalizedWeight = roundDomainWeight(weights[domain] / includedPositiveWeightTotal);
+    normalizedWeights[domain] = normalizedWeight;
+    roundedPositiveWeightTotal += normalizedWeight;
+  }
+
+  return Object.freeze(normalizedWeights);
+}
+
+export function getDomainWeights(lane: RatingLane, options: DomainWeightOptions = {}): NormalizedDomainWeights {
+  if (lane === "canada") {
+    return normalizeDomainWeights(CANADA_RATING_DOMAIN_WEIGHTS, options.structurallyAbsentDomains);
+  }
+
+  if (lane === "us") {
+    return normalizeDomainWeights(US_RATING_DOMAIN_WEIGHTS, options.structurallyAbsentDomains);
+  }
+
+  const crossBorderWeights = Object.fromEntries(
+    RATING_DOMAIN_IDS.map((domain) => [
+      domain,
+      roundDomainWeight((CANADA_RATING_DOMAIN_WEIGHTS[domain] + US_RATING_DOMAIN_WEIGHTS[domain]) / 2),
+    ]),
+  ) as Record<RatingDomainId, number>;
+
+  return normalizeDomainWeights(Object.freeze(crossBorderWeights), options.structurallyAbsentDomains);
+}
 
 export function clampRatingScore(score: number): number {
   if (!Number.isFinite(score)) return 0;

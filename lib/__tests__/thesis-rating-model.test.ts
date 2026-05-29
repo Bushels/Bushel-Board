@@ -1,15 +1,91 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CANADA_RATING_DOMAIN_WEIGHTS,
   clampConfidenceScore,
   clampRatingScore,
+  getDomainWeights,
   getUnsupportedRatingLaneMetadata,
   isRatingSupportedGrain,
+  normalizeDomainWeights,
   qualityAdjustmentForSource,
   scoreToRatingLabel,
+  US_RATING_DOMAIN_WEIGHTS,
 } from "@/lib/thesis/rating-model";
 
 describe("thesis rating model shape", () => {
+  it("locks Canada domain weights to the V1 reference table", () => {
+    expect(CANADA_RATING_DOMAIN_WEIGHTS).toEqual({
+      supply: 0.2,
+      demand: 0.25,
+      movement: 0.2,
+      logistics: 0.1,
+      price: 0.15,
+      positioning: 0.05,
+      weather: 0.05,
+      farmer_local: 0,
+    });
+
+    const weights = getDomainWeights("canada");
+    expect(weights.farmer_local).toBe(0);
+    expect(Object.values(weights).reduce((total, weight) => total + weight, 0)).toBe(1);
+  });
+
+  it("locks US domain weights to the V1 reference table", () => {
+    expect(US_RATING_DOMAIN_WEIGHTS).toEqual({
+      supply: 0.25,
+      demand: 0.25,
+      movement: 0.1,
+      logistics: 0.05,
+      price: 0.15,
+      positioning: 0.1,
+      weather: 0.1,
+      farmer_local: 0,
+    });
+
+    const weights = getDomainWeights("us");
+    expect(weights.farmer_local).toBe(0);
+    expect(Object.values(weights).reduce((total, weight) => total + weight, 0)).toBe(1);
+  });
+
+  it("averages Canada and US weights for the cross-border lane", () => {
+    const weights = getDomainWeights("cross_border");
+
+    expect(weights).toEqual({
+      supply: 0.225,
+      demand: 0.25,
+      movement: 0.15,
+      logistics: 0.075,
+      price: 0.15,
+      positioning: 0.075,
+      weather: 0.075,
+      farmer_local: 0,
+    });
+    expect(Object.values(weights).reduce((total, weight) => total + weight, 0)).toBeCloseTo(1, 6);
+  });
+
+  it("excludes structurally absent domains and renormalizes remaining domain weights to 1.0", () => {
+    const weights = normalizeDomainWeights(CANADA_RATING_DOMAIN_WEIGHTS, ["farmer_local", "positioning"]);
+
+    expect(weights).not.toHaveProperty("farmer_local");
+    expect(weights).not.toHaveProperty("positioning");
+    expect(Object.values(weights).reduce((total, weight) => total + weight, 0)).toBe(1);
+    expect(weights.supply).toBeCloseTo(0.210526, 6);
+    expect(weights.demand).toBeCloseTo(0.263158, 6);
+    expect(weights.movement).toBeCloseTo(0.210526, 6);
+  });
+
+  it("keeps stale or empty domains in weighting and leaves freshness penalties to source quality adjustments", () => {
+    const weights = getDomainWeights("canada");
+
+    expect(weights).toHaveProperty("demand", 0.25);
+    expect(weights).toHaveProperty("movement", 0.2);
+    expect(weights).toHaveProperty("supply", 0.2);
+    expect(weights).toHaveProperty("farmer_local", 0);
+    expect(qualityAdjustmentForSource({ freshnessStatus: "stale" }).scoreMultiplier).toBe(0.75);
+    expect(qualityAdjustmentForSource({ freshnessStatus: "empty" }).scoreMultiplier).toBe(0);
+  });
+
   it("maps score bands to rating labels", () => {
     expect(scoreToRatingLabel(-100)).toBe("strong_bear");
     expect(scoreToRatingLabel(-70)).toBe("strong_bear");
