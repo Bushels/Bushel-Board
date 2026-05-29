@@ -498,7 +498,60 @@ function FreshnessStrip({ item }: { item: ThesisBoardItem }) {
   );
 }
 
-function ThesisCard({ item }: { item: ThesisBoardItem }) {
+function ScorecardAuditPanel({ item }: { item: ThesisBoardItem }) {
+  const scorecard = item.ratingScorecard;
+  const missingSources = scorecard.missing_required_sources;
+  const blockedClaims = [
+    ...scorecard.llm_blocked_claims,
+    ...scorecard.domains.flatMap((domain) => domain.blocked_claims),
+  ].filter((claim, index, claims) => claim && claims.indexOf(claim) === index);
+
+  return (
+    <div className="rounded-lg border border-canola/30 bg-canola/5 p-4">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Scorecard audit</p>
+          <p className="text-xs text-muted-foreground">
+            {scorecard.lane} / {scorecard.period_anchor} / watermark {scorecard.source_watermark ?? "none"}
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-canola/35 bg-background/70 text-canola">
+          Quality adjustments: {scorecard.quality_adjustments.length}
+        </Badge>
+      </div>
+
+      <div className="grid gap-3 text-sm sm:grid-cols-2">
+        <p className="rounded-md border border-border bg-background px-3 py-2 text-muted-foreground">
+          Overall rating: {scorecard.overall_score} / {scorecard.overall_label}
+        </p>
+        <p className="rounded-md border border-border bg-background px-3 py-2 text-muted-foreground">
+          Confidence: {scorecard.confidence_score}% / {scorecard.confidence_label}
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {scorecard.domains.map((domain) => (
+          <Badge
+            key={`${item.id}-scorecard-${domain.domain}`}
+            variant="outline"
+            className="border-border bg-background/80 text-muted-foreground"
+          >
+            {domain.domain}: {domain.score} × {domain.weight}
+          </Badge>
+        ))}
+      </div>
+
+      <div className="mt-3 space-y-1 text-xs leading-5 text-muted-foreground">
+        <p>
+          Missing required sources: {missingSources.length > 0 ? missingSources.join(", ") : "none"}
+        </p>
+        <p>Blocked claims: {blockedClaims.length > 0 ? blockedClaims.join(", ") : "none"}</p>
+      </div>
+    </div>
+  );
+}
+
+function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boolean }) {
   const href = item.lane === "canada" ? `/grain/${item.slug}` : `/us/${item.slug}`;
 
   return (
@@ -564,6 +617,8 @@ function ThesisCard({ item }: { item: ThesisBoardItem }) {
             </div>
           )}
         </div>
+
+        {auditMode && <ScorecardAuditPanel item={item} />}
 
         <details className="rounded-lg border border-border bg-background px-4 py-3">
           <summary className="cursor-pointer text-sm font-semibold text-foreground">
@@ -807,8 +862,18 @@ function EmptyLaneState({ label }: { label: string }) {
   );
 }
 
-export default async function ThesisPage() {
+type ThesisPageSearchParams = {
+  audit?: string;
+};
+
+export default async function ThesisPage({
+  searchParams,
+}: {
+  searchParams?: Promise<ThesisPageSearchParams>;
+} = {}) {
   const data = await getThesisBoardData();
+  const params = await searchParams;
+  const auditMode = params?.audit === "1";
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-12 pt-8">
@@ -913,7 +978,7 @@ export default async function ThesisPage() {
         {data.canadaItems.length > 0 ? (
           <div className="grid gap-4 xl:grid-cols-2">
             {data.canadaItems.map((item) => (
-              <ThesisCard key={item.id} item={item} />
+              <ThesisCard key={item.id} item={item} auditMode={auditMode} />
             ))}
           </div>
         ) : (
@@ -936,7 +1001,7 @@ export default async function ThesisPage() {
         {data.usItems.length > 0 ? (
           <div className="grid gap-4 xl:grid-cols-2">
             {data.usItems.map((item) => (
-              <ThesisCard key={item.id} item={item} />
+              <ThesisCard key={item.id} item={item} auditMode={auditMode} />
             ))}
           </div>
         ) : (
