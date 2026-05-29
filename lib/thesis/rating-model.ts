@@ -29,6 +29,19 @@ export type SourceFreshnessStatus =
 
 export type RatingConfidenceLabel = "high" | "medium" | "low";
 
+export interface QualityAdjustmentInput {
+  freshnessStatus: SourceFreshnessStatus;
+  isRequired?: boolean;
+  isProxy?: boolean;
+  missingFreshnessProof?: boolean;
+}
+
+export interface QualityAdjustmentResult {
+  confidenceAdjustment: number;
+  scoreMultiplier: number;
+  reasons: string[];
+}
+
 export interface RatingDomainScore {
   domain: RatingDomainId;
   score: number;
@@ -93,6 +106,66 @@ export function clampRatingScore(score: number): number {
 export function clampConfidenceScore(score: number): number {
   if (!Number.isFinite(score)) return 0;
   return Math.max(0, Math.min(100, score));
+}
+
+function roundSourceQualityMultiplier(multiplier: number): number {
+  return Math.round(multiplier * 100) / 100;
+}
+
+export function qualityAdjustmentForSource(input: QualityAdjustmentInput): QualityAdjustmentResult {
+  let confidenceAdjustment = 0;
+  let scoreMultiplier = 1;
+  const reasons: string[] = [];
+
+  switch (input.freshnessStatus) {
+    case "strong":
+      reasons.push("source_freshness_strong");
+      break;
+    case "watch":
+      reasons.push("source_freshness_watch");
+      break;
+    case "expected_lag":
+      confidenceAdjustment -= 5;
+      reasons.push("source_expected_lag");
+      break;
+    case "stale":
+      confidenceAdjustment -= 15;
+      scoreMultiplier *= 0.75;
+      reasons.push("source_stale");
+      break;
+    case "empty":
+      confidenceAdjustment -= input.isRequired ? 25 : 15;
+      scoreMultiplier = 0;
+      reasons.push(input.isRequired ? "required_source_empty" : "source_empty");
+      break;
+    case "partial":
+      confidenceAdjustment -= 10;
+      scoreMultiplier *= 0.7;
+      reasons.push("source_partial");
+      break;
+  }
+
+  if (input.isProxy) {
+    confidenceAdjustment -= 10;
+    scoreMultiplier *= 0.8;
+    reasons.push("proxy_source_mapping");
+  }
+
+  if (input.missingFreshnessProof) {
+    confidenceAdjustment -= 15;
+    scoreMultiplier *= 0.8;
+    reasons.push("missing_freshness_proof");
+  }
+
+  if (input.freshnessStatus === "empty" && input.isRequired) {
+    scoreMultiplier = 0;
+  }
+
+  return {
+    confidenceAdjustment,
+    scoreMultiplier: roundSourceQualityMultiplier(scoreMultiplier),
+    reasons,
+  };
 }
 
 export function scoreToRatingLabel(score: number): RatingLabel {
