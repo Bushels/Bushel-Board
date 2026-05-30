@@ -667,8 +667,6 @@ describe("thesis board packet normalization", () => {
       "Corn",
       "Soybeans",
       "Wheat",
-      "Spring Wheat",
-      "Winter Wheat",
       "Durum",
       "Canola",
       "Barley",
@@ -842,29 +840,16 @@ describe("thesis board packet normalization", () => {
     ).toBe("fresh");
   });
 
-  it("builds comparison rows in exact V1 lane order with wheat-class placeholders", () => {
+  it("builds comparison rows in exact V1 lane order without unmapped wheat-class placeholders", () => {
     const rows = buildMajorThesisComparisonRows([], []);
 
     expect(rows.map((row) => row.grain)).toEqual(THESIS_BOARD_V1_GRAIN_LANES);
-    const springWheatRow = rows.find((row) => row.grain === "Spring Wheat");
-    const winterWheatRow = rows.find((row) => row.grain === "Winter Wheat");
-
-    expect(springWheatRow?.status).toBe("mapping_needed");
-    expect(springWheatRow?.statusLabel).toBe("Mapping needed");
-    expect(springWheatRow?.readinessLabel).toBe("Mapping pending");
-    expect(springWheatRow?.readinessDetail).toContain("class-safe Spring Wheat source mapping");
-    expect(springWheatRow?.explanation).toContain("class-specific source mapping is still pending");
-    expect(springWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
-    expect(winterWheatRow?.status).toBe("mapping_needed");
-    expect(winterWheatRow?.statusLabel).toBe("Mapping needed");
-    expect(winterWheatRow?.readinessLabel).toBe("Mapping pending");
-    expect(winterWheatRow?.readinessDetail).toContain("class-safe Winter Wheat source mapping");
-    expect(winterWheatRow?.explanation).toContain("class-specific source mapping is still pending");
-    expect(winterWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
+    expect(rows.find((row) => row.grain === "Spring Wheat")).toBeUndefined();
+    expect(rows.find((row) => row.grain === "Winter Wheat")).toBeUndefined();
     expect(rows.find((row) => row.grain === "Amber Durum")).toBeUndefined();
   });
 
-  it("does not alias generic Wheat packets into Spring or Winter Wheat rows", () => {
+  it("does not create Spring or Winter Wheat rows from generic Wheat packets", () => {
     const canadaWheat = buildCanadaThesisBoardItem(wheat, {
       lane: "canada",
       grain: "Wheat",
@@ -898,14 +883,8 @@ describe("thesis board packet normalization", () => {
 
     expect(genericWheatRow?.canada).toBe(canadaWheat);
     expect(genericWheatRow?.us).toBe(usWheatItem);
-    expect(springWheatRow?.canada).toBeNull();
-    expect(springWheatRow?.us).toBeNull();
-    expect(springWheatRow?.strongestBullPoints).toEqual([]);
-    expect(springWheatRow?.strongestBearPoints).toEqual([]);
-    expect(winterWheatRow?.canada).toBeNull();
-    expect(winterWheatRow?.us).toBeNull();
-    expect(winterWheatRow?.strongestBullPoints).toEqual([]);
-    expect(winterWheatRow?.strongestBearPoints).toEqual([]);
+    expect(springWheatRow).toBeUndefined();
+    expect(winterWheatRow).toBeUndefined();
   });
 
   it("labels Canadian Amber Durum source data as the Durum product lane", () => {
@@ -929,7 +908,7 @@ describe("thesis board packet normalization", () => {
     expect(durumRow?.explanation).toContain("no matching US overview market");
   });
 
-  it("builds a farmer-facing summary that makes source gaps feel intentional", () => {
+  it("builds a farmer-facing summary that keeps parked wheat classes off the live board", () => {
     const canadaItems = [
       "Corn",
       "Soybeans",
@@ -981,10 +960,10 @@ describe("thesis board packet normalization", () => {
     const summary = buildFarmerReadSummary(rows);
 
     expect(summary.coverageLine).toBe(
-      "7 of 9 V1 rows are source-backed or intentionally Canada-first; 2 wheat-class rows are parked until class-safe mapping exists.",
+      "7 of 7 V1 rows are source-backed or intentionally Canada-first; parked wheat-class rows are excluded until class-safe mapping exists.",
     );
     expect(summary.mappingLine).toBe(
-      "Spring Wheat and Winter Wheat stay visible but unscored: generic Wheat is not used as a proxy.",
+      "No wheat-class proxy rows are being scored without direct source mapping.",
     );
     expect(summary.actionLine).toBe(
       "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",

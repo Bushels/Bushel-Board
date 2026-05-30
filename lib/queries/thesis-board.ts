@@ -164,8 +164,6 @@ export const THESIS_BOARD_V1_GRAIN_LANES = [
   "Corn",
   "Soybeans",
   "Wheat",
-  "Spring Wheat",
-  "Winter Wheat",
   "Durum",
   "Canola",
   "Barley",
@@ -183,8 +181,6 @@ const THESIS_BOARD_V1_LANE_SOURCE_MAP: readonly ThesisBoardV1LaneSource[] = [
   { lane: "Corn", canadaSourceName: "Corn", usSourceName: "Corn" },
   { lane: "Soybeans", canadaSourceName: "Soybeans", usSourceName: "Soybeans" },
   { lane: "Wheat", canadaSourceName: "Wheat", usSourceName: "Wheat" },
-  { lane: "Spring Wheat", placeholderReason: "source mapping needed" },
-  { lane: "Winter Wheat", placeholderReason: "source mapping needed" },
   { lane: "Durum", canadaSourceName: "Amber Durum" },
   { lane: "Canola", canadaSourceName: "Canola" },
   { lane: "Barley", canadaSourceName: "Barley", usSourceName: "Barley" },
@@ -1568,8 +1564,13 @@ export function buildFarmerReadSummary(rows: ThesisComparisonRow[]): ThesisFarme
   const mappingCount = mappingRows.length;
   const mappingNoun = mappingCount === 1 ? "row is" : "rows are";
 
+  const coverageLine =
+    mappingCount > 0
+      ? `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`
+      : `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; parked wheat-class rows are excluded until class-safe mapping exists.`;
+
   return {
-    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`,
+    coverageLine,
     mappingLine:
       wheatClassNames.length > 0
         ? `${wheatClassNames.join(" and ")} stay visible but unscored: generic Wheat is not used as a proxy.`
