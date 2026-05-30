@@ -2,7 +2,7 @@
 
 ## Resume instruction for new session
 
-Open the repo and continue after the transparent thesis rating V1 verification pass. The rating-model/audit/LLM guardrail slice is complete through Task 9; next move is production-preview review/promotion planning or the next source-quality work package, not more rating-model scope creep.
+Open the repo after the transparent thesis rating V1 production promotion. The rating-model/audit/LLM guardrail slice is live on `master` and verified on the production Vercel alias; next move is the next source-quality work package or class-safe Spring/Winter Wheat mapping, not more rating-model scope creep.
 
 ```bash
 cd /mnt/c/Users/kyle/Agriculture/bushel-board-app
@@ -16,20 +16,24 @@ Important: there are unrelated local modifications in this working tree. Do not 
 ## Branch / repo
 
 - Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
-- Branch: `codex/data-layer-foundation-v1`
-- Remote pushed through Task 9 verification handover update.
+- Feature branch: `codex/data-layer-foundation-v1`
+- Production branch: `master`
+- Production promotion merge: `ee3b275 merge: promote thesis rating slice`
+- Vercel production deployment: `https://bushel-board-8pbgo0jes-kyles-projects-d3ab6818.vercel.app`
+- Production alias: `https://bushel-board-app.vercel.app`
 - Push command that works from WSL:
 
 ```bash
 git -c credential.helper='/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe' push
 ```
 
-## Current git state after Task 9
+## Current git state after production promotion
 
-Latest pushed commits:
+Latest pushed production commits:
 
 ```text
-latest docs commit docs: update Bushel Board handover after task 9
+ee3b275 merge: promote thesis rating slice
+7e431ec docs: update Bushel Board handover after task 9
 ab0a761 feat: add thesis scorecard LLM guardrails
 2037515 docs: update Bushel Board handover after task 7
 f252062 feat: add thesis scorecard audit mode
@@ -52,6 +56,38 @@ M lib/queries/thesis-board.ts
 ?? docs/plans/2026-05-27-x-signal-valuation-guardrail-framework.md
 ?? docs/plans/2026-05-28-transparent-thesis-rating-model-v1.md
 ?? docs/reference/thesis-rating-model-v1.md
+```
+
+
+Production promotion verification:
+
+```text
+master: ee3b275 merge: promote thesis rating slice
+Vercel deployment: https://bushel-board-8pbgo0jes-kyles-projects-d3ab6818.vercel.app
+Production alias: https://bushel-board-app.vercel.app
+Vercel target/status: production / Ready
+Deployed branch/commit from Vercel logs: master / ee3b275
+```
+
+Promotion checks run from clean worktree `/tmp/bushel-board-live-promote`:
+
+```bash
+npm ci
+npx vitest run 'app/(dashboard)/thesis/page.test.tsx' lib/__tests__/thesis-board.test.ts lib/__tests__/thesis-rating-model.test.ts lib/__tests__/thesis-rating-domain-mappers.test.ts lib/__tests__/kalshi-commodity-markets.test.ts lib/__tests__/thesis-scorecard-llm-guardrails.test.ts lib/__tests__/roundtable-prompt-pack.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --environment=node
+npm run build
+vercel inspect https://bushel-board-app.vercel.app
+vercel inspect https://bushel-board-8pbgo0jes-kyles-projects-d3ab6818.vercel.app --logs
+curl -I -L --max-time 30 'https://bushel-board-app.vercel.app/thesis?audit=1'
+```
+
+Results:
+
+```text
+Focused production-merge suite: 7 files / 88 tests passed
+Production build: passed locally
+Vercel build: passed and alias now resolves to latest production deployment
+/thesis: HTTP 200, no Scorecard audit panels, 9 V1 rows visible, Spring/Winter Wheat explicit mapping placeholders, generic Wheat not used as proxy
+/thesis?audit=1: HTTP 200, Scorecard audit panels visible, missing-source and blocked-claim audit sections visible
 ```
 
 
