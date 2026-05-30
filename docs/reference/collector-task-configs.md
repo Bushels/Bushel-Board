@@ -12,37 +12,62 @@
 | Task ID | Cron (local / MT) | Day | Time (MT) | Time (ET, DST) | Source | Target Table |
 |---------|-------------------|-----|-----------|----------------|--------|-------------|
 | `collect-crop-progress` | `32 16 * * 1` | Mon | 4:32 PM | 6:32 PM | USDA NASS | `usda_crop_progress` |
+| `collect-canada-crop-progress-mb` | `45 12 * * 2` / `30 10 * * 3` | Tue + Wed retry | 12:45 PM Tue / 10:30 AM Wed | 2:45 PM Tue / 12:30 PM Wed | Manitoba Agriculture Crop Report | `canada_crop_progress` |
 | `collect-grain-monitor` | `17 14 * * 3` | Wed | 2:17 PM | 4:17 PM | grainmonitor.ca (weekly PDF) | `grain_monitor_snapshots` |
+| `collect-canada-crop-progress-sk` | `15 11 * * 4` | Thu | 11:15 AM | 1:15 PM | Saskatchewan Crop Report / Publications Saskatchewan | `canada_crop_progress` |
 | `collect-export-sales` | `3 9 * * 4` | Thu | 9:03 AM | 11:03 AM | USDA FAS | `usda_export_sales` |
-| `collect-cgc` | Codex weekly automation | Thu | 1:35 PM | 3:35 PM | grainscanada.gc.ca (Codex CSV fetch -> `import-cgc-weekly`) | `cgc_observations` + `score_trajectory` |
+| `collect-cgc` | `35 13 * * 4` | Thu | 1:35 PM | 3:35 PM | grainscanada.gc.ca (CSV fetch -> `import-cgc-weekly`) | `cgc_observations` + `score_trajectory` |
 | `collect-producer-cars` | `0 16 * * 4` | Thu | 4:00 PM | 6:00 PM | grainscanada.gc.ca Producer Car CSV | `producer_car_allocations` |
+| `collect-canada-crop-progress-ab` | `45 13 * * 5` / `30 15 * * 5` | Fri | 1:45 PM + 3:30 PM retry | 3:45 PM + 5:30 PM retry | Alberta Crop Reports / Open Alberta | `canada_crop_progress` |
 | `collect-cftc-cot` | `0 14 * * 5` | Fri | 2:00 PM | 4:00 PM | cftc.gov | `cftc_cot_positions` |
-| `collect-wasde` | `33 12 10-14 * 5` | Fri (10th–14th) | 12:33 PM | 2:33 PM | usda.gov | `usda_wasde_raw` / `usda_wasde_mapped` |
+| `collect-wasde` | `33 12 10-14 * *` | Monthly 10th–14th window | 12:33 PM | 2:33 PM | usda.gov | `usda_wasde_raw` / `usda_wasde_mapped` |
 | `collect-wasde-archive` | `0 13 13 * *` (UTC: `0 19 13 * *`) | 13th of month | 1:00 PM | 3:00 PM | esmis.nal.usda.gov (.xls archive) | `usda_wasde_raw` (revision history) |
+| `source-freshness-watchdog-tue` | `20 13 * * 2` | Tue | 1:20 PM | 3:20 PM | Hermes read-only watchdog | `source_runs` / `thesis_packet_cache` checks |
+| `source-freshness-watchdog-mon-wed-fri` | `45 16 * * 1,3-5` | Mon/Wed/Thu/Fri | 4:45 PM | 6:45 PM | Hermes read-only watchdog | `source_runs` / `thesis_packet_cache` checks |
 
 ## Weekly Timeline (MT local, ET parenthesised)
 
 ```
 MON  4:32 PM MT (6:32 PM ET) — USDA Crop Progress (Apr-Nov only)
+TUE 12:45 PM MT (2:45 PM ET) — Manitoba Crop Report normal-week check
+WED 10:30 AM MT (12:30 PM ET) — Manitoba Crop Report holiday/late-week retry
 WED  2:17 PM MT (4:17 PM ET) — Government Grain Monitor
 THU  9:03 AM MT (11:03 AM ET) — USDA Export Sales
-THU  1:35 PM MT (3:35 PM ET) — CGC Weekly Grain Stats (Codex CSV fetch → import-cgc-weekly EF)
+THU 11:15 AM MT (1:15 PM ET) — Saskatchewan Crop Report / Seeding Progress Table
+THU  1:35 PM MT (3:35 PM ET) — CGC Weekly Grain Stats (CSV fetch → import-cgc-weekly EF)
 THU  4:00 PM MT (6:00 PM ET) — CGC Producer Cars (direct CSV → producer_car_allocations)
-FRI 12:33 PM MT (2:33 PM ET)  — USDA WASDE PSD API (monthly only, 10th-14th)
-13th 1:00 PM MT (3:00 PM ET)  — USDA WASDE archive .xls (monthly, day after typical PSD release)
+FRI  1:45 PM MT (3:45 PM ET) — Alberta Crop Report after official ~1:30 PM release target
 FRI  2:00 PM MT (4:00 PM ET)  — CFTC COT (triggers existing Edge Function)
+FRI  3:30 PM MT (5:30 PM ET) — Alberta retry / full-Prairie crop-progress checkpoint
+10th-14th 12:33 PM MT (2:33 PM ET) — USDA WASDE PSD API (monthly release window)
+13th 1:00 PM MT (3:00 PM ET)  — USDA WASDE archive .xls (monthly, day after typical PSD release)
+TUE  1:20 PM MT (3:20 PM ET) — source-freshness watchdog after Manitoba collector
+MON/WED/THU/FRI 4:45 PM MT (6:45 PM ET) — source-freshness watchdog after daily mechanical collectors
 FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected data)
 ```
 
 ### CGC Timing Rationale
 
-CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now runs as Codex automation `cgc-weekly-grain-stats-import` at 1:35 PM MT. It fetches the current CGC page/CSV from the local Codex runtime, forwards the raw CSV to `import-cgc-weekly` with `csv_data`, verifies `cgc_observations`, and writes `collector_cgc` heartbeats. If the live CSV is not ahead of Supabase, the script reports `ALREADY_CURRENT` and does not retry in the same run.
+CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now runs as Hermes script-only cron `bushel-collect-cgc` at 1:35 PM MT. It fetches the current CGC page/CSV from the local runtime, forwards the raw CSV to `import-cgc-weekly` with `csv_data`, verifies `cgc_observations`, and writes `collector_cgc` heartbeats. If the live CSV is not ahead of Supabase, the script reports `ALREADY_CURRENT` and does not retry in the same run.
 
 2026-05-02 correction: `/api/pipeline/run` is permanently tombstoned with `grok_workflow_deprecated`; it is not a CGC ingress and should not be refactored back into service. `/api/cron/import-cgc` is also not the active routine path. Use `npm run collect:cgc` so the CGC importer is followed by the thesis packet cache refresh.
 
 ### Producer Cars Timing Rationale
 
 `scripts/import-producer-cars.mjs` builds the source URL from the current long-form crop year (`YYYY-YYYY`) and fetches `https://www.grainscanada.gc.ca/en/grain-research/statistics/producer-car/{cropYear}/pca-hwp-en.csv`. That CGC source follows the same weekly Thursday publishing cadence as the main grain statistics release. The `collect-producer-cars` slot sits at 4:00 PM MT — 27 minutes after `collect-cgc` — so the main CGC import lands first and Producer Cars refreshes before the Friday CAD swarm.
+
+### Canada Crop Progress Timing Rationale
+
+Canada crop progress is not a single weekly release. The Prairie sources are province-staggered: Manitoba normally posts Tuesday reports with Wednesday holiday/late-week exceptions, Saskatchewan publishes the Tuesday-to-Monday report/table on Thursday, and Alberta's official 2026 crop reporting calendar says Tuesday survey conditions are released publicly Friday by approximately 1:30 PM MT. See `docs/reference/canada-crop-progress-release-schedule.md` for source URLs and verification notes.
+
+The Friday Alberta checkpoint is the first safe point to treat the Prairie crop-progress package as complete. Earlier Manitoba/Saskatchewan imports may refresh partial source rows, but thesis automation should label the week partial until Alberta lands or the Friday retry explicitly records Alberta stale/missing. Do not let a Tuesday or Thursday Canada crop-progress run write a full-week thesis interpretation.
+
+Use these scheduler commands:
+
+- Tuesday 12:45 PM MT and Wednesday 10:30 AM MT retry: `npm run collect:canada-crop-progress:mb` (`partial_mb_only`).
+- Thursday 11:15 AM MT: `npm run collect:canada-crop-progress:mb-sk` (`partial_mb_sk`; re-collects Manitoba for a same-run MB+SK metadata bundle).
+- Friday 1:45 PM MT and 3:30 PM MT retry after verifying Alberta metadata has advanced: `npm run collect:canada-crop-progress:all` (`complete_mb_sk_ab`).
+- Friday final stale/missing fallback only after Alberta has not advanced by the retry checkpoint: `npm run collect:canada-crop-progress:missing-ab` (`complete_with_missing_province`; re-collects MB+SK and explicitly records AB missing).
 
 ## Design Notes
 
@@ -55,6 +80,7 @@ CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now ru
 - Scheduled thesis-relevant collectors should use the `npm run collect:*` wrapper commands. The wrapper runs the mechanical importer first, then force-refreshes the thesis cache only after success. If the refresh fails, the wrapper exits non-zero so stale thesis cache is visible; collectors must remain idempotent because an external runner may retry the full command. For dry runs, keep using importer-specific dry-run commands or call the wrapper directly with the child `--dry-run` flag; npm argument forwarding was not reliable in the Windows runner.
 - 2026-05-17 patch: collector-triggered thesis-cache refresh now passes `--force`, so a stale cached `source_run_watermark` cannot cause a successful source import to leave `thesis_packet_cache` unchanged. Direct `npm run refresh-thesis-cache` still keeps the normal skip behavior unless `-- --force` is provided.
 - If a collector fails, the Friday swarm runs with stale data and flags it
+- Hermes source-freshness watchdogs run after the daily mechanical collector windows. They are read-only, no-agent script jobs using `npm run check:source-freshness`; success is silent, and alerts cover missing same-day due runs, failed/latest non-success source runs, thesis-cache lag/count drift, and Friday Prairie partial-week status. They do not write source data, mark Alberta missing, or run reasoning.
 
 ## Two-Phase Collector Architecture
 
@@ -90,6 +116,9 @@ Full Opus prompt + decision framework: `docs/reference/collector-soft-update-pro
 | Collector | Phase 1 Script / Endpoint | Phase 2 Soft Review | Notes |
 |---|---|---|---|
 | `collect-crop-progress` | `npm run collect:crop-progress` -> `scripts/import-usda-crop-progress.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_crop_progress` | USDA NASS QuickStats API |
+| `collect-canada-crop-progress-mb` | `npm run collect:canada-crop-progress:mb` -> `scripts/import-canada-crop-progress.py --province MB` -> `npm run refresh-thesis-cache` | Not scheduled for v1 soft review | Manitoba-only partial package; records `prairie_week_status=partial_mb_only`. |
+| `collect-canada-crop-progress-sk` | `npm run collect:canada-crop-progress:mb-sk` -> `scripts/import-canada-crop-progress.py --province MB --province SK` -> `npm run refresh-thesis-cache` | Not scheduled for v1 soft review | Thursday MB+SK bundle; records `prairie_week_status=partial_mb_sk` and remains partial. |
+| `collect-canada-crop-progress-ab` | `npm run collect:canada-crop-progress:all` -> `scripts/import-canada-crop-progress.py --province all` -> `npm run refresh-thesis-cache` | Not scheduled for v1 soft review | Friday full Prairie checkpoint after Alberta metadata advances; fallback is `npm run collect:canada-crop-progress:missing-ab` only after the Alberta retry window fails. |
 | `collect-grain-monitor` | `npm run collect:grain-monitor` -> `scripts/import-grain-monitor-weekly.ts` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side cad --scan-type opus_review_grain_monitor` | **Weekly Quorum PDF, deterministic parse.** `scripts/import-grain-monitor.mjs` is monthly-Excel fallback / backfill only - never schedule it. |
 | `collect-export-sales` | `npm run collect:export-sales` -> `scripts/import-usda-export-sales.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_export_sales` | USDA FAS ESR API |
 | `collect-cgc` | `npm run collect:cgc` -> `scripts/import-cgc-weekly-codex.mjs` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side cad --scan-type opus_review_cgc` | Does not call `/api/pipeline/run` or `/api/cron/import-cgc`; `/api/pipeline/run` is now a Grok-workflow tombstone. Dry-run command: `npm run import-cgc:dry`. |
@@ -112,6 +141,7 @@ All trajectory-enabled collectors share a single mechanical writer: `scripts/wri
 |-------------|---------------|---------------|
 | CGC | grain_week (Aug 1 = week 1) | ~1 day (Thursday release) |
 | Grain Monitor | shipping weeks | 1-2 weeks behind CGC grain_week |
+| Canada crop progress | province report_date, staggered Tue/Thu/Fri release | Partial until Alberta Friday checkpoint or explicit stale/missing retry |
 | USDA weekly | week_ending date | Aligns to US marketing year |
 | CFTC COT | Tuesday report_date, released Friday | 3 days inherent lag |
 | USDA WASDE | monthly report_date | Released ~10th-12th of month |
@@ -122,6 +152,8 @@ All trajectory-enabled collectors share a single mechanical writer: `scripts/wri
 collect-crop-progress  → usda_crop_progress     → macro-scout reads
                       ↘ us_score_trajectory    → us-desk-weekly reads (mech + opus_review ticks)
                       ↘ thesis_packet_cache    → /thesis cached Bull/Bear board
+collect-canada-crop-progress-* → canada_crop_progress → supply/macro scouts read with prairie_week_status guardrail
+                      ↘ thesis_packet_cache    → /thesis cached Bull/Bear board; complete only after Friday all-province or explicit missing fallback
 collect-grain-monitor  → grain_monitor_snapshots → logistics-scout reads
                       ↘ score_trajectory       → grain-desk-weekly reads (mech tick; opus_review blocked)
                       ↘ thesis_packet_cache    → /thesis cached Bull/Bear board

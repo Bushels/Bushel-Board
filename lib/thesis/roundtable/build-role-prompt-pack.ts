@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 
 import { stableStringify } from "../../forecast-experiments/snapshot";
 import { buildVikingPipelineContext } from "../../knowledge/viking-retrieval";
-
+import type { ThesisRatingScorecard } from "../rating-model";
+import {
+  buildScorecardLlmPayload,
+  SCORECARD_LLM_DATA_BOUNDARY_INSTRUCTION,
+  SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS,
+  type ScorecardLlmPayload,
+} from "../scorecard-llm-guardrails";
 import type { RoundtableRole } from "./types";
 
 export const ROUNDTABLE_DEFAULT_ROLES: RoundtableRole[] = ["bull", "bear", "risk", "moderator"];
@@ -15,6 +21,7 @@ export interface RoundtablePromptPackInput {
   crop_year: string;
   grain_week: number;
   evidence_summary: string[];
+  rating_scorecard: ThesisRatingScorecard;
 }
 
 export interface RoundtableRolePrompt {
@@ -30,16 +37,23 @@ export interface RoundtableRolePromptPack {
   source_cutoff_at: string;
   pack_hash: string;
   viking: ReturnType<typeof buildVikingPipelineContext>;
+  scorecard_guardrails: ScorecardLlmPayload;
   roles: RoundtableRolePrompt[];
 }
 
 export function buildRoundtableRolePromptPack(input: RoundtablePromptPackInput): RoundtableRolePromptPack {
   const viking = buildVikingPipelineContext(input.market_key);
+  const scorecardGuardrails = buildScorecardLlmPayload(input.rating_scorecard);
   const roles = ROUNDTABLE_DEFAULT_ROLES.map((role) => ({
     role,
     artifact_hash: input.artifact_hash,
     source_cutoff_at: input.source_cutoff_at,
-    prompt_text: buildRolePromptText({ ...input, role, viking_context: viking.contextText }),
+    prompt_text: buildRolePromptText({
+      ...input,
+      role,
+      viking_context: viking.contextText,
+      scorecard_guardrails: scorecardGuardrails,
+    }),
   }));
 
   const packWithoutHash = {
@@ -47,6 +61,7 @@ export function buildRoundtableRolePromptPack(input: RoundtablePromptPackInput):
     artifact_hash: input.artifact_hash,
     source_cutoff_at: input.source_cutoff_at,
     viking,
+    scorecard_guardrails: scorecardGuardrails,
     roles,
   };
 
@@ -56,7 +71,13 @@ export function buildRoundtableRolePromptPack(input: RoundtablePromptPackInput):
   };
 }
 
-function buildRolePromptText(input: RoundtablePromptPackInput & { role: RoundtableRole; viking_context: string }): string {
+function buildRolePromptText(
+  input: RoundtablePromptPackInput & {
+    role: RoundtableRole;
+    viking_context: string;
+    scorecard_guardrails: ScorecardLlmPayload;
+  },
+): string {
   return [
     "You are a structured market thesis roundtable role.",
     `Role: ${input.role}`,
@@ -66,11 +87,18 @@ function buildRolePromptText(input: RoundtablePromptPackInput & { role: Roundtab
     `Grain week: ${input.grain_week}`,
     `Artifact hash: ${input.artifact_hash}`,
     `Source cutoff: ${input.source_cutoff_at}`,
+    SCORECARD_LLM_DATA_BOUNDARY_INSTRUCTION,
     "Evidence summary:",
     ...input.evidence_summary.map((line) => `- ${line}`),
     "",
     "Viking context:",
     input.viking_context,
+    "",
+    "Deterministic scorecard guardrails:",
+    SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS,
+    "",
+    "Scorecard LLM payload JSON:",
+    stableStringify(input.scorecard_guardrails),
     "",
     "Output strictly as JSON matching roundtable-role-output-v1.",
   ].join("\n");

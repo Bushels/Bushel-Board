@@ -1,5 +1,7 @@
 # Bushel Board handoff — 2026-05-25
 
+> Superseded by `docs/plans/2026-05-26-bushel-board-handoff.md` for new sessions. Keep this file as history for the Export Sales commodity-code repair and Spring/Winter Wheat mapping decision.
+
 ## Fast resume
 
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`

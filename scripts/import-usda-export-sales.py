@@ -210,6 +210,75 @@ def projection_candidate(
     return candidates[0][1]
 
 
+def projection_admission_detail(
+    record: dict[str, Any],
+    wasde_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build a source-run diagnostic for one ESR/WASDE projection comparison.
+
+    This intentionally records enough row-level context to explain why a market
+    was admitted or null-guarded without forcing app/UI code to recompute pace.
+    """
+    candidate = projection_candidate(record, wasde_rows)
+    detail: dict[str, Any] = {
+        "commodity_code": record.get("commodity_code"),
+        "commodity": record.get("commodity"),
+        "fas_market_year": record.get("market_year"),
+        "week_ending": record.get("week_ending"),
+        "total_commitments_mt": record.get("total_commitments_mt"),
+        "wasde_market_name": WASDE_MARKET_BY_COMMODITY.get(str(record.get("commodity"))),
+        "wasde_market_year": wasde_market_year_from_export_sales(str(record.get("market_year") or "")),
+        "wasde_report_month": None,
+        "wasde_exports_kt": None,
+        "usda_projection_mt": None,
+        "implied_pace_pct": None,
+        "status": "no_projection_candidate",
+        "reason": "No aligned WASDE export projection row at or before the ESR week ending date.",
+    }
+    if candidate is None:
+        return detail
+
+    exports_kt = number(candidate.get("exports_kt"))
+    commitments_mt = number(record.get("total_commitments_mt"))
+    projection_mt = exports_kt * 1000.0 if exports_kt > 0 else 0.0
+    pace_pct = commitments_mt / projection_mt * 100.0 if projection_mt > 0 else None
+    detail.update(
+        {
+            "wasde_report_month": candidate.get("report_month"),
+            "wasde_exports_kt": candidate.get("exports_kt"),
+            "usda_projection_mt": round(projection_mt, 3) if projection_mt > 0 else None,
+            "implied_pace_pct": round(pace_pct, 3) if pace_pct is not None else None,
+        }
+    )
+    if exports_kt <= 0 or commitments_mt <= 0:
+        detail.update(
+            {
+                "status": "invalid_values",
+                "reason": "WASDE exports or ESR commitments were zero/missing, so projection pace was not admitted.",
+            }
+        )
+        return detail
+    assert pace_pct is not None
+    if not (MIN_REASONABLE_EXPORT_PACE_PCT <= pace_pct <= MAX_REASONABLE_EXPORT_PACE_PCT):
+        detail.update(
+            {
+                "status": "skipped_guardrail",
+                "reason": (
+                    f"Implied pace {pace_pct:.1f}% is outside the "
+                    f"{MIN_REASONABLE_EXPORT_PACE_PCT:.0f}-{MAX_REASONABLE_EXPORT_PACE_PCT:.0f}% guardrail."
+                ),
+            }
+        )
+        return detail
+    detail.update(
+        {
+            "status": "admitted",
+            "reason": "Commodity, market year, report month, unit conversion, and pace guardrail passed.",
+        }
+    )
+    return detail
+
+
 def apply_wasde_export_projection(
     record: dict[str, Any],
     wasde_rows: list[dict[str, Any]],
@@ -220,28 +289,19 @@ def apply_wasde_export_projection(
     non-fatal: failed admission should leave projection fields null rather than
     writing misleading pace signals.
     """
-    candidate = projection_candidate(record, wasde_rows)
-    if candidate is None:
-        return False, None
-
-    exports_kt = number(candidate.get("exports_kt"))
-    commitments_mt = number(record.get("total_commitments_mt"))
-    if exports_kt <= 0 or commitments_mt <= 0:
-        return False, None
-
-    projection_mt = exports_kt * 1000.0
-    pace_pct = commitments_mt / projection_mt * 100.0
-    if not (MIN_REASONABLE_EXPORT_PACE_PCT <= pace_pct <= MAX_REASONABLE_EXPORT_PACE_PCT):
+    detail = projection_admission_detail(record, wasde_rows)
+    if detail["status"] == "admitted":
+        record["usda_projection_mt"] = detail["usda_projection_mt"]
+        record["export_pace_pct"] = detail["implied_pace_pct"]
+        return True, None
+    if detail["status"] == "skipped_guardrail":
         return (
             False,
             f"{record.get('commodity')} {record.get('market_year')} {record.get('week_ending')}: "
-            f"skipped WASDE export projection admission; implied pace {pace_pct:.1f}% "
+            f"skipped WASDE export projection admission; implied pace {detail['implied_pace_pct']:.1f}% "
             f"outside {MIN_REASONABLE_EXPORT_PACE_PCT:.0f}-{MAX_REASONABLE_EXPORT_PACE_PCT:.0f}% guardrail",
         )
-
-    record["usda_projection_mt"] = round(projection_mt, 3)
-    record["export_pace_pct"] = round(pace_pct, 3)
-    return True, None
+    return False, None
 
 
 def choose_commodities(filters: list[str] | None) -> list[dict[str, Any]]:
@@ -544,10 +604,21 @@ def enrich_records_with_wasde_projections(
     admitted = 0
     skipped_by_commodity: dict[str, int] = defaultdict(int)
     warnings: list[str] = []
+    latest_details_by_commodity: dict[str, dict[str, Any]] = {}
 
     for record in records:
         applied, warning = apply_wasde_export_projection(record, wasde_rows)
+        detail = projection_admission_detail(record, wasde_rows)
         commodity = str(record.get("commodity") or "unknown")
+        if commodity in WASDE_MARKET_BY_COMMODITY:
+            previous = latest_details_by_commodity.get(commodity)
+            if previous is None or str(detail.get("week_ending") or "") > str(previous.get("week_ending") or ""):
+                # If the row was admitted, reflect the exact values written.
+                if applied:
+                    detail["usda_projection_mt"] = record.get("usda_projection_mt")
+                    detail["implied_pace_pct"] = record.get("export_pace_pct")
+                    detail["status"] = "admitted"
+                latest_details_by_commodity[commodity] = detail
         if applied:
             admitted += 1
             continue
@@ -561,6 +632,10 @@ def enrich_records_with_wasde_projections(
         "admitted_rows": admitted,
         "skipped_by_commodity": dict(sorted(skipped_by_commodity.items())),
         "warnings": warnings,
+        "latest_by_commodity": {
+            commodity: latest_details_by_commodity[commodity]
+            for commodity in sorted(latest_details_by_commodity)
+        },
     }
 
 
@@ -767,7 +842,12 @@ def main() -> None:
         if commodity_had_data:
             commodities_imported += 1
 
-    projection_admission = {"admitted_rows": 0, "skipped_by_commodity": {}, "warnings": []}
+    projection_admission = {
+        "admitted_rows": 0,
+        "skipped_by_commodity": {},
+        "warnings": [],
+        "latest_by_commodity": {},
+    }
     if all_rows:
         try:
             wasde_rows = fetch_wasde_export_projection_rows(

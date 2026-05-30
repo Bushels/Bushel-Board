@@ -8,6 +8,7 @@ import {
   fetchKalshiCommoditySnapshot,
   normalizeKalshiCommodityMarket,
 } from "@/lib/kalshi/commodity-markets";
+import { buildRatingScorecard } from "@/lib/thesis/rating-model";
 import type { ThesisBoardItem, ThesisComparisonRow, ThesisDriver } from "@/lib/queries/thesis-board";
 
 const capturedAt = "2026-05-10T20:00:00.000Z";
@@ -40,6 +41,13 @@ function thesisItem(name: string, stanceScore: number): ThesisBoardItem {
     staleSourceCount: 0,
     optionalSourceCount: 0,
     vikingL2Chunks: [],
+    ratingScorecard: buildRatingScorecard({
+      grain: name,
+      lane: "us",
+      period_anchor: "2026",
+      source_watermark: capturedAt,
+      domains: [],
+    }),
   };
 }
 
@@ -50,6 +58,8 @@ function comparisonRow(grain: string, item: ThesisBoardItem): ThesisComparisonRo
     us: item,
     status: "mixed",
     statusLabel: "Country split",
+    readinessLabel: "Source-backed",
+    readinessDetail: "Test row fixture",
     explanation: "test",
     strongestBullPoints: [],
     strongestBearPoints: [],
@@ -265,6 +275,8 @@ describe("Kalshi commodity calibration contract", () => {
           us: null,
           status: "canada_only",
           statusLabel: "Canada only",
+          readinessLabel: "Canada-first",
+          readinessDetail: "Test Canada-only row",
           explanation: "Canada-only row",
           strongestBullPoints: [],
           strongestBearPoints: [],
