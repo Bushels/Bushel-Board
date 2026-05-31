@@ -204,13 +204,6 @@ export async function triggerElevatorPricePosted(
 
   const supabase = createClient(ctx.supabaseUrl, ctx.serviceRoleKey);
 
-  // Find farmers in target FSAs
-  const likePatterns = targetFsaCodes.map((fsa) => `${fsa}%`);
-  let farmersQuery = supabase
-    .from("profiles")
-    .select("id, postal_code")
-    .eq("role", "farmer");
-
   // Build OR filter for FSA codes
   const fsaFilter = targetFsaCodes.map((fsa) => `postal_code.like.${fsa}%`).join(",");
   const { data: nearbyFarmers } = await supabase

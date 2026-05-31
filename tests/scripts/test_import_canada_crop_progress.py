@@ -61,6 +61,44 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertIn("new-table", info["table_url"])
         self.assertEqual(info["discovered_labels"], ["download crop report", "seeding progress table"])
 
+    def test_saskatchewan_parser_uses_current_report_wording_and_dynamic_period_excerpts(self):
+        table_text = """
+        Provincial        South East        South West        East Central        West Central        North East        North West
+        Spring Wheat      65%               69%               30%                 68%                 29%               79%               52%
+        """
+        report_text = """
+        For the Period May 19 to May 25, 2026
+        Report number 4, May 28, 2026
+        Seeding progress reached 52 per cent across Saskatchewan, behind the five-year average of 74 per cent.
+        One year ago seeding now 88 per cent complete.
+        """
+
+        def fake_pdf_to_text(url, *, layout):
+            if url == "https://example.test/table.pdf":
+                return table_text, url
+            return report_text, url
+
+        with (
+            patch.object(
+                canada,
+                "latest_saskatchewan_links",
+                return_value=("https://example.test/report.pdf", "https://example.test/table.pdf"),
+            ),
+            patch.object(canada, "pdf_to_text", side_effect=fake_pdf_to_text),
+        ):
+            rows, document_url = canada.parse_saskatchewan()
+
+        self.assertEqual(document_url, "https://example.test/table.pdf")
+        all_crops = next(row for row in rows if row["crop_name"] == "All Crops")
+        self.assertEqual(all_crops["value_pct"], 52.0)
+        self.assertEqual(all_crops["five_year_avg_pct"], 74.0)
+        self.assertEqual(all_crops["previous_year_pct"], 88.0)
+        self.assertIn("period ending 2026-05-25", all_crops["source_excerpt"])
+        regional = next(row for row in rows if row["crop_name"] == "Spring Wheat")
+        self.assertEqual(regional["period_start"], "2026-05-19")
+        self.assertEqual(regional["period_end"], "2026-05-25")
+        self.assertIn("2026-05-19 to 2026-05-25", regional["source_excerpt"])
+
     def test_alberta_discovery_records_resource_metadata(self):
         payload = {
             "result": {
@@ -100,6 +138,26 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertEqual(info["resource_id"], "new")
         self.assertEqual(info["candidate_count"], 2)
         self.assertEqual(info["package_date_modified"], "2026-05-22T19:31:00")
+
+    def test_alberta_parser_skips_historical_date_rows_in_current_table(self):
+        pdf_text = """
+        Crop conditions as of May 26, 2026
+        ©2026 Government of Alberta | May 29, 2026
+        Table 1: Alberta Major Crop Seeding Progress
+        Spring Wheat, May 19     11%     12%     13%     14%     15%     16%
+        Spring Wheat, May 26     97.1%   95.4%   87.4%   71.8%   62.0%   86.2%
+        5-year All Crops         93%     91%     82%     70%     61%     84%
+        Source: AGI/AFSC Crop Reporting Survey
+        """
+
+        with patch.object(canada, "pdf_to_text", return_value=(pdf_text, "https://example.test/ab.pdf")):
+            rows, document_url = canada.parse_alberta("https://example.test/ab.pdf")
+
+        self.assertEqual(document_url, "https://example.test/ab.pdf")
+        spring_wheat_rows = [row for row in rows if row["crop_name"] == "Spring Wheat"]
+        self.assertEqual(len(spring_wheat_rows), 6)
+        self.assertEqual(spring_wheat_rows[0]["value_pct"], 97.1)
+        self.assertTrue(all(row["report_date"] == "2026-05-26" for row in spring_wheat_rows))
 
     def test_collect_records_discovery_evidence_per_province(self):
         fake_row = {
