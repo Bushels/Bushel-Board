@@ -15,7 +15,8 @@ Most dashboard numbers come from one of these root sources:
 5. `crop_plans` and `crop_plan_deliveries` for farmer-specific data.
 6. `grain_monitor_snapshots` and `producer_car_allocations` for logistics context.
 7. `usda_export_sales`, `usda_wasde_estimates`, `usda_crop_progress` for US market context.
-8. `cftc_cot_positions` for disaggregated fund/commercial positioning.
+8. `canada_crop_progress` for province-staggered Prairie seeding/progress/condition context where directly mapped.
+9. `cftc_cot_positions` for disaggregated fund/commercial positioning.
 
 The main pattern is:
 
@@ -35,6 +36,7 @@ flowchart TD
   S2["CGC producer cars"] --> I
   S3["Grain Monitor weekly PDF"] --> I
   S4["USDA crop progress / export sales / WASDE"] --> I
+  S4b["Canada provincial crop progress"] --> I
   S5["CFTC COT"] --> I
   S6["Futures prices"] --> I
 
@@ -345,6 +347,7 @@ flowchart LR
 | Grain COT card | `getCotPositioning()` | direct table read | `cftc_cot_positions` |
 | Grain processor inventory | `getProcessorInventory()` | `get_processor_inventory()` | `cgc_observations` |
 | Grain price sparkline | `getRecentPrices()` | direct table read | `grain_prices` |
+| Thesis Canada crop-progress drivers/freshness | `buildCanadaThesisBoardItem()` / `getThesisBoardData()` | `get_canada_thesis_packet()` + `v_source_freshness` | `canada_crop_progress` + `grain_market_mappings` |
 | Grain metric voting badges | `getMetricSentiment()` | `get_metric_sentiment()` | `metric_sentiment_votes` |
 | My Farm weekly summary | `getFarmSummary()` | direct table read | `farm_summaries` |
 | My Farm delivery pace | `getDeliveryAnalytics()` | `get_delivery_analytics()` | `crop_plans` |
