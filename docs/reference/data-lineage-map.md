@@ -419,7 +419,9 @@ The practical shortcut is:
 
 ## 8. Best Next Step
 
-If you want this to become easier to maintain, the clean next move is a live internal `/system-map` page that renders these diagrams and links each card to its query function and SQL object.
+If you want this to become easier to maintain, the clean next move after the V1 rating-model contract is a live internal `/system-map` page that renders these diagrams and links each card to its query function and SQL object.
+
+For thesis scoring specifically, use `docs/reference/thesis-rating-model-v1.md` as the next layer above this lineage map: lineage proves where facts came from; the rating model defines how admitted facts interact into transparent bull/bear domain scores.
 
 Why this is better than a static org chart:
 

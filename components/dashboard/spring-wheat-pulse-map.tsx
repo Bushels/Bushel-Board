@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BarChart3, ChevronDown, Search } from "lucide-react";
 import Map, { Layer, Marker, Source } from "react-map-gl/mapbox";
 import type { MapRef, MapEvent } from "react-map-gl/mapbox";
@@ -303,10 +303,9 @@ export function SpringWheatPulseMap({
       }),
     [regions],
   );
-
-  useEffect(() => {
-    setSelectedRegionId("");
-  }, [grainLabel]);
+  const activeSelectedRegionId = regions.some((region) => region.id === selectedRegionId)
+    ? selectedRegionId
+    : "";
 
   function clearHover() {
     setHovered(null);
@@ -384,7 +383,7 @@ export function SpringWheatPulseMap({
           <MapModeControl mode={mapMode} onChange={setMapMode} />
           <RegionFinder
             regions={sortedRegions}
-            selectedRegionId={selectedRegionId}
+            selectedRegionId={activeSelectedRegionId}
             onSelect={selectRegion}
           />
           <button

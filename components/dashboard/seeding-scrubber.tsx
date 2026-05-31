@@ -20,6 +20,7 @@ export function SeedingScrubber({ weeks, currentWeek, onChange }: Props) {
   const currentIndex = Math.max(0, weeks.indexOf(currentWeek));
 
   const [playing, setPlaying] = useState(false);
+  const isPlaying = playing && currentIndex < weeks.length - 1;
 
   const handleSliderChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,7 +31,7 @@ export function SeedingScrubber({ weeks, currentWeek, onChange }: Props) {
 
   // Replay interval — skipped entirely when reduced-motion is active
   useEffect(() => {
-    if (reducedMotion || !playing) return;
+    if (reducedMotion || !isPlaying) return;
 
     const id = setInterval(() => {
       const next = weeks.indexOf(currentWeek) + 1;
@@ -42,14 +43,7 @@ export function SeedingScrubber({ weeks, currentWeek, onChange }: Props) {
     }, 600);
 
     return () => clearInterval(id);
-  }, [playing, currentWeek, weeks, onChange, reducedMotion]);
-
-  // Stop replay if we've reached the end
-  useEffect(() => {
-    if (playing && currentIndex >= weeks.length - 1) {
-      setPlaying(false);
-    }
-  }, [currentIndex, playing, weeks.length]);
+  }, [isPlaying, currentWeek, weeks, onChange, reducedMotion]);
 
   const toggleReplay = () => {
     // If at the end, restart from the beginning
@@ -70,7 +64,7 @@ export function SeedingScrubber({ weeks, currentWeek, onChange }: Props) {
             onClick={toggleReplay}
             className="rounded-full border border-border/40 bg-card/80 px-3 py-1 text-xs font-medium hover:bg-card"
           >
-            {playing ? "Pause" : "Replay season"}
+            {isPlaying ? "Pause" : "Replay season"}
           </button>
         )}
       </div>

@@ -85,6 +85,21 @@ interface CountryProducerDeliveryViewRow {
   total_kt: number | string | null;
 }
 
+const OVERVIEW_V1_GRAIN_NAMES = [
+  "Corn",
+  "Soybeans",
+  "Wheat",
+  "Amber Durum",
+  "Canola",
+  "Barley",
+  "Oats",
+] as const;
+
+const OVERVIEW_V1_GRAIN_NAME_SET = new Set<string>(OVERVIEW_V1_GRAIN_NAMES);
+const OVERVIEW_V1_GRAINS = ALL_GRAINS.filter((grain) =>
+  OVERVIEW_V1_GRAIN_NAME_SET.has(grain.name)
+);
+
 // Grains in grain_prices that map to CBOT futures shown on the spot rail
 const SPOT_GRAINS: { grain: string; symbol: string; unit: string }[] = [
   { grain: "Corn", symbol: "ZC", unit: "/bu" },
@@ -160,7 +175,7 @@ export function buildGrainDeliveryBinRows(
       input.supplyRows.map((row) => [row.grain_slug, row])
     );
 
-    for (const grain of ALL_GRAINS) {
+    for (const grain of OVERVIEW_V1_GRAINS) {
       const benchmark = buildStorageBenchmark(
         input.cropYear,
         historicalCgcByGrain.get(grain.name),
@@ -174,7 +189,7 @@ export function buildGrainDeliveryBinRows(
     }
   }
 
-  return ALL_GRAINS.map((grain) => {
+  return OVERVIEW_V1_GRAINS.map((grain) => {
     const cgc = cgcByGrain.get(grain.name);
     const supply = supplyBySlug.get(grain.slug);
     const historicalBenchmarks = historicalBySlug.get(grain.slug) ?? [];
@@ -233,7 +248,7 @@ async function fetchCgcProducerDeliveries(
 
   const rows = (data ?? []) as CountryProducerDeliveryViewRow[];
 
-  return ALL_GRAINS.map((grain) => {
+  return OVERVIEW_V1_GRAINS.map((grain) => {
     const grainRows = rows.filter((row) => row.grain === grain.name);
     return {
       grain: grain.name,
@@ -250,7 +265,7 @@ async function fetchCgcProducerDeliveries(
 async function fetchHistoricalStorageInputs(
   grainWeek: number
 ): Promise<HistoricalGrainStorageInput[]> {
-  const grainSlugs = ALL_GRAINS.map((grain) => grain.slug);
+  const grainSlugs = OVERVIEW_V1_GRAINS.map((grain) => grain.slug);
   const cropYears = getPreviousCropYears(CURRENT_CROP_YEAR, 1);
 
   return Promise.all(
@@ -334,14 +349,16 @@ export async function fetchOverviewData(): Promise<OverviewData> {
       fetchCgcProducerDeliveries(CURRENT_CROP_YEAR, grainWeek)
     ),
     safeQuery("AAFC supply panel", () =>
-      getSupplyDispositionForGrains(ALL_GRAINS.map((grain) => grain.slug))
+      getSupplyDispositionForGrains(OVERVIEW_V1_GRAINS.map((grain) => grain.slug))
     ),
     safeQuery("last-year CGC storage benchmarks", () =>
       fetchHistoricalStorageInputs(grainWeek)
     ),
   ]);
 
-  const caStances = caResult.data ?? [];
+  const caStances = (caResult.data ?? []).filter((row) =>
+    OVERVIEW_V1_GRAIN_NAME_SET.has(row.grain)
+  );
   const usStances = usResult.data ?? [];
   const spotPrices = spotResult.data ?? [];
   const grainDeliveryBinRows =

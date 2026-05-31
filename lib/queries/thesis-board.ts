@@ -152,8 +152,6 @@ export const THESIS_BOARD_V1_GRAIN_LANES = [
   "Corn",
   "Soybeans",
   "Wheat",
-  "Spring Wheat",
-  "Winter Wheat",
   "Durum",
   "Canola",
   "Barley",
@@ -171,8 +169,6 @@ const THESIS_BOARD_V1_LANE_SOURCE_MAP: readonly ThesisBoardV1LaneSource[] = [
   { lane: "Corn", canadaSourceName: "Corn", usSourceName: "Corn" },
   { lane: "Soybeans", canadaSourceName: "Soybeans", usSourceName: "Soybeans" },
   { lane: "Wheat", canadaSourceName: "Wheat", usSourceName: "Wheat" },
-  { lane: "Spring Wheat", placeholderReason: "source mapping needed" },
-  { lane: "Winter Wheat", placeholderReason: "source mapping needed" },
   { lane: "Durum", canadaSourceName: "Amber Durum" },
   { lane: "Canola", canadaSourceName: "Canola" },
   { lane: "Barley", canadaSourceName: "Barley", usSourceName: "Barley" },
@@ -431,15 +427,92 @@ function confidenceFromFreshness(
   return { confidence: "low", score };
 }
 
+function sourceFreshnessStatus(sourceName: string, freshness: ThesisFreshnessRow[]): string | null {
+  return freshness.find((row) => row.sourceName === sourceName)?.freshnessStatus.toLowerCase() ?? null;
+}
+
 function sourceConfidence(
   requested: ThesisConfidence,
   sourceName: string,
   freshness: ThesisFreshnessRow[],
 ): ThesisConfidence {
-  const status = freshness
-    .find((row) => row.sourceName === sourceName)
-    ?.freshnessStatus.toLowerCase();
+  const status = sourceFreshnessStatus(sourceName, freshness);
   return status === "strong" ? requested : "low";
+}
+
+function isFreshStrongSource(sourceName: string, freshness: ThesisFreshnessRow[]): boolean {
+  return sourceFreshnessStatus(sourceName, freshness) === "strong";
+}
+
+function hasStrongWeatherEvidence(packet: JsonRecord, freshness: ThesisFreshnessRow[]): boolean {
+  return isFreshStrongSource("weather_cache", freshness) && Object.keys(asRecord(packet.weather)).length > 0;
+}
+
+function cropProgressProxySuffix(packet: JsonRecord, freshness: ThesisFreshnessRow[], wording: "direct" | "independent"): string {
+  if (hasStrongWeatherEvidence(packet, freshness)) return "";
+  return wording === "direct"
+    ? " This is crop-progress-only evidence: a crop-progress proxy, not direct weather evidence."
+    : " This is a crop-progress proxy, not independent weather evidence.";
+}
+
+function cropProgressProxyMetricSuffix(packet: JsonRecord, freshness: ThesisFreshnessRow[]): string {
+  return hasStrongWeatherEvidence(packet, freshness) ? "" : " crop-progress proxy";
+}
+
+function cropProgressProxyTitleSuffix(packet: JsonRecord, freshness: ThesisFreshnessRow[]): string {
+  return hasStrongWeatherEvidence(packet, freshness) ? "" : " (crop-progress proxy)";
+}
+
+function cropProgressConfidence(
+  requested: ThesisConfidence,
+  sourceName: string,
+  packet: JsonRecord,
+  freshness: ThesisFreshnessRow[],
+): ThesisConfidence {
+  const sourceLevel = sourceConfidence(requested, sourceName, freshness);
+  if (sourceLevel === "low" || hasStrongWeatherEvidence(packet, freshness)) return sourceLevel;
+  return sourceLevel === "high" ? "medium" : sourceLevel;
+}
+
+interface PriceAdmission {
+  admitted: boolean;
+  provisional: boolean;
+  confidence: ThesisConfidence;
+  metricSuffix: string;
+  bodySuffix: string;
+}
+
+function priceAdmissionForRow(priceRow: JsonRecord, freshness: ThesisFreshnessRow[]): PriceAdmission {
+  if (!isFreshStrongSource("grain_prices", freshness)) {
+    return {
+      admitted: false,
+      provisional: false,
+      confidence: "low",
+      metricSuffix: "",
+      bodySuffix: "",
+    };
+  }
+
+  const source = textValue(priceRow, "source")?.toLowerCase() ?? "";
+  const isBarchartLatestOnly = source === "barchart";
+
+  if (isBarchartLatestOnly) {
+    return {
+      admitted: true,
+      provisional: true,
+      confidence: "low",
+      metricSuffix: " latest-only",
+      bodySuffix: " Barchart latest-only scrape; volume/open interest unavailable, so treat this as provisional price momentum only.",
+    };
+  }
+
+  return {
+    admitted: true,
+    provisional: false,
+    confidence: sourceConfidence("medium", "grain_prices", freshness),
+    metricSuffix: "",
+    bodySuffix: "",
+  };
 }
 
 function latestNationalAcreage(acreageRows: JsonRecord[]): JsonRecord | null {
@@ -769,7 +842,7 @@ export function buildCanadaThesisBoardItem(
         title: "Canadian seeding delay risk",
         body: `Provincial crop-progress rows show ${grain.name} seeding only ${formatPct(seededPct)} complete on average${
           reportDate ? ` as of ${reportDate}` : ""
-        }${provinceSummary ? ` (${provinceSummary})` : ""}.`,
+        }${provinceSummary ? ` (${provinceSummary})` : ""}.${cropProgressProxySuffix(packet, freshness, "independent")}`,
         sourceName: "canada_crop_progress",
         metricLabel: `${formatPct(seededPct)} seeded avg`,
         confidence: sourceConfidence("medium", "canada_crop_progress", freshness),
@@ -780,7 +853,7 @@ export function buildCanadaThesisBoardItem(
         title: "Canadian seeding progress cushions supply",
         body: `Provincial crop-progress rows show ${grain.name} seeding ${formatPct(seededPct)} complete on average${
           reportDate ? ` as of ${reportDate}` : ""
-        }${provinceSummary ? ` (${provinceSummary})` : ""}.`,
+        }${provinceSummary ? ` (${provinceSummary})` : ""}.${cropProgressProxySuffix(packet, freshness, "independent")}`,
         sourceName: "canada_crop_progress",
         metricLabel: `${formatPct(seededPct)} seeded avg`,
         confidence: sourceConfidence("medium", "canada_crop_progress", freshness),
@@ -789,34 +862,35 @@ export function buildCanadaThesisBoardItem(
   }
 
   const latestPrice = prices[0] ?? {};
+  const priceAdmission = priceAdmissionForRow(latestPrice, freshness);
   const priceChangePct = numberValue(latestPrice, "change_pct");
   const price = numberValue(latestPrice, "settlement_price");
-  if (priceChangePct !== null) {
+  if (priceAdmission.admitted && priceChangePct !== null) {
     if (priceChangePct >= 0.5) {
       addDriver(bullDrivers, {
         tone: "bull",
-        title: "Futures follow-through",
+        title: priceAdmission.provisional ? "Provisional futures follow-through" : "Futures follow-through",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.`,
+        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     } else if (priceChangePct <= -0.5) {
       addDriver(bearDrivers, {
         tone: "bear",
-        title: "Futures pressure",
+        title: priceAdmission.provisional ? "Provisional futures pressure" : "Futures pressure",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.`,
+        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     }
   }
@@ -944,24 +1018,24 @@ export function buildUsThesisBoardItem(
     if (goodExcellent <= 50 || (geYoy !== null && geYoy <= -8)) {
       addDriver(bullDrivers, {
         tone: "bull",
-        title: "US crop stress supports price",
+        title: `US crop stress supports price${cropProgressProxyTitleSuffix(packet, freshness)}`,
         body: `US total good/excellent is ${goodExcellent.toFixed(1)}%${
           geYoy !== null ? `, ${formatPct(geYoy)} versus last year` : ""
-        }.`,
+        }.${cropProgressProxySuffix(packet, freshness, "direct")}`,
         sourceName: "usda_crop_progress",
-        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent`,
-        confidence: sourceConfidence("high", "usda_crop_progress", freshness),
+        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent${cropProgressProxyMetricSuffix(packet, freshness)}`,
+        confidence: cropProgressConfidence("high", "usda_crop_progress", packet, freshness),
       });
     } else if (goodExcellent >= 70 || (geYoy !== null && geYoy >= 8)) {
       addDriver(bearDrivers, {
         tone: "bear",
-        title: "US crop condition adds supply pressure",
+        title: `US crop condition adds supply pressure${cropProgressProxyTitleSuffix(packet, freshness)}`,
         body: `US total good/excellent is ${goodExcellent.toFixed(1)}%${
           geYoy !== null ? `, ${formatPct(geYoy)} versus last year` : ""
-        }.`,
+        }.${cropProgressProxySuffix(packet, freshness, "direct")}`,
         sourceName: "usda_crop_progress",
-        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent`,
-        confidence: sourceConfidence("high", "usda_crop_progress", freshness),
+        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent${cropProgressProxyMetricSuffix(packet, freshness)}`,
+        confidence: cropProgressConfidence("high", "usda_crop_progress", packet, freshness),
       });
     }
   }
@@ -1214,34 +1288,35 @@ export function buildUsThesisBoardItem(
   }
 
   const latestPrice = prices[0] ?? {};
+  const priceAdmission = priceAdmissionForRow(latestPrice, freshness);
   const priceChangePct = numberValue(latestPrice, "change_pct");
   const price = numberValue(latestPrice, "settlement_price");
-  if (priceChangePct !== null) {
+  if (priceAdmission.admitted && priceChangePct !== null) {
     if (priceChangePct >= 0.5) {
       addDriver(bullDrivers, {
         tone: "bull",
-        title: "Futures follow-through",
+        title: priceAdmission.provisional ? "Provisional futures follow-through" : "Futures follow-through",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )}.`,
+        )}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     } else if (priceChangePct <= -0.5) {
       addDriver(bearDrivers, {
         tone: "bear",
-        title: "Futures pressure",
+        title: priceAdmission.provisional ? "Provisional futures pressure" : "Futures pressure",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )}.`,
+        )}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     }
   }

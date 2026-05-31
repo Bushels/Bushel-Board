@@ -23,6 +23,7 @@ export function BushyChat({ initialPrompt, grainContext }: BushyChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [chips, setChips] = useState<string[]>(DEFAULT_CHIPS);
   const initialSent = useRef(false);
+  const composerChips = grainContext ? GRAIN_CHIPS : chips;
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -35,7 +36,6 @@ export function BushyChat({ initialPrompt, grainContext }: BushyChatProps) {
   // standalone chat loads from crop_plans
   useEffect(() => {
     if (grainContext) {
-      setChips(GRAIN_CHIPS);
       return;
     }
 
@@ -137,7 +137,7 @@ export function BushyChat({ initialPrompt, grainContext }: BushyChatProps) {
       {/* Composer — sticky bottom */}
       <BushyComposer
         onSend={sendMessage}
-        chips={hasMessages ? chips : []}
+        chips={hasMessages ? composerChips : []}
         disabled={isLoading}
       />
     </div>

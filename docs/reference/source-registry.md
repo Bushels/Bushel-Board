@@ -6,6 +6,7 @@ This file is not a status log. Current run health belongs in Supabase `source_ru
 
 See also `docs/reference/cgc-market-mechanics-v1.md` for CGC accounting, movement relationships, and interpretation guardrails.
 See also `docs/reference/canola-cash-movement-map.md` for the Canola V1 old-crop flow, farmer-holding, new-crop overlay, and update-calendar map.
+See also `docs/reference/thesis-rating-model-v1.md` for how admitted source facts should roll into transparent bull/bear domain scores before LLM thesis prose.
 
 ## V1 Rule
 

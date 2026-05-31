@@ -20,6 +20,8 @@ export async function CgcFreshness() {
       .maybeSingle();
 
     const isFresh = data
+      // Server component freshness is intentionally evaluated at request time.
+      // eslint-disable-next-line react-hooks/purity
       ? Math.floor((Date.now() - new Date(data.imported_at).getTime()) / 86400000) <= 7
       : false;
 

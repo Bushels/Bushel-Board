@@ -334,7 +334,7 @@ export function UnifiedMarketStanceChart({
         Analyzed by 16 Agriculture Trained AI Agents
       </p>
       <p className="text-[11px] text-muted-foreground/60 leading-snug">
-        CA and US stances can differ for the same grain — they're scored from different
+        CA and US stances can differ for the same grain — they&apos;re scored from different
         data (CGC vs USDA) and serve different markets (prairie cash vs CBOT futures).
       </p>
 

@@ -227,10 +227,10 @@ async function readParams(request: Request): Promise<Params> {
 
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
   return {
-    week: parseWeek((body as any).week) ?? qsWeek,
+    week: parseWeek(body.week as string | number | null | undefined) ?? qsWeek,
     cropYear:
-      typeof (body as any).crop_year === "string"
-        ? (body as any).crop_year
+      typeof body.crop_year === "string"
+        ? body.crop_year
         : qsCropYear,
   };
 }
