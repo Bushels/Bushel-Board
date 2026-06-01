@@ -1,8 +1,8 @@
 # Thesis Rating Model V1
 
-Purpose: define how Bushel Board should turn admitted source facts into a transparent bull/bear rating before any LLM writes farmer-facing prose.
+Purpose: define how Bushel Board turns admitted source facts into a transparent bull/bear rating before any LLM writes farmer-facing prose.
 
-This is a planning and source-admission contract, not a deployed scoring engine yet.
+Status as of 2026-05-31: V1 is implemented as a deterministic parallel scorecard/audit layer. The core code lives in `lib/thesis/rating-model.ts`, `lib/thesis/rating-domain-mappers.ts`, `lib/thesis/scorecard-llm-guardrails.ts`, and `lib/queries/thesis-board.ts`; audit details render only on `/thesis?audit=1`. The scorecard does not replace visible farmer-facing stance fields yet.
 
 Use with:
 

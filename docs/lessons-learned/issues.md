@@ -1,5 +1,63 @@
 # Bushel Board - Lessons Learned
 
+## 2026-05-31 - Clean source rows can still hide partial Prairie crop-progress context
+
+**Symptom:** `/thesis` could show `Source health is clean for this board` while the Canada crop-progress collector metadata still reported `partial_prairie_week`. The source rows were not broken, but the board copy could be misread as a complete MB/SK/AB Prairie package.
+
+**Root cause:** The page only consumed per-packet freshness rows. The `prairie_week_status` completeness flag lived in `source_runs.metadata` and was only surfaced by the watchdog script, not the farmer-facing source-health banner.
+
+**Fix status:** Added Canada crop-progress source-run context to `getThesisBoardData()` and surfaced partial Prairie status in the `/thesis` source-health banner as context, not as a false stale-source count. The top KPI now says `Watch Source Groups` and defines the count as stale/empty/lagged/broken freshness rows, so it does not erase the partial-Prairie completeness caveat.
+
+**Prevention:**
+- Keep source freshness and source completeness as separate concepts.
+- A collector can be fresh and still be partial because province release cadence is staggered.
+
+**Tags:** #thesis-board #source-freshness #canada-crop-progress #prairie-week
+
+---
+
+## 2026-05-31 - Static legends can reintroduce parked-scope confusion
+
+**Symptom:** The public `/thesis` quick scan showed `Mapping needed = no class-safe source yet` and the Top Takeaway showed `0 mapping gaps` even after Spring/Winter Wheat were parked off the public V1 board.
+
+**Root cause:** The legend and status badges were static while the board rows became allowlist-driven. The row data was correct, but the surrounding copy still described an old placeholder state.
+
+**Fix status:** The Top Takeaway hides zero source-gap badges, and the quick-scan legend is now derived from visible row statuses.
+
+**Prevention:** Legends on scoped public boards should be generated from active row states or hidden when the state is absent.
+
+**Tags:** #thesis-board #ui-copy #scope-control #public-v1
+
+---
+
+## 2026-05-31 - Province-only crop-progress reruns can downgrade complete Prairie package status
+
+**Symptom:** `/thesis` displayed `Source health clean; Prairie crop-progress package is partial` even though `source_runs` contained a same-period complete MB+SK+AB crop-progress package.
+
+**Root cause:** The board and watchdog used the latest `canada_crop_progress` source run by finish time. A later Alberta-only rerun had `partial_prairie_week`, so it overrode the earlier complete package for the same source period.
+
+**Fix status:** Canada crop-progress package selection now sorts by source period, then package completeness, then finish time. Same-period `complete_mb_sk_ab` beats province-only reruns.
+
+**Prevention:** Package-level source status must be selected by package semantics, not just latest collector timestamp. Province-specific reruns are refresh evidence, not proof that the whole Prairie package regressed.
+
+**Tags:** #source-freshness #canada-crop-progress #thesis-board #prairie-status
+
+---
+
+## 2026-05-31 - Packet-count cards can bury the actual market read
+
+**Symptom:** On mobile, the `/thesis` Top Takeaway sat below the current snapshot plus four KPI cards. A farmer had to scroll through packet metadata and counts before seeing the most constructive/cautious grain read.
+
+**Root cause:** The page order treated operational proof as higher priority than the market read. Source provenance matters, but summary counts are support evidence, not the first farmer decision surface.
+
+**Fix status:** Source health now appears before Top Takeaway, and Top Takeaway appears before the compact current snapshot and KPI summary cards.
+
+**Prevention:** On farmer-facing market pages, put source-health trust and the primary read before supporting metadata and metrics. Snapshot proof and KPI cards should not push the market call below the first scan.
+
+**Tags:** #thesis-board #mobile-ux #information-hierarchy #farmer-read
+
+---
+
 ## 2026-05-11 - Kalshi open-only fetch can look unwired during no-market gaps
 
 **Symptom:** The Kalshi board showed zero markets even though the public API was reachable and returning commodity series data.

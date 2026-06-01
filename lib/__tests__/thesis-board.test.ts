@@ -8,6 +8,7 @@ import {
   buildSourceHealthSummary,
   cacheStatusForSourceState,
   buildUsThesisBoardItem,
+  selectCanadaCropProgressRunContext,
 } from "@/lib/queries/thesis-board";
 
 const canola = { name: "Canola", slug: "canola", defaultBushelWeightLbs: 50 };
@@ -971,6 +972,80 @@ describe("thesis board packet normalization", () => {
         latestAvailableSourceRunAt: "2026-05-21T12:46:08.789Z",
       }),
     ).toBe("fresh");
+  });
+
+  it("uses a same-period complete Prairie crop-progress package over later province-only reruns", () => {
+    const context = selectCanadaCropProgressRunContext([
+      {
+        source_name: "canada_crop_progress",
+        status: "success",
+        finished_at: "2026-05-30T14:48:56.019201+00:00",
+        source_period_end: "2026-05-26",
+        latest_source_label: "Alberta Crop Report - 2026-05-26",
+        metadata: {
+          prairie_week_status: "partial_prairie_week",
+          province_summaries: [{ province: "AB" }],
+          missing_provinces: [],
+        },
+      },
+      {
+        source_name: "canada_crop_progress",
+        status: "success",
+        finished_at: "2026-05-29T21:30:52.267352+00:00",
+        source_period_end: "2026-05-26",
+        latest_source_label:
+          "Alberta Crop Report - 2026-05-26, Crop Report - 2026-05-26, Crop Report - 2026-05-28",
+        metadata: {
+          prairie_week_status: "complete_mb_sk_ab",
+          province_summaries: [{ province: "MB" }, { province: "SK" }, { province: "AB" }],
+          missing_provinces: [],
+        },
+      },
+    ]);
+
+    expect(context).toMatchObject({
+      prairieWeekStatus: "complete_mb_sk_ab",
+      sourcePeriodEnd: "2026-05-26",
+      loadedProvinces: ["MB", "SK", "AB"],
+    });
+  });
+
+  it("uses a newer partial Prairie crop-progress period over an older complete package", () => {
+    const context = selectCanadaCropProgressRunContext([
+      {
+        source_name: "canada_crop_progress",
+        status: "success",
+        finished_at: "2026-05-29T21:30:52.267352+00:00",
+        source_period_end: "2026-05-26",
+        latest_source_label:
+          "Alberta Crop Report - 2026-05-26, Crop Report - 2026-05-26, Crop Report - 2026-05-28",
+        metadata: {
+          prairie_week_status: "complete_mb_sk_ab",
+          province_summaries: [{ province: "MB" }, { province: "SK" }, { province: "AB" }],
+          missing_provinces: [],
+        },
+      },
+      {
+        source_name: "canada_crop_progress",
+        status: "partial",
+        finished_at: "2026-06-02T18:45:00.000000+00:00",
+        source_period_end: "2026-06-02",
+        latest_source_label: "Manitoba Crop Report - 2026-06-02",
+        metadata: {
+          prairie_week_status: "partial_mb_only",
+          province_summaries: [{ province: "MB" }],
+          missing_provinces: ["SK", "AB"],
+        },
+      },
+    ]);
+
+    expect(context).toMatchObject({
+      prairieWeekStatus: "partial_mb_only",
+      sourcePeriodEnd: "2026-06-02",
+      loadedProvinces: ["MB"],
+      missingProvinces: ["SK", "AB"],
+      status: "partial",
+    });
   });
 
   it("builds comparison rows in exact V1 lane order without unmapped wheat-class placeholders", () => {

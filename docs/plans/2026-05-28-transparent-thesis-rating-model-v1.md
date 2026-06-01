@@ -1,5 +1,7 @@
 # Transparent Thesis Rating Model V1 Implementation Plan
 
+> **Status 2026-05-31:** Complete through Task 9 in this checkout. Keep this file as the implementation record and task contract; do not restart from Task 1 unless deliberately auditing or migrating the scorecard.
+
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
 **Goal:** Build a transparent, deterministic scorecard layer that turns admitted Bushel Board source facts into auditable bull/bear domain scores before LLM thesis prose is written.
@@ -492,6 +494,6 @@ Commit any remaining docs/test updates.
 - Risk: LLM overrides deterministic math. Mitigation: prompt contract and explicit override reason only.
 - Risk: Spring/Winter Wheat creep back in. Mitigation: tests lock board rows and parked-lane docs.
 
-## First Next Patch
+## Completion Note
 
-Start with Task 1 only: add `lib/thesis/rating-model.ts` and `lib/__tests__/thesis-rating-model.test.ts`. Do not touch UI until the contract and aggregation tests are stable.
+Tasks 1-9 are implemented and verified in this checkout. The next product move is production-preview/promotion verification or a new source-quality package, not another pass through this plan.

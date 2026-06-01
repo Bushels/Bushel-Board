@@ -74,6 +74,17 @@ function stanceFillClass(score: number): string {
   return "bg-muted-foreground";
 }
 
+function confidenceScaledHalfWidth(item: ThesisBoardItem): number {
+  const target = 50 + item.stanceScore / 2;
+  const confidence = Math.max(0, Math.min(100, item.confidenceScore)) / 100;
+  const scaledPosition = 50 + (target - 50) * confidence;
+  return Math.min(50, Math.abs(scaledPosition - 50));
+}
+
+function confidenceScaledWidth(item: ThesisBoardItem): string {
+  return `${confidenceScaledHalfWidth(item).toFixed(2)}%`;
+}
+
 function comparisonClass(status: ThesisComparisonRow["status"]): string {
   if (status === "aligned_bullish") {
     return "border-prairie/25 bg-prairie/10 text-prairie";
@@ -90,6 +101,56 @@ function comparisonClass(status: ThesisComparisonRow["status"]): string {
   return "border-border bg-muted/50 text-muted-foreground";
 }
 
+function rowActionCue(row: ThesisComparisonRow): { label: string; detail: string } {
+  if (row.status === "mixed") {
+    return {
+      label: "Open first",
+      detail: "Canada and US disagree; read both lead drivers before relying on this row.",
+    };
+  }
+  if (row.status === "aligned_bullish") {
+    return {
+      label: "Confirmed bull read",
+      detail: "Both country packets lean constructive; check freshness and lead evidence.",
+    };
+  }
+  if (row.status === "aligned_bearish") {
+    return {
+      label: "Confirmed bear read",
+      detail: "Both country packets lean defensive; check freshness and lead evidence.",
+    };
+  }
+  if (row.status === "canada_only" || row.status === "us_only") {
+    return {
+      label: "One-country read",
+      detail:
+        row.status === "canada_only"
+          ? "Use as Canada context only; no matching US packet is modeled in V1."
+          : "Use as US context only; no matching Canada packet is modeled in V1.",
+    };
+  }
+  if (row.status === "mapping_needed") {
+    return {
+      label: "Source gap",
+      detail: "Do not infer a thesis until class-safe source mapping is admitted.",
+    };
+  }
+  return {
+    label: "Monitor",
+    detail: "Balanced read; keep it on the board and wait for a stronger source move.",
+  };
+}
+
+function actionCueClass(status: ThesisComparisonRow["status"]): string {
+  if (status === "mixed") return "border-canola/35 bg-canola/10 text-canola";
+  if (status === "aligned_bullish") return "border-prairie/25 bg-prairie/10 text-prairie";
+  if (status === "aligned_bearish") {
+    return "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300";
+  }
+  if (status === "mapping_needed") return "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300";
+  return "border-border bg-background/70 text-muted-foreground";
+}
+
 function missingMarketCopy(row: ThesisComparisonRow, country: "CA" | "US"): string {
   if (row.status === "mapping_needed") return `${country}: class mapping pending`;
   if (row.grain === "Durum" && country === "US") return "US: not modeled in V1";
@@ -98,10 +159,41 @@ function missingMarketCopy(row: ThesisComparisonRow, country: "CA" | "US"): stri
 }
 
 function shortSourceHealthRead(data: Awaited<ReturnType<typeof getThesisBoardData>>): string {
+  const prairieWeekStatus = data.sourceRunContext.canadaCropProgress?.prairieWeekStatus ?? null;
+  const prairieWeekStatusLabel = prairieWeekStatus ? prairieWeekStatus.replaceAll("_", " ") : null;
   if (data.totals.uniqueWatchSourceCount === 0) {
+    if (prairieWeekStatus?.startsWith("partial_")) {
+      return `Rendered public source groups are clean, but Canada crop progress reports ${prairieWeekStatusLabel}.`;
+    }
     return "All rendered public source groups are currently clean.";
   }
   return `${data.totals.uniqueWatchSourceCount} source group${data.totals.uniqueWatchSourceCount === 1 ? "" : "s"} need attention across ${data.totals.watchSourceInstanceCount} packet rows.`;
+}
+
+function prairieWeekStatusRead(data: Awaited<ReturnType<typeof getThesisBoardData>>): string | null {
+  const context = data.sourceRunContext.canadaCropProgress;
+  const status = context?.prairieWeekStatus ?? null;
+  if (!context || !status?.startsWith("partial_")) return null;
+  const label = status.replaceAll("_", " ");
+  const loadedLabel = context.loadedProvinces.length
+    ? `; loaded ${context.loadedProvinces.join("+")}`
+    : "";
+  const missingLabel = context.missingProvinces.length
+    ? `; missing ${context.missingProvinces.join("+")}`
+    : "";
+  const sourceLabel = context?.latestSourceLabel ? ` (${context.latestSourceLabel})` : "";
+  return `Prairie crop progress: ${label}${loadedLabel}${missingLabel}${sourceLabel}`;
+}
+
+function watchSourceCardDetail(data: Awaited<ReturnType<typeof getThesisBoardData>>): string {
+  const rowCount = data.totals.watchSourceInstanceCount;
+  const rowLabel = rowCount === 1 ? "row" : "rows";
+  const base = `${rowCount} stale, empty, lagged, or broken freshness ${rowLabel}.`;
+  const prairieWeekStatus = data.sourceRunContext.canadaCropProgress?.prairieWeekStatus ?? null;
+  if (prairieWeekStatus?.startsWith("partial_")) {
+    return `${base} Prairie completeness is partial and shown below.`;
+  }
+  return `${base} Optional farmer-local empties excluded from confidence.`;
 }
 
 function freshnessClass(status: string): string {
@@ -110,6 +202,39 @@ function freshnessClass(status: string): string {
     return "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300";
   }
   return "border-canola/30 bg-canola/10 text-canola";
+}
+
+const SOURCE_DISPLAY_NAMES: Record<string, string> = {
+  canada_crop_progress: "Prairie crop-progress reports",
+  cftc_cot_positions: "CFTC Commitments of Traders",
+  cgc_imports: "CGC weekly import run",
+  cgc_observations: "CGC weekly grain stats",
+  crop_acreage_estimates: "USDA acreage estimates",
+  crop_plan_deliveries: "Farm delivery plan",
+  crop_plans: "Farm crop plan",
+  grain_monitor_snapshots: "Canada Grain Monitor",
+  grain_prices: "Grain price feed",
+  posted_prices: "Posted cash prices",
+  producer_car_allocations: "CGC Producer Cars",
+  supply_disposition: "Canada supply-disposition table",
+  usda_crop_progress: "USDA Crop Progress",
+  usda_export_sales: "USDA Export Sales",
+  usda_quarterly_stocks: "USDA Quarterly Grain Stocks",
+  usda_wasde_mapped: "USDA WASDE",
+  weather_cache: "Weather context",
+};
+
+function sourceDisplayName(sourceName: string): string {
+  const parts = sourceName.split("+").map((part) => part.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    return parts.map((part) => SOURCE_DISPLAY_NAMES[part] ?? part.replaceAll("_", " ")).join(" + ");
+  }
+  return SOURCE_DISPLAY_NAMES[sourceName] ?? sourceName.replaceAll("_", " ");
+}
+
+function sourceDisplayNameWithId(sourceName: string): string {
+  const displayName = sourceDisplayName(sourceName);
+  return displayName === sourceName ? displayName : `${displayName} (${sourceName})`;
 }
 
 function metricLabel(item: ThesisBoardItem): string {
@@ -146,7 +271,7 @@ function MarketIndicator({
     );
   }
 
-  const halfWidth = Math.min(50, Math.abs(item.stanceScore) / 2);
+  const halfWidth = confidenceScaledWidth(item);
   const positive = item.stanceScore > 0;
 
   return (
@@ -168,7 +293,7 @@ function MarketIndicator({
         </div>
         <div
           className="relative mb-1 h-2 w-28 rounded-full bg-muted"
-          aria-label={`${country} stance score ${item.stanceScore}`}
+          aria-label={`${country} confidence-scaled stance score ${item.stanceScore}`}
         >
           <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
           <span
@@ -177,7 +302,8 @@ function MarketIndicator({
               stanceFillClass(item.stanceScore),
               positive ? "left-1/2" : "right-1/2",
             )}
-            style={{ width: `${halfWidth}%` }}
+            data-confidence-scaled-width={halfWidth}
+            style={{ width: halfWidth }}
             aria-hidden="true"
           />
         </div>
@@ -212,7 +338,7 @@ function ComparisonPointList({
             </Badge>
           </div>
           <p className="text-xs font-medium text-muted-foreground">
-            {point.metricLabel} / {point.sourceName}
+            {point.metricLabel} / {sourceDisplayName(point.sourceName)}
           </p>
         </div>
       ))}
@@ -220,41 +346,209 @@ function ComparisonPointList({
   );
 }
 
-function rowAverageScore(row: ThesisComparisonRow): number | null {
-  const scores = [row.canada?.stanceScore, row.us?.stanceScore].filter(
-    (score): score is number => typeof score === "number",
+type RowMarketRead = {
+  kind: "row";
+  row: ThesisComparisonRow;
+  score: number;
+  confidence: number;
+  coverageLabel: "CA+US" | "CA only" | "US only";
+  oneCountry: boolean;
+  convictionScore: number;
+};
+
+type CountryMarketRead = {
+  kind: "country";
+  row: ThesisComparisonRow;
+  country: "CA" | "US";
+  score: number;
+  confidence: number;
+  convictionScore: number;
+};
+
+type TakeawayMarketRead = RowMarketRead | CountryMarketRead;
+
+function rowMarketRead(row: ThesisComparisonRow): RowMarketRead | null {
+  const entries = [
+    row.canada ? { country: "CA" as const, item: row.canada } : null,
+    row.us ? { country: "US" as const, item: row.us } : null,
+  ].filter((entry): entry is { country: "CA" | "US"; item: ThesisBoardItem } => Boolean(entry));
+
+  if (entries.length === 0) return null;
+
+  const weightSum = entries.reduce((sum, entry) => sum + Math.max(1, entry.item.confidenceScore), 0);
+  const score = Math.round(
+    entries.reduce(
+      (sum, entry) => sum + entry.item.stanceScore * Math.max(1, entry.item.confidenceScore),
+      0,
+    ) / weightSum,
   );
-  if (scores.length === 0) return null;
-  return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+  const confidence = Math.round(weightSum / entries.length);
+  const oneCountry = entries.length === 1;
+  const coverageLabel: RowMarketRead["coverageLabel"] =
+    entries.length === 2 ? "CA+US" : entries[0].country === "CA" ? "CA only" : "US only";
+  const coverageFactor = oneCountry ? 0.75 : 1;
+
+  return {
+    kind: "row",
+    row,
+    score,
+    confidence,
+    coverageLabel,
+    oneCountry,
+    convictionScore: Math.round(Math.abs(score) * (confidence / 100) * coverageFactor),
+  };
 }
 
-function signedAverageScore(row: ThesisComparisonRow): string {
-  const score = rowAverageScore(row);
-  if (score === null) return "no score";
-  return score > 0 ? `+${score}` : String(score);
+function splitMarketRead(row: ThesisComparisonRow, tone: "bull" | "bear"): CountryMarketRead | null {
+  if (!row.canada || !row.us) return null;
+  if (row.canada.stanceScore * row.us.stanceScore >= 0) return null;
+
+  const target = tone === "bull"
+    ? (item: ThesisBoardItem) => item.stanceScore > 0
+    : (item: ThesisBoardItem) => item.stanceScore < 0;
+  const entries = [
+    { country: "CA" as const, item: row.canada },
+    { country: "US" as const, item: row.us },
+  ].filter((entry) => target(entry.item));
+  const entry = entries[0];
+  if (!entry) return null;
+
+  return {
+    kind: "country",
+    row,
+    country: entry.country,
+    score: entry.item.stanceScore,
+    confidence: entry.item.confidenceScore,
+    convictionScore: Math.round(Math.abs(entry.item.stanceScore) * (entry.item.confidenceScore / 100)),
+  };
+}
+
+function strongestSplitMarketRead(
+  rows: ThesisComparisonRow[],
+  tone: "bull" | "bear",
+): CountryMarketRead | null {
+  return rows.reduce<CountryMarketRead | null>((best, row) => {
+    const entry = splitMarketRead(row, tone);
+    if (!entry) return best;
+    if (!best) return entry;
+    if (entry.convictionScore > best.convictionScore) return entry;
+    if (entry.convictionScore < best.convictionScore) return best;
+    return tone === "bull"
+      ? entry.score > best.score ? entry : best
+      : entry.score < best.score ? entry : best;
+  }, null);
+}
+
+function strongestDirectionalRead(
+  aggregateRead: RowMarketRead | null,
+  splitRead: CountryMarketRead | null,
+): TakeawayMarketRead | null {
+  if (!aggregateRead) return splitRead;
+  if (!splitRead) return aggregateRead;
+  if (splitRead.convictionScore > aggregateRead.convictionScore) return splitRead;
+  return aggregateRead;
+}
+
+function signedMarketRead(read: Pick<TakeawayMarketRead, "score">): string {
+  return read.score > 0 ? `+${read.score}` : String(read.score);
+}
+
+function confidenceCopy(read: RowMarketRead): string {
+  return read.oneCountry ? `${read.confidence}% confidence` : `${read.confidence}% avg confidence`;
+}
+
+function marketReadLine(read: TakeawayMarketRead, tone: "bull" | "bear"): string {
+  if (read.kind === "country") {
+    return `The strongest split-market ${tone} pressure is ${read.row.grain} at ${signedMarketRead(read)} (${read.country}, ${read.confidence}% confidence).`;
+  }
+
+  const directionCopy = read.oneCountry ? `one-country ${tone}` : `confidence-weighted ${tone}`;
+  return `The strongest ${directionCopy} read is ${read.row.grain} at ${signedMarketRead(read)} (${read.coverageLabel}, ${confidenceCopy(read)}).`;
+}
+
+function marketEvidenceLine(read: TakeawayMarketRead, tone: "bull" | "bear"): string | null {
+  const points = tone === "bull" ? read.row.strongestBullPoints : read.row.strongestBearPoints;
+  const point = points[0];
+  if (!point) return null;
+  return `Lead evidence: ${point.country} ${point.title} (${point.metricLabel} / ${sourceDisplayName(point.sourceName)}).`;
+}
+
+function rowInspectionPriority(row: ThesisComparisonRow): number {
+  if (row.status === "mixed") return 0;
+  if (row.status === "mapping_needed" || (!row.canada && !row.us)) return 1;
+  if (row.status === "canada_only" || row.status === "us_only") return 2;
+  if (row.status === "aligned_bullish" || row.status === "aligned_bearish") return 3;
+  return 4;
+}
+
+function rowInspectionReason(row: ThesisComparisonRow): string {
+  if (row.status === "mixed") return "country split";
+  if (row.status === "mapping_needed" || (!row.canada && !row.us)) return "source gap";
+  if (row.status === "canada_only") return "Canada-only read";
+  if (row.status === "us_only") return "US-only read";
+  if (row.status === "aligned_bullish") return "confirmed bull read";
+  if (row.status === "aligned_bearish") return "confirmed bear read";
+  return "monitor";
+}
+
+function inspectionQueueLine(rows: ThesisComparisonRow[]): string {
+  const queue = rows
+    .map((row) => ({ row, priority: rowInspectionPriority(row) }))
+    .filter((entry) => entry.priority < 4)
+    .sort((a, b) => a.priority - b.priority || a.row.grain.localeCompare(b.row.grain))
+    .slice(0, 3);
+
+  if (queue.length === 0) {
+    return "No priority rows right now; monitor for a stronger source move before relying on the board.";
+  }
+
+  return `Start with: ${queue.map((entry) => `${entry.row.grain} (${rowInspectionReason(entry.row)})`).join(", ")}.`;
 }
 
 function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
   const scoredRows = rows
-    .map((row) => ({ row, score: rowAverageScore(row) }))
-    .filter((entry): entry is { row: ThesisComparisonRow; score: number } => entry.score !== null);
-  const strongestBull = scoredRows.reduce<(typeof scoredRows)[number] | null>(
-    (best, entry) => (entry.score > 0 && (!best || entry.score > best.score) ? entry : best),
+    .map(rowMarketRead)
+    .filter((entry): entry is RowMarketRead => entry !== null);
+  const strongestAggregateBull = scoredRows.reduce<RowMarketRead | null>(
+    (best, entry) =>
+      entry.score > 0 &&
+      (!best ||
+        entry.convictionScore > best.convictionScore ||
+        (entry.convictionScore === best.convictionScore && entry.score > best.score))
+        ? entry
+        : best,
     null,
   );
-  const strongestBear = scoredRows.reduce<(typeof scoredRows)[number] | null>(
-    (best, entry) => (entry.score < 0 && (!best || entry.score < best.score) ? entry : best),
+  const strongestAggregateBear = scoredRows.reduce<RowMarketRead | null>(
+    (best, entry) =>
+      entry.score < 0 &&
+      (!best ||
+        entry.convictionScore > best.convictionScore ||
+        (entry.convictionScore === best.convictionScore && entry.score < best.score))
+        ? entry
+        : best,
     null,
+  );
+  const strongestBull = strongestDirectionalRead(
+    strongestAggregateBull,
+    strongestSplitMarketRead(rows, "bull"),
+  );
+  const strongestBear = strongestDirectionalRead(
+    strongestAggregateBear,
+    strongestSplitMarketRead(rows, "bear"),
   );
   const countrySplits = rows.filter((row) => row.status === "mixed" && (row.canada || row.us)).length;
   const sourceMappingGaps = rows.filter((row) => !row.canada && !row.us).length;
 
   const leadLine = strongestBull
-    ? `${strongestBull.row.grain} has the cleanest bull lean at ${signedAverageScore(strongestBull.row)}.`
-    : "No grain has a clean bull lean in the current packets.";
+    ? marketReadLine(strongestBull, "bull")
+    : "No grain has a confidence-backed bull lean in the current packets.";
   const riskLine = strongestBear
-    ? `${strongestBear.row.grain} has the clearest bear pressure at ${signedAverageScore(strongestBear.row)}.`
-    : "No grain has a clean bear lean in the current packets.";
+    ? marketReadLine(strongestBear, "bear")
+    : "No grain has a confidence-backed bear lean in the current packets.";
+  const leadEvidence = strongestBull ? marketEvidenceLine(strongestBull, "bull") : null;
+  const riskEvidence = strongestBear ? marketEvidenceLine(strongestBear, "bear") : null;
+  const inspectionQueue = inspectionQueueLine(rows);
 
   return (
     <Card className="rounded-lg border-canola/30 bg-gradient-to-br from-canola/10 via-card to-prairie/8 py-5 shadow-sm">
@@ -274,9 +568,11 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
               {countrySplits} country split{countrySplits === 1 ? "" : "s"}
             </Badge>
-            <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-              {sourceMappingGaps} mapping gap{sourceMappingGaps === 1 ? "" : "s"}
-            </Badge>
+            {sourceMappingGaps > 0 ? (
+              <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                {sourceMappingGaps} source gap{sourceMappingGaps === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
           </div>
         </div>
       </CardHeader>
@@ -287,6 +583,9 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             Most constructive
           </div>
           <p className="text-sm leading-6 text-muted-foreground">{leadLine}</p>
+          {leadEvidence && (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{leadEvidence}</p>
+          )}
         </div>
         <div className="rounded-lg border border-amber-600/20 bg-background/70 p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
@@ -294,6 +593,9 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             Most cautious
           </div>
           <p className="text-sm leading-6 text-muted-foreground">{riskLine}</p>
+          {riskEvidence && (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{riskEvidence}</p>
+          )}
         </div>
         <div className="rounded-lg border border-border bg-background/70 p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -301,8 +603,7 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             How to use it
           </div>
           <p className="text-sm leading-6 text-muted-foreground">
-            Treat this as a scouting sheet, not a trade signal. Start with split markets, then
-            open the row drivers before changing a pricing plan.
+            {inspectionQueue} Use it to choose what to inspect next, not to make a sale by itself.
           </p>
         </div>
       </CardContent>
@@ -322,7 +623,7 @@ function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Score guide: negative leans bearish, positive leans bullish; confidence reflects source
-            completeness and freshness, not price-advice certainty.
+            completeness and freshness, not a sell recommendation.
           </p>
         </div>
         <Badge variant="outline" className="w-fit border-border bg-white/60">
@@ -348,45 +649,52 @@ function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.grain} className="border-b border-border/70 align-top last:border-b-0">
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-foreground">{row.grain}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <MarketIndicator item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <MarketIndicator item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <ComparisonPointList
-                      points={row.strongestBullPoints}
-                      emptyLabel="No bullish driver in the current packets."
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <ComparisonPointList
-                      points={row.strongestBearPoints}
-                      emptyLabel="No bearish driver in the current packets."
-                    />
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline" className={comparisonClass(row.status)}>
-                          {row.statusLabel}
-                        </Badge>
-                        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                          {row.readinessLabel}
-                        </Badge>
+              {rows.map((row) => {
+                const action = rowActionCue(row);
+                return (
+                  <tr key={row.grain} className="border-b border-border/70 align-top last:border-b-0">
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-foreground">{row.grain}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <MarketIndicator item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <MarketIndicator item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <ComparisonPointList
+                        points={row.strongestBullPoints}
+                        emptyLabel="No bullish driver in the current packets."
+                      />
+                    </td>
+                    <td className="px-4 py-4">
+                      <ComparisonPointList
+                        points={row.strongestBearPoints}
+                        emptyLabel="No bearish driver in the current packets."
+                      />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline" className={actionCueClass(row.status)}>
+                            {action.label}
+                          </Badge>
+                          <Badge variant="outline" className={comparisonClass(row.status)}>
+                            {row.statusLabel}
+                          </Badge>
+                          <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                            {row.readinessLabel}
+                          </Badge>
+                        </div>
+                        <p className="text-sm leading-6 text-foreground">{action.detail}</p>
+                        <p className="text-sm leading-6 text-muted-foreground">{row.explanation}</p>
+                        <p className="text-xs leading-5 text-muted-foreground">{row.readinessDetail}</p>
                       </div>
-                      <p className="text-sm leading-6 text-muted-foreground">{row.explanation}</p>
-                      <p className="text-xs leading-5 text-muted-foreground">{row.readinessDetail}</p>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -428,7 +736,7 @@ function DriverList({
               </div>
               <p className="text-sm leading-6 text-muted-foreground">{driver.body}</p>
               <p className="text-xs font-medium text-muted-foreground">
-                {driver.metricLabel} / {driver.sourceName}
+                {driver.metricLabel} / {sourceDisplayName(driver.sourceName)}
               </p>
             </div>
           ))}
@@ -486,7 +794,7 @@ function FreshnessStrip({ item }: { item: ThesisBoardItem }) {
           variant="outline"
           className={freshnessClass(row.freshnessStatus)}
         >
-          {row.sourceName}: {row.freshnessStatus}
+          {sourceDisplayName(row.sourceName)}: {row.freshnessStatus}
         </Badge>
       ))}
       {item.freshness.length > visibleRows.length && (
@@ -604,7 +912,7 @@ function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boo
                 >
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-canola" />
                   <span>
-                    {warning.sourceName} is {warning.status}
+                    {sourceDisplayNameWithId(warning.sourceName)} is {warning.status}
                     {warning.actionHint ? `: ${warning.actionHint}` : ""}
                   </span>
                 </p>
@@ -637,7 +945,9 @@ function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boo
               <tbody>
                 {item.freshness.map((row) => (
                   <tr key={`${item.id}-detail-${row.sourceName}`} className="border-b border-border/50">
-                    <td className="py-2 pr-4 font-medium text-foreground">{row.sourceName}</td>
+                    <td className="py-2 pr-4 font-medium text-foreground">
+                      {sourceDisplayNameWithId(row.sourceName)}
+                    </td>
                     <td className="py-2 pr-4 text-muted-foreground">{row.latestPeriod ?? "none"}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{row.expectedCadence ?? "unknown"}</td>
                     <td className="py-2 pr-4 text-muted-foreground">{row.thesisUse ?? "context"}</td>
@@ -706,7 +1016,7 @@ function CompactMarketSignal({
     );
   }
 
-  const halfWidth = Math.min(50, Math.abs(item.stanceScore) / 2);
+  const halfWidth = confidenceScaledWidth(item);
   const positive = item.stanceScore > 0;
 
   return (
@@ -720,7 +1030,7 @@ function CompactMarketSignal({
           {item.stanceScore > 0 ? `+${item.stanceScore}` : item.stanceScore}
         </span>
       </div>
-      <div className="relative h-2 rounded-full bg-muted" aria-label={`${country} stance score ${item.stanceScore}`}>
+      <div className="relative h-2 rounded-full bg-muted" aria-label={`${country} confidence-scaled stance score ${item.stanceScore}`}>
         <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
         <span
           className={cn(
@@ -728,7 +1038,8 @@ function CompactMarketSignal({
             stanceFillClass(item.stanceScore),
             positive ? "left-1/2" : "right-1/2",
           )}
-          style={{ width: `${halfWidth}%` }}
+          data-confidence-scaled-width={halfWidth}
+          style={{ width: halfWidth }}
           aria-hidden="true"
         />
       </div>
@@ -740,8 +1051,58 @@ function CompactMarketSignal({
   );
 }
 
+function quickGlanceLegendItems(rows: ThesisComparisonRow[]) {
+  const statuses = new Set(rows.map((row) => row.status));
+  const hasOneCountry = statuses.has("canada_only") || statuses.has("us_only");
+  return [
+    statuses.has("aligned_bullish")
+      ? {
+          key: "aligned_bullish",
+          label: "Confirmed bull = CA and US both constructive",
+          className: "border-prairie/25 bg-prairie/10 text-prairie",
+        }
+      : null,
+    statuses.has("aligned_bearish")
+      ? {
+          key: "aligned_bearish",
+          label: "Confirmed bear = CA and US both defensive",
+          className: "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+        }
+      : null,
+    statuses.has("mixed")
+      ? {
+          key: "mixed",
+          label: "Country split = evidence disagrees",
+          className: "border-canola/30 bg-canola/10 text-canola",
+        }
+      : null,
+    hasOneCountry
+      ? {
+          key: "one_country",
+          label: "One-country = V1 has only CA or US modeled",
+          className: "border-border bg-background/70 text-muted-foreground",
+        }
+      : null,
+    statuses.has("aligned_balanced")
+      ? {
+          key: "aligned_balanced",
+          label: "Balanced = no strong current lean",
+          className: "border-border bg-background/70 text-muted-foreground",
+        }
+      : null,
+    statuses.has("mapping_needed")
+      ? {
+          key: "mapping_needed",
+          label: "Source gap = class-safe mapping not admitted",
+          className: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300",
+        }
+      : null,
+  ].filter((item): item is { key: string; label: string; className: string } => item !== null);
+}
+
 function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
   if (rows.length === 0) return null;
+  const legendItems = quickGlanceLegendItems(rows);
 
   return (
     <section className="space-y-4">
@@ -759,18 +1120,11 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        <Badge variant="outline" className="border-prairie/25 bg-prairie/10 text-prairie">
-          Aligned bull = CA and US both constructive
-        </Badge>
-        <Badge variant="outline" className="border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300">
-          Aligned bear = both defensive
-        </Badge>
-        <Badge variant="outline" className="border-canola/30 bg-canola/10 text-canola">
-          Country split = evidence disagrees
-        </Badge>
-        <Badge variant="outline" className="border-border bg-muted/60 text-muted-foreground">
-          Mapping needed = no class-safe source yet
-        </Badge>
+        {legendItems.map((item) => (
+          <Badge key={item.key} variant="outline" className={item.className}>
+            {item.label}
+          </Badge>
+        ))}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -781,34 +1135,46 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
           <span className="hidden md:block">Read</span>
         </div>
         <div className="divide-y divide-border/70">
-          {rows.map((row) => (
-            <div
-              key={`quick-${row.grain}`}
-              className="grid gap-3 px-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:items-center md:gap-4"
-            >
-              <div>
-                <p className="font-semibold text-foreground">{row.grain}</p>
-                <Badge variant="outline" className={cn("mt-2 md:hidden", comparisonClass(row.status))}>
-                  {row.statusLabel}
-                </Badge>
-                <p className="mt-1 text-[11px] text-muted-foreground md:hidden">{row.readinessLabel}</p>
-              </div>
-              <CompactMarketSignal item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
-              <CompactMarketSignal item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
-              <div className="hidden space-y-2 md:block">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className={comparisonClass(row.status)}>
-                    {row.statusLabel}
-                  </Badge>
-                  <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                    {row.readinessLabel}
-                  </Badge>
+          {rows.map((row) => {
+            const action = rowActionCue(row);
+            return (
+              <div
+                key={`quick-${row.grain}`}
+                className="grid gap-3 px-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:items-center md:gap-4"
+              >
+                <div>
+                  <p className="font-semibold text-foreground">{row.grain}</p>
+                  <div className="mt-2 flex flex-wrap gap-2 md:hidden">
+                    <Badge variant="outline" className={actionCueClass(row.status)}>
+                      {action.label}
+                    </Badge>
+                    <Badge variant="outline" className={comparisonClass(row.status)}>
+                      {row.statusLabel}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground md:hidden">{action.detail}</p>
                 </div>
-                <p className="text-xs leading-5 text-muted-foreground">{row.explanation}</p>
-                <p className="text-[11px] leading-5 text-muted-foreground">{row.readinessDetail}</p>
+                <CompactMarketSignal item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
+                <CompactMarketSignal item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
+                <div className="hidden space-y-2 md:block">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className={actionCueClass(row.status)}>
+                      {action.label}
+                    </Badge>
+                    <Badge variant="outline" className={comparisonClass(row.status)}>
+                      {row.statusLabel}
+                    </Badge>
+                    <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                      {row.readinessLabel}
+                    </Badge>
+                  </div>
+                  <p className="text-xs leading-5 text-foreground">{action.detail}</p>
+                  <p className="text-xs leading-5 text-muted-foreground">{row.explanation}</p>
+                  <p className="text-[11px] leading-5 text-muted-foreground">{row.readinessDetail}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -817,16 +1183,20 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
 
 function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesisBoardData>> }) {
   const hasWatchSources = data.totals.uniqueWatchSourceCount > 0;
+  const prairieWeekRead = prairieWeekStatusRead(data);
+  const hasPartialPrairieWeek = prairieWeekRead !== null;
   const isStaleCache = data.packetMode === "cached" && data.cacheStatus !== "fresh";
   const borderClass = isStaleCache
     ? "border-red-500/30 bg-red-500/8"
-    : hasWatchSources
+    : hasWatchSources || hasPartialPrairieWeek
       ? "border-canola/35 bg-canola/8"
       : "border-prairie/25 bg-prairie/8";
   const title = isStaleCache
     ? "Board freshness needs a refresh before use"
     : hasWatchSources
       ? "Use this as a provisional market read"
+      : hasPartialPrairieWeek
+        ? "Source health clean; Prairie crop-progress package is partial"
       : "Source health is clean for this board";
 
   return (
@@ -835,17 +1205,56 @@ function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesis
         <div>
           <p className="text-sm font-semibold text-foreground">{title}</p>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            {shortSourceHealthRead(data)} Confidence is source-completeness, not price-advice certainty.
+            {shortSourceHealthRead(data)} Confidence is source-completeness, not a sell recommendation.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <Badge variant="outline" className={freshnessClass(isStaleCache ? "stale" : hasWatchSources ? "lagged" : "strong")}>
+          <Badge variant="outline" className={freshnessClass(isStaleCache ? "stale" : hasWatchSources || hasPartialPrairieWeek ? "lagged" : "strong")}>
             {data.packetMode === "cached" ? `Cached board: ${data.cacheStatus}` : "Live packet fallback"}
           </Badge>
+          {prairieWeekRead ? (
+            <Badge variant="outline" className="border-canola/35 bg-canola/10 text-canola">
+              {prairieWeekRead}
+            </Badge>
+          ) : null}
           <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
             Last source run {formatDateTime(data.latestAvailableSourceRunAt)}
           </Badge>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CurrentSnapshotCard({ data }: { data: Awaited<ReturnType<typeof getThesisBoardData>> }) {
+  return (
+    <Card className="rounded-lg border-canola/25 bg-canola/8 py-4 shadow-none">
+      <CardContent className="space-y-3 px-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Clock3 className="h-4 w-4 text-canola" />
+          Current snapshot
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+            Generated {formatDateTime(data.generatedAt)}
+          </Badge>
+          <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+            {data.packetMode === "cached" ? "Cached board" : "Live RPC fallback"}
+          </Badge>
+          {data.packetMode === "cached" && (
+            <Badge
+              variant="outline"
+              className={freshnessClass(data.cacheStatus === "fresh" ? "strong" : "stale")}
+            >
+              Cache {data.cacheStatus}
+            </Badge>
+          )}
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Source watermark {formatDateTime(data.sourceRunWatermark)}; latest live run{" "}
+          {formatDateTime(data.latestAvailableSourceRunAt)}. Direct packet data; no archive
+          fallback.
+        </p>
       </CardContent>
     </Card>
   );
@@ -877,52 +1286,25 @@ export default async function ThesisPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-12 pt-8">
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div>
-          <Badge variant="outline" className="mb-4 border-canola/35 bg-canola/8 text-canola">
-            Live source packets
-          </Badge>
-          <h1 className="max-w-4xl font-display text-3xl font-semibold tracking-normal text-foreground md:text-5xl">
-            Bull/Bear Thesis Board
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-            Structured grain calls from Canada and US thesis packets. The board reads
-            facts, freshness, and provenance directly from the data spine, so weekly
-            and daily collectors change the read without waiting for legacy narrative rows.
-            V1 renders major grains only, excluding smaller CGC labels and US rice/cotton.
-          </p>
-        </div>
-
-        <Card className="rounded-lg border-canola/25 bg-canola/8 py-5 shadow-none">
-          <CardHeader className="px-5">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock3 className="h-4 w-4 text-canola" />
-              Current snapshot
-            </CardTitle>
-            <CardDescription>
-              Generated {formatDateTime(data.generatedAt)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 px-5 text-sm leading-6 text-muted-foreground">
-            <p>No retired AI archive fallback is used on this page.</p>
-            <p>Stale, empty, lagged, and proxy source lanes stay visible.</p>
-            <p>
-              Packet mode: {data.packetMode === "cached" ? "cached board" : "live RPC fallback"}.
-            </p>
-            {data.packetMode === "cached" && (
-              <p>
-                Cache status: {data.cacheStatus === "fresh" ? "fresh" : "stale - refresh job needed"}.
-              </p>
-            )}
-            {data.sourceRunWatermark && (
-              <p>Packet source watermark: {formatDateTime(data.sourceRunWatermark)}</p>
-            )}
-            {data.latestAvailableSourceRunAt && (
-              <p>Latest live source run: {formatDateTime(data.latestAvailableSourceRunAt)}</p>
-            )}
-          </CardContent>
-        </Card>
+      <section className="max-w-4xl">
+        <Badge variant="outline" className="mb-4 border-canola/35 bg-canola/8 text-canola">
+          Live source packets
+        </Badge>
+        <h1 className="font-display text-3xl font-semibold tracking-normal text-foreground md:text-5xl">
+          Bull/Bear Thesis Board
+        </h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
+          Source-backed Canada and US grain calls from the live thesis packet spine. V1 stays
+          hard-gated to major grains, with smaller CGC labels and US rice/cotton kept off the
+          public board.
+        </p>
       </section>
+
+      <DataQualityBanner data={data} />
+
+      <TopTakeawayCard rows={data.comparisonRows} />
+
+      <CurrentSnapshotCard data={data} />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
@@ -938,9 +1320,9 @@ export default async function ThesisPage({
           icon={CheckCircle2}
         />
         <SummaryCard
-          label="Watch Sources"
+          label="Watch Source Groups"
           value={String(data.totals.uniqueWatchSourceCount)}
-          detail={`${data.totals.watchSourceInstanceCount} packet rows need attention; optional farmer-local empties excluded from confidence.`}
+          detail={watchSourceCardDetail(data)}
           icon={AlertTriangle}
         />
         <SummaryCard
@@ -954,10 +1336,6 @@ export default async function ThesisPage({
           icon={DatabaseZap}
         />
       </section>
-
-      <DataQualityBanner data={data} />
-
-      <TopTakeawayCard rows={data.comparisonRows} />
 
       <ThesisQuickGlanceBoard rows={data.comparisonRows} />
 

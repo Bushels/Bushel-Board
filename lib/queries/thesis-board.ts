@@ -72,6 +72,20 @@ export interface ThesisSourceHealthSummary {
   optionalSources: ThesisSourceHealthEntry[];
 }
 
+export interface ThesisCanadaCropProgressRunContext {
+  prairieWeekStatus: string | null;
+  finishedAt: string | null;
+  sourcePeriodEnd: string | null;
+  latestSourceLabel: string | null;
+  loadedProvinces: string[];
+  missingProvinces: string[];
+  status: string | null;
+}
+
+export interface ThesisSourceRunContext {
+  canadaCropProgress: ThesisCanadaCropProgressRunContext | null;
+}
+
 export interface ThesisBoardItem {
   id: string;
   lane: ThesisLane;
@@ -129,6 +143,7 @@ export interface ThesisBoardData {
   sourceRunWatermark: string | null;
   latestAvailableSourceRunAt: string | null;
   cacheItemCount: number;
+  sourceRunContext: ThesisSourceRunContext;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
   comparisonRows: ThesisComparisonRow[];
@@ -1709,6 +1724,7 @@ async function buildBoardData({
   sourceRunWatermark,
   latestAvailableSourceRunAt,
   cacheItemCount,
+  sourceRunContext,
   canadaItems,
   usItems,
 }: {
@@ -1718,6 +1734,7 @@ async function buildBoardData({
   sourceRunWatermark: string | null;
   latestAvailableSourceRunAt: string | null;
   cacheItemCount: number;
+  sourceRunContext: ThesisSourceRunContext;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
 }): Promise<ThesisBoardData> {
@@ -1734,6 +1751,7 @@ async function buildBoardData({
     sourceRunWatermark,
     latestAvailableSourceRunAt,
     cacheItemCount,
+    sourceRunContext,
     canadaItems: majorCanadaItems,
     usItems: majorUsItems,
     comparisonRows: buildMajorThesisComparisonRows(majorCanadaItems, majorUsItems),
@@ -1799,6 +1817,7 @@ function buildBoardDataFromCachedPackets(
   packets: CachedBoardPackets,
   cacheStatus: ThesisBoardData["cacheStatus"],
   latestAvailableSourceRunAt: string | null,
+  sourceRunContext: ThesisSourceRunContext,
 ): Promise<ThesisBoardData> {
   const canadaItems = packets.canadaPackets.map((packet, index) =>
     buildCanadaThesisBoardItem(findCanadaGrain(packet, index), packet),
@@ -1814,6 +1833,7 @@ function buildBoardDataFromCachedPackets(
     sourceRunWatermark: packets.sourceRunWatermark,
     latestAvailableSourceRunAt,
     cacheItemCount: packets.cacheItemCount,
+    sourceRunContext,
     canadaItems,
     usItems,
   });
@@ -1882,6 +1902,124 @@ async function fetchLatestAvailableSourceRunAt(
   return typeof data?.finished_at === "string" ? data.finished_at : null;
 }
 
+interface SourceRunContextRow {
+  source_name: string | null;
+  status: string | null;
+  finished_at: string | null;
+  source_period_end: string | null;
+  latest_source_label: string | null;
+  metadata: unknown;
+}
+
+interface FetchedSourceRunContext {
+  latestAvailableSourceRunAt: string | null;
+  sourceRunContext: ThesisSourceRunContext;
+}
+
+function parseSourceRunContextRow(value: unknown): SourceRunContextRow {
+  const row = asRecord(value);
+  return {
+    source_name: textValue(row, "source_name"),
+    status: textValue(row, "status"),
+    finished_at: textValue(row, "finished_at"),
+    source_period_end: textValue(row, "source_period_end"),
+    latest_source_label: textValue(row, "latest_source_label"),
+    metadata: row.metadata,
+  };
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function prairiePackageRank(status: string | null): number {
+  if (status === "complete_mb_sk_ab") return 4;
+  if (status === "complete_with_missing_province") return 3;
+  if (status === "partial_mb_sk") return 2;
+  if (status === "partial_mb_only") return 1;
+  if (status?.startsWith("partial_")) return 0;
+  return -1;
+}
+
+export function selectCanadaCropProgressRunContext(
+  rows: SourceRunContextRow[],
+): ThesisCanadaCropProgressRunContext | null {
+  const candidates = rows
+    .filter((row) => row.source_name === "canada_crop_progress")
+    .map((row) => {
+      const metadata = asRecord(row.metadata);
+      const prairieWeekStatus = textValue(metadata, "prairie_week_status");
+      return {
+        row,
+        metadata,
+        prairieWeekStatus,
+        packageRank: prairiePackageRank(prairieWeekStatus),
+        periodValue: dateValue(row.source_period_end) ?? Number.NEGATIVE_INFINITY,
+        finishedValue: dateValue(row.finished_at) ?? Number.NEGATIVE_INFINITY,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.periodValue - a.periodValue ||
+        b.packageRank - a.packageRank ||
+        b.finishedValue - a.finishedValue,
+    );
+
+  const selected = candidates[0];
+  if (!selected) return null;
+
+  const provinceSummaries = asArray(selected.metadata.province_summaries);
+  const loadedProvinces = provinceSummaries
+    .map((summary) => textValue(summary, "province"))
+    .filter((province): province is string => Boolean(province));
+
+  return {
+    prairieWeekStatus: selected.prairieWeekStatus,
+    finishedAt: selected.row.finished_at,
+    sourcePeriodEnd: selected.row.source_period_end,
+    latestSourceLabel: selected.row.latest_source_label,
+    loadedProvinces,
+    missingProvinces: stringArrayValue(selected.metadata.missing_provinces),
+    status: selected.row.status,
+  };
+}
+
+function sourceRunContextFromRows(rows: SourceRunContextRow[]): FetchedSourceRunContext {
+  const latestAvailableSourceRunAt =
+    rows.find(
+      (row) =>
+        row.finished_at !== null &&
+        row.source_name !== "thesis-packet-cache" &&
+        (row.status === "success" || row.status === "partial"),
+    )?.finished_at ?? null;
+  return {
+    latestAvailableSourceRunAt,
+    sourceRunContext: {
+      canadaCropProgress: selectCanadaCropProgressRunContext(rows),
+    },
+  };
+}
+
+async function fetchSourceRunContext(
+  supabase: SupabaseServerClient,
+): Promise<FetchedSourceRunContext> {
+  const { data, error } = await supabase
+    .from("source_runs")
+    .select("source_name,status,finished_at,source_period_end,latest_source_label,metadata")
+    .neq("source_name", "thesis-packet-cache")
+    .order("finished_at", { ascending: false })
+    .limit(100);
+
+  if (error || !Array.isArray(data)) {
+    return {
+      latestAvailableSourceRunAt: await fetchLatestAvailableSourceRunAt(supabase),
+      sourceRunContext: { canadaCropProgress: null },
+    };
+  }
+
+  return sourceRunContextFromRows(data.map(parseSourceRunContextRow));
+}
+
 async function fetchCachedBoardPackets(
   supabase: SupabaseServerClient,
 ): Promise<CachedBoardPackets | null> {
@@ -1893,7 +2031,11 @@ async function fetchCachedBoardPackets(
   return parseCachedBoardPackets(data);
 }
 
-async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promise<ThesisBoardData> {
+async function fetchLiveFallbackBoardData(
+  supabase: SupabaseServerClient,
+  latestAvailableSourceRunAt: string | null,
+  sourceRunContext: ThesisSourceRunContext,
+): Promise<ThesisBoardData> {
   const canadaItems: ThesisBoardItem[] = [];
   const usItems: ThesisBoardItem[] = [];
 
@@ -1911,8 +2053,9 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
     packetMode: "live_rpc_fallback",
     cacheStatus: "fallback",
     sourceRunWatermark: null,
-    latestAvailableSourceRunAt: null,
+    latestAvailableSourceRunAt,
     cacheItemCount: 0,
+    sourceRunContext,
     canadaItems,
     usItems,
   });
@@ -1920,10 +2063,11 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
 
 export async function getThesisBoardData(): Promise<ThesisBoardData> {
   const supabase = await createClient();
-  const [cachedPackets, latestAvailableSourceRunAt] = await Promise.all([
+  const [cachedPackets, sourceContext] = await Promise.all([
     fetchCachedBoardPackets(supabase),
-    fetchLatestAvailableSourceRunAt(supabase),
+    fetchSourceRunContext(supabase),
   ]);
+  const { latestAvailableSourceRunAt, sourceRunContext } = sourceContext;
 
   if (cachedPackets && cachedPackets.cacheItemCount > 0) {
     const cacheStatus = cacheStatusFor(cachedPackets, latestAvailableSourceRunAt);
@@ -1931,8 +2075,9 @@ export async function getThesisBoardData(): Promise<ThesisBoardData> {
       cachedPackets,
       cacheStatus,
       latestAvailableSourceRunAt,
+      sourceRunContext,
     );
   }
 
-  return fetchLiveFallbackBoardData(supabase);
+  return fetchLiveFallbackBoardData(supabase, latestAvailableSourceRunAt, sourceRunContext);
 }
