@@ -52,6 +52,40 @@ export interface UsMarketContext {
   promptSection: string;
 }
 
+interface UsExportRpcRow {
+  commodity: string;
+  mapping_type: string;
+  week_ending: string;
+  net_sales_mt: number | null;
+  exports_mt: number | null;
+  outstanding_mt: number | null;
+  cumulative_exports_mt: number | null;
+  export_pace_pct: number | null;
+  top_buyers: Array<{ country: string; mt: number }> | null;
+}
+
+interface UsWasdeRpcRow {
+  commodity: string;
+  country: string;
+  report_date: string;
+  ending_stocks_mmt: number | null;
+  stocks_to_use_pct: number | null;
+  revision_direction: string | null;
+  stocks_change_mmt: number | null;
+  production_mmt: number | null;
+  exports_mmt: number | null;
+}
+
+interface UsCropConditionRpcRow {
+  commodity: string;
+  week_ending: string;
+  good_excellent_pct: number | null;
+  condition_index: number | null;
+  ge_pct_yoy_change: number | null;
+  planted_pct: number | null;
+  planted_pct_vs_avg: number | null;
+}
+
 // ─── CGC ↔ USDA Grain Mapping ──────────────────────────────────────────────
 
 export const CGC_TO_USDA_MAP: Record<
@@ -201,7 +235,7 @@ export async function getUsMarketContext(
       p_weeks_back: 2,
     });
     if (data) {
-      exports = data.map((r: any) => ({
+      exports = (data as UsExportRpcRow[]).map((r) => ({
         commodity: r.commodity,
         mappingType: r.mapping_type,
         weekEnding: r.week_ending,
@@ -223,7 +257,7 @@ export async function getUsMarketContext(
       p_months_back: 1,
     });
     if (data) {
-      wasde = data.map((r: any) => ({
+      wasde = (data as UsWasdeRpcRow[]).map((r) => ({
         commodity: r.commodity,
         country: r.country,
         reportDate: r.report_date,
@@ -245,7 +279,7 @@ export async function getUsMarketContext(
       p_weeks_back: 2,
     });
     if (data) {
-      cropConditions = data.map((r: any) => ({
+      cropConditions = (data as UsCropConditionRpcRow[]).map((r) => ({
         commodity: r.commodity,
         weekEnding: r.week_ending,
         goodExcellentPct: r.good_excellent_pct,

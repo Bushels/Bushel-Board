@@ -560,7 +560,7 @@ def parse_manitoba() -> tuple[list[dict[str, Any]], str]:
 def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
     report_link, table_link = latest_saskatchewan_links()
     text, document_url = pdf_to_text(table_link, layout=True)
-    report_text, report_url = pdf_to_text(report_link, layout=True)
+    report_text, report_url = pdf_to_text(report_link, layout=False)
     rows: list[dict[str, Any]] = []
 
     period_match = re.search(
@@ -580,11 +580,15 @@ def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
     report_label = f"Crop Report - {release_date}"
 
     all_crop_match = re.search(
-        r"Currently,\s+([A-Za-z0-9.]+)\s+per\s+cent.*?five-year\s+average\s+of\s+([A-Za-z0-9.]+)",
+        r"(?:Currently,\s+|Seeding\s+progress\s+reached\s+)([A-Za-z0-9.]+)\s+per\s+cent.*?five-year\s+average\s+of\s+([A-Za-z0-9.]+)",
         report_text,
         flags=re.IGNORECASE | re.DOTALL,
     )
-    previous_year_match = re.search(r"May\s+5,\s+2025\s+([0-9]+(?:\.[0-9]+)?)", report_text)
+    previous_year_match = re.search(
+        r"One\s+year\s+ago.*?seeding\s+now\s+([0-9]+(?:\.[0-9]+)?)\s+per\s+cent",
+        report_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
     if all_crop_match:
         value = number_word_or_digits(all_crop_match.group(1))
         five_year_avg = number_word_or_digits(all_crop_match.group(2))
@@ -610,7 +614,11 @@ def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
                 value_pct=value,
                 previous_year_pct=previous_year,
                 five_year_avg_pct=five_year_avg,
-                source_excerpt="Currently, three per cent of the 2026 crop has been planted, behind the five-year average of 12 per cent.",
+                source_excerpt=(
+                    f"Saskatchewan crop report says seeding progress reached {value:g}% "
+                    f"for the period ending {period_end}, compared with the five-year "
+                    f"average of {five_year_avg:g}%."
+                ),
                 confidence="high",
             )
         )
@@ -659,7 +667,10 @@ def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
                     crop_name=crop_name,
                     metric="seeded_pct",
                     value_pct=value,
-                    source_excerpt="Regional Seeding Progress by Crop Type table, period April 28 to May 4, 2026.",
+                    source_excerpt=(
+                        f"Regional Seeding Progress by Crop Type table, period "
+                        f"{period_start} to {period_end}."
+                    ),
                     confidence="high",
                     quality_flags=quality_flags,
                 )
@@ -707,6 +718,19 @@ def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]],
         if not parsed:
             continue
         raw_label, values = parsed
+
+        # If the label has a date, ensure it matches the report_date
+        date_in_label = re.search(r"([A-Za-z]+)\s+([0-9]{1,2})", raw_label)
+        if date_in_label:
+            month_str, day_str = date_in_label.groups()
+            if month_str in MONTHS:
+                report_year = report_date.split("-")[0]
+                label_date = f"{month_str} {day_str}, {report_year}"
+                parsed_label_date = parse_report_date(label_date)
+                if parsed_label_date and parsed_label_date != report_date:
+                    # Skip historical date rows (e.g. previous week)
+                    continue
+
         crop_name = clean_alberta_crop_label(raw_label)
         if crop_name.startswith("5-year All Crops"):
             five_year_all_crops = values

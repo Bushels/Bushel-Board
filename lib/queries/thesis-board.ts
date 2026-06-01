@@ -72,6 +72,8 @@ export interface ThesisSourceHealthSummary {
   optionalSources: ThesisSourceHealthEntry[];
 }
 
+export type ThesisSourceHealthTone = "blocker" | "watch" | "clean";
+
 export interface ThesisSourceHealthReadInput {
   blockerCount: number;
   uniqueWatchSourceCount: number;
@@ -81,7 +83,21 @@ export interface ThesisSourceHealthReadInput {
 export interface ThesisSourceHealthRead {
   title: string;
   description: string;
-  tone: "clean" | "watch" | "blocker";
+  tone: ThesisSourceHealthTone;
+}
+
+export interface ThesisCanadaCropProgressRunContext {
+  prairieWeekStatus: string | null;
+  finishedAt: string | null;
+  sourcePeriodEnd: string | null;
+  latestSourceLabel: string | null;
+  loadedProvinces: string[];
+  missingProvinces: string[];
+  status: string | null;
+}
+
+export interface ThesisSourceRunContext {
+  canadaCropProgress: ThesisCanadaCropProgressRunContext | null;
 }
 
 export interface ThesisBoardItem {
@@ -141,6 +157,7 @@ export interface ThesisBoardData {
   sourceRunWatermark: string | null;
   latestAvailableSourceRunAt: string | null;
   cacheItemCount: number;
+  sourceRunContext: ThesisSourceRunContext;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
   comparisonRows: ThesisComparisonRow[];
@@ -164,8 +181,6 @@ export const THESIS_BOARD_V1_GRAIN_LANES = [
   "Corn",
   "Soybeans",
   "Wheat",
-  "Spring Wheat",
-  "Winter Wheat",
   "Durum",
   "Canola",
   "Barley",
@@ -183,8 +198,6 @@ const THESIS_BOARD_V1_LANE_SOURCE_MAP: readonly ThesisBoardV1LaneSource[] = [
   { lane: "Corn", canadaSourceName: "Corn", usSourceName: "Corn" },
   { lane: "Soybeans", canadaSourceName: "Soybeans", usSourceName: "Soybeans" },
   { lane: "Wheat", canadaSourceName: "Wheat", usSourceName: "Wheat" },
-  { lane: "Spring Wheat", placeholderReason: "source mapping needed" },
-  { lane: "Winter Wheat", placeholderReason: "source mapping needed" },
   { lane: "Durum", canadaSourceName: "Amber Durum" },
   { lane: "Canola", canadaSourceName: "Canola" },
   { lane: "Barley", canadaSourceName: "Barley", usSourceName: "Barley" },
@@ -443,15 +456,92 @@ function confidenceFromFreshness(
   return { confidence: "low", score };
 }
 
+function sourceFreshnessStatus(sourceName: string, freshness: ThesisFreshnessRow[]): string | null {
+  return freshness.find((row) => row.sourceName === sourceName)?.freshnessStatus.toLowerCase() ?? null;
+}
+
 function sourceConfidence(
   requested: ThesisConfidence,
   sourceName: string,
   freshness: ThesisFreshnessRow[],
 ): ThesisConfidence {
-  const status = freshness
-    .find((row) => row.sourceName === sourceName)
-    ?.freshnessStatus.toLowerCase();
+  const status = sourceFreshnessStatus(sourceName, freshness);
   return status === "strong" ? requested : "low";
+}
+
+function isFreshStrongSource(sourceName: string, freshness: ThesisFreshnessRow[]): boolean {
+  return sourceFreshnessStatus(sourceName, freshness) === "strong";
+}
+
+function hasStrongWeatherEvidence(packet: JsonRecord, freshness: ThesisFreshnessRow[]): boolean {
+  return isFreshStrongSource("weather_cache", freshness) && Object.keys(asRecord(packet.weather)).length > 0;
+}
+
+function cropProgressProxySuffix(packet: JsonRecord, freshness: ThesisFreshnessRow[], wording: "direct" | "independent"): string {
+  if (hasStrongWeatherEvidence(packet, freshness)) return "";
+  return wording === "direct"
+    ? " This is crop-progress-only evidence: a crop-progress proxy, not direct weather evidence."
+    : " This is a crop-progress proxy, not independent weather evidence.";
+}
+
+function cropProgressProxyMetricSuffix(packet: JsonRecord, freshness: ThesisFreshnessRow[]): string {
+  return hasStrongWeatherEvidence(packet, freshness) ? "" : " crop-progress proxy";
+}
+
+function cropProgressProxyTitleSuffix(packet: JsonRecord, freshness: ThesisFreshnessRow[]): string {
+  return hasStrongWeatherEvidence(packet, freshness) ? "" : " (crop-progress proxy)";
+}
+
+function cropProgressConfidence(
+  requested: ThesisConfidence,
+  sourceName: string,
+  packet: JsonRecord,
+  freshness: ThesisFreshnessRow[],
+): ThesisConfidence {
+  const sourceLevel = sourceConfidence(requested, sourceName, freshness);
+  if (sourceLevel === "low" || hasStrongWeatherEvidence(packet, freshness)) return sourceLevel;
+  return sourceLevel === "high" ? "medium" : sourceLevel;
+}
+
+interface PriceAdmission {
+  admitted: boolean;
+  provisional: boolean;
+  confidence: ThesisConfidence;
+  metricSuffix: string;
+  bodySuffix: string;
+}
+
+function priceAdmissionForRow(priceRow: JsonRecord, freshness: ThesisFreshnessRow[]): PriceAdmission {
+  if (!isFreshStrongSource("grain_prices", freshness)) {
+    return {
+      admitted: false,
+      provisional: false,
+      confidence: "low",
+      metricSuffix: "",
+      bodySuffix: "",
+    };
+  }
+
+  const source = textValue(priceRow, "source")?.toLowerCase() ?? "";
+  const isBarchartLatestOnly = source === "barchart";
+
+  if (isBarchartLatestOnly) {
+    return {
+      admitted: true,
+      provisional: true,
+      confidence: "low",
+      metricSuffix: " latest-only",
+      bodySuffix: " Barchart latest-only scrape; volume/open interest unavailable, so treat this as provisional price momentum only.",
+    };
+  }
+
+  return {
+    admitted: true,
+    provisional: false,
+    confidence: sourceConfidence("medium", "grain_prices", freshness),
+    metricSuffix: "",
+    bodySuffix: "",
+  };
 }
 
 function latestNationalAcreage(acreageRows: JsonRecord[]): JsonRecord | null {
@@ -803,7 +893,7 @@ export function buildCanadaThesisBoardItem(
         title: "Canadian seeding delay risk",
         body: `Provincial crop-progress rows show ${grain.name} seeding only ${formatPct(seededPct)} complete on average${
           reportDate ? ` as of ${reportDate}` : ""
-        }${provinceSummary ? ` (${provinceSummary})` : ""}.`,
+        }${provinceSummary ? ` (${provinceSummary})` : ""}.${cropProgressProxySuffix(packet, freshness, "independent")}`,
         sourceName: "canada_crop_progress",
         metricLabel: `${formatPct(seededPct)} seeded avg`,
         confidence: sourceConfidence("medium", "canada_crop_progress", freshness),
@@ -814,7 +904,7 @@ export function buildCanadaThesisBoardItem(
         title: "Canadian seeding progress cushions supply",
         body: `Provincial crop-progress rows show ${grain.name} seeding ${formatPct(seededPct)} complete on average${
           reportDate ? ` as of ${reportDate}` : ""
-        }${provinceSummary ? ` (${provinceSummary})` : ""}.`,
+        }${provinceSummary ? ` (${provinceSummary})` : ""}.${cropProgressProxySuffix(packet, freshness, "independent")}`,
         sourceName: "canada_crop_progress",
         metricLabel: `${formatPct(seededPct)} seeded avg`,
         confidence: sourceConfidence("medium", "canada_crop_progress", freshness),
@@ -823,34 +913,35 @@ export function buildCanadaThesisBoardItem(
   }
 
   const latestPrice = prices[0] ?? {};
+  const priceAdmission = priceAdmissionForRow(latestPrice, freshness);
   const priceChangePct = numberValue(latestPrice, "change_pct");
   const price = numberValue(latestPrice, "settlement_price");
-  if (priceChangePct !== null) {
+  if (priceAdmission.admitted && priceChangePct !== null) {
     if (priceChangePct >= 0.5) {
       addDriver(bullDrivers, {
         tone: "bull",
-        title: "Futures follow-through",
+        title: priceAdmission.provisional ? "Provisional futures follow-through" : "Futures follow-through",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.`,
+        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     } else if (priceChangePct <= -0.5) {
       addDriver(bearDrivers, {
         tone: "bear",
-        title: "Futures pressure",
+        title: priceAdmission.provisional ? "Provisional futures pressure" : "Futures pressure",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.`,
+        )} on ${textValue(latestPrice, "price_date") ?? "unknown date"}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     }
   }
@@ -978,24 +1069,24 @@ export function buildUsThesisBoardItem(
     if (goodExcellent <= 50 || (geYoy !== null && geYoy <= -8)) {
       addDriver(bullDrivers, {
         tone: "bull",
-        title: "US crop stress supports price",
+        title: `US crop stress supports price${cropProgressProxyTitleSuffix(packet, freshness)}`,
         body: `US total good/excellent is ${goodExcellent.toFixed(1)}%${
           geYoy !== null ? `, ${formatPct(geYoy)} versus last year` : ""
-        }.`,
+        }.${cropProgressProxySuffix(packet, freshness, "direct")}`,
         sourceName: "usda_crop_progress",
-        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent`,
-        confidence: sourceConfidence("high", "usda_crop_progress", freshness),
+        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent${cropProgressProxyMetricSuffix(packet, freshness)}`,
+        confidence: cropProgressConfidence("high", "usda_crop_progress", packet, freshness),
       });
     } else if (goodExcellent >= 70 || (geYoy !== null && geYoy >= 8)) {
       addDriver(bearDrivers, {
         tone: "bear",
-        title: "US crop condition adds supply pressure",
+        title: `US crop condition adds supply pressure${cropProgressProxyTitleSuffix(packet, freshness)}`,
         body: `US total good/excellent is ${goodExcellent.toFixed(1)}%${
           geYoy !== null ? `, ${formatPct(geYoy)} versus last year` : ""
-        }.`,
+        }.${cropProgressProxySuffix(packet, freshness, "direct")}`,
         sourceName: "usda_crop_progress",
-        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent`,
-        confidence: sourceConfidence("high", "usda_crop_progress", freshness),
+        metricLabel: `${goodExcellent.toFixed(1)}% good/excellent${cropProgressProxyMetricSuffix(packet, freshness)}`,
+        confidence: cropProgressConfidence("high", "usda_crop_progress", packet, freshness),
       });
     }
   }
@@ -1248,34 +1339,35 @@ export function buildUsThesisBoardItem(
   }
 
   const latestPrice = prices[0] ?? {};
+  const priceAdmission = priceAdmissionForRow(latestPrice, freshness);
   const priceChangePct = numberValue(latestPrice, "change_pct");
   const price = numberValue(latestPrice, "settlement_price");
-  if (priceChangePct !== null) {
+  if (priceAdmission.admitted && priceChangePct !== null) {
     if (priceChangePct >= 0.5) {
       addDriver(bullDrivers, {
         tone: "bull",
-        title: "Futures follow-through",
+        title: priceAdmission.provisional ? "Provisional futures follow-through" : "Futures follow-through",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )}.`,
+        )}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     } else if (priceChangePct <= -0.5) {
       addDriver(bearDrivers, {
         tone: "bear",
-        title: "Futures pressure",
+        title: priceAdmission.provisional ? "Provisional futures pressure" : "Futures pressure",
         body: `The latest packet price sample is ${formatPrice(
           price,
           textValue(latestPrice, "currency"),
           textValue(latestPrice, "unit"),
-        )}.`,
+        )}.${priceAdmission.bodySuffix}`,
         sourceName: "grain_prices",
-        metricLabel: formatPct(priceChangePct),
-        confidence: sourceConfidence("medium", "grain_prices", freshness),
+        metricLabel: `${formatPct(priceChangePct)}${priceAdmission.metricSuffix}`,
+        confidence: priceAdmission.confidence,
       });
     }
   }
@@ -1567,15 +1659,19 @@ export function buildFarmerReadSummary(rows: ThesisComparisonRow[]): ThesisFarme
   const wheatClassNames = wheatClassMappingRows.map((row) => row.grain);
   const mappingCount = mappingRows.length;
   const mappingNoun = mappingCount === 1 ? "row is" : "rows are";
+  const mappingCoverageLine =
+    mappingCount > 0
+      ? `${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`
+      : "parked wheat classes stay off the public board until class-safe mapping exists.";
 
   return {
-    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`,
+    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCoverageLine}`,
     mappingLine:
       wheatClassNames.length > 0
         ? `${wheatClassNames.join(" and ")} stay visible but unscored: generic Wheat is not used as a proxy.`
         : "No wheat-class proxy rows are being scored without direct source mapping.",
     actionLine:
-      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before relying on the read.",
   };
 }
 
@@ -1695,6 +1791,7 @@ async function buildBoardData({
   sourceRunWatermark,
   latestAvailableSourceRunAt,
   cacheItemCount,
+  sourceRunContext,
   canadaItems,
   usItems,
 }: {
@@ -1704,6 +1801,7 @@ async function buildBoardData({
   sourceRunWatermark: string | null;
   latestAvailableSourceRunAt: string | null;
   cacheItemCount: number;
+  sourceRunContext: ThesisSourceRunContext;
   canadaItems: ThesisBoardItem[];
   usItems: ThesisBoardItem[];
 }): Promise<ThesisBoardData> {
@@ -1720,6 +1818,7 @@ async function buildBoardData({
     sourceRunWatermark,
     latestAvailableSourceRunAt,
     cacheItemCount,
+    sourceRunContext,
     canadaItems: majorCanadaItems,
     usItems: majorUsItems,
     comparisonRows: buildMajorThesisComparisonRows(majorCanadaItems, majorUsItems),
@@ -1785,6 +1884,7 @@ function buildBoardDataFromCachedPackets(
   packets: CachedBoardPackets,
   cacheStatus: ThesisBoardData["cacheStatus"],
   latestAvailableSourceRunAt: string | null,
+  sourceRunContext: ThesisSourceRunContext,
 ): Promise<ThesisBoardData> {
   const canadaItems = packets.canadaPackets.map((packet, index) =>
     buildCanadaThesisBoardItem(findCanadaGrain(packet, index), packet),
@@ -1800,6 +1900,7 @@ function buildBoardDataFromCachedPackets(
     sourceRunWatermark: packets.sourceRunWatermark,
     latestAvailableSourceRunAt,
     cacheItemCount: packets.cacheItemCount,
+    sourceRunContext,
     canadaItems,
     usItems,
   });
@@ -1868,6 +1969,124 @@ async function fetchLatestAvailableSourceRunAt(
   return typeof data?.finished_at === "string" ? data.finished_at : null;
 }
 
+interface SourceRunContextRow {
+  source_name: string | null;
+  status: string | null;
+  finished_at: string | null;
+  source_period_end: string | null;
+  latest_source_label: string | null;
+  metadata: unknown;
+}
+
+interface FetchedSourceRunContext {
+  latestAvailableSourceRunAt: string | null;
+  sourceRunContext: ThesisSourceRunContext;
+}
+
+function parseSourceRunContextRow(value: unknown): SourceRunContextRow {
+  const row = asRecord(value);
+  return {
+    source_name: textValue(row, "source_name"),
+    status: textValue(row, "status"),
+    finished_at: textValue(row, "finished_at"),
+    source_period_end: textValue(row, "source_period_end"),
+    latest_source_label: textValue(row, "latest_source_label"),
+    metadata: row.metadata,
+  };
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function prairiePackageRank(status: string | null): number {
+  if (status === "complete_mb_sk_ab") return 4;
+  if (status === "complete_with_missing_province") return 3;
+  if (status === "partial_mb_sk") return 2;
+  if (status === "partial_mb_only") return 1;
+  if (status?.startsWith("partial_")) return 0;
+  return -1;
+}
+
+export function selectCanadaCropProgressRunContext(
+  rows: SourceRunContextRow[],
+): ThesisCanadaCropProgressRunContext | null {
+  const candidates = rows
+    .filter((row) => row.source_name === "canada_crop_progress")
+    .map((row) => {
+      const metadata = asRecord(row.metadata);
+      const prairieWeekStatus = textValue(metadata, "prairie_week_status");
+      return {
+        row,
+        metadata,
+        prairieWeekStatus,
+        packageRank: prairiePackageRank(prairieWeekStatus),
+        periodValue: dateValue(row.source_period_end) ?? Number.NEGATIVE_INFINITY,
+        finishedValue: dateValue(row.finished_at) ?? Number.NEGATIVE_INFINITY,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.periodValue - a.periodValue ||
+        b.packageRank - a.packageRank ||
+        b.finishedValue - a.finishedValue,
+    );
+
+  const selected = candidates[0];
+  if (!selected) return null;
+
+  const provinceSummaries = asArray(selected.metadata.province_summaries);
+  const loadedProvinces = provinceSummaries
+    .map((summary) => textValue(summary, "province"))
+    .filter((province): province is string => Boolean(province));
+
+  return {
+    prairieWeekStatus: selected.prairieWeekStatus,
+    finishedAt: selected.row.finished_at,
+    sourcePeriodEnd: selected.row.source_period_end,
+    latestSourceLabel: selected.row.latest_source_label,
+    loadedProvinces,
+    missingProvinces: stringArrayValue(selected.metadata.missing_provinces),
+    status: selected.row.status,
+  };
+}
+
+function sourceRunContextFromRows(rows: SourceRunContextRow[]): FetchedSourceRunContext {
+  const latestAvailableSourceRunAt =
+    rows.find(
+      (row) =>
+        row.finished_at !== null &&
+        row.source_name !== "thesis-packet-cache" &&
+        (row.status === "success" || row.status === "partial"),
+    )?.finished_at ?? null;
+  return {
+    latestAvailableSourceRunAt,
+    sourceRunContext: {
+      canadaCropProgress: selectCanadaCropProgressRunContext(rows),
+    },
+  };
+}
+
+async function fetchSourceRunContext(
+  supabase: SupabaseServerClient,
+): Promise<FetchedSourceRunContext> {
+  const { data, error } = await supabase
+    .from("source_runs")
+    .select("source_name,status,finished_at,source_period_end,latest_source_label,metadata")
+    .neq("source_name", "thesis-packet-cache")
+    .order("finished_at", { ascending: false })
+    .limit(100);
+
+  if (error || !Array.isArray(data)) {
+    return {
+      latestAvailableSourceRunAt: await fetchLatestAvailableSourceRunAt(supabase),
+      sourceRunContext: { canadaCropProgress: null },
+    };
+  }
+
+  return sourceRunContextFromRows(data.map(parseSourceRunContextRow));
+}
+
 async function fetchCachedBoardPackets(
   supabase: SupabaseServerClient,
 ): Promise<CachedBoardPackets | null> {
@@ -1879,7 +2098,11 @@ async function fetchCachedBoardPackets(
   return parseCachedBoardPackets(data);
 }
 
-async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promise<ThesisBoardData> {
+async function fetchLiveFallbackBoardData(
+  supabase: SupabaseServerClient,
+  latestAvailableSourceRunAt: string | null,
+  sourceRunContext: ThesisSourceRunContext,
+): Promise<ThesisBoardData> {
   const canadaItems: ThesisBoardItem[] = [];
   const usItems: ThesisBoardItem[] = [];
 
@@ -1897,8 +2120,9 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
     packetMode: "live_rpc_fallback",
     cacheStatus: "fallback",
     sourceRunWatermark: null,
-    latestAvailableSourceRunAt: null,
+    latestAvailableSourceRunAt,
     cacheItemCount: 0,
+    sourceRunContext,
     canadaItems,
     usItems,
   });
@@ -1906,10 +2130,11 @@ async function fetchLiveFallbackBoardData(supabase: SupabaseServerClient): Promi
 
 export async function getThesisBoardData(): Promise<ThesisBoardData> {
   const supabase = await createClient();
-  const [cachedPackets, latestAvailableSourceRunAt] = await Promise.all([
+  const [cachedPackets, sourceContext] = await Promise.all([
     fetchCachedBoardPackets(supabase),
-    fetchLatestAvailableSourceRunAt(supabase),
+    fetchSourceRunContext(supabase),
   ]);
+  const { latestAvailableSourceRunAt, sourceRunContext } = sourceContext;
 
   if (cachedPackets && cachedPackets.cacheItemCount > 0) {
     const cacheStatus = cacheStatusFor(cachedPackets, latestAvailableSourceRunAt);
@@ -1917,8 +2142,9 @@ export async function getThesisBoardData(): Promise<ThesisBoardData> {
       cachedPackets,
       cacheStatus,
       latestAvailableSourceRunAt,
+      sourceRunContext,
     );
   }
 
-  return fetchLiveFallbackBoardData(supabase);
+  return fetchLiveFallbackBoardData(supabase, latestAvailableSourceRunAt, sourceRunContext);
 }

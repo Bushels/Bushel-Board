@@ -12,10 +12,16 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 
 const args = new Set(process.argv.slice(2));
-const SUMMARY = args.has("--summary") || args.has("--json");
-const JSON_OUTPUT = args.has("--json");
-const STRICT_FRESHNESS = args.has("--strict-freshness");
-const ROUTINE_DUE = args.has("--routine-due");
+
+function hasFlag(flag: string): boolean {
+  const npmConfigKey = `npm_config_${flag.replace(/^--/, "").replace(/-/g, "_")}`;
+  return args.has(flag) || process.env[npmConfigKey] === "true";
+}
+
+const SUMMARY = hasFlag("--summary") || hasFlag("--json");
+const JSON_OUTPUT = hasFlag("--json");
+const STRICT_FRESHNESS = hasFlag("--strict-freshness");
+const ROUTINE_DUE = hasFlag("--routine-due");
 
 const OPTIONAL_LOCAL_SOURCES = new Set([
   "crop_plan_deliveries",
@@ -47,7 +53,10 @@ const MECHANICAL_FRESHNESS_SOURCES = new Set([
   "thesis-packet-cache",
 ]);
 
-const EXPECTED_CACHE_ITEM_COUNT = 21;
+// Public V1 is hard-gated to source-backed rows only: 7 Canada packets + 5 US packets.
+const EXPECTED_V1_CANADA_CACHE_ITEMS = 7;
+const EXPECTED_V1_US_CACHE_ITEMS = 5;
+const EXPECTED_CACHE_ITEM_COUNT = EXPECTED_V1_CANADA_CACHE_ITEMS + EXPECTED_V1_US_CACHE_ITEMS;
 const CACHE_LAG_GRACE_MINUTES = 10;
 const WATCHDOG_TIME_ZONE = "America/Edmonton";
 
@@ -238,6 +247,40 @@ function latestBySource(rows: SourceRun[]): Map<string, SourceRun> {
   return latest;
 }
 
+function prairiePackageRank(status: string | null): number {
+  if (status === "complete_mb_sk_ab") return 4;
+  if (status === "complete_with_missing_province") return 3;
+  if (status === "partial_mb_sk") return 2;
+  if (status === "partial_mb_only") return 1;
+  if (status?.startsWith("partial_")) return 0;
+  return -1;
+}
+
+function prairieWeekStatus(row: SourceRun | undefined): string | null {
+  const metadata = asRecord(row?.metadata);
+  const status = metadata?.prairie_week_status;
+  return typeof status === "string" ? status : null;
+}
+
+function selectCanadaCropProgressPackageRun(rows: SourceRun[]): SourceRun | undefined {
+  return rows
+    .filter((row) => row.source_name === "canada_crop_progress")
+    .sort((a, b) => {
+      const periodDelta =
+        (toDate(b.source_period_end)?.getTime() ?? Number.NEGATIVE_INFINITY) -
+        (toDate(a.source_period_end)?.getTime() ?? Number.NEGATIVE_INFINITY);
+      if (periodDelta !== 0) return periodDelta;
+
+      const rankDelta = prairiePackageRank(prairieWeekStatus(b)) - prairiePackageRank(prairieWeekStatus(a));
+      if (rankDelta !== 0) return rankDelta;
+
+      return (
+        (toDate(b.finished_at)?.getTime() ?? Number.NEGATIVE_INFINITY) -
+        (toDate(a.finished_at)?.getTime() ?? Number.NEGATIVE_INFINITY)
+      );
+    })[0];
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -339,18 +382,16 @@ async function main() {
     });
   }
 
-  const canadaRun = latest.get("canada_crop_progress");
-  const canadaMetadata = asRecord(canadaRun?.metadata);
-  const prairieWeekStatus =
-    typeof canadaMetadata?.prairie_week_status === "string" ? canadaMetadata.prairie_week_status : null;
+  const canadaRun = selectCanadaCropProgressPackageRun(sourceRuns);
+  const canadaPrairieWeekStatus = prairieWeekStatus(canadaRun);
   const dayUtc = now.getUTCDay();
   const hourUtc = now.getUTCHours();
   // Friday 4 PM MT is Friday 22:00 UTC during DST. After that point, a partial Prairie week needs attention.
-  if (dayUtc === 5 && hourUtc >= 22 && prairieWeekStatus && prairieWeekStatus.startsWith("partial_")) {
+  if (dayUtc === 5 && hourUtc >= 22 && canadaPrairieWeekStatus?.startsWith("partial_")) {
     alerts.push({
       severity: "watch",
       code: "partial_prairie_week_after_friday_checkpoint",
-      message: `Canada crop progress still reports ${prairieWeekStatus} after the Friday checkpoint; confirm Alberta source or run the manual missing-AB fallback only with official stale proof.`,
+      message: `Canada crop progress still reports ${canadaPrairieWeekStatus} after the Friday checkpoint; confirm Alberta source or run the manual missing-AB fallback only with official stale proof.`,
     });
   }
 
@@ -414,8 +455,9 @@ async function main() {
         typeof cacheAfter?.sourceRunWatermark === "string" ? cacheAfter.sourceRunWatermark : null,
     },
     canada_crop_progress: {
-      prairie_week_status: prairieWeekStatus,
+      prairie_week_status: canadaPrairieWeekStatus,
       finished_at: canadaRun?.finished_at ?? null,
+      source_period_end: canadaRun?.source_period_end ?? null,
       latest_source_label: canadaRun?.latest_source_label ?? null,
     },
     freshness_watch_count: freshnessSummaries.reduce((sum, row) => sum + row.coreWatchRows.length, 0),

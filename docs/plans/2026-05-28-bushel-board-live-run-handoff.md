@@ -1,5 +1,7 @@
 # Bushel Board live-run handoff — 2026-05-28
 
+> Superseded for current task selection by `docs/plans/2026-05-31-bushel-board-fresh-session-handoff.md`. Keep this file for the collector/live-run history only; do not use its remaining 2026-05-28 monitor checklist as the current next action.
+
 Created: 2026-05-28 11:25 MT
 Repo: `/mnt/c/Users/kyle/Agriculture/bushel-board-app`
 Branch: `codex/data-layer-foundation-v1`

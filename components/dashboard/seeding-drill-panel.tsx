@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
 import type { DrillData } from "@/lib/queries/seeding-drill-utils";
 import {
@@ -99,14 +99,18 @@ export function SeedingDrillPanel({
 }: Props): JSX.Element {
   const reducedMotion = useReducedMotion() === true;
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const [data, setData] = useState<DrillData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const requestKey = `${stateCode}:${commodity}`;
+  const [loadState, setLoadState] = useState<{
+    key: string | null;
+    data: DrillData | null;
+    error: string | null;
+  }>({ key: null, data: null, error: null });
+  const data = loadState.key === requestKey ? loadState.data : null;
+  const error = loadState.key === requestKey ? loadState.error : null;
 
   // Fetch drill data
   useEffect(() => {
     let cancelled = false;
-    setData(null);
-    setError(null);
     fetch(
       `/api/seeding/drill?state=${encodeURIComponent(stateCode)}&crop=${encodeURIComponent(commodity)}`,
     )
@@ -115,17 +119,21 @@ export function SeedingDrillPanel({
         return res.json() as Promise<DrillData>;
       })
       .then((d) => {
-        if (!cancelled) setData(d);
+        if (!cancelled) setLoadState({ key: requestKey, data: d, error: null });
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load data");
+          setLoadState({
+            key: requestKey,
+            data: null,
+            error: err instanceof Error ? err.message : "Failed to load data",
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [stateCode, commodity]);
+  }, [stateCode, commodity, requestKey]);
 
   // ESC key dismiss
   useEffect(() => {

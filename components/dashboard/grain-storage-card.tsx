@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Wheat } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,6 @@ interface GrainStorageCardProps {
    * hasn't saved values yet.
    */
   comparison: GrainStorageComparison | null;
-}
-
-function formatTonnes(value: number): string {
-  if (value === 0) return "0";
-  if (value < 10) return value.toFixed(1);
-  return Math.round(value).toLocaleString();
 }
 
 /**
@@ -53,8 +47,14 @@ export function GrainStorageCard({
     initialRemainingTonnes > 0 ? String(initialRemainingTonnes) : ""
   );
   const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [showSaved, setShowSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!showSaved) return;
+    const timeout = window.setTimeout(() => setShowSaved(false), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [showSaved]);
 
   const totalNum = Number(totalInput);
   const remainingNum = Number(remainingInput);
@@ -87,11 +87,10 @@ export function GrainStorageCard({
         setError(result.error);
         return;
       }
-      setSavedAt(Date.now());
+      setShowSaved(true);
     });
   }
 
-  const showSaved = savedAt !== null && Date.now() - savedAt < 3000;
 
   return (
     <GlassCard elevation={2} hover={false} className="p-5 sm:p-6">
@@ -125,7 +124,7 @@ export function GrainStorageCard({
             onChange={(e) => {
               setTotalInput(e.target.value);
               setError(null);
-              setSavedAt(null);
+              setShowSaved(false);
             }}
           />
         </div>
@@ -144,7 +143,7 @@ export function GrainStorageCard({
             onChange={(e) => {
               setRemainingInput(e.target.value);
               setError(null);
-              setSavedAt(null);
+              setShowSaved(false);
             }}
           />
         </div>

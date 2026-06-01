@@ -10,6 +10,7 @@ import {
   buildSourceHealthSummary,
   cacheStatusForSourceState,
   buildUsThesisBoardItem,
+  selectCanadaCropProgressRunContext,
 } from "@/lib/queries/thesis-board";
 
 const canola = { name: "Canola", slug: "canola", defaultBushelWeightLbs: 50 };
@@ -136,7 +137,7 @@ describe("thesis board packet normalization", () => {
       "Canadian seeding delay risk",
     );
     expect(item.bearDrivers.map((driver) => driver.title)).toContain("Heavy carryout context");
-    expect(item.bearDrivers.map((driver) => driver.title)).toContain("Futures pressure");
+    expect(item.bearDrivers.map((driver) => driver.title)).not.toContain("Futures pressure");
     expect(item.freshness).toHaveLength(3);
     expect(item.confidence).toBe("medium");
     expect(item.ratingScorecard).toMatchObject({
@@ -197,11 +198,9 @@ describe("thesis board packet normalization", () => {
 
     expect(item.bullDrivers.map((driver) => driver.title)).toContain("Export sales demand");
     expect(item.bullDrivers.map((driver) => driver.title)).toContain("WASDE balance tightening");
-    expect(item.bearDrivers.map((driver) => driver.title)).toContain(
-      "US crop condition adds supply pressure",
-    );
-    expect(item.stanceScore).toBe(0);
-    expect(item.stanceLabel).toBe("Balanced");
+    expect(item.bearDrivers.some((driver) => driver.title.includes("US crop condition adds supply pressure"))).toBe(true);
+    expect(item.stanceScore).toBe(6);
+    expect(item.stanceLabel).toBe("Lean bull");
     expect(item.confidence).toBe("high");
     expect(item.ratingScorecard).toMatchObject({
       grain: "Corn",
@@ -212,7 +211,7 @@ describe("thesis board packet normalization", () => {
     expect(item.ratingScorecard.domains.map((domain) => domain.domain)).toContain("demand");
     expect(item.ratingScorecard.overall_score).toBeGreaterThan(0);
     expect(["balanced", "lean_bull", "bull", "strong_bull"]).toContain(item.ratingScorecard.overall_label);
-    expect(item.stanceLabel).toBe("Balanced");
+    expect(item.stanceLabel).toBe("Lean bull");
   });
 
   it("turns WASDE month-over-month revisions into US thesis drivers", () => {
@@ -565,6 +564,53 @@ describe("thesis board packet normalization", () => {
     expect(leanBear.stanceLabel).toBe("Lean bear");
   });
 
+  it("does not let stale futures rows create price drivers", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      prices: [
+        {
+          settlement_price: 728.7,
+          change_pct: 1.2,
+          currency: "CAD",
+          unit: "tonne",
+          price_date: "2026-05-08",
+          source: "yahoo-finance",
+        },
+      ],
+      freshness: [{ source_name: "grain_prices", freshness_status: "stale" }],
+      quality_warnings: [{ source_name: "grain_prices", status: "stale" }],
+    });
+
+    expect(item.bullDrivers.map((driver) => driver.title)).not.toContain("Futures follow-through");
+    expect(item.stanceScore).toBe(0);
+    expect(item.warnings.find((warning) => warning.sourceName === "grain_prices")?.severity).toBe("watch");
+  });
+
+  it("labels Barchart latest-only price rows as provisional instead of full-quality futures history", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      prices: [
+        {
+          settlement_price: 728.7,
+          change_pct: 1.2,
+          currency: "CAD",
+          unit: "$/tonne",
+          price_date: "2026-05-08",
+          source: "barchart",
+          volume: null,
+          open_interest: null,
+        },
+      ],
+      freshness: [{ source_name: "grain_prices", freshness_status: "strong" }],
+    });
+
+    const driver = item.bullDrivers.find((candidate) => candidate.sourceName === "grain_prices");
+
+    expect(driver?.title).toBe("Provisional futures follow-through");
+    expect(driver?.confidence).toBe("low");
+    expect(driver?.body).toContain("Barchart latest-only scrape");
+    expect(driver?.body).toContain("volume/open interest unavailable");
+    expect(driver?.metricLabel).toBe("+1.2% latest-only");
+  });
+
   it("caps driver confidence when the source freshness row is stale", () => {
     const item = buildCanadaThesisBoardItem(canola, {
       demand: {
@@ -667,8 +713,6 @@ describe("thesis board packet normalization", () => {
       "Corn",
       "Soybeans",
       "Wheat",
-      "Spring Wheat",
-      "Winter Wheat",
       "Durum",
       "Canola",
       "Barley",
@@ -759,7 +803,7 @@ describe("thesis board packet normalization", () => {
     expect(wheatRow?.readinessLabel).toBe("Source-backed");
     expect(wheatRow?.readinessDetail).toContain("Canada and US packets are present");
     expect(wheatRow?.explanation).toContain("CA +36 Bull tilt");
-    expect(wheatRow?.explanation).toContain("US -30 Bear tilt");
+    expect(wheatRow?.explanation).toContain("US -24 Bear tilt");
     expect(wheatRow?.strongestBullPoints.map((point) => point.country)).toContain("CA");
     expect(wheatRow?.strongestBearPoints.map((point) => point.country)).toContain("US");
   });
@@ -792,6 +836,110 @@ describe("thesis board packet normalization", () => {
     expect(item.staleSourceCount).toBe(0);
     expect(item.optionalSourceCount).toBe(3);
     expect(item.warnings.map((warning) => warning.severity)).toEqual(["info", "info", "info"]);
+  });
+
+  it("labels US crop stress as a crop-progress proxy when weather_cache is absent", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      supply: {
+        crop_progress: {
+          us_total: {
+            good_excellent_pct: 45,
+            ge_pct_yoy_change: -10,
+          },
+        },
+      },
+      freshness: [{ source_name: "usda_crop_progress", freshness_status: "strong" }],
+    });
+
+    const driver = item.bullDrivers.find(
+      (candidate) => candidate.sourceName === "usda_crop_progress",
+    );
+
+    expect(driver?.title).toContain("crop-progress proxy");
+    expect(driver?.body).toContain("crop-progress proxy, not direct weather");
+    expect(driver?.metricLabel).toBe("45.0% good/excellent crop-progress proxy");
+    expect(driver?.confidence).toBe("medium");
+  });
+
+  it("keeps stale US crop-progress-only weather proxy confidence low", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      supply: {
+        crop_progress: {
+          us_total: {
+            good_excellent_pct: 76,
+            ge_pct_yoy_change: 10,
+          },
+        },
+      },
+      freshness: [{ source_name: "usda_crop_progress", freshness_status: "stale" }],
+    });
+
+    const driver = item.bearDrivers.find(
+      (candidate) => candidate.sourceName === "usda_crop_progress",
+    );
+
+    expect(driver?.title).toContain("crop-progress proxy");
+    expect(driver?.body).toContain("crop-progress-only");
+    expect(driver?.confidence).toBe("low");
+  });
+
+  it("does not force US crop-progress proxy labeling when real weather_cache data is strong", () => {
+    const item = buildUsThesisBoardItem(corn, {
+      weather: {
+        station_id: "KDSM",
+        observed_at: "2026-05-08T18:00:00Z",
+        precipitation_mm_7d: 2,
+      },
+      supply: {
+        crop_progress: {
+          us_total: {
+            good_excellent_pct: 45,
+            ge_pct_yoy_change: -10,
+          },
+        },
+      },
+      freshness: [
+        { source_name: "usda_crop_progress", freshness_status: "strong" },
+        { source_name: "weather_cache", freshness_status: "strong" },
+      ],
+    });
+
+    const driver = item.bullDrivers.find(
+      (candidate) => candidate.sourceName === "usda_crop_progress",
+    );
+
+    expect(driver?.title).toBe("US crop stress supports price");
+    expect(driver?.body).not.toContain("crop-progress proxy");
+    expect(driver?.metricLabel).toBe("45.0% good/excellent");
+    expect(driver?.confidence).toBe("high");
+  });
+
+  it("labels Canadian seeding drivers as a crop progress proxy when weather_cache is empty", () => {
+    const item = buildCanadaThesisBoardItem(canola, {
+      supply: {
+        canada_crop_progress: [
+          {
+            province_code: "AB",
+            region_scope: "province",
+            metric: "seeded_pct",
+            value_pct: 88,
+            report_date: "2026-05-19",
+          },
+        ],
+      },
+      freshness: [
+        { source_name: "canada_crop_progress", freshness_status: "strong" },
+        { source_name: "weather_cache", freshness_status: "empty" },
+      ],
+    });
+
+    const driver = item.bearDrivers.find(
+      (candidate) => candidate.sourceName === "canada_crop_progress",
+    );
+
+    expect(driver?.title).toBe("Canadian seeding progress cushions supply");
+    expect(driver?.body).toContain("crop-progress proxy, not independent weather");
+    expect(driver?.confidence).toBe("medium");
   });
 
   it("summarizes watch sources uniquely instead of double-counting each grain packet", () => {
@@ -842,29 +990,90 @@ describe("thesis board packet normalization", () => {
     ).toBe("fresh");
   });
 
-  it("builds comparison rows in exact V1 lane order with wheat-class placeholders", () => {
+  it("uses a same-period complete Prairie crop-progress package over later province-only reruns", () => {
+    const context = selectCanadaCropProgressRunContext([
+      {
+        source_name: "canada_crop_progress",
+        status: "success",
+        finished_at: "2026-05-30T14:48:56.019201+00:00",
+        source_period_end: "2026-05-26",
+        latest_source_label: "Alberta Crop Report - 2026-05-26",
+        metadata: {
+          prairie_week_status: "partial_prairie_week",
+          province_summaries: [{ province: "AB" }],
+          missing_provinces: [],
+        },
+      },
+      {
+        source_name: "canada_crop_progress",
+        status: "success",
+        finished_at: "2026-05-29T21:30:52.267352+00:00",
+        source_period_end: "2026-05-26",
+        latest_source_label:
+          "Alberta Crop Report - 2026-05-26, Crop Report - 2026-05-26, Crop Report - 2026-05-28",
+        metadata: {
+          prairie_week_status: "complete_mb_sk_ab",
+          province_summaries: [{ province: "MB" }, { province: "SK" }, { province: "AB" }],
+          missing_provinces: [],
+        },
+      },
+    ]);
+
+    expect(context).toMatchObject({
+      prairieWeekStatus: "complete_mb_sk_ab",
+      sourcePeriodEnd: "2026-05-26",
+      loadedProvinces: ["MB", "SK", "AB"],
+    });
+  });
+
+  it("uses a newer partial Prairie crop-progress period over an older complete package", () => {
+    const context = selectCanadaCropProgressRunContext([
+      {
+        source_name: "canada_crop_progress",
+        status: "success",
+        finished_at: "2026-05-29T21:30:52.267352+00:00",
+        source_period_end: "2026-05-26",
+        latest_source_label:
+          "Alberta Crop Report - 2026-05-26, Crop Report - 2026-05-26, Crop Report - 2026-05-28",
+        metadata: {
+          prairie_week_status: "complete_mb_sk_ab",
+          province_summaries: [{ province: "MB" }, { province: "SK" }, { province: "AB" }],
+          missing_provinces: [],
+        },
+      },
+      {
+        source_name: "canada_crop_progress",
+        status: "partial",
+        finished_at: "2026-06-02T18:45:00.000000+00:00",
+        source_period_end: "2026-06-02",
+        latest_source_label: "Manitoba Crop Report - 2026-06-02",
+        metadata: {
+          prairie_week_status: "partial_mb_only",
+          province_summaries: [{ province: "MB" }],
+          missing_provinces: ["SK", "AB"],
+        },
+      },
+    ]);
+
+    expect(context).toMatchObject({
+      prairieWeekStatus: "partial_mb_only",
+      sourcePeriodEnd: "2026-06-02",
+      loadedProvinces: ["MB"],
+      missingProvinces: ["SK", "AB"],
+      status: "partial",
+    });
+  });
+
+  it("builds comparison rows in exact V1 lane order without unmapped wheat-class placeholders", () => {
     const rows = buildMajorThesisComparisonRows([], []);
 
     expect(rows.map((row) => row.grain)).toEqual(THESIS_BOARD_V1_GRAIN_LANES);
-    const springWheatRow = rows.find((row) => row.grain === "Spring Wheat");
-    const winterWheatRow = rows.find((row) => row.grain === "Winter Wheat");
-
-    expect(springWheatRow?.status).toBe("mapping_needed");
-    expect(springWheatRow?.statusLabel).toBe("Mapping needed");
-    expect(springWheatRow?.readinessLabel).toBe("Mapping pending");
-    expect(springWheatRow?.readinessDetail).toContain("class-safe Spring Wheat source mapping");
-    expect(springWheatRow?.explanation).toContain("class-specific source mapping is still pending");
-    expect(springWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
-    expect(winterWheatRow?.status).toBe("mapping_needed");
-    expect(winterWheatRow?.statusLabel).toBe("Mapping needed");
-    expect(winterWheatRow?.readinessLabel).toBe("Mapping pending");
-    expect(winterWheatRow?.readinessDetail).toContain("class-safe Winter Wheat source mapping");
-    expect(winterWheatRow?.explanation).toContain("class-specific source mapping is still pending");
-    expect(winterWheatRow?.explanation).toContain("Generic Wheat is not used as a proxy");
+    expect(rows.find((row) => row.grain === "Spring Wheat")).toBeUndefined();
+    expect(rows.find((row) => row.grain === "Winter Wheat")).toBeUndefined();
     expect(rows.find((row) => row.grain === "Amber Durum")).toBeUndefined();
   });
 
-  it("does not alias generic Wheat packets into Spring or Winter Wheat rows", () => {
+  it("does not create Spring or Winter Wheat rows from generic Wheat packets", () => {
     const canadaWheat = buildCanadaThesisBoardItem(wheat, {
       lane: "canada",
       grain: "Wheat",
@@ -898,14 +1107,8 @@ describe("thesis board packet normalization", () => {
 
     expect(genericWheatRow?.canada).toBe(canadaWheat);
     expect(genericWheatRow?.us).toBe(usWheatItem);
-    expect(springWheatRow?.canada).toBeNull();
-    expect(springWheatRow?.us).toBeNull();
-    expect(springWheatRow?.strongestBullPoints).toEqual([]);
-    expect(springWheatRow?.strongestBearPoints).toEqual([]);
-    expect(winterWheatRow?.canada).toBeNull();
-    expect(winterWheatRow?.us).toBeNull();
-    expect(winterWheatRow?.strongestBullPoints).toEqual([]);
-    expect(winterWheatRow?.strongestBearPoints).toEqual([]);
+    expect(springWheatRow).toBeUndefined();
+    expect(winterWheatRow).toBeUndefined();
   });
 
   it("labels Canadian Amber Durum source data as the Durum product lane", () => {
@@ -981,13 +1184,13 @@ describe("thesis board packet normalization", () => {
     const summary = buildFarmerReadSummary(rows);
 
     expect(summary.coverageLine).toBe(
-      "7 of 9 V1 rows are source-backed or intentionally Canada-first; 2 wheat-class rows are parked until class-safe mapping exists.",
+      "7 of 7 V1 rows are source-backed or intentionally Canada-first; parked wheat classes stay off the public board until class-safe mapping exists.",
     );
     expect(summary.mappingLine).toBe(
-      "Spring Wheat and Winter Wheat stay visible but unscored: generic Wheat is not used as a proxy.",
+      "No wheat-class proxy rows are being scored without direct source mapping.",
     );
     expect(summary.actionLine).toBe(
-      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before relying on the read.",
     );
   });
 });

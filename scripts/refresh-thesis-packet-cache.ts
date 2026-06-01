@@ -165,6 +165,65 @@ async function refreshOne(
   };
 }
 
+async function pruneOutOfScopeCacheRows(
+  supabase: SupabaseClient,
+  params: {
+    cropYear: string;
+    marketYear: number;
+    canadaGrains: string[];
+    usMarkets: string[];
+  },
+) {
+  const allowedCanada = new Set(params.canadaGrains);
+  const allowedUs = new Set(params.usMarkets);
+  const rowsToDelete: { cache_key: string; lane: "canada" | "us"; item_name: string }[] = [];
+
+  const { data: canadaRows, error: canadaError } = await supabase
+    .from("thesis_packet_cache")
+    .select("cache_key,lane,item_name")
+    .eq("lane", "canada")
+    .eq("crop_year", params.cropYear);
+  if (canadaError) throw new Error(canadaError.message);
+
+  for (const row of canadaRows ?? []) {
+    const record = asRecord(row);
+    const cacheKey = typeof record.cache_key === "string" ? record.cache_key : null;
+    const itemName = typeof record.item_name === "string" ? record.item_name : null;
+    if (cacheKey && itemName && !allowedCanada.has(itemName)) {
+      rowsToDelete.push({ cache_key: cacheKey, lane: "canada", item_name: itemName });
+    }
+  }
+
+  const { data: usRows, error: usError } = await supabase
+    .from("thesis_packet_cache")
+    .select("cache_key,lane,item_name")
+    .eq("lane", "us")
+    .eq("market_year", params.marketYear);
+  if (usError) throw new Error(usError.message);
+
+  for (const row of usRows ?? []) {
+    const record = asRecord(row);
+    const cacheKey = typeof record.cache_key === "string" ? record.cache_key : null;
+    const itemName = typeof record.item_name === "string" ? record.item_name : null;
+    if (cacheKey && itemName && !allowedUs.has(itemName)) {
+      rowsToDelete.push({ cache_key: cacheKey, lane: "us", item_name: itemName });
+    }
+  }
+
+  if (rowsToDelete.length === 0) return { deleted: 0, rows: [] };
+
+  const { error: deleteError } = await supabase
+    .from("thesis_packet_cache")
+    .delete()
+    .in(
+      "cache_key",
+      rowsToDelete.map((row) => row.cache_key),
+    );
+  if (deleteError) throw new Error(deleteError.message);
+
+  return { deleted: rowsToDelete.length, rows: rowsToDelete };
+}
+
 async function main() {
   loadEnvConfig(process.cwd());
 
@@ -201,13 +260,19 @@ async function main() {
   });
 
   try {
+  const initialPrune = await pruneOutOfScopeCacheRows(supabase, {
+    cropYear,
+    marketYear,
+    canadaGrains,
+    usMarkets,
+  });
   const before = await readCacheState(supabase, cropYear, marketYear);
   if (!values.force && cacheIsFresh(before, expectedCount)) {
     await recordRun(supabase, {
       status: "skipped",
       startedAt,
       rowsSkipped: expectedCount,
-      metadata: { reason: "cache_already_current", before, cropYear, grainWeek, marketYear },
+      metadata: { reason: "cache_already_current", before, initialPrune, cropYear, grainWeek, marketYear },
     });
     console.log(
       JSON.stringify(
@@ -238,6 +303,12 @@ async function main() {
     results.push(await refreshOne(supabase, { lane: "us", name, cropYear, grainWeek, marketYear }));
   }
 
+  const finalPrune = await pruneOutOfScopeCacheRows(supabase, {
+    cropYear,
+    marketYear,
+    canadaGrains,
+    usMarkets,
+  });
   const after = await readCacheState(supabase, cropYear, marketYear);
   const failures = results.filter((result) => !result.ok);
   const okCount = results.length - failures.length;
@@ -254,6 +325,8 @@ async function main() {
       marketYear,
       before,
       after,
+      initialPrune,
+      finalPrune,
       failures,
     },
   });
