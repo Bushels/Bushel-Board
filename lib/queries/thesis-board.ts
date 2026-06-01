@@ -72,6 +72,20 @@ export interface ThesisSourceHealthSummary {
   optionalSources: ThesisSourceHealthEntry[];
 }
 
+export type ThesisSourceHealthTone = "blocker" | "watch" | "clean";
+
+export interface ThesisSourceHealthReadInput {
+  blockerCount: number;
+  uniqueWatchSourceCount: number;
+  watchSourceInstanceCount: number;
+}
+
+export interface ThesisSourceHealthRead {
+  title: string;
+  description: string;
+  tone: ThesisSourceHealthTone;
+}
+
 export interface ThesisCanadaCropProgressRunContext {
   prairieWeekStatus: string | null;
   finishedAt: string | null;
@@ -1645,15 +1659,19 @@ export function buildFarmerReadSummary(rows: ThesisComparisonRow[]): ThesisFarme
   const wheatClassNames = wheatClassMappingRows.map((row) => row.grain);
   const mappingCount = mappingRows.length;
   const mappingNoun = mappingCount === 1 ? "row is" : "rows are";
+  const mappingCoverageLine =
+    mappingCount > 0
+      ? `${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`
+      : "parked wheat classes stay off the public board until class-safe mapping exists.";
 
   return {
-    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`,
+    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCoverageLine}`,
     mappingLine:
       wheatClassNames.length > 0
         ? `${wheatClassNames.join(" and ")} stay visible but unscored: generic Wheat is not used as a proxy.`
         : "No wheat-class proxy rows are being scored without direct source mapping.",
     actionLine:
-      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before relying on the read.",
   };
 }
 

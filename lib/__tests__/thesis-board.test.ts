@@ -1184,13 +1184,13 @@ describe("thesis board packet normalization", () => {
     const summary = buildFarmerReadSummary(rows);
 
     expect(summary.coverageLine).toBe(
-      "7 of 9 V1 rows are source-backed or intentionally Canada-first; 2 wheat-class rows are parked until class-safe mapping exists.",
+      "7 of 7 V1 rows are source-backed or intentionally Canada-first; parked wheat classes stay off the public board until class-safe mapping exists.",
     );
     expect(summary.mappingLine).toBe(
-      "Spring Wheat and Winter Wheat stay visible but unscored: generic Wheat is not used as a proxy.",
+      "No wheat-class proxy rows are being scored without direct source mapping.",
     );
     expect(summary.actionLine).toBe(
-      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before relying on the read.",
     );
   });
 });
