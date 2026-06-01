@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/card";
 import {
   getThesisBoardData,
+  buildFarmerReadSummary,
+  buildSourceHealthRead,
   type ThesisBoardItem,
   type ThesisComparisonPoint,
   type ThesisComparisonRow,
@@ -540,6 +542,8 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
   const countrySplits = rows.filter((row) => row.status === "mixed" && (row.canada || row.us)).length;
   const sourceMappingGaps = rows.filter((row) => !row.canada && !row.us).length;
 
+  const farmerSummary = buildFarmerReadSummary(rows);
+
   const leadLine = strongestBull
     ? marketReadLine(strongestBull, "bull")
     : "No grain has a confidence-backed bull lean in the current packets.";
@@ -560,8 +564,7 @@ function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
             </Badge>
             <CardTitle className="font-display text-2xl">Top takeaway</CardTitle>
             <CardDescription className="mt-2 max-w-3xl text-sm leading-6">
-              One pass before the big table: what looks most constructive, what needs caution,
-              and where Canada/US disagree.
+              One pass before the big table: {farmerSummary.coverageLine}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -1182,11 +1185,12 @@ function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
 }
 
 function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesisBoardData>> }) {
+  const sourceHealthRead = buildSourceHealthRead(data.totals);
   const hasWatchSources = data.totals.uniqueWatchSourceCount > 0;
   const prairieWeekRead = prairieWeekStatusRead(data);
   const hasPartialPrairieWeek = prairieWeekRead !== null;
   const isStaleCache = data.packetMode === "cached" && data.cacheStatus !== "fresh";
-  const borderClass = isStaleCache
+  const borderClass = isStaleCache || sourceHealthRead.tone === "blocker"
     ? "border-red-500/30 bg-red-500/8"
     : hasWatchSources || hasPartialPrairieWeek
       ? "border-canola/35 bg-canola/8"

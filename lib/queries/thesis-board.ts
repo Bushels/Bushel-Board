@@ -677,6 +677,28 @@ function sourceCounts(freshness: ThesisFreshnessRow[]) {
   };
 }
 
+export function buildSourceHealthRead(totals: ThesisSourceHealthReadInput): ThesisSourceHealthRead {
+  if (totals.blockerCount > 0) {
+    return {
+      title: "Source blockers need repair before a clean read",
+      description: `${totals.blockerCount} blocker${totals.blockerCount === 1 ? "" : "s"} need repair before treating this as a source-clean read.`,
+      tone: "blocker",
+    };
+  }
+  if (totals.uniqueWatchSourceCount === 0) {
+    return {
+      title: "Source health is clean for this board",
+      description: "All rendered public source groups are currently clean.",
+      tone: "clean",
+    };
+  }
+  return {
+    title: "Usable board with cadence-lagged sources",
+    description: `No source blockers; ${totals.uniqueWatchSourceCount} source group${totals.uniqueWatchSourceCount === 1 ? " is" : "s are"} cadence-lagged or stale-risk across ${totals.watchSourceInstanceCount} packet rows.`,
+    tone: "watch",
+  };
+}
+
 export function buildSourceHealthSummary(items: ThesisBoardItem[]): ThesisSourceHealthSummary {
   const watchBySource = new Map<string, ThesisSourceHealthEntry>();
   const optionalBySource = new Map<string, ThesisSourceHealthEntry>();
@@ -1606,6 +1628,33 @@ function comparisonExplanation(
   return `CA ${signedScore(canada.stanceScore)} ${canada.stanceLabel}${canadaDetail}; US ${signedScore(
     us.stanceScore,
   )} ${us.stanceLabel}${usDetail}.`;
+}
+
+export interface ThesisFarmerReadSummary {
+  coverageLine: string;
+  mappingLine: string;
+  actionLine: string;
+}
+
+export function buildFarmerReadSummary(rows: ThesisComparisonRow[]): ThesisFarmerReadSummary {
+  const sourceBackedOrIntentionalRows = rows.filter(
+    (row) => row.status !== "mapping_needed" && (row.canada || row.us),
+  ).length;
+  const mappingRows = rows.filter((row) => row.status === "mapping_needed");
+  const wheatClassMappingRows = mappingRows.filter((row) => row.grain.includes("Wheat"));
+  const wheatClassNames = wheatClassMappingRows.map((row) => row.grain);
+  const mappingCount = mappingRows.length;
+  const mappingNoun = mappingCount === 1 ? "row is" : "rows are";
+
+  return {
+    coverageLine: `${sourceBackedOrIntentionalRows} of ${rows.length} V1 rows are source-backed or intentionally Canada-first; ${mappingCount} wheat-class ${mappingNoun} parked until class-safe mapping exists.`,
+    mappingLine:
+      wheatClassNames.length > 0
+        ? `${wheatClassNames.join(" and ")} stay visible but unscored: generic Wheat is not used as a proxy.`
+        : "No wheat-class proxy rows are being scored without direct source mapping.",
+    actionLine:
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+  };
 }
 
 export function buildMajorThesisComparisonRows(

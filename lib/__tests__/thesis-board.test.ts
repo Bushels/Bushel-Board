@@ -4,7 +4,9 @@ import {
   THESIS_BOARD_MAJOR_US_MARKET_NAMES,
   THESIS_BOARD_V1_GRAIN_LANES,
   buildCanadaThesisBoardItem,
+  buildFarmerReadSummary,
   buildMajorThesisComparisonRows,
+  buildSourceHealthRead,
   buildSourceHealthSummary,
   cacheStatusForSourceState,
   buildUsThesisBoardItem,
@@ -34,6 +36,20 @@ const usWheat = {
 };
 
 describe("thesis board packet normalization", () => {
+  it("summarizes cadence-lagged sources without calling them blockers", () => {
+    const read = buildSourceHealthRead({
+      blockerCount: 0,
+      uniqueWatchSourceCount: 2,
+      watchSourceInstanceCount: 12,
+    });
+
+    expect(read.title).toBe("Usable board with cadence-lagged sources");
+    expect(read.description).toBe(
+      "No source blockers; 2 source groups are cadence-lagged or stale-risk across 12 packet rows.",
+    );
+    expect(read.tone).toBe("watch");
+  });
+
   it("derives Canada bull and bear drivers from a facts-only packet", () => {
     const item = buildCanadaThesisBoardItem(canola, {
       lane: "canada",
@@ -1114,5 +1130,67 @@ describe("thesis board packet normalization", () => {
     expect(durumRow?.canada).toBe(durumItem);
     expect(durumRow?.us).toBeNull();
     expect(durumRow?.explanation).toContain("no matching US overview market");
+  });
+
+  it("builds a farmer-facing summary that makes source gaps feel intentional", () => {
+    const canadaItems = [
+      "Corn",
+      "Soybeans",
+      "Wheat",
+      "Barley",
+      "Oats",
+      "Canola",
+    ].map((name) =>
+      buildCanadaThesisBoardItem(
+        { name, slug: name.toLowerCase().replaceAll(" ", "-"), defaultBushelWeightLbs: 56 },
+        {
+          lane: "canada",
+          grain: name,
+          crop_year: "2025-2026",
+          grain_week: 38,
+          demand: { exports: { current_week_kt: 260 } },
+          freshness: [{ source_name: "cgc_observations", freshness_status: "strong" }],
+        },
+      ),
+    );
+    canadaItems.push(
+      buildCanadaThesisBoardItem(
+        { name: "Amber Durum", slug: "amber-durum", defaultBushelWeightLbs: 60 },
+        { lane: "canada", grain: "Amber Durum", crop_year: "2025-2026", grain_week: 38 },
+      ),
+    );
+    const usItems = ["Corn", "Soybeans", "Wheat", "Barley", "Oats"].map((name) =>
+      buildUsThesisBoardItem(
+        {
+          name,
+          slug: name.toLowerCase().replaceAll(" ", "-"),
+          futuresGrain: name,
+          exportCommodity: name.toUpperCase(),
+          cotCommodity: name.toUpperCase(),
+          cropProgressMarkets: [name],
+          includeInOverview: true,
+        },
+        {
+          lane: "us",
+          market_name: name,
+          market_year: 2025,
+          demand: { export_sales: { net_sales_mt: 620_000, export_pace_pct: 95 } },
+          freshness: [{ source_name: "usda_export_sales", freshness_status: "strong" }],
+        },
+      ),
+    );
+    const rows = buildMajorThesisComparisonRows(canadaItems, usItems);
+
+    const summary = buildFarmerReadSummary(rows);
+
+    expect(summary.coverageLine).toBe(
+      "7 of 9 V1 rows are source-backed or intentionally Canada-first; 2 wheat-class rows are parked until class-safe mapping exists.",
+    );
+    expect(summary.mappingLine).toBe(
+      "Spring Wheat and Winter Wheat stay visible but unscored: generic Wheat is not used as a proxy.",
+    );
+    expect(summary.actionLine).toBe(
+      "Use the board as a scouting sheet: prioritize source-backed split markets, then open row drivers before changing a pricing plan.",
+    );
   });
 });
