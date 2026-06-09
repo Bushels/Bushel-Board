@@ -25,7 +25,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync, existsSync, writeFileSync } from "fs";
+import { existsSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -220,7 +220,7 @@ function extractCountryStocks(wb, cropYear) {
   }
 
   // Sum provinces for total
-  for (const [week, entry] of result) {
+  for (const entry of result.values()) {
     entry.country_stocks_kt = +(
       (entry.country_stocks_mb_kt || 0) +
       (entry.country_stocks_sk_kt || 0) +
@@ -304,7 +304,7 @@ function extractTerminalStocks(wb, cropYear) {
   }
 
   // Sum terminal stocks
-  for (const [week, entry] of result) {
+  for (const entry of result.values()) {
     entry.terminal_stocks_kt = +(
       (entry.terminal_stocks_vancouver_kt || 0) +
       (entry.terminal_stocks_prince_rupert_kt || 0) +

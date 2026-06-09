@@ -133,7 +133,15 @@ export function buildRefreshCommand(): RefreshCommand {
 }
 
 export async function main(args = process.argv.slice(2)) {
-  const { options, collectorCommand } = parseWrapperArgs(args);
+  const { options, collectorCommand: parsedCollectorCommand } = parseWrapperArgs(args);
+  const collectorCommand = [...parsedCollectorCommand];
+
+  if (
+    process.env.npm_config_dry_run === "true" &&
+    !collectorCommand.some((arg) => arg === "--dry-run" || arg.startsWith("--dry-run="))
+  ) {
+    collectorCommand.push("--dry-run");
+  }
 
   if (options.help) {
     console.error(helpText);

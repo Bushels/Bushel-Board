@@ -19,7 +19,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { calculateCost } from "./pricing";
 import type {
-  ChatMessage,
   LLMAdapter,
   StreamCompletionParams,
   ToolCall,

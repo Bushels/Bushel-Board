@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAnalystRatios, type AnalystRatioInput, type AnalystRatios } from "../data-brief";
+import { computeAnalystRatios, type AnalystRatioInput } from "../data-brief";
 
 describe("computeAnalystRatios", () => {
   const baseData: AnalystRatioInput = {

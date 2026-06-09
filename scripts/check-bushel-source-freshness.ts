@@ -49,6 +49,7 @@ const MECHANICAL_FRESHNESS_SOURCES = new Set([
   "usda_quarterly_stocks",
   "crop_acreage_estimates",
   "canada_crop_progress",
+  "grain_prices",
   "thesis_packet_cache",
   "thesis-packet-cache",
 ]);
@@ -59,6 +60,8 @@ const EXPECTED_V1_US_CACHE_ITEMS = 5;
 const EXPECTED_CACHE_ITEM_COUNT = EXPECTED_V1_CANADA_CACHE_ITEMS + EXPECTED_V1_US_CACHE_ITEMS;
 const CACHE_LAG_GRACE_MINUTES = 10;
 const WATCHDOG_TIME_ZONE = "America/Edmonton";
+const PRICE_SOURCE_MAX_TRADING_DAYS = 2;
+const PRICE_DUE_MINUTES_AFTER_MIDNIGHT = 16 * 60 + 45; // 4:45 PM MT.
 
 const CORE_SOURCE_NAMES = [
   "usda_crop_progress",
@@ -69,6 +72,7 @@ const CORE_SOURCE_NAMES = [
   "producer_car_allocations",
   "cftc_cot_positions",
   "usda_wasde_raw",
+  "grain_prices",
   "thesis-packet-cache",
 ] as const;
 
@@ -213,6 +217,46 @@ function localParts(date: Date): LocalParts {
   };
 }
 
+function isWeekday(weekday: number): boolean {
+  return weekday >= 1 && weekday <= 5;
+}
+
+function dateKeyToUtcDate(dateKey: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+}
+
+function weekdayFromUtcDate(date: Date): number {
+  const day = date.getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+function tradingDaysBetween(startDateKey: string, endDateKey: string): number | null {
+  const start = dateKeyToUtcDate(startDateKey);
+  const end = dateKeyToUtcDate(endDateKey);
+  if (!start || !end) return null;
+  if (start.getTime() > end.getTime()) return 0;
+
+  let count = 0;
+  const cursor = new Date(start);
+  cursor.setUTCDate(cursor.getUTCDate() + 1);
+  while (cursor.getTime() <= end.getTime()) {
+    if (isWeekday(weekdayFromUtcDate(cursor))) count += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
+function latestSourceDateKey(row: SourceRun | undefined): string | null {
+  const sourcePeriod = row?.source_period_end?.slice(0, 10);
+  if (sourcePeriod && /^\d{4}-\d{2}-\d{2}$/.test(sourcePeriod)) return sourcePeriod;
+  const latestLabel = row?.latest_source_label?.slice(0, 10);
+  if (latestLabel && /^\d{4}-\d{2}-\d{2}$/.test(latestLabel)) return latestLabel;
+  return null;
+}
+
 function sourceName(row: FreshnessRow): string {
   return row.source_name ?? row.sourceName ?? "unknown";
 }
@@ -351,6 +395,46 @@ async function main() {
           message: `${check.label} should have finished today by ${String(check.localHour).padStart(2, "0")}:${String(check.localMinute).padStart(2, "0")} MT + ${check.graceMinutes}m, but latest ${check.sourceName} run is ${row?.finished_at ?? "missing"}.`,
         });
       }
+    }
+  }
+
+  const latestPriceRun = latest.get("grain_prices");
+  const latestPriceDateKey = latestSourceDateKey(latestPriceRun);
+  const priceTradingLag =
+    latestPriceDateKey ? tradingDaysBetween(latestPriceDateKey, nowLocal.dateKey) : null;
+  if (!latestPriceRun) {
+    alerts.push({
+      severity: "watch",
+      code: "price_source_run_missing",
+      message: "No grain_prices source run found in the last 45 days; daily price-based thesis deltas must stay disabled.",
+    });
+  } else if (priceTradingLag === null) {
+    alerts.push({
+      severity: "watch",
+      code: "price_source_date_unknown",
+      message: `grain_prices latest source date is unknown from source_runs row finished at ${latestPriceRun.finished_at}; daily price-based thesis deltas must verify price freshness separately.`,
+    });
+  } else if (priceTradingLag > PRICE_SOURCE_MAX_TRADING_DAYS) {
+    alerts.push({
+      severity: "watch",
+      code: "price_source_stale",
+      message: `grain_prices latest source date is ${latestPriceDateKey}, ${priceTradingLag} trading days behind ${nowLocal.dateKey}; block price-based thesis deltas until prices refresh.`,
+    });
+  }
+
+  if (
+    isWeekday(nowLocal.weekday) &&
+    nowLocal.minutesAfterMidnight >= PRICE_DUE_MINUTES_AFTER_MIDNIGHT
+  ) {
+    const priceRunDateKey = latestPriceRun?.finished_at
+      ? localParts(new Date(latestPriceRun.finished_at)).dateKey
+      : null;
+    if (priceRunDateKey !== nowLocal.dateKey) {
+      alerts.push({
+        severity: "watch",
+        code: "same_day_price_run_missing",
+        message: `After 4:45 PM MT, expected a same-day grain_prices collector run before daily review; latest run is ${latestPriceRun?.finished_at ?? "missing"}.`,
+      });
     }
   }
 

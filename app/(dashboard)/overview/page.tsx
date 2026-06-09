@@ -57,7 +57,7 @@ export default async function OverviewPage() {
         className="mx-auto max-w-7xl px-4"
         style={{ paddingTop: 40, paddingBottom: 80 }}
       >
-        {/* Section 1: Hero AI Thesis */}
+        {/* Section 1: Hero pressure summary */}
         <section style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 24, fontFamily: "var(--font-dm-sans)" }}>
             <div
@@ -69,7 +69,7 @@ export default async function OverviewPage() {
                 fontWeight: 600,
               }}
             >
-              This week&apos;s stance
+              Source-backed pressure
             </div>
             <h2
               style={{
@@ -81,13 +81,13 @@ export default async function OverviewPage() {
                 letterSpacing: "-0.01em",
               }}
             >
-              Where each market is heading this week, in plain terms.
+              Current official-source market pressure, in plain terms.
             </h2>
           </div>
 
           <SectionBoundary
-            title="Market thesis unavailable"
-            message="The hero thesis is temporarily unavailable. New analysis releases Friday evenings."
+            title="Market pressure summary unavailable"
+            message="The hero pressure summary is temporarily unavailable. Thesis-of-record updates Friday after official source releases."
           >
             {heroGrain ? (
               <HeroThesis
@@ -104,8 +104,8 @@ export default async function OverviewPage() {
                 }}
               >
                 <SectionStateCard
-                  title="No market thesis available yet"
-                  message="Analysis releases every Friday evening. Check back after the desk chief runs."
+                  title="No pressure summary available yet"
+                  message="Thesis-of-record updates Friday after official source releases. Check back after the desk review."
                 />
               </div>
             )}
@@ -118,7 +118,7 @@ export default async function OverviewPage() {
         <section style={{ marginTop: 64, marginBottom: 64 }}>
           <SectionHeader
             title="All markets"
-            subtitle="Every grain, every market - Canada and US side by side."
+            subtitle="Every admitted grain, Canada and US side by side."
           />
           <SectionBoundary
             title="Stance grid unavailable"
@@ -201,6 +201,23 @@ export default async function OverviewPage() {
           </SectionBoundary>
         </section>
 
+        <div
+          style={{
+            marginTop: 48,
+            border: "1px solid #d7cfba",
+            background: "#fffdf8",
+            padding: "14px 16px",
+            fontFamily: "var(--font-dm-sans)",
+            fontSize: 12,
+            lineHeight: 1.6,
+            color: "#5d5132",
+          }}
+        >
+          Market intelligence from public sources only. Not an instruction to
+          price, hedge, or market grain. Data follows official publication
+          schedules and may lag.
+        </div>
+
         {/* Footer note */}
         <div
           style={{
@@ -218,11 +235,11 @@ export default async function OverviewPage() {
           }}
         >
           <span>
-            Bushel Board - Predictive Marketplace for prairie &amp; corn-belt
-            grain
+            Bushel Board - Source-backed prairie and corn-belt grain
+            intelligence
           </span>
           <span>
-            Stance resets every Friday - {caStances.length + usStances.length}{" "}
+            Official-source pressure summary - {caStances.length + usStances.length}{" "}
             markets tracked - Week {grainWeek}
           </span>
         </div>

@@ -31,14 +31,6 @@ interface MarketStanceChartProps {
   updatedAt?: string | null;
 }
 
-function getStanceLabel(score: number): string {
-  if (score >= 60) return "Bullish";
-  if (score >= 20) return "Mildly Bullish";
-  if (score > -20) return "Neutral";
-  if (score > -60) return "Mildly Bearish";
-  return "Bearish";
-}
-
 function getStanceColor(score: number): string {
   if (score >= 20) return "text-prairie";
   if (score > -20) return "text-muted-foreground";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSupersede, type SupersessionDecision, type KnowledgeEntry } from '@/lib/knowledge/supersession';
+import { shouldSupersede, type KnowledgeEntry } from '@/lib/knowledge/supersession';
 
 const makeEntry = (overrides: Partial<KnowledgeEntry>): KnowledgeEntry => ({
   id: 'existing-1',

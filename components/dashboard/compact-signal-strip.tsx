@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AnimatedCard } from "@/components/motion/animated-card";
 import { ALL_GRAINS } from "@/lib/constants/grains";
+import { sanitizePublicXSignalCopy } from "@/lib/public-copy-guardrails";
 import { buildXPostHref } from "@/lib/utils/x-post";
 import { cn } from "@/lib/utils";
 
@@ -416,10 +417,11 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [], role, onVote }
               tabIndex={0}
             >
               {visible.map((signal, index) => {
+                const postSummary = sanitizePublicXSignalCopy(signal.post_summary);
                 const href = buildXPostHref(
                   signal.post_url,
                   signal.post_author,
-                  `${signal.grain} ${signal.post_summary}`
+                  `${signal.grain} ${postSummary}`
                 );
 
                 return (
@@ -458,7 +460,7 @@ export function CompactSignalStrip({ signals, unlockedSlugs = [], role, onVote }
                       </div>
 
                       <p className="line-clamp-4 text-sm leading-6 text-foreground">
-                        {signal.post_summary}
+                        {postSummary}
                       </p>
                     </div>
 

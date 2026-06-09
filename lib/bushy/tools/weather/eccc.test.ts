@@ -155,7 +155,6 @@ describe("getCanadianWeather (integration)", () => {
         eq: eqSpy,
         maybeSingle: async () => ({ data: null, error: null }),
       })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as unknown as SupabaseClient;
 
     await getCanadianWeather(

@@ -36,11 +36,9 @@ function fmtContracts(value: number): string {
 /** Small inline sparkline for net position trend */
 function NetSparkline({
   data,
-  dataKey,
   color,
 }: {
   data: { value: number }[]
-  dataKey: string
   color: string
 }) {
   if (data.length < 2) return null
@@ -162,7 +160,7 @@ export function CotPositioningCard({
                       name === "managed_money_net"
                         ? "Managed Money"
                         : "Commercial"
-                    return `${fmtContracts(Number(value))} contracts`
+                    return `${label}: ${fmtContracts(Number(value))} contracts`
                   }}
                 />
               }
@@ -222,7 +220,6 @@ export function CotPositioningCard({
           </div>
           <NetSparkline
             data={mmSparkline}
-            dataKey="value"
             color={managedColor}
           />
         </div>
@@ -242,7 +239,6 @@ export function CotPositioningCard({
           </div>
           <NetSparkline
             data={commSparkline}
-            dataKey="value"
             color={commercialColor}
           />
         </div>

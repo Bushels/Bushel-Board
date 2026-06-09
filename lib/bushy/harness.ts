@@ -41,7 +41,6 @@ import type {
   SseEvent,
   ToolCallDetail,
 } from "./types";
-import { sseFormat } from "./types";
 
 /**
  * Per-conversation budget ceiling. Individual tools can tighten via their

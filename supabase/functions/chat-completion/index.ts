@@ -17,7 +17,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createLLMAdapter } from "../_shared/llm-adapter.ts";
-import { CHAT_TOOLS, executeTool, type ToolExecutionContext, type ToolResult } from "../_shared/chat-tools.ts";
+import { CHAT_TOOLS, executeTool, type ToolExecutionContext } from "../_shared/chat-tools.ts";
 import { buildChatContext, computeTrustFooter } from "../_shared/chat-context-builder.ts";
 import { buildRecommendationContext, saveRecommendation } from "../_shared/recommendation-tracker.ts";
 

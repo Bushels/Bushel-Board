@@ -41,7 +41,7 @@ vi.mock("@anthropic-ai/sdk", () => {
         return next;
       },
     };
-    constructor(_opts: unknown) {
+    constructor() {
       // Accept {apiKey:...} quietly
     }
   }
@@ -111,7 +111,6 @@ describe("AnthropicAdapter", () => {
     expect(deltas[1]).toEqual({ type: "text", text: "world" });
     expect(deltas[2]).toMatchObject({ type: "done" });
     expect(result.modelId).toBe("claude-sonnet-4.6");
-    expect(result.provider ?? "anthropic").toBe("anthropic"); // provider comes from adapter instance
     expect(result.promptTokens).toBe(100);
     expect(result.completionTokens).toBe(2);
     expect(result.cachedTokens).toBe(0);

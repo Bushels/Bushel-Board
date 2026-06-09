@@ -36,7 +36,30 @@ import { writeSourceRun } from "./source-run";
 
 const args = process.argv.slice(2);
 
-if (args.includes("--help") || args.includes("-h")) {
+function npmConfigKey(name: string): string {
+  return `npm_config_${name.replace(/^--/, "").replace(/-/g, "_")}`;
+}
+
+function hasFlag(flag: string): boolean {
+  return args.includes(flag) || process.env[npmConfigKey(flag)] === "true";
+}
+
+function optionValue(flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  if (index !== -1 && args[index + 1] && !args[index + 1]!.startsWith("--")) {
+    return args[index + 1];
+  }
+  const inline = args.find((arg) => arg.startsWith(`${flag}=`));
+  if (inline) return inline.slice(flag.length + 1);
+  const envValue = process.env[npmConfigKey(flag)];
+  if (envValue && envValue !== "true") return envValue;
+  if (flag === "--days") {
+    return args.find((arg) => /^\d+$/.test(arg));
+  }
+  return undefined;
+}
+
+if (hasFlag("--help") || hasFlag("-h")) {
   console.error(`
 Grain Prices Import Script
 
@@ -66,12 +89,8 @@ Output:
   process.exit(0);
 }
 
-const DRY_RUN = args.includes("--dry-run");
-const daysIndex = args.indexOf("--days");
-const DAYS =
-  daysIndex !== -1 && args[daysIndex + 1]
-    ? parseInt(args[daysIndex + 1], 10)
-    : 30;
+const DRY_RUN = hasFlag("--dry-run");
+const DAYS = optionValue("--days") ? parseInt(optionValue("--days")!, 10) : 30;
 
 if (Number.isNaN(DAYS) || DAYS < 1 || DAYS > 365) {
   console.error("ERROR: --days must be a number between 1 and 365.");

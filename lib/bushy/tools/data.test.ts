@@ -37,7 +37,7 @@ function mockSupabase(
         inserts.push({ table, row });
         return Promise.resolve({ data: null, error: null });
       },
-      select: (_cols?: string) => builder,
+      select: () => builder,
       eq: (col: string, val: unknown) => {
         filters[col] = val;
         return builder;

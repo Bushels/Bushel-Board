@@ -104,6 +104,15 @@ SASKATCHEWAN_REGIONS = [
     ("PROV", "Provincial"),
 ]
 
+SASKATCHEWAN_DEVELOPMENT_GROUPS = [
+    ("Fall Cereals", "fall cereals"),
+    ("Spring Cereals", "spring cereals"),
+    ("Pulse Crops", "pulse crops"),
+    ("Oilseeds", "oilseeds"),
+    ("Perennial Forage", "perennial forage"),
+    ("Annual Forage", "annual forage"),
+]
+
 ALBERTA_REGIONS = [
     ("SOUTH", "South"),
     ("CENTRAL", "Central"),
@@ -112,6 +121,10 @@ ALBERTA_REGIONS = [
     ("PEACE", "Peace"),
     ("PROV", "Alberta"),
 ]
+
+ALBERTA_REGION_LABELS = {label.lower(): (code, label) for code, label in ALBERTA_REGIONS}
+ALBERTA_REGION_LABELS["north east"] = ("NE", "North East")
+ALBERTA_REGION_LABELS["north west"] = ("NW", "North West")
 
 MONTHS = {
     "January": 1,
@@ -427,6 +440,339 @@ def values_from_table_line(line: str, expected_count: int) -> tuple[str, list[fl
     return label, values
 
 
+def sum_present_percentages(values: list[float | None], indexes: list[int]) -> float | None:
+    selected = [values[idx] for idx in indexes if idx < len(values)]
+    if not selected or any(value is None for value in selected):
+        return None
+    return round(sum(value for value in selected if value is not None), 2)
+
+
+def table_text_between(text: str, heading_pattern: str) -> str | None:
+    heading = re.search(heading_pattern, text, flags=re.IGNORECASE)
+    if not heading:
+        return None
+    table_start = heading.start()
+    table_end = text.find("Source: AGI/AFSC Crop Reporting Survey", table_start)
+    if table_end <= table_start:
+        return None
+    return text[table_start:table_end]
+
+
+def parse_alberta_metric_table(
+    text: str,
+    *,
+    heading_pattern: str,
+    expected_count: int,
+    metric: str,
+    value_indexes: list[int],
+    report_date: str,
+    release_date: str | None,
+    document_url: str,
+    source_excerpt: str,
+) -> list[dict[str, Any]]:
+    table_text = table_text_between(text, heading_pattern)
+    if not table_text:
+        return []
+
+    rows_by_region: dict[str, float | None] = {}
+    five_year_by_region: dict[str, float | None] = {}
+
+    for line in table_text.splitlines():
+        parsed = values_from_table_line(line, expected_count=expected_count)
+        if not parsed:
+            continue
+        raw_label, values = parsed
+        label = re.sub(r"\s+", " ", raw_label).strip()
+        value = sum_present_percentages(values, value_indexes)
+
+        if label.startswith("5-year"):
+            five_year_by_region["PROV"] = value
+            continue
+        if label.startswith("10-year"):
+            continue
+
+        region = ALBERTA_REGION_LABELS.get(label.lower())
+        if not region:
+            continue
+        region_code, _region_name = region
+        rows_by_region[region_code] = value
+
+    rows: list[dict[str, Any]] = []
+    for region_code, region_name in ALBERTA_REGIONS:
+        if region_code not in rows_by_region:
+            continue
+        value = rows_by_region[region_code]
+        rows.append(
+            make_row(
+                province_code="AB",
+                province_name="Alberta",
+                crop_year=2026,
+                report_date=report_date,
+                release_date=release_date,
+                period_start=None,
+                period_end=report_date,
+                report_label=f"Alberta Crop Report - {report_date}",
+                source_name="Alberta Crop Report",
+                source_url=ALBERTA_PAGE_URL,
+                document_url=document_url,
+                region_scope="province" if region_code == "PROV" else "crop_region",
+                region_code=region_code,
+                region_name="Alberta" if region_code == "PROV" else region_name,
+                crop_name="All Crops",
+                metric=metric,
+                value_pct=value,
+                five_year_avg_pct=five_year_by_region.get(region_code),
+                source_excerpt=source_excerpt,
+                confidence="high" if value is not None else "medium",
+                quality_flags=[] if value is not None else ["region_not_reported"],
+            )
+        )
+
+    return rows
+
+
+def parse_alberta_emergence_rows(
+    text: str,
+    *,
+    report_date: str,
+    release_date: str | None,
+    document_url: str,
+) -> list[dict[str, Any]]:
+    provincial = re.search(
+        r"Provincial emergence of major crops.*?reported at\s+([0-9]+(?:\.[0-9]+)?)\s+per cent.*?5-year average of\s+([0-9]+(?:\.[0-9]+)?)\s+per cent",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    regional = re.search(
+        r"South Region.*?at\s+([0-9]+(?:\.[0-9]+)?)\s+\(([0-9]+(?:\.[0-9]+)?)\)\s+per cent.*?"
+        r"Central at\s+([0-9]+(?:\.[0-9]+)?)\s+\(([0-9]+(?:\.[0-9]+)?)\)\s+per cent.*?"
+        r"North East at\s+([0-9]+(?:\.[0-9]+)?)\s+\(([0-9]+(?:\.[0-9]+)?)\).*?"
+        r"North West at\s+([0-9]+(?:\.[0-9]+)?)\s+\(([0-9]+(?:\.[0-9]+)?)\).*?"
+        r"Peace at\s+([0-9]+(?:\.[0-9]+)?)\s+\(([0-9]+(?:\.[0-9]+)?)\)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not provincial and not regional:
+        return []
+
+    values_by_region: dict[str, tuple[float, float | None]] = {}
+    if regional:
+        groups = [float(value) for value in regional.groups()]
+        region_codes = ["SOUTH", "CENTRAL", "NE", "NW", "PEACE"]
+        for idx, region_code in enumerate(region_codes):
+            values_by_region[region_code] = (groups[idx * 2], groups[idx * 2 + 1])
+    if provincial:
+        values_by_region["PROV"] = (float(provincial.group(1)), float(provincial.group(2)))
+
+    rows: list[dict[str, Any]] = []
+    for region_code, region_name in ALBERTA_REGIONS:
+        values = values_by_region.get(region_code)
+        if not values:
+            continue
+        value, five_year_avg = values
+        rows.append(
+            make_row(
+                province_code="AB",
+                province_name="Alberta",
+                crop_year=2026,
+                report_date=report_date,
+                release_date=release_date,
+                period_start=None,
+                period_end=report_date,
+                report_label=f"Alberta Crop Report - {report_date}",
+                source_name="Alberta Crop Report",
+                source_url=ALBERTA_PAGE_URL,
+                document_url=document_url,
+                region_scope="province" if region_code == "PROV" else "crop_region",
+                region_code=region_code,
+                region_name="Alberta" if region_code == "PROV" else region_name,
+                crop_name="All Crops",
+                metric="emerged_pct",
+                value_pct=value,
+                five_year_avg_pct=five_year_avg,
+                source_excerpt=f"Alberta narrative emergence summary as of {report_date}.",
+                confidence="high",
+            )
+        )
+
+    return rows
+
+
+def parse_saskatchewan_topsoil_moisture_rows(
+    text: str,
+    *,
+    period_start: str,
+    period_end: str,
+    release_date: str,
+    report_label: str,
+    document_url: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    moisture_blocks = [
+        ("Cropland", "cropland"),
+        ("Hayland", "hayland"),
+        ("Pasture", "pasture"),
+    ]
+
+    for crop_name, label in moisture_blocks:
+        match = re.search(
+            rf"{label}\s+topsoil\s+moisture\s+is:\s*(.*?)(?=(?:cropland|hayland|pasture)\s+topsoil\s+moisture\s+is:|Crop development|For further information|$)",
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not match:
+            continue
+
+        values: dict[str, float] = {}
+        for raw_value, raw_category in re.findall(
+            r"([A-Za-z0-9.]+)\s+per\s+cent\s+([A-Za-z ]+?)(?=;|\.|\n|$)",
+            match.group(1),
+            flags=re.IGNORECASE,
+        ):
+            value = number_word_or_digits(raw_value)
+            category = raw_category.lower().replace("and", "").strip()
+            if value is not None:
+                values[category] = value
+
+        if "surplus" not in values or "adequate" not in values:
+            continue
+
+        rows.append(
+            make_row(
+                province_code="SK",
+                province_name="Saskatchewan",
+                crop_year=2026,
+                report_date=period_end,
+                release_date=release_date,
+                period_start=period_start,
+                period_end=period_end,
+                report_label=report_label,
+                source_name="Saskatchewan Crop Report",
+                source_url=SASKATCHEWAN_PAGE_URL,
+                document_url=document_url,
+                region_scope="province",
+                region_code="PROV",
+                region_name="Saskatchewan",
+                crop_name=crop_name,
+                metric="soil_moisture_adequate_surplus_pct",
+                value_pct=round(values["surplus"] + values["adequate"], 2),
+                source_excerpt=(
+                    f"Saskatchewan {label} topsoil moisture for period ending {period_end}; "
+                    "value is surplus plus adequate."
+                ),
+                confidence="high",
+            )
+        )
+
+    return rows
+
+
+def crop_group_segment(text: str, label: str, labels: list[str]) -> str | None:
+    match = re.search(rf"\b{re.escape(label)}\b", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    segment_end = len(text)
+    for next_label in labels:
+        if next_label == label:
+            continue
+        next_match = re.search(
+            rf"\b{re.escape(next_label)}\b",
+            text[match.end() :],
+            flags=re.IGNORECASE,
+        )
+        if next_match:
+            segment_end = min(segment_end, match.end() + next_match.start())
+    end_marker = re.search(r"For further information", text[match.end() :], flags=re.IGNORECASE)
+    if end_marker:
+        segment_end = min(segment_end, match.end() + end_marker.start())
+    return text[match.start() : segment_end]
+
+
+def parse_saskatchewan_development_rows(
+    text: str,
+    *,
+    period_start: str,
+    period_end: str,
+    release_date: str,
+    report_label: str,
+    document_url: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    labels = [label for _crop_name, label in SASKATCHEWAN_DEVELOPMENT_GROUPS]
+    scoped_match = re.search(r"Crop development varies", text, flags=re.IGNORECASE)
+    if not scoped_match:
+        return rows
+    scoped_text = text[scoped_match.start() :]
+    end_match = re.search(r"For further information", scoped_text, flags=re.IGNORECASE)
+    if end_match:
+        scoped_text = scoped_text[: end_match.start()]
+
+    for crop_name, label in SASKATCHEWAN_DEVELOPMENT_GROUPS:
+        segment = crop_group_segment(scoped_text, label, labels)
+        if not segment:
+            continue
+
+        values: dict[str, float] = {}
+        normal_match = re.search(
+            r"([A-Za-z0-9.]+)\s+per\s+cent\s+(?:at\s+)?(?:of\s+(?:their\s+)?)?normal",
+            segment,
+            flags=re.IGNORECASE,
+        )
+        ahead_match = re.search(
+            r"([A-Za-z0-9.]+)\s+per\s+cent\s+ahead",
+            segment,
+            flags=re.IGNORECASE,
+        )
+        behind_match = re.search(
+            r"([A-Za-z0-9.]+)\s+per\s+cent\s+behind",
+            segment,
+            flags=re.IGNORECASE,
+        )
+
+        if normal_match:
+            value = number_word_or_digits(normal_match.group(1))
+            if value is not None:
+                values["development_normal_pct"] = value
+        if ahead_match:
+            value = number_word_or_digits(ahead_match.group(1))
+            if value is not None:
+                values["development_ahead_pct"] = value
+        if behind_match:
+            value = number_word_or_digits(behind_match.group(1))
+            if value is not None:
+                values["development_behind_pct"] = value
+
+        for metric, value in values.items():
+            rows.append(
+                make_row(
+                    province_code="SK",
+                    province_name="Saskatchewan",
+                    crop_year=2026,
+                    report_date=period_end,
+                    release_date=release_date,
+                    period_start=period_start,
+                    period_end=period_end,
+                    report_label=report_label,
+                    source_name="Saskatchewan Crop Report",
+                    source_url=SASKATCHEWAN_PAGE_URL,
+                    document_url=document_url,
+                    region_scope="province",
+                    region_code="PROV",
+                    region_name="Saskatchewan",
+                    crop_name=crop_name,
+                    metric=metric,
+                    value_pct=value,
+                    source_excerpt=(
+                        f"Saskatchewan {label} crop development for period ending {period_end}; "
+                        f"metric is {metric.replace('_', ' ')}."
+                    ),
+                    confidence="high",
+                )
+            )
+
+    return rows
+
+
 def clean_alberta_crop_label(label: str) -> str:
     cleaned = label.replace("∗", "*")
     cleaned = re.sub(r"\s+\*", "", cleaned)
@@ -623,6 +969,27 @@ def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
             )
         )
 
+    rows.extend(
+        parse_saskatchewan_topsoil_moisture_rows(
+            report_text,
+            period_start=period_start,
+            period_end=period_end,
+            release_date=release_date,
+            report_label=report_label,
+            document_url=report_url,
+        )
+    )
+    rows.extend(
+        parse_saskatchewan_development_rows(
+            report_text,
+            period_start=period_start,
+            period_end=period_end,
+            release_date=release_date,
+            report_label=report_label,
+            document_url=report_url,
+        )
+    )
+
     in_table = False
 
     for raw_line in text.splitlines():
@@ -775,6 +1142,41 @@ def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]],
                     quality_flags=[] if value is not None else ["region_not_reported"],
                 )
             )
+
+    rows.extend(
+        parse_alberta_emergence_rows(
+            text,
+            report_date=report_date,
+            release_date=release_date,
+            document_url=document_url,
+        )
+    )
+    rows.extend(
+        parse_alberta_metric_table(
+            text,
+            heading_pattern=r"Table 2:\s+Alberta Surface Soil.*?Moisture Ratings",
+            expected_count=5,
+            metric="soil_moisture_adequate_surplus_pct",
+            value_indexes=[2, 3, 4],
+            report_date=report_date,
+            release_date=release_date,
+            document_url=document_url,
+            source_excerpt=f"Table 2: Alberta Surface Soil Moisture Ratings as of {report_date}; value is good plus excellent plus excessive.",
+        )
+    )
+    rows.extend(
+        parse_alberta_metric_table(
+            text,
+            heading_pattern=r"Table 3:\s+Pasture Growth Conditions",
+            expected_count=4,
+            metric="pasture_good_excellent_pct",
+            value_indexes=[2, 3],
+            report_date=report_date,
+            release_date=release_date,
+            document_url=document_url,
+            source_excerpt=f"Table 3: Alberta Pasture Growth Conditions as of {report_date}; value is good plus excellent.",
+        )
+    )
 
     return rows, document_url
 

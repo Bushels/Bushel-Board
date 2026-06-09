@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Minus, Warehouse } from "lucide-react";
+import { TrendingUp, TrendingDown, Warehouse } from "lucide-react";
 import type { StorageBreakdown as StorageData } from "@/lib/queries/observations";
 import { fmtKt } from "@/lib/utils/format";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -54,7 +54,7 @@ function WowBadge({
   );
 }
 
-export function StorageBreakdown({ data, grainName }: StorageBreakdownProps) {
+export function StorageBreakdown({ data }: StorageBreakdownProps) {
   const total = data.reduce((sum, d) => sum + d.ktonnes, 0);
   const prevTotal = data.some((d) => d.prevKtonnes !== undefined)
     ? data.reduce((sum, d) => sum + (d.prevKtonnes ?? 0), 0)

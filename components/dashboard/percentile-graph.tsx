@@ -24,9 +24,6 @@ interface PercentileGraphProps {
  */
 export function PercentileGraph({
   userPercentile,
-  p25,
-  p50,
-  p75,
   farmerCount,
   grain,
   className,

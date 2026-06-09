@@ -16,7 +16,6 @@
  *
  * Downstream: Phase 2 (02-chapters.ts) consumes these .txt files.
  */
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- pdf-parse ships CJS typings that need default-export interop
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { extname, resolve } from "path";
 

@@ -203,7 +203,12 @@ describe("buildCanolaMarketRead", () => {
     expect(read.speculation.length).toBeGreaterThan(0);
     expect(read.facts.every((fact) => fact.source_name && fact.source_table)).toBe(true);
     expect(read.facts.map((fact) => fact.label)).toContain("Producer deliveries, current week");
-    expect(read.bottom_line).toContain("No pricing recommendation");
+    expect(read.interpretation.map((entry) => entry.body).join(" ")).toContain("export/delivery ratio");
+    expect(read.interpretation.map((entry) => entry.body).join(" ")).not.toContain("share of weekly deliveries");
+    expect(read.speculation.map((entry) => entry.label)).toContain("Export/delivery watch");
+    expect(read.speculation.map((entry) => entry.statement).join(" ")).not.toContain("pricing call");
+    expect(read.bottom_line).toContain("Source read only");
+    expect(read.bottom_line).not.toContain("pricing recommendation");
   });
 
   it("shows stale, empty, lagged, proxy, and source-year warnings explicitly", () => {

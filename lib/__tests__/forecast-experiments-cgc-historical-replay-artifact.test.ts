@@ -14,6 +14,10 @@ const artifactDir = join(
   "canola-historical-replay-cgc-2025-weeks-1-3",
 );
 
+type HistoricalReplayPackageArtifact = {
+  package_hash: string;
+};
+
 describe("Canola CGC historical replay tracked artifact", () => {
   it("rebuilds the tracked replay input and package hash from the CGC CSV", () => {
     const csvPath = join(process.cwd(), "data", "CGC Weekly", "gsw-shg-en.csv");
@@ -33,7 +37,7 @@ describe("Canola CGC historical replay tracked artifact", () => {
     );
     const replayPackage = buildCanolaHistoricalReplayPackage(replayInput);
     const trackedInput = readArtifact("historical-replay-input.json");
-    const trackedPackage = readArtifact("historical-replay-package.json");
+    const trackedPackage = readArtifact("historical-replay-package.json") as HistoricalReplayPackageArtifact;
 
     expect(replayInput).toEqual(trackedInput);
     expect(replayPackage.package_hash).toBe(trackedPackage.package_hash);

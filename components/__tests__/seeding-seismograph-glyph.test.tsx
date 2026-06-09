@@ -13,9 +13,14 @@ const stateRows: SeismographRow[] = Array.from({ length: 5 }, (_, i) => ({
   emerged_pct: Math.max(0, (i - 1) * 15),
   harvested_pct: 0,
   planted_pct_vs_avg: 5,
+  planted_pct_previous_year: i * 18,
+  planted_pct_yoy_change: 2,
+  emerged_pct_previous_year: Math.max(0, (i - 1) * 12),
+  emerged_pct_yoy_change: 3,
   good_excellent_pct: 70 - i,
   condition_index: 3.5 + i * 0.05,
   ge_pct_yoy_change: 4,
+  planted_acres: 13_400_000,
 }));
 
 describe("SeismographGlyph", () => {

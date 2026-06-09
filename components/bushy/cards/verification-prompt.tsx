@@ -65,20 +65,6 @@ function confirmedMessage(dataType: string): string {
   }
 }
 
-function iconForDataType(dataType: string): string {
-  switch (dataType) {
-    case "basis": return "dollar-sign";
-    case "elevator_price": return "building-2";
-    case "input_price": return "shopping-cart";
-    case "crop_condition": return "leaf";
-    case "yield_estimate": return "bar-chart-3";
-    case "seeding_progress": return "trending-up";
-    case "harvest_progress": return "scissors";
-    case "acres_planned": return "map";
-    default: return "help-circle";
-  }
-}
-
 export function VerificationPrompt({
   data,
   onConfirm,

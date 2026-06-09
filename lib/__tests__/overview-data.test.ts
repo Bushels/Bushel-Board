@@ -34,6 +34,7 @@ function makeSupplyRow(
     exports_kt: 0,
     food_industrial_kt: 0,
     feed_waste_kt: 0,
+    seed_kt: null,
     total_domestic_kt: 0,
     carry_out_kt: 0,
     source: "AAFC",

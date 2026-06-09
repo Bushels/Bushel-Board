@@ -9,7 +9,6 @@ import type { TrajectoryPoint } from "@/lib/queries/overview-data";
 
 const PRAIRIE = "#437a22";
 const AMBER = "#b8702a";
-const WHEAT_100 = "#ebe7dc";
 const WHEAT_200 = "#d7cfba";
 const WHEAT_400 = "#af9f76";
 const INK_MUTED = "#7c6c43";

@@ -82,7 +82,8 @@ describe("getUSWeather (three-hop integration)", () => {
   function scriptedFetch(
     scripts: Array<{ status?: number; body: unknown }>,
   ) {
-    return vi.fn(async (url: string) => {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      void init;
       const next = scripts.shift();
       if (!next) throw new Error(`Unexpected fetch: ${url}`);
       return new Response(
@@ -110,7 +111,8 @@ describe("getUSWeather (three-hop integration)", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     // All three calls should carry User-Agent
     for (const call of fetchImpl.mock.calls) {
-      expect(call[1]).toMatchObject({
+      const [, init] = call as [string, RequestInit];
+      expect(init).toMatchObject({
         headers: expect.objectContaining({
           "User-Agent": expect.stringContaining("BushelsApp"),
         }),

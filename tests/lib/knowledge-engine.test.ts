@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyMessage, type ExtractionCandidate } from '@/lib/knowledge/classification';
+import { classifyMessage } from '@/lib/knowledge/classification';
 
 describe('classifyMessage', () => {
   it('extracts basis report with numeric value', () => {

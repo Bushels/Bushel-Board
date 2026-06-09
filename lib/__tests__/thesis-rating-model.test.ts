@@ -30,6 +30,13 @@ const domainInput = (overrides: {
   positive_evidence?: string[];
   negative_evidence?: string[];
   blocked_claims?: string[];
+  metrics?: Array<{
+    source: string;
+    label: string;
+    value: string;
+    numericValue?: number;
+    unit?: string;
+  }>;
   isRequired?: boolean;
   isProxy?: boolean;
   missingFreshnessProof?: boolean;
@@ -248,7 +255,19 @@ describe("thesis rating model shape", () => {
       ...baseScorecardInput,
       domains: [
         domainInput({ domain: "supply", score: 40 }),
-        domainInput({ domain: "demand", score: 60 }),
+        domainInput({
+          domain: "demand",
+          score: 60,
+          metrics: [
+            {
+              source: "demand_source",
+              label: "Export/delivery ratio",
+              value: "47.0%",
+              numericValue: 47,
+              unit: "pct",
+            },
+          ],
+        }),
         domainInput({ domain: "movement", score: 45 }),
         domainInput({ domain: "logistics", score: 20 }),
         domainInput({ domain: "price", score: 55 }),
@@ -262,6 +281,15 @@ describe("thesis rating model shape", () => {
     expect(scorecard.confidence_score).toBe(85);
     expect(scorecard.confidence_label).toBe("high");
     expect(scorecard.domains.find((domain) => domain.domain === "demand")?.weighted_score).toBeCloseTo(15, 6);
+    expect(scorecard.domains.find((domain) => domain.domain === "demand")?.metrics).toEqual([
+      {
+        source: "demand_source",
+        label: "Export/delivery ratio",
+        value: "47.0%",
+        numericValue: 47,
+        unit: "pct",
+      },
+    ]);
     expect(scorecard.llm_allowed_claims).toContain("demand_positive");
   });
 
@@ -291,7 +319,22 @@ describe("thesis rating model shape", () => {
       ...baseScorecardInput,
       domains: [
         domainInput({ domain: "supply", score: 40 }),
-        domainInput({ domain: "demand", score: 80, freshness_status: "empty", sources: [], isRequired: true }),
+        domainInput({
+          domain: "demand",
+          score: 80,
+          freshness_status: "empty",
+          sources: [],
+          isRequired: true,
+          metrics: [
+            {
+              source: "demand_source",
+              label: "Export/delivery ratio",
+              value: "80.0%",
+              numericValue: 80,
+              unit: "pct",
+            },
+          ],
+        }),
         domainInput({ domain: "movement", score: 40 }),
         domainInput({ domain: "logistics", score: 40 }),
         domainInput({ domain: "price", score: 40 }),
@@ -303,6 +346,7 @@ describe("thesis rating model shape", () => {
     const demand = scorecard.domains.find((domain) => domain.domain === "demand");
     expect(demand?.score).toBe(0);
     expect(demand?.weighted_score).toBe(0);
+    expect(demand?.metrics).toEqual([]);
     expect(scorecard.overall_score).toBeCloseTo(30, 6);
     expect(scorecard.missing_required_sources).toContain("demand");
     expect(scorecard.quality_adjustments).toContain("demand:required_source_empty");

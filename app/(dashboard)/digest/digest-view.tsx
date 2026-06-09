@@ -132,7 +132,6 @@ function StatPill({ label, value }: { label: string; value: string | number }) {
 export function DigestView({ data }: DigestViewProps) {
   const praiseCount =
     data.feedback.by_type.find((t) => t.feedback_type === "praise")?.count ?? 0;
-  const negativeCount = data.feedback.total - praiseCount;
   const positiveRate =
     data.feedback.total > 0
       ? Math.round((praiseCount / data.feedback.total) * 100)

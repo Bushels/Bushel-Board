@@ -234,8 +234,10 @@ function validateSnapshot(
     "revision_taint_status",
   );
 
-  const { snapshot_hash: _snapshotHash, ...snapshotWithoutHash } =
-    candidate as unknown as Record<string, unknown>;
+  const snapshotWithoutHash = {
+    ...(candidate as unknown as Record<string, unknown>),
+  };
+  delete snapshotWithoutHash.snapshot_hash;
   const recomputedHash = `sha256:${sha256(stableStringify(snapshotWithoutHash))}`;
 
   if (recomputedHash !== candidate.snapshot_hash) {

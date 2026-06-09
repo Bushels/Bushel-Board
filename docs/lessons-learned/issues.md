@@ -1,5 +1,161 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-09 - Artifact gates need rolling clean-day math, not raw artifact counts
+
+**Symptom:** Track 54 operator summaries could read like `daily_pulse = 3/5 found` and make the gate feel closer than it really was, while only 2 artifact days were clean enough for promotion. The next-eligible projection also risked adding future weekdays without respecting the rolling seven-day review window, which would overstate the earliest candidate date.
+
+**Root cause:** The readiness surface mixed raw artifact presence with promotion-clean artifact evidence. A day can have an artifact and still be non-clean because of parse failure, missing fresh price proof, identity mismatch, or missing no-write proof. The projection also has to simulate the reviewed window, not just append missing weekdays.
+
+**Fix status:** Track 54 readiness, heartbeat, and automation-run summaries now expose `clean_artifact_days_found`, `missing_clean_artifact_days`, `earliest_candidate_date`, and projected next eligible dates. The projection counts only clean scheduled dates inside the rolling review window. Current proof is explicit: daily_pulse is 3/5 found, 2 clean, 3 clean days missing, earliest candidate 2026-06-12.
+
+**Prevention:** Promotion decisions must quote clean artifact days, not raw artifact days. If a future summary says only `N/5 found`, treat it as incomplete operator evidence until clean-day counts and the reviewed window are visible.
+
+**Tags:** #track54 #artifact-gate #readiness #automation #operator-proof
+
+---
+
+## 2026-06-09 - Hermes Grok terminal calls must use the xAI OAuth provider path
+
+**Symptom:** Hermes was callable from the Codex terminal and xAI OAuth was logged in, but `hermes --model grok-4.3 --provider xai ...` failed with a missing `XAI_API_KEY` error. This made it look like Hermes/Grok was still unusable from Codex even though the OAuth route worked.
+
+**Root cause:** Hermes has separate provider paths. `xai` expects an API key, while the logged-in dashboard OAuth credential is exposed through `xai-oauth`. The default Hermes model/provider was also Anthropic, so a bare `hermes` launch did not prove the Track 54 Grok path.
+
+**Fix status:** The documented terminal smoke command is now `hermes --model grok-4.3 --provider xai-oauth -z "Return exactly: HERMES_GROK_OK"`. Track 54 Hermes preflight and terminal runner use `provider = xai-oauth`, `model = grok-4.3`, and keep Hermes as a quarantined X sentiment artifact scout only.
+
+**Prevention:** Always prove the exact model/provider tuple used by the automation. Do not treat a generic Hermes status check or a successful bare Hermes launch as proof that Grok 4.3 X-scouting is ready.
+
+**Tags:** #track54 #hermes #grok #xai-oauth #auth #terminal
+
+---
+
+## 2026-06-07 - Browser proof must be coverage-complete, not just route-complete
+
+**Symptom:** Track 54 readiness could accept a legacy browser-smoke proof that proved `/thesis`, `/thesis?audit=1`, and `/overview` loaded, but did not prove desktop/mobile coverage, exact local loaded routes from the command base URL, unique route-matched screenshots for every route/viewport check, screenshots from the current proof directory, actual screenshot visual content from decoded PNG pixels, console cleanliness, forbidden-copy checks, required markers, visible marker reachability, marker obstruction checks, or real UI interaction for every route. The local `/thesis` readiness snapshot could also keep displaying a clean browser proof after the six-hour proof window had aged out, or keep showing stale gate counts from an aged-out readiness report.
+
+**Root cause:** The browser-smoke script had been hardened to emit route/viewport proof lines, but readiness still treated the proof as a generic successful command output. That left a compatibility hole where an older route-only proof shape, wrong route URL, external loaded URL, missing command base URL, different local origin, reused screenshot file, swapped screenshot filename, or faked visual-stat line for a blank PNG could satisfy the readiness item even though it no longer represented the current operator standard. The farmer/audit readiness snapshot exposed `browser_smoke_clean` and readiness gate counts without the browser proof timestamp, browser proof age, or readiness report age, so clean and current were easy to conflate.
+
+**Fix status:** `scripts/build-track54-readiness-report.ts` now requires desktop and mobile proof lines for every Track 54 browser route: load from the same local origin as the command `--base-url` with the exact expected path/query, markers, visible markers, forbidden-copy result, console-error count, theme-toggle interaction, a unique non-empty screenshot file inside the browser-proof directory with the expected route/viewport filename, a matching screenshot byte count, a valid PNG signature, dimensions matching the configured viewport, claimed screenshot visual-content stats, and independently decoded PNG visual-content stats. The browser-smoke runner also rejects hidden, missing, or covered required markers, malformed/tiny/wrong-size PNG captures, and blank or low-information screenshot captures before writing a clean proof. Focused readiness-report tests reject legacy route-only proof, missing command base URLs, mismatched loaded URL origins, wrong loaded routes, external loaded URLs, reused screenshot paths, swapped screenshot filenames, hidden visible markers, covered visible markers, screenshot paths outside the proof directory, missing screenshot files, byte-count mismatches, corrupted screenshot files, dimension mismatches, missing screenshot visual proof, blank-looking claimed visual stats, and actual blank screenshots. The local readiness snapshot now exposes only sanitized readiness report age plus browser proof timestamp, age, and six-hour freshness status, so normal `/thesis` and audit `/thesis?audit=1` distinguish fresh, stale, future-dated, missing browser proof, and present-but-missing-timestamp proof instead of treating all invalid time evidence as clean-ready or merely stale. The thread heartbeat summary now mirrors that distinction with `report_freshness_status` and `browser_smoke_proof_freshness_status`, while keeping the old boolean fields for compatibility; the readiness manifest audit requires the live heartbeat prompt to inspect those fields. Stale or future-dated readiness gate counts are labeled as last-known proof instead of current proof, and stale ready-for-approval mode badges stay lagged instead of green. The live no-write readiness build accepts the fresh six-check browser proof while keeping production writes disabled.
+
+**Prevention:** Whenever a proof-producing script gets stricter, update the consumer to validate the new proof contract directly and update every display surface that summarizes it. A green command exit or clean boolean is not enough when the operator decision depends on specific evidence lines and a freshness window.
+
+**Tags:** #track54 #readiness #browser-smoke #operator-proof #mobile
+
+---
+
+## 2026-06-03 - Grok CLI scout needs noninteractive auth and envelope parsing
+
+**Symptom:** The scheduled Track 54 daily scout/health automations could not produce the 2026-06-03 `daily_pulse` artifact. The first failure was Grok rejecting the generated `mcp_servers.gemini-cli` config, the next failure was the runner treating Grok CLI's outer JSON envelope as the scout payload, and the final real blocker was an expired Grok login that opened an interactive sign-in URL.
+
+**Root cause:** The runner assumed disabled MCP stubs with only `enabled = false` would satisfy Grok CLI 0.2.14, assumed `--output-format json` returned the scout JSON directly instead of a `{ text, stopReason }` wrapper, and used `child.kill()` on Windows, which can leave child Node processes running after a timeout. The automation also had no fail-fast detector for Grok's re-authentication prompt.
+
+**Fix status:** `scripts/run-grok-x-scout.ts` now writes valid disabled MCP stubs with harmless command/args, extracts scout JSON from Grok CLI's `text` envelope, kills the Windows process tree on timeout, loads `.env.local` so `XAI_API_KEY` can be used when present, resolves `--runner auto` to `xai_api` when a key exists and otherwise to the locked-down Grok CLI path, and fails fast with a clear auth message when Grok asks for re-authentication. Track 54 readiness now also checks for a noninteractive credential source by proving either `XAI_API_KEY` is present or the local Grok CLI `auth.json` is valid through the next scout window, not merely unexpired at check time. `scripts/run-track54-artifact-health-check.ts` now reviews existing artifact state but preflights Grok before any retry, returning `retry_blocked_by_grok_preflight = true` instead of launching another scout when credentials are expired or would expire before the scout window. The scout runner also accepts a Grok Build model override through `--grok-cli-model`, `GROK_CLI_MODEL`, or a positional value after runner because npm 11 on Windows can strip unknown flags into bare positional values; the local cached Cursor/Composer 2.5 model ID is `grok-composer-2.5-fast`, and the no-write recovery, daily/friday automation prompts, and approval-only future Grok scout write-mode proposals now carry that model. Focused runner and Track 54 artifact/readiness tests cover the new paths.
+
+**Prevention:** Treat model CLI stdout as an integration contract, not as raw model output. For scheduled jobs, prefer a noninteractive API key or a CLI login verified fresh through the 4:10 PM MT scout window, require preflight-first prompts, and keep the health check no-write until the artifact gate is candidate-ready.
+
+**Tags:** #track54 #grok-cli #automation #windows #auth #artifact-health
+
+---
+
+## 2026-06-03 - Audit routes need separate forbidden-copy gates
+
+**Symptom:** The new `/thesis?audit=1` impact-map panel intentionally rendered parked gaps such as Spring Wheat and Winter Wheat, while the public browser-smoke forbidden list treated those labels as failures. A related page test also scanned the entire audit HTML for `buy`/`sell`, which can collide with legitimate market/audit copy.
+
+**Root cause:** One public-route forbidden-copy policy was being applied to both farmer-facing routes and operator audit routes. Audit mode needs to expose parked gaps for QA, but still must block trading/advice wording from X Pulse copy.
+
+**Fix status:** The page test now checks the exact injected X Pulse phrases after sanitization. `scripts/run-track54-browser-smoke.ts` splits public parked-grain label bans from watch/advice language bans, keeps the public `/thesis` and `/overview` gates strict, and requires `Impact Map audit` on `/thesis?audit=1` while only blocking advice language there.
+
+**Prevention:** Treat audit routes as operator proof surfaces, not public-copy surfaces. Keep public hidden labels forbidden on normal routes; allow parked-gap labels in audit mode only when the route also proves no advice language and no browser console errors.
+
+**Tags:** #track54 #browser-smoke #audit-mode #copy-safety #grain-impact-map
+
+---
+
+## 2026-06-02 - NPM can strip operator flags before a wrapper sees them
+
+**Symptom:** `npm run track54:readiness -- --out ... --browser-smoke-proof-out ... --base-url http://127.0.0.1:3111 --no-start-server` still smoked `http://127.0.0.1:3110`. The proof failed against a stale/default local server and missed the new `Analyzed data`, `Daily automation gate progress`, and `Readiness proof` markers even though the fresh `3111` page returned 200.
+
+**Root cause:** On this Windows/npm 11.4.2 runner, npm converted unknown script flags into `npm_config_* = true` entries and passed only the bare values into `process.argv`. `--no-start-server` became an empty `npm_config_start_server` value. The readiness wrapper only forwarded named flags, so browser smoke fell back to the default base URL and leaked stripped values toward the readiness builder.
+
+**Fix status:** `scripts/run-track54-readiness.ts` now recovers npm-stripped wrapper values by shape, handles the inverted `--no-*` config form, forwards the intended browser-smoke flags, and strips wrapper values out of readiness-builder passthrough. A focused regression test covers the npm 11 value-stripping case. Final post-build readiness proof generated at `2026-06-03T00:29:53.188Z` passed against `http://127.0.0.1:3111` with `Analyzed data:yes`, browser smoke clean, and production writes disabled.
+
+**Prevention:** Test the exact operator command shape, not only the direct script path. Always inspect `browser_smoke_proof.command` and loaded route URLs before trusting a readiness report.
+
+**Tags:** #track54 #readiness #npm #windows #browser-smoke #operator-proof
+
+---
+
+## 2026-06-02 - Explicit artifact-health dates must still respect local cutoff
+
+**Symptom:** `run-track54-artifact-health-check.ts --mode daily_pulse --date 2026-06-02` reported `artifact_due = true` at 11:02 AM MT, even though the scheduled daily-pulse dry-run cutoff is 4:10 PM MT.
+
+**Root cause:** The health-check script treated any explicit `--date` as already due. That was safe for historical dates, but wrong for the current local automation date before the cutoff.
+
+**Fix status:** Explicit review dates now flow through the same `track54CompletedAutomationDateKey()` cutoff comparison as implicit dates. A regression test proves same-day explicit dates stay blocked before 4:10 PM MT while prior completed dates remain due.
+
+**Prevention:** Date override flags should not bypass schedule gates. They should select the review date only; due/not-due status still belongs to the local automation clock.
+
+**Tags:** #track54 #artifact-health #automation #schedule-gate
+
+---
+
+## 2026-06-02 - Failed Grok scout attempts need failure summaries
+
+**Symptom:** A manual morning `daily_pulse` dry-run timed out before Grok returned JSON and left only a prompt file. Artifact health correctly rejected it, but the operator evidence was weak because no summary file explained the failed attempt.
+
+**Root cause:** `run-grok-x-scout.ts` wrote the prompt before invoking Grok, but wrote raw output and summary JSON only after a successful scout response. Timeouts, process failures, or parse failures therefore skipped the file contract that the artifact gate reviews.
+
+**Fix status:** The scout runner now has a mode-aware timeout and writes failure summaries with `status = failed`, `parse_status = failed`, `scout_run_id = null`, `write = false`, and the expected raw artifact path. The artifact-week reviewer surfaces those summaries as failed attempts and does not count them as clean artifact days.
+
+**Prevention:** Every automation gate should record failed attempts in the same artifact family as successful attempts. Missing evidence and failed evidence are different states.
+
+**Tags:** #grok #track54 #artifact-health #operator-proof
+
+---
+
+## 2026-06-01 - Same-day Grok reruns must not downgrade useful artifact evidence
+
+**Symptom:** A fresh no-write daily Grok scout rerun returned 0 signals and overwrote the canonical `daily_pulse-summary.json`, causing the artifact-week reviewer to ignore an earlier same-day artifact with 3 accepted signals and fresh price context.
+
+**Root cause:** The runner preserved timestamped raw/prompt/summary files, but the reviewer followed only the latest summary pointer. A quiet or narrow later scan could therefore make the gate look weaker without any real evidence-quality failure in the earlier same-day artifact.
+
+**Fix status:** `reviewGrokXScoutArtifactWeek()` now scans same-day timestamped summaries and selects the best valid no-write artifact by parsed evidence quality. Promotion briefs, readiness mode gates, and acceptance evidence now carry the selected artifact path and SHA-256 hash. Same-day write-mode evidence remains non-overridable and still holds the gate.
+
+**Prevention:** Retryable evidence collectors should preserve point-in-time artifacts and review the best valid no-write evidence for the day, while treating write-mode evidence as a hard safety signal.
+
+**Tags:** #grok #track54 #automation #artifact-week-gate #retry-safety
+
+---
+
+## 2026-06-01 - Browser smoke must check rendered advice copy
+
+**Symptom:** Track 54 source and prompt tests were green, but the rendered `/thesis` page still exposed `price advice`; after tightening the browser check, `/overview` also exposed a standalone `sell` inside `sell-down proxy`.
+
+**Root cause:** Earlier browser smoke proved routes loaded and avoided parked grain rows, but it did not scan the actual rendered text for trading/advice wording. Source-level checks also missed copy coming from board data and overview explanatory text.
+
+**Fix status:** `npm run track54:browser-smoke` now checks `/thesis`, `/thesis?audit=1`, and `/overview` for forbidden rendered terms with whole-word matching. Thesis copy now says `pricing instruction`, `/overview` says `farmer-movement proxy`, and X Pulse copy scrubbing covers `price advice`, `financial advice`, `buy signal`, and `sell signal`.
+
+**Prevention:** Public-board smoke tests should inspect the rendered page text, not just source files or required markers. Rebuild before running production-mode browser smoke because `next start` serves the last production build.
+
+**Tags:** #browser-smoke #public-copy #thesis-board #track54
+
+---
+
+## 2026-06-01 - Grok scout JSON can drift inside otherwise useful artifacts
+
+**Symptom:** A dry-run Grok daily pulse artifact returned two useful X signals, but strict parsing failed because one `raw_quote` exceeded the excerpt cap and one category used `planting_progress` instead of the allowed enum.
+
+**Root cause:** The prompt contract was stricter than the model's natural wording. Grok stayed close to the requested schema, but small enum and length drift was enough to block the whole artifact before deterministic validation could score the individual signals.
+
+**Fix status:** The scout contract now trims `raw_quote` to the 280-character cap and normalizes common category aliases such as planting/crop/seeding progress into `farmer_report`. The artifact-week review reports parse failures, unlisted accepted handles, price freshness, dry-run/no-write proof, and summary/artifact count mismatches before any write-mode automation can be considered.
+
+**Prevention:**
+- Keep Grok as untrusted input, but normalize predictable vocabulary drift before rejecting the artifact.
+- Keep the five-clean-artifact-day gate in front of production writes so model-output drift is caught in dry-run mode first.
+
+**Tags:** #grok #x-scout #schema-contract #artifact-week-gate
+
+---
+
 ## 2026-05-31 - Clean source rows can still hide partial Prairie crop-progress context
 
 **Symptom:** `/thesis` could show `Source health is clean for this board` while the Canada crop-progress collector metadata still reported `partial_prairie_week`. The source rows were not broken, but the board copy could be misread as a complete MB/SK/AB Prairie package.

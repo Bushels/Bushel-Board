@@ -420,7 +420,7 @@ export function GrainDeliveriesBins({
             letterSpacing: "0.04em",
           }}
         >
-          Imports are excluded. CGC deliveries are the sell-down proxy, not a complete domestic disappearance
+          Imports are excluded. CGC deliveries are the farmer-movement proxy, not a complete domestic disappearance
           model. Corn/feed grains can screen high because on-farm feed and some domestic use are not fully
           captured by weekly CGC producer deliveries.
         </p>

@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 vi.mock("@anthropic-ai/sdk", () => {
   class MockAnthropic {
     messages = { stream: () => ({ [Symbol.asyncIterator]: () => ({}) }) };
-    constructor(_opts: unknown) {}
+    constructor() {}
   }
   return { default: MockAnthropic };
 });
@@ -17,7 +17,7 @@ vi.mock("@anthropic-ai/sdk", () => {
 vi.mock("openai", () => {
   class MockOpenAI {
     chat = { completions: { create: async () => ({}) } };
-    constructor(_opts: unknown) {}
+    constructor() {}
   }
   return { default: MockOpenAI };
 });

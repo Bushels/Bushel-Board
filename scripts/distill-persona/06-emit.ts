@@ -25,7 +25,6 @@ import { createClient } from "@supabase/supabase-js";
 import {
   existsSync,
   readFileSync,
-  readdirSync,
   writeFileSync,
 } from "fs";
 import { resolve } from "path";

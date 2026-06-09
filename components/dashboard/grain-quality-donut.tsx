@@ -34,7 +34,7 @@ const COLORS = [
 
 const MAX_LEGEND_ITEMS = 8
 
-export function GrainQualityDonut({ grades, grainName }: GrainQualityDonutProps) {
+export function GrainQualityDonut({ grades }: GrainQualityDonutProps) {
   const [activeIndex, setActiveIndex] = useState(-1)
   const prefersReducedMotion = useReducedMotion()
 

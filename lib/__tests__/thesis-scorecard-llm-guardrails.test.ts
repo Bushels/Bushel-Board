@@ -24,6 +24,15 @@ const scorecard = (): ThesisRatingScorecard => ({
       confidence: "high",
       freshness_status: "strong",
       sources: ["cgc_weekly_stats"],
+      metrics: [
+        {
+          source: "cgc_weekly_stats",
+          label: "Export/delivery ratio",
+          value: "47.0%",
+          numericValue: 47,
+          unit: "pct",
+        },
+      ],
       positive_evidence: ["exports_and_processing_support_demand"],
       negative_evidence: [],
       blocked_claims: ["export_projection_pace_unavailable"],
@@ -80,6 +89,15 @@ describe("scorecard LLM guardrail payload", () => {
         confidence: "high",
         freshness_status: "strong",
         sources: ["cgc_weekly_stats"],
+        metrics: [
+          {
+            source: "cgc_weekly_stats",
+            label: "Export/delivery ratio",
+            value: "47.0%",
+            numericValue: 47,
+            unit: "pct",
+          },
+        ],
         allowed_claims: ["exports_and_processing_support_demand"],
         blocked_claims: ["export_projection_pace_unavailable"],
       },
@@ -162,10 +180,47 @@ describe("scorecard LLM guardrail payload", () => {
     expect(payload.missing_required_sources).toEqual(["weather"]);
   });
 
+  it("adds grain market-response context without promoting it into score facts", () => {
+    const payload = buildScorecardLlmPayload(scorecard());
+
+    expect(payload.market_response_context).toMatchObject({
+      grain: "Canola",
+      market_shape: "canada_first",
+    });
+    expect(payload.market_response_context?.scoring_boundary).toContain("Explanation-only");
+    expect(payload.market_response_context?.seasonal_windows).toContain("Apr-May seeding");
+    expect(payload.market_response_context?.rules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "canola-flow-price-confirmation",
+          label: "Flow plus soy-complex confirmation",
+          source_classes: ["official_thesis_input", "price_context", "watch_only"],
+          viking_topics: ["basis_pricing", "logistics_exports", "market_structure", "grain_specifics"],
+        }),
+      ]),
+    );
+    expect(payload.allowed_claims).toEqual(["exports_and_processing_support_demand"]);
+    expect(payload.allowed_claims).not.toContain("canola-flow-price-confirmation");
+    expect(payload.blocked_claims).not.toContain("canola-flow-price-confirmation");
+    expect(payload.rating.overall_score).toBe(42.75);
+    expect(payload.rating.confidence_score).toBe(0);
+  });
+
+  it("keeps market-response context null when the grain has no impact profile", () => {
+    const payload = buildScorecardLlmPayload({
+      ...scorecard(),
+      grain: "Spring Wheat",
+    });
+
+    expect(payload.market_response_context).toBeNull();
+    expect(payload.rating.grain).toBe("Spring Wheat");
+  });
+
   it("exports explicit instructions that prevent recomputing or overriding ratings", () => {
     expect(SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS).toContain("source of truth");
     expect(SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS).toContain("Do not recompute");
     expect(SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS).toContain("Do not infer missing source values");
     expect(SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS).toContain("Do not upgrade confidence");
+    expect(SCORECARD_LLM_GUARDRAIL_INSTRUCTIONS).toContain("Use market_response_context only to explain");
   });
 });

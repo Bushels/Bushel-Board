@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildShippingCalendar,
   getSeasonalContext,
-  type ShippingCalendar,
 } from "../shipping-calendar";
 
 describe("getSeasonalContext", () => {

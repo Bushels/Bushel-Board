@@ -16,7 +16,6 @@ function ctx(): ToolContext {
     threadId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
     messageId: "cccccccc-cccc-4ccc-cccc-cccccccccccc",
     turnId: "t1",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: {} as unknown as SupabaseClient,
   };
 }

@@ -42,6 +42,15 @@ export interface QualityAdjustmentResult {
   reasons: string[];
 }
 
+export interface RatingDomainMetric {
+  source: string;
+  label: string;
+  value: string;
+  numericValue?: number;
+  unit?: string;
+  period?: string | null;
+}
+
 export interface RatingDomainScore {
   domain: RatingDomainId;
   score: number;
@@ -50,6 +59,7 @@ export interface RatingDomainScore {
   confidence: RatingConfidenceLabel;
   freshness_status: SourceFreshnessStatus;
   sources: string[];
+  metrics?: RatingDomainMetric[];
   positive_evidence: string[];
   negative_evidence: string[];
   blocked_claims: string[];
@@ -78,6 +88,7 @@ export interface BuildRatingDomainInput {
   confidence: RatingConfidenceLabel;
   freshness_status: SourceFreshnessStatus;
   sources: string[];
+  metrics?: RatingDomainMetric[];
   positive_evidence?: string[];
   negative_evidence?: string[];
   blocked_claims?: string[];
@@ -94,6 +105,7 @@ export interface BuildRatingScorecardInput {
   period_anchor: string;
   source_watermark: string | null;
   domains: BuildRatingDomainInput[];
+  domainWeights?: NormalizedDomainWeights;
 }
 
 export type DomainWeights = Readonly<Record<RatingDomainId, number>>;
@@ -424,7 +436,7 @@ export function buildRatingScorecard(input: BuildRatingScorecardInput): ThesisRa
   const structurallyAbsentDomains = input.domains
     .filter((domain) => domain.structurallyAbsent)
     .map((domain) => domain.domain);
-  const weights = getDomainWeights(input.lane, { structurallyAbsentDomains });
+  const weights = input.domainWeights ?? getDomainWeights(input.lane, { structurallyAbsentDomains });
   const qualityAdjustments: string[] = [];
   const missingRequiredSources: string[] = [];
   const llmAllowedClaims: string[] = [];
@@ -463,6 +475,7 @@ export function buildRatingScorecard(input: BuildRatingScorecardInput): ThesisRa
       confidence: domainInput.confidence,
       freshness_status: domainInput.freshness_status,
       sources: domainInput.sources,
+      metrics: requiredSourceMissing ? [] : domainInput.metrics ?? [],
       positive_evidence: domainInput.positive_evidence ?? [],
       negative_evidence: domainInput.negative_evidence ?? [],
       blocked_claims: domainInput.blocked_claims ?? [],
