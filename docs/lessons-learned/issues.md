@@ -1,5 +1,36 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-09 - The Friday desk died silently for 7 weeks because its failure logging itself could not land
+
+**Symptom:** `market_analysis` (CAD desk) last wrote 2026-04-18 and `us_market_analysis` 2026-04-20, yet nothing on the board flagged it. Grain detail pages kept rendering the week-36 thesis under a "Week 44" hero with haul/hold recommendations derived from the 8-week-old stance.
+
+**Root cause (three stacked failures):**
+1. The desk's Friday runs failed on 2026-04-24/25 (phase 0.3 freshness guardrail: grain prices were stale before the Track 54 daily price collector existed), and after that the Claude Desktop Routines stopped firing entirely — zero `pipeline_runs` rows of any status after 2026-04-25.
+2. The swarm prompts' failure-path INSERTs used `triggered_by` values (`grain-desk-weekly`, `us-desk-weekly`, `claude-agent-us-desk`) that violate the live `pipeline_runs` CHECK (`manual|cron|retry` only), and the US prompt referenced nonexistent `source`/`metadata` columns — so even when a run tried to log its own death, the log row itself failed. A monitoring path that cannot write is indistinguishable from "no run happened".
+3. Step 0.0 hard-pinned `claude-opus-4-7`; any newer Opus-class model would have aborted the desk on sight, with the abort row also failing per (2).
+
+**Fix status:** Both prompt docs now use `triggered_by='cron'` with the routine name inside the JSON payload, drop the nonexistent columns, accept any Opus-class model, and carry explicit schema-trap warnings. Grain detail + My Farm now stale-guard the desk thesis via `assessDeskThesisStaleness()` so a 2+-week-old read displays as history and cannot drive recommendations. Routine re-enablement is a Kyle action in Claude Desktop.
+
+**Prevention:** (1) Any scheduled writer needs a freshness watchdog on its OUTPUT table, not just its inputs — the source-freshness watchdog checks collectors but nothing checked `market_analysis` recency. (2) Failure-logging SQL must be constraint-validated like product code; a CHECK-violating failure logger is worse than none. (3) Never pin scheduled-prompt model checks to an exact dated model id; pin to the model class.
+
+**Tags:** #friday-desk #pipeline-runs #check-constraint #silent-failure #staleness
+
+---
+
+## 2026-06-09 - Intermittent React #418 on /thesis was a per-load hydration race, not a wall-clock render
+
+**Symptom:** Two browser-smoke runs on 2026-06-09 each logged exactly one uncaught `Minified React error #418` (hydration mismatch, `args[]=HTML`) on plain `/thesis` - once at 16:55 UTC on the mobile check against a warm, already-running server, and once at 20:04 UTC on the desktop check as the first request after a cold `next start`. In both runs the sibling `/thesis` check on the same server and build was clean, the immediate rerun was clean, and the failing-run screenshots were byte-identical to the clean ones (the error is recoverable - React regenerates the tree client-side and the final UI is correct).
+
+**Root cause:** Not the suspected "wall-clock string crosses a display boundary in a client component." That class was eliminated with evidence: (1) the route's `page_client-reference-manifest.js` lists every client module that hydrates on plain `/thesis` (nav links, theme toggle, mobile nav, error boundary, community stats, Google Analytics) and all render deterministically from props/pathname - the `new Date()` calls in `page.tsx` are server-only and serialize once into the RSC payload, so they cannot mismatch by construction; (2) two `/thesis` responses fetched 7 minutes apart were byte-identical, so the page renders no live clock text ("report age"/"Today update window" copy comes from stored snapshots). Symbolicating the archived failing stack (the react-dom chunk hash `1949bdd2d71d6b2f` is unchanged in the current build) shows the throw is react-dom's `throwOnHydrationMismatch` (HTML variant) from the host-element claim path inside time-sliced, scheduler-yielding hydration - a per-load race in the framework, consistent with both incidents being one-off and rerun-clean. The page is the app's largest streamed document (~1.78 MB, `force-dynamic`), and the nav's `CgcFreshness` Suspense boundary is its only streaming-variable region: under concurrent SSR load, 6/40-26/30 responses ship the skeleton fallback plus a late `$RC` completion script instead of inline content. However, 96 instrumented production loads against the committed build (cold server restarts, CPU/network throttling, concurrent-fetch contention; 35+ loads receiving the late-`$RC` document) produced zero hydration errors - React handles the late boundary fine here. Both real incidents ran against discarded pre-commit builds of the grain-relationship work during machine-wide load (parallel multi-agent review, rebuilds, Playwright runs); the failing tree state was never committed and cannot be fully reconstructed.
+
+**Fix status:** No app-code fix is warranted: there is no hydration-sensitive render on `/thesis` to gate behind `useEffect`, and the error has not reproduced on the committed build (a31b740) in 96 amplified attempts plus all subsequent smoke runs. The reproduction harness is kept at `scratch/hydration-repro/repro-hydration.mjs` (arms: `--restart-server` cold starts, `--throttle` CPU/network, plus `hammer.mjs` for SSR contention; it records per-load whether the served document used the late-`$RC` path). If the error recurs on a committed build: rerun those arms, correlate hits with `lateBoundary:true`, consider awaiting `CgcFreshness` inline in `Nav` (removing the streamed boundary from the header sibling chain) as the targeted de-risking change, and check Next 16.2.x / React 19.2.4+ release notes for hydration-race fixes (we are on Next 16.1.6 / React 19.2.3).
+
+**Prevention:** When a smoke run flakes with #418, archive `scratch/track54-browser-smoke/browser-smoke-proof.json` before rerunning - the fixed output path is overwritten by the next run, and the proof's stack frame plus chunk hash is what makes later symbolication possible (the 16:55 proof survived only because it was written to a custom `--out` path). Before hunting wall-clock renders, check the route's client-reference manifest for what actually hydrates, and diff two server responses fetched minutes apart: if they are byte-identical, no server-rendered string can be the mismatch. `args[]=HTML` (vs `text`) means an element-structure mismatch, which a drifting timestamp string cannot produce.
+
+**Tags:** #thesis #hydration #react-418 #streaming #suspense #browser-smoke #track54
+
+---
+
 ## 2026-06-09 - SVG colors need fill-*/stroke-* classes; adversarial review caught 24 var() attribute violations
 
 **Symptom:** The new grain relationship audit SVGs used `fill="var(--background)"` / `stroke="var(--border)"` style attribute values in 24 places across `grain-impact-graph-panel.tsx` and `grain-relationship-explorer.tsx`, violating the documented CLAUDE.md rule that CSS variables do not resolve in SVG presentation attributes. The Playwright pixel proof did not catch it because the Three.js canvas checks measured the canvas, not the SVG text/scaffold colors.

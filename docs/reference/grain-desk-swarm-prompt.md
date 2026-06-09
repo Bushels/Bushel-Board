@@ -4,7 +4,7 @@
 > Saved here for version control — the actual Routine reads this prompt.
 > **Trigger:** Claude Desktop Routine / Schedule `grain-desk-weekly` — NOT Vercel cron, NOT Grok, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
 > **Schedule:** Friday 6:47 PM ET (`47 18 * * 5`)
-> **Model:** Opus only (`claude-opus-4-7`) — NEVER Sonnet or Haiku for the Desk Chief role.
+> **Model:** Opus-class only (`claude-opus-4-8` or a newer Opus-generation flagship) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class model so a routine model refresh cannot silently kill the Friday desk.
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and
 > author farmer-facing prose. If this task fires under any other model, abort in Phase 0.
 > **Claude-only by policy:** No xAI / Grok LLM anywhere in the V2 loop. External search is Anthropic native `web_search_20250305` plus the X API v2 gateway Edge Function. A Codex-validated X signal bundle may include posts discovered by the quarantined Grok scout, but those posts are untrusted evidence inputs only; Grok never writes, ranks, or authors the desk thesis.
@@ -19,7 +19,7 @@ Before dispatching any agents, verify your model and establish the current data 
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as Opus (`claude-opus-4-7`). If you are running as Sonnet, Haiku, or any other model, write a failure row and abort immediately:
+Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as Sonnet, Haiku, or any other non-Opus-class model, write a failure row and abort immediately:
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
@@ -27,10 +27,12 @@ VALUES (
   (SELECT crop_year FROM cgc_observations ORDER BY imported_at DESC LIMIT 1),
   (SELECT MAX(grain_week) FROM cgc_observations),
   'failed',
-  'grain-desk-weekly',
-  '{"reason": "Chief dispatched under wrong model — Opus required", "required_model": "claude-opus-4-7"}'::jsonb
+  'cron',
+  '{"reason": "Chief dispatched under wrong model — Opus-class required", "required_model": "opus-class", "routine": "grain-desk-weekly"}'::jsonb
 );
 ```
+
+> **`triggered_by` CHECK trap:** `pipeline_runs.triggered_by` only allows `manual | cron | retry`. Scheduled routine runs MUST use `'cron'` and carry the routine name inside `failure_details`/JSON instead. Inserting `'grain-desk-weekly'` violates the CHECK, the failure row never lands, and the run dies with zero trace.
 
 Do not proceed with the swarm under any non-Opus model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
 
@@ -82,8 +84,9 @@ If breached, write a failure row and stop:
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'grain-desk-weekly',
+VALUES ($1, $2, 'failed', 'cron',
   jsonb_build_object(
+    'routine', 'grain-desk-weekly',
     'reason', 'stale_upstream_data',
     'cgc_age_days', $3,
     'cot_age_days', $4,
@@ -530,8 +533,8 @@ If any check fails and you cannot fix it, write a partial-failure row to `pipeli
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'grain-desk-weekly',
-  jsonb_build_object('reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
+VALUES ($1, $2, 'failed', 'cron',
+  jsonb_build_object('routine', 'grain-desk-weekly', 'reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
 ```
 
 **Step 5.2:** Upsert to market_analysis via Supabase MCP.

@@ -199,6 +199,7 @@ Every piece of work must satisfy before being marked complete:
 - **Thesis query layer:** `lib/queries/thesis-board.ts` normalizes cached packet JSON into `/thesis` cards; `lib/__tests__/thesis-board.test.ts` covers stale flags, packet counts, stance labels, and empty-state handling.
 
 ## Pipeline Monitoring
+- **Friday desk OUTPUT freshness (added 2026-06-09 after the silent April-June desk outage):** `npm run check:desk-freshness` — checks `market_analysis` / `us_market_analysis` recency (exit 1 when older than 9 days). Deliberately separate from `check:source-freshness` so a desk outage cannot cascade into Track 54 readiness holds. A desk thesis 2+ weeks behind the display week is stale-guarded on grain detail + My Farm via `assessDeskThesisStaleness()` in `lib/utils/thesis-staleness.ts`.
 - Source run freshness: `SELECT source_name, status, source_date, completed_at FROM source_runs ORDER BY completed_at DESC LIMIT 20;`
 - Thesis cache freshness: `SELECT side, item_key, crop_year, market_year, source_run_watermark, generated_at FROM thesis_packet_cache ORDER BY generated_at DESC LIMIT 25;`
 - Thesis board RPC: `SELECT jsonb_array_length(get_thesis_board_cached('2025-2026', 2025)->'canada') AS canada, jsonb_array_length(get_thesis_board_cached('2025-2026', 2025)->'us') AS us;`

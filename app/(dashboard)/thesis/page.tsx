@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GrainImpactGraphPanel } from "@/components/dashboard/grain-impact-graph-panel";
+import { GrainReadLinkage } from "@/components/dashboard/grain-read-linkage";
 import type { GrainImpactGraphBoardRead } from "@/lib/thesis/grain-impact-graph";
 import {
   Card,
@@ -4176,6 +4177,8 @@ function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boo
           <DriverList title="Bull Case" tone="bull" drivers={item.bullDrivers} />
           <DriverList title="Bear Case" tone="bear" drivers={item.bearDrivers} />
         </div>
+
+        <GrainReadLinkage grain={item.name} />
 
         <VikingL2ContextPanel item={item} />
 
