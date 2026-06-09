@@ -32,6 +32,9 @@ Component-to-route map. New dashboard work should reuse these before introducing
 
 | Component | Where used |
 |---|---|
+| `grain-impact-graph-panel.tsx` | `/thesis?audit=1` only - operator graph showing source lanes, factor/domain nodes, cross-grain relationships, matrix, and driver stacks. Do not render on normal `/thesis`. |
+| `grain-relationship-constellation.tsx` | Child of `grain-impact-graph-panel.tsx` - Three.js audit canvas for the cross-grain relationship model. Keep it audit-only and backed by the same rank data as the SVG/table proof. |
+| `grain-relationship-explorer.tsx` | Child of `grain-impact-graph-panel.tsx` - client-side selected-grain relationship explorer, influence board, conversation matrix, and link-rank proof. Keep imports client-safe. |
 | `section-header.tsx` | All sectioned pages |
 | `section-boundary.tsx` | Data-dependent sections |
 | `section-state-card.tsx` | Empty/error fallback used by `SectionBoundary` |

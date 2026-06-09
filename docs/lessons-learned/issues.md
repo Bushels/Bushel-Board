@@ -1,5 +1,33 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-09 - SVG colors need fill-*/stroke-* classes; adversarial review caught 24 var() attribute violations
+
+**Symptom:** The new grain relationship audit SVGs used `fill="var(--background)"` / `stroke="var(--border)"` style attribute values in 24 places across `grain-impact-graph-panel.tsx` and `grain-relationship-explorer.tsx`, violating the documented CLAUDE.md rule that CSS variables do not resolve in SVG presentation attributes. The Playwright pixel proof did not catch it because the Three.js canvas checks measured the canvas, not the SVG text/scaffold colors.
+
+**Root cause:** SVG presentation attributes (`fill=`, `stroke=`) are parsed outside the CSS cascade, so `var()` is invalid there. The repo convention (see `crush-utilization-gauge.tsx`, `percentile-graph.tsx`, `grain-chart.tsx`) is Tailwind `fill-*`/`stroke-*` utility classes, which set the CSS `fill`/`stroke` properties where `var()` does resolve - and which stay theme-aware in dark mode, unlike hardcoded hex.
+
+**Fix status:** All 24 attributes replaced with `className="fill-background|fill-muted-foreground|fill-foreground|stroke-border"`. The same review pass also found two non-rendering hardening issues that were fixed: (1) the explorer's rank-proof strings hardcoded `authority 0.70` / `public scope 90` copies of the model's private constants, so the model now exports `sourceAuthorityWeight`, `scoreRoleForSourceClass`, `scopeRelevanceWeight`, `PUBLIC_SCOPE_RANK_MULTIPLIER`, and `EXTERNAL_SCOPE_RANK_MULTIPLIER` and the proof strings derive from them; (2) `GrainRelationshipConstellation` and `GrainRelationshipExplorer` used inline `boardReads = []` parameter defaults, which create a new array identity every render and would tear down and reboot the entire Three.js scene on each re-render when the prop is omitted - both now default to a module-level constant. New tests pin the ranking math end to end, the Three.js mount/unmount dispose contract (every created geometry/material/texture disposed, frame loop cancelled, ResizeObserver disconnected), the confidence-weighted vertical position formula, and the empty-grains null render.
+
+**Prevention:** Visual pixel proof of a canvas is not proof of SVG color correctness; grep for `var(--` in any new SVG-rendering component before checkpoint. Display copies of model constants are drift bugs waiting to happen - export the constant and derive the copy.
+
+**Tags:** #grain-impact-graph #audit-mode #svg #tailwind #threejs #review-gate
+
+---
+
+## 2026-06-09 - Rank proof helpers must receive the typed field, not the whole edge
+
+**Symptom:** The new audit-only grain relationship proof panel showed `authority 0.12` for a price-context Canola/Soybeans link even though the link badge correctly said `price context` and the rank was 63.
+
+**Root cause:** The UI helper expected `edge.sourceClass`, but the call passed the whole edge object. JavaScript treated the object as an unmatched source class and fell through to the parked/default authority value. The visual badge and the proof formula were therefore inconsistent.
+
+**Fix status:** `rankProofLabel()` now passes `edge.sourceClass` into the authority helper. Focused component tests assert the rendered formula `authority 0.70 x public scope 90 = rank 63`, and the targeted browser proof verifies the formula after clicking the Canola-to-Soybeans relationship.
+
+**Prevention:** For audit math displays, test the exact rendered equation, not only the final rank or badge label. Helper functions that map enum-like fields should receive the typed scalar field directly.
+
+**Tags:** #grain-impact-graph #audit-mode #visualization #rank-proof #typescript
+
+---
+
 ## 2026-06-09 - Artifact gates need rolling clean-day math, not raw artifact counts
 
 **Symptom:** Track 54 operator summaries could read like `daily_pulse = 3/5 found` and make the gate feel closer than it really was, while only 2 artifact days were clean enough for promotion. The next-eligible projection also risked adding future weekdays without respecting the rolling seven-day review window, which would overstate the earliest candidate date.

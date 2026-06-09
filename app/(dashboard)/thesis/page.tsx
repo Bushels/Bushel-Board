@@ -15,6 +15,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { GrainImpactGraphPanel } from "@/components/dashboard/grain-impact-graph-panel";
+import type { GrainImpactGraphBoardRead } from "@/lib/thesis/grain-impact-graph";
 import {
   Card,
   CardContent,
@@ -129,6 +131,55 @@ function directionalIndicatorLabel(score: number): string {
   if (score <= -20) return "Bear tilt";
   if (score < 0) return "Lean bear";
   return "Balanced";
+}
+
+function graphBoardReadSource(items: ThesisBoardItem[]): GrainImpactGraphBoardRead["scoreSource"] {
+  if (items.length === 0) return "none";
+  const sourceKinds = new Set(items.map((item) => item.scoreSource?.kind ?? "weekly_packet"));
+  if (sourceKinds.size > 1) return "mixed";
+  return sourceKinds.has("daily_overlay") ? "daily_overlay" : "weekly_packet";
+}
+
+function weightedBoardReadScore(items: ThesisBoardItem[]): number | null {
+  if (items.length === 0) return null;
+  const weighted = items.reduce(
+    (state, item) => {
+      const confidence = Number.isFinite(item.confidenceScore) ? Math.max(0, item.confidenceScore) : 0;
+      return {
+        scoreTotal: state.scoreTotal + item.stanceScore * confidence,
+        confidenceTotal: state.confidenceTotal + confidence,
+      };
+    },
+    { scoreTotal: 0, confidenceTotal: 0 },
+  );
+
+  if (weighted.confidenceTotal > 0) {
+    return Math.round(weighted.scoreTotal / weighted.confidenceTotal);
+  }
+
+  return Math.round(items.reduce((sum, item) => sum + item.stanceScore, 0) / items.length);
+}
+
+function averageBoardReadConfidence(items: ThesisBoardItem[]): number | null {
+  if (items.length === 0) return null;
+  return Math.round(items.reduce((sum, item) => sum + item.confidenceScore, 0) / items.length);
+}
+
+function buildGrainImpactGraphBoardReads(rows: readonly ThesisComparisonRow[]): GrainImpactGraphBoardRead[] {
+  return rows.map((row) => {
+    const items = [row.canada, row.us].filter((item): item is ThesisBoardItem => item !== null);
+    return {
+      grain: row.grain,
+      statusLabel: row.statusLabel,
+      score: weightedBoardReadScore(items),
+      confidence: averageBoardReadConfidence(items),
+      canadaScore: row.canada?.stanceScore ?? null,
+      canadaConfidence: row.canada?.confidenceScore ?? null,
+      usScore: row.us?.stanceScore ?? null,
+      usConfidence: row.us?.confidenceScore ?? null,
+      scoreSource: graphBoardReadSource(items),
+    };
+  });
 }
 
 function stanceFillClass(score: number): string {
@@ -4596,6 +4647,13 @@ export default async function ThesisPage({
         xPulseWatch={xPulseWatch}
         sourceRuns={sourceRuns}
       />
+
+      {auditMode ? (
+        <GrainImpactGraphPanel
+          grains={currentData.comparisonRows.map((row) => row.grain)}
+          boardReads={buildGrainImpactGraphBoardReads(currentData.comparisonRows)}
+        />
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
