@@ -256,3 +256,18 @@ collect-wasde          → usda_wasde_raw/mapped    → macro-scout reads
 ```
 
 The phase-2 `opus_review_*` rows feed the Friday swarm as "weekday signal accumulator" — the desk chief checks cumulative stance drift vs the Friday anchor and prioritizes markets where drift is largest.
+
+## Daily automation v3 - Hermes-first X pulse (decided 2026-06-10, flip pending)
+
+**Why:** Grok CLI OAuth is the daily loop's only flaky link: access tokens last ~6 hours and the refresh chain has lapsed within days (2026-06-03 incident), forcing interactive `grok login`. The Hermes terminal bridge (`hermes --model grok-4.3 --provider xai-oauth`) holds its own long-lived xAI OAuth that stays authenticated, and it already produces accepted daily_pulse artifacts (e.g. 2026-06-09 collected by `hermes-terminal` at 10:24 AM MT). Grok stays exactly what it is: a quarantined X-pulse evidence scout. Claude remains the only daily thesis writer.
+
+**Target flow (weekdays, MT):**
+1. 3:45 PM - prices + cache refresh (existing, unchanged).
+2. 4:10 PM - X pulse artifact via Hermes terminal as PRIMARY: `npm --silent run track54:hermes-x-scout:terminal -- --mode daily_pulse --date <local-run-date>` (no Grok CLI preflight dependency; Grok CLI becomes the fallback, reversing today's order).
+3. 4:45 PM - artifact health check (existing, unchanged semantics).
+4. ~5:30 PM - Claude daily interpretation: `npm run daily-thesis-review:packet` then the review-gated `npm run daily-thesis-review` writes bounded `opus_review_daily_pulse` trajectory rows; a farmer-readable "analysis of the day" narrative (with grower-sentiment input from the accepted X bundle) is the planned extension.
+
+**Flip checklist (one move, not piecemeal):** update the `track-54-grok-x-scout-daily` / `track-54-hermes-x-scout-prompt-bridge` Codex automation prompts to run Hermes first, AND update the readiness manifest-audit expectations in `scripts/build-track54-readiness-report.ts` + its tests in the same change - the manifest audit requires exact prompt fragments and will report drift if either side moves alone.
+
+**Trusted handles:** the scout's allowed-handle batches live in `lib/x-api/trusted-accounts.ts` (Kyle's X follows reconciled 2026-06-10; GrainStats tier1, GRAINSOILSEEDS tier2, IGCgrains tier3 added).
+
