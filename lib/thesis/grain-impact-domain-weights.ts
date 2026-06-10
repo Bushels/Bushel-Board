@@ -12,6 +12,10 @@ import { getGrainImpactProfile, type ImpactSourceClass } from "@/lib/thesis/grai
 const SCORING_SOURCE_CLASS_BOOSTS: Record<ImpactSourceClass, number> = {
   official_thesis_input: 0.12,
   price_context: 0.1,
+  // Bounded-context lanes are admitted and deterministic but weight-neutral:
+  // they may tilt a score inside an active primary domain, never widen the
+  // domain's weight share.
+  bounded_context: 0,
   watch_only: 0,
   parked: 0,
 };

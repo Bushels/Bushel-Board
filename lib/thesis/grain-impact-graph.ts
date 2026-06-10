@@ -181,6 +181,7 @@ function graphId(...parts: string[]): string {
 export function scoreRoleForSourceClass(sourceClass: ImpactSourceClass): GrainImpactGraphScoreRole {
   if (sourceClass === "official_thesis_input") return "score_input";
   if (sourceClass === "price_context") return "bounded_context";
+  if (sourceClass === "bounded_context") return "bounded_context";
   if (sourceClass === "watch_only") return "watch_only";
   return "parked_gap";
 }
@@ -202,6 +203,7 @@ function strongerScoreRole(
 export function sourceAuthorityWeight(sourceClass: ImpactSourceClass): number {
   if (sourceClass === "official_thesis_input") return 1;
   if (sourceClass === "price_context") return 0.7;
+  if (sourceClass === "bounded_context") return 0.7;
   if (sourceClass === "watch_only") return 0.35;
   return 0.12;
 }

@@ -124,6 +124,7 @@ function relationshipKindLabel(kind: GrainRelationshipOverviewEdge["kind"]): str
 function sourceClassLabel(sourceClass: GrainRelationshipOverviewEdge["sourceClass"]): string {
   if (sourceClass === "official_thesis_input") return "official input";
   if (sourceClass === "price_context") return "price context";
+  if (sourceClass === "bounded_context") return "bounded context";
   if (sourceClass === "watch_only") return "watch only";
   return "parked";
 }

@@ -13,6 +13,14 @@ const US_WASDE_SOURCE = "usda_wasde_mapped";
 const US_QUARTERLY_STOCKS_SOURCE = "usda_quarterly_stocks";
 const CFTC_COT_SOURCE = "cftc_cot_positions";
 const GRAIN_PRICES_SOURCE = "grain_prices";
+const GLOBAL_VEG_OIL_SOURCE = "usda_wasde_raw";
+
+// Bounded world veg-oil demand-context lane (Canola only). The tilt is capped
+// well below the smallest CGC demand contribution (+/-15) so admitted world
+// balance context can lean a CGC-driven demand read but never drive it.
+const VEG_OIL_CONTEXT_SCORE = 6;
+const VEG_OIL_SU_DELTA_THRESHOLD_PP = 0.5;
+const VEG_OIL_MIN_COMMODITIES = 2;
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
@@ -1194,10 +1202,95 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
   });
 }
 
+interface VegOilDemandContext {
+  score: number;
+  metrics: RatingDomainMetric[];
+  positive: string[];
+  negative: string[];
+}
+
+/**
+ * Bounded LOW-CONFIDENCE world veg-oil demand context for Canola.
+ *
+ * Reads `demand.global_veg_oil` (world PSD stocks/use for rapeseed, rapeseed
+ * oil, palm oil, soybean oil; country_code '00') and returns a small demand
+ * tilt only when ALL of these hold:
+ *   - the packet grain is Canola (the packet RPC also gates this server-side),
+ *   - usda_wasde_raw freshness is `strong` — anything weaker drops the lane
+ *     entirely instead of degrading the CGC demand primary,
+ *   - at least two commodities carry both current and prior-year stocks/use,
+ *   - the average YoY stocks/use shift clears +/-0.5 percentage points.
+ * The caller folds the tilt into the CGC demand domain only when a CGC demand
+ * signal already fired, so this lane can never create or carry a demand score
+ * on its own.
+ */
+function mapCanolaGlobalVegOilDemandContext(packet: JsonRecord): VegOilDemandContext | null {
+  if (textValue(packet, "grain")?.toLowerCase() !== "canola") return null;
+
+  const demand = asRecord(packet.demand);
+  const rows = asArray(demand.global_veg_oil);
+  if (rows.length === 0) return null;
+
+  const freshness = freshnessForSource(packet, GLOBAL_VEG_OIL_SOURCE);
+  if (freshness.missingFreshnessProof || freshness.status !== "strong") return null;
+
+  const comparisons: { name: string; current: number; delta: number }[] = [];
+  for (const row of rows) {
+    const name = textValue(row, "market_name");
+    const current = numberValue(row, "stocks_to_use_pct");
+    const prior = numberValue(row, "prior_stocks_to_use_pct");
+    if (!name || current === null || prior === null) continue;
+    comparisons.push({ name, current, delta: current - prior });
+  }
+  if (comparisons.length < VEG_OIL_MIN_COMMODITIES) return null;
+
+  const averageDelta = comparisons.reduce((sum, item) => sum + item.delta, 0) / comparisons.length;
+  if (Math.abs(averageDelta) < VEG_OIL_SU_DELTA_THRESHOLD_PP) return null;
+
+  const detail = comparisons
+    .map((item) => `${item.name} ${formatPct(item.current)} (${formatSignedPct(item.delta)} YoY)`)
+    .join(", ");
+  const metrics = [
+    metric({
+      source: GLOBAL_VEG_OIL_SOURCE,
+      label: "World veg-oil stocks/use YoY",
+      value: formatSignedPct(averageDelta),
+      numericValue: averageDelta,
+      unit: "pct",
+    }),
+  ];
+
+  if (averageDelta < 0) {
+    return {
+      score: VEG_OIL_CONTEXT_SCORE,
+      metrics,
+      positive: [
+        `Bounded low-confidence world veg-oil context (USDA PSD): average stocks/use is ${formatSignedPct(
+          averageDelta,
+        )} versus the prior marketing year (${detail}), a tightening global vegetable-oil balance.`,
+      ],
+      negative: [],
+    };
+  }
+
+  return {
+    score: -VEG_OIL_CONTEXT_SCORE,
+    metrics,
+    positive: [],
+    negative: [
+      `Bounded low-confidence world veg-oil context (USDA PSD): average stocks/use is ${formatSignedPct(
+        averageDelta,
+      )} versus the prior marketing year (${detail}), a loosening global vegetable-oil balance.`,
+    ],
+  };
+}
+
 /**
  * Converts current Canada packet fields into deterministic rating-domain inputs.
  * Thresholds intentionally mirror the conservative UI driver cutoffs: exports at
  * >=45% of deliveries and process at >=30% are bullish; <=20% and <=10% are bearish.
+ * For Canola, an admitted world veg-oil balance tilt (max +/-6) can ride inside
+ * an already-active CGC demand domain; it never creates one.
  */
 export function mapCanadaPacketToDomainInputs(packetInput: unknown): BuildRatingDomainInput[] {
   const packet = asRecord(packetInput);
@@ -1278,12 +1371,26 @@ export function mapCanadaPacketToDomainInputs(packetInput: unknown): BuildRating
   }
 
   if (demandPositive.length > 0 || demandNegative.length > 0) {
+    // Bounded Canola-only world veg-oil tilt: only joins a demand domain that
+    // the CGC primary already activated, and only at strong WASDE freshness,
+    // so the combined freshness below always equals the CGC status.
+    const vegOilContext = mapCanolaGlobalVegOilDemandContext(packet);
+    const demandSources = [CANADA_CGC_SOURCE];
+
+    if (vegOilContext) {
+      demandScore += vegOilContext.score;
+      demandMetrics.push(...vegOilContext.metrics);
+      demandPositive.push(...vegOilContext.positive);
+      demandNegative.push(...vegOilContext.negative);
+      appendSource(demandSources, GLOBAL_VEG_OIL_SOURCE);
+    }
+
     domains.push(
-      requiredDomain({
+      requiredDomainFromSources({
         domain: "demand",
         score: demandScore,
-        source: CANADA_CGC_SOURCE,
-        freshness,
+        sources: demandSources,
+        freshness: combinedFreshnessForSources(packet, demandSources),
         metrics: demandMetrics,
         positive_evidence: demandPositive,
         negative_evidence: demandNegative,

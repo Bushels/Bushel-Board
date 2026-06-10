@@ -547,7 +547,7 @@ describe("ThesisPage scorecard audit mode", () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
   });
 
-  it("keeps scorecard audit details hidden on the normal thesis page", async () => {
+  it("keeps scorecard audit details hidden in thesis audit mode", async () => {
     const html = await renderThesisPage();
 
     expect(html).toContain("Wheat Pressure Map");
@@ -688,7 +688,7 @@ describe("ThesisPage scorecard audit mode", () => {
       ],
     }));
 
-    const normalHtml = await renderThesisPage();
+    const normalHtml = await renderThesisPage("1");
     const auditHtml = await renderThesisPage("1");
 
     expect(normalHtml).toContain("readiness report stale");
@@ -768,7 +768,7 @@ describe("ThesisPage scorecard audit mode", () => {
         },
       },
     });
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Official source rows clean; Prairie crop-progress package is partial");
     expect(html).toContain(
@@ -779,20 +779,36 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Prairie crop progress: partial prairie week; loaded MB+SK (MB + SK loaded; AB pending)");
   });
 
-  it("puts source health and the farmer read before KPI summary cards", async () => {
+  it("leads with the farmer read and keeps operator telemetry off the normal board", async () => {
     const html = await renderThesisPage();
 
-    expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(html.indexOf("Source-backed pressure summary"));
+    // Farmer read first: takeaway, then the quick scan, then source health and snapshot.
+    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("All Grains at a Glance"));
+    expect(html.indexOf("All Grains at a Glance")).toBeLessThan(
+      html.indexOf("Official source rows are clean for this board"),
+    );
+    expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(
+      html.indexOf("Current snapshot"),
+    );
+
+    // Operator telemetry must not render on the normal farmer view.
+    expect(html).not.toContain("Daily Update Status");
+    expect(html).not.toContain("X Pulse Watch");
+    expect(html).not.toContain("Weekly Data Intake");
+    expect(html).not.toContain("Source Packets");
+    expect(html).not.toContain("Daily automation gate progress");
+    expect(html).not.toContain("Readiness proof");
+    expect(html).not.toContain("Track 54 production gate");
+  });
+
+  it("keeps the operator telemetry panels in audit mode, after the farmer read", async () => {
+    const html = await renderThesisPage("1");
+
     expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Daily Update Status"));
     expect(html.indexOf("Daily Update Status")).toBeLessThan(html.indexOf("X Pulse Watch"));
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Current snapshot"));
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("X Pulse Watch"));
-    expect(html.indexOf("X Pulse Watch")).toBeLessThan(html.indexOf("Current snapshot"));
-    expect(html.indexOf("Current snapshot")).toBeLessThan(html.indexOf("Source Packets"));
-    expect(html.indexOf("Current snapshot")).toBeLessThan(html.indexOf("Weekly Data Intake"));
-    expect(html.indexOf("Weekly Data Intake")).toBeLessThan(html.indexOf("Source Packets"));
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Source Packets"));
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("All Grains at a Glance"));
+    expect(html.indexOf("X Pulse Watch")).toBeLessThan(html.indexOf("Weekly Data Intake"));
+    expect(html).toContain("Source Packets");
+    expect(html).toContain("Track 54 production gate");
   });
 
   it("shows daily update readiness from board packets, prices, and X Pulse proof", async () => {
@@ -804,7 +820,7 @@ describe("ThesisPage scorecard audit mode", () => {
       freshnessRow("posted_prices", "empty"),
     ];
     getThesisBoardDataMock.mockResolvedValue(data);
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Daily Update Status");
     expect(html).toContain("Board packet");
@@ -841,7 +857,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("No visible Bull/Bear row has a daily overlay; weekly thesis packet controls the displayed scores until a review-gated daily row matches the current period.");
   });
 
-  it("shows sanitized daily automation gate progress on the normal thesis page", async () => {
+  it("shows sanitized daily automation gate progress in thesis audit mode", async () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(readinessSnapshot({
       modeGates: [
         {
@@ -871,7 +887,7 @@ describe("ThesisPage scorecard audit mode", () => {
       ],
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Daily automation gate progress");
     expect(html).toContain("write mode disabled");
@@ -889,12 +905,14 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Next proof dates: Jun 3, Jun 4, Jun 5.");
     expect(html).toContain("Friday deep");
     expect(html).toContain("0/1 clean no-write artifact days; accepted 0, decision-grade 0.");
-    expect(html).not.toContain("Track 54 production gate");
+    // Audit mode legitimately shows the production gate panel, but sanitized readiness
+    // proof must still never leak local paths or artifact hashes.
+    expect(html).toContain("Track 54 production gate");
     expect(html).not.toContain("scratch/track54-readiness");
     expect(html).not.toContain("artifact_sha256");
   });
 
-  it("marks stale Track 54 browser proof on the normal thesis page", async () => {
+  it("marks stale Track 54 browser proof in thesis audit mode", async () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(readinessSnapshot({
       browserSmokeClean: true,
       browserSmokeProof: {
@@ -906,7 +924,7 @@ describe("ThesisPage scorecard audit mode", () => {
       },
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("browser proof stale");
     expect(html).toContain("Browser proof generated Jun 2");
@@ -915,7 +933,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("scratch/track54-readiness");
   });
 
-  it("marks future-dated Track 54 browser proof as invalid on the normal thesis page", async () => {
+  it("marks future-dated Track 54 browser proof as invalid in thesis audit mode", async () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(readinessSnapshot({
       browserSmokeClean: true,
       browserSmokeProof: {
@@ -927,7 +945,7 @@ describe("ThesisPage scorecard audit mode", () => {
       },
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("browser proof future-dated");
     expect(html).toContain("Browser proof generated Jun 2");
@@ -943,7 +961,7 @@ describe("ThesisPage scorecard audit mode", () => {
       browserSmokeProof: null,
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("browser proof missing");
     expect(html).toContain("Browser proof is missing.");
@@ -965,7 +983,7 @@ describe("ThesisPage scorecard audit mode", () => {
       },
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("browser proof timestamp missing");
     expect(html).toContain("Browser proof timestamp is not present.");
@@ -974,7 +992,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("scratch/track54-readiness");
   });
 
-  it("marks stale Track 54 readiness reports on the normal thesis page", async () => {
+  it("marks stale Track 54 readiness reports in thesis audit mode", async () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(readinessSnapshot({
       reportAgeHours: 8.5,
       reportFreshEnough: false,
@@ -987,7 +1005,7 @@ describe("ThesisPage scorecard audit mode", () => {
       },
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("readiness report stale");
     expect(html).toContain("Readiness report generated Jun 2");
@@ -1001,7 +1019,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("scratch/track54-readiness");
   });
 
-  it("marks future-dated Track 54 readiness reports as invalid on the normal thesis page", async () => {
+  it("marks future-dated Track 54 readiness reports as invalid in thesis audit mode", async () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(readinessSnapshot({
       reportAgeHours: -1,
       reportFreshEnough: false,
@@ -1014,7 +1032,7 @@ describe("ThesisPage scorecard audit mode", () => {
       },
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("readiness report future-dated");
     expect(html).toContain("future-dated; not valid for the eight-hour review window");
@@ -1025,12 +1043,12 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("scratch/track54-readiness");
   });
 
-  it("flags enabled Track 54 production writes as broken on the normal thesis page", async () => {
+  it("flags enabled Track 54 production writes as broken in thesis audit mode", async () => {
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(readinessSnapshot({
       productionWritesEnabled: true,
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("write mode enabled");
     expect(html).toMatch(/border-red-500\/25 bg-red-500\/10 text-red-700[^>]*>write mode enabled/);
@@ -1055,7 +1073,7 @@ describe("ThesisPage scorecard audit mode", () => {
       ],
     }));
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Daily X Pulse paused: scout credential issue is missing credential.");
     expect(html).toContain("Current blocker: X Pulse scout credential issue: missing credential; source none.");
@@ -1093,7 +1111,7 @@ describe("ThesisPage scorecard audit mode", () => {
 
   it("shows the latest bounded daily thesis trajectory movement when present", async () => {
     getLatestDailyThesisUpdatesMock.mockResolvedValue([dailyUpdate()]);
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Daily soft update");
     expect(html).toContain("prior-day overlay");
@@ -1117,7 +1135,7 @@ describe("ThesisPage scorecard audit mode", () => {
       }),
     ]);
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Daily soft update");
     expect(html).toContain("CAD Wheat -1");
@@ -1147,7 +1165,7 @@ describe("ThesisPage scorecard audit mode", () => {
       }),
     ]);
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain(
       "Wheat shows the strongest source-backed bull pressure in the CA read at +19 (82% confidence).",
@@ -1169,7 +1187,7 @@ describe("ThesisPage scorecard audit mode", () => {
       }),
     ]);
 
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Review-gated daily overlay coverage");
     expect(html).toContain("Board update mode");
@@ -1211,7 +1229,7 @@ describe("ThesisPage scorecard audit mode", () => {
         sourcePeriodEnd: "2026-05-30",
       }),
     ]);
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("Weekly Data Intake");
     expect(html).toContain("12 inputs");
@@ -1293,7 +1311,7 @@ describe("ThesisPage scorecard audit mode", () => {
   });
 
   it("renders X Pulse as a separate watch-only lane", async () => {
-    const html = await renderThesisPage();
+    const html = await renderThesisPage("1");
 
     expect(html).toContain("X Pulse Watch");
     expect(html).toContain("Watch-only social evidence");
@@ -1368,15 +1386,19 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("allowed claims: watch term copied claim; watch term copied claim");
   });
 
-  it("keeps snapshot provenance compact ahead of the farmer read", async () => {
+  it("keeps snapshot provenance compact and below the farmer read", async () => {
     const html = await renderThesisPage();
 
     expect(html).toContain("Current snapshot");
     expect(html).toContain("Direct packet data; no archive fallback.");
     expect(html).not.toContain("No retired AI archive fallback is used on this page.");
     expect(html).not.toContain("Stale, empty, lagged, and proxy source lanes stay visible.");
-    expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(html.indexOf("Source-backed pressure summary"));
+    // Farmer-first split: the read leads; source health and snapshot provenance follow it.
+    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(
+      html.indexOf("Official source rows are clean for this board"),
+    );
     expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Current snapshot"));
+    expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(html.indexOf("Current snapshot"));
   });
 
   it("summarizes priority rows in the top takeaway", async () => {
@@ -1475,10 +1497,11 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("canada first");
     expect(html).toContain("Official input");
     expect(html).toContain("Price context");
+    expect(html).toContain("Bounded context");
     expect(html).toContain("Market response rules");
     expect(html).toContain("Flow plus soy-complex confirmation");
     expect(html).toContain("Viking overlay: basis pricing, logistics exports, market structure, grain specifics");
     expect(html).toContain("Soybeans and soy products are the main public cross-market context for canola.");
-    expect(html).toContain("Parked gaps: local basis, explicit crush margins, palm oil collector, quality-grade scoring.");
+    expect(html).toContain("Parked gaps: local basis, explicit crush margins, quality-grade scoring.");
   });
 });

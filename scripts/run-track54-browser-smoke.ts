@@ -130,9 +130,15 @@ const VIEWPORTS: Record<ViewportConfig["name"], ViewportConfig> = {
 
 const ROUTES: RouteSmokeConfig[] = [
   {
+    // Farmer-first split (2026-06-09): normal /thesis leads with the market read and keeps
+    // only farmer-facing surfaces. Operator telemetry markers are FORBIDDEN here and must
+    // render in audit mode instead.
     path: "/thesis",
-    markers: ["Source health", "Source-backed pressure summary", "Board update mode", "Daily Update Status", "Daily decision path", "Today update window", "Today update checklist", "Daily automation gate progress", "Readiness proof", "Score source", "X Pulse Watch", "Weekly Data Intake", "Analyzed data", "Current week pull tracker", "Weekly pull calendar", "How data becomes Bull/Bear pressure", "Role", "Pressure lane", "Current board status", "Latest collector", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution"],
-    forbiddenText: [...PUBLIC_BOARD_FORBIDDEN_TERMS],
+    markers: ["Source-backed pressure summary", "Source health", "Board update mode", "Score source", "What feeds this read", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution"],
+    // "Watch-only social evidence" is the moved X Pulse panel's badge; the panel title
+    // "X Pulse Watch" cannot be used as a sentinel because it case-insensitively matches
+    // the legitimate "X Pulse watch leads" copy in the farmer-facing pressure map.
+    forbiddenText: [...PUBLIC_BOARD_FORBIDDEN_TERMS, "Daily automation gate progress", "Weekly Data Intake", "Readiness proof", "Track 54 production gate", "Watch-only social evidence"],
   },
   {
     path: "/thesis?audit=1",

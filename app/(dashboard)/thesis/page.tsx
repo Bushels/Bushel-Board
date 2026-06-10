@@ -3276,6 +3276,7 @@ function impactSourceClassLabel(sourceClass: ImpactSourceClass): string {
   const labels: Record<ImpactSourceClass, string> = {
     official_thesis_input: "Official input",
     price_context: "Price context",
+    bounded_context: "Bounded context",
     watch_only: "Watch-only",
     parked: "Parked",
   };
@@ -3284,7 +3285,9 @@ function impactSourceClassLabel(sourceClass: ImpactSourceClass): string {
 
 function impactSourceClassClass(sourceClass: ImpactSourceClass): string {
   if (sourceClass === "official_thesis_input") return "border-prairie/25 bg-prairie/10 text-prairie";
-  if (sourceClass === "price_context") return "border-canola/35 bg-canola/10 text-canola";
+  if (sourceClass === "price_context" || sourceClass === "bounded_context") {
+    return "border-canola/35 bg-canola/10 text-canola";
+  }
   if (sourceClass === "watch_only") {
     return "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300";
   }
@@ -4626,24 +4629,34 @@ export default async function ThesisPage({
 
       <MarketUseNotice />
 
-      <DataQualityBanner data={currentData} />
-
+      {/* Farmer read leads: takeaway, quick scan, and the matrix come before any
+          source-health or pipeline status surface. Operator telemetry lives in audit mode. */}
       <TopTakeawayCard rows={currentData.comparisonRows} />
 
-      <DailyUpdateStatusPanel
-        data={currentData}
-        xPulseWatch={xPulseWatch}
-        dailyUpdates={dailyUpdates}
-        readinessSnapshot={readinessSnapshot}
-      />
+      <ThesisQuickGlanceBoard rows={currentData.comparisonRows} />
 
-      <XPulseWatchPanel watch={xPulseWatch} auditMode={auditMode} />
+      <MajorThesisMatrix rows={currentData.comparisonRows} />
 
-      {auditMode ? <ProductionGateAuditPanel snapshot={readinessSnapshot} /> : null}
+      <DataQualityBanner data={currentData} />
 
       <CurrentSnapshotCard data={currentData} />
 
-      <WeeklyDataIntakePanel data={currentData} xPulseWatch={xPulseWatch} sourceRuns={sourceRuns} />
+      {auditMode ? (
+        <DailyUpdateStatusPanel
+          data={currentData}
+          xPulseWatch={xPulseWatch}
+          dailyUpdates={dailyUpdates}
+          readinessSnapshot={readinessSnapshot}
+        />
+      ) : null}
+
+      {auditMode ? <XPulseWatchPanel watch={xPulseWatch} auditMode={auditMode} /> : null}
+
+      {auditMode ? <ProductionGateAuditPanel snapshot={readinessSnapshot} /> : null}
+
+      {auditMode ? (
+        <WeeklyDataIntakePanel data={currentData} xPulseWatch={xPulseWatch} sourceRuns={sourceRuns} />
+      ) : null}
 
       <WheatPressureMapPanel
         rows={currentData.comparisonRows}
@@ -4658,40 +4671,38 @@ export default async function ThesisPage({
         />
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Source Packets"
-          value={String(currentData.totals.itemCount)}
-          detail={`${currentData.canadaItems.length} Canadian grains and ${currentData.usItems.length} US markets.`}
-          icon={BarChart3}
-        />
-        <SummaryCard
-          label="Strong Sources"
-          value={String(currentData.totals.strongSourceCount)}
-          detail="Freshness rows marked strong across rendered packet sources."
-          icon={CheckCircle2}
-        />
-        <SummaryCard
-          label="Watch Source Groups"
-          value={String(currentData.totals.uniqueWatchSourceCount)}
-          detail={watchSourceCardDetail(currentData)}
-          icon={AlertTriangle}
-        />
-        <SummaryCard
-          label="Packet Spine"
-          value={currentData.packetMode === "cached" ? "Cached" : "Live"}
-          detail={
-            currentData.packetMode === "cached"
-              ? `${currentData.cacheItemCount} cached packets; ${currentData.cacheStatus} against live source-run watermark.`
-              : "Fallback mode: reading Canada and US packet RPCs directly."
-          }
-          icon={DatabaseZap}
-        />
-      </section>
-
-      <ThesisQuickGlanceBoard rows={currentData.comparisonRows} />
-
-      <MajorThesisMatrix rows={currentData.comparisonRows} />
+      {auditMode ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            label="Source Packets"
+            value={String(currentData.totals.itemCount)}
+            detail={`${currentData.canadaItems.length} Canadian grains and ${currentData.usItems.length} US markets.`}
+            icon={BarChart3}
+          />
+          <SummaryCard
+            label="Strong Sources"
+            value={String(currentData.totals.strongSourceCount)}
+            detail="Freshness rows marked strong across rendered packet sources."
+            icon={CheckCircle2}
+          />
+          <SummaryCard
+            label="Watch Source Groups"
+            value={String(currentData.totals.uniqueWatchSourceCount)}
+            detail={watchSourceCardDetail(currentData)}
+            icon={AlertTriangle}
+          />
+          <SummaryCard
+            label="Packet Spine"
+            value={currentData.packetMode === "cached" ? "Cached" : "Live"}
+            detail={
+              currentData.packetMode === "cached"
+                ? `${currentData.cacheItemCount} cached packets; ${currentData.cacheStatus} against live source-run watermark.`
+                : "Fallback mode: reading Canada and US packet RPCs directly."
+            }
+            icon={DatabaseZap}
+          />
+        </section>
+      ) : null}
 
       <section className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">

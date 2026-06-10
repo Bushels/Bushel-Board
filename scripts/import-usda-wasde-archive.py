@@ -43,6 +43,15 @@ Why we DON'T compete with import-usda-wasde.py:
   calendar_year, month, attribute_id) so re-running either is idempotent
   and they overwrite each other safely (last writer wins per attribute).
 
+World veg-oil scope decision (2026-06-09):
+  The world vegetable-oil complex (Oilseed Rapeseed 2226000, Oil Rapeseed
+  4239100, Oil Palm 4243000, Oil Soybean 4232000; country_code '00') is
+  imported ONLY by import-usda-wasde.py via the PSD /world/ endpoint. The
+  WASDE .xls pages parsed here (11/12/13/15) are US-domestic tables; the
+  per-oil WORLD supply-and-use detail is not published in a stable per-page
+  layout we parse, so this archive path deliberately does NOT cover those
+  commodities. Their revision history accrues forward from monthly live runs.
+
 Dependencies: xlrd (legacy .xls), urllib (stdlib).
 """
 

@@ -3,7 +3,14 @@
 USDA FAS PSD / WASDE raw importer.
 
 Imports raw monthly PSD balance-sheet rows from the USDA FAS OpenData API into
-usda_wasde_raw. This is the balance-sheet foundation for the future US thesis lane.
+usda_wasde_raw. This is the balance-sheet foundation for the US thesis lane plus
+the world vegetable-oil complex (Rapeseed, Rapeseed Oil, Palm Oil, Soybean Oil
+with country_code '00') that feeds the bounded Canola demand-context lane.
+
+Note: the live PSD API only exposes the *latest* published estimate per
+(commodity, country/world, market_year); world veg-oil revision history accrues
+forward one snapshot per monthly run. The ESMIS .xls archive importer cannot
+backfill these commodities (see import-usda-wasde-archive.py).
 
 Usage:
   python3 scripts/import-usda-wasde.py
@@ -12,6 +19,7 @@ Usage:
   python3 scripts/import-usda-wasde.py --report-month 2026-04
   python3 scripts/import-usda-wasde.py --last-n-months 12
   python3 scripts/import-usda-wasde.py --market Corn --market Soybeans
+  python3 scripts/import-usda-wasde.py --market Rapeseed --market "Palm Oil" --dry-run
 """
 
 from __future__ import annotations
@@ -35,13 +43,29 @@ SUPABASE_TIMEOUT_SECONDS = 60
 USDA_TIMEOUT_SECONDS = 60
 UPSERT_BATCH_SIZE = 500
 
+# US desk balance-sheet markets. desk_heartbeat=True rows feed the
+# write-collector-heartbeat.py Phase 1 tick on the US desk side.
 MARKETS = [
-    {"market_name": "Corn", "commodity_code": "0440000", "commodity_name": "Corn", "country_code": "US"},
-    {"market_name": "Soybeans", "commodity_code": "2222000", "commodity_name": "Soybeans", "country_code": "US"},
-    {"market_name": "Barley", "commodity_code": "0430000", "commodity_name": "Barley", "country_code": "US"},
-    {"market_name": "Oats", "commodity_code": "0452000", "commodity_name": "Oats", "country_code": "US"},
-    {"market_name": "Wheat", "commodity_code": "0410000", "commodity_name": "Wheat", "country_code": "US"},
+    {"market_name": "Corn", "commodity_code": "0440000", "commodity_name": "Corn", "country_code": "US", "desk_heartbeat": True},
+    {"market_name": "Soybeans", "commodity_code": "2222000", "commodity_name": "Soybeans", "country_code": "US", "desk_heartbeat": True},
+    {"market_name": "Barley", "commodity_code": "0430000", "commodity_name": "Barley", "country_code": "US", "desk_heartbeat": True},
+    {"market_name": "Oats", "commodity_code": "0452000", "commodity_name": "Oats", "country_code": "US", "desk_heartbeat": True},
+    {"market_name": "Wheat", "commodity_code": "0410000", "commodity_name": "Wheat", "country_code": "US", "desk_heartbeat": True},
+    # World vegetable-oil complex (bounded Canola demand-context lane, 2026-06-09).
+    # scope="world" uses the PSD /commodity/{code}/world/year/{year} endpoint:
+    # /country/00/ returns an empty list, so the dedicated world path is required.
+    # The API stamps these rows countryCode="00". They are NOT US desk markets,
+    # so desk_heartbeat=False keeps them out of us_score_trajectory ticks.
+    # Codes verified against the live PSD commodities catalog on 2026-06-09.
+    {"market_name": "Rapeseed", "commodity_code": "2226000", "commodity_name": "Oilseed, Rapeseed", "country_code": "00", "scope": "world", "desk_heartbeat": False},
+    {"market_name": "Rapeseed Oil", "commodity_code": "4239100", "commodity_name": "Oil, Rapeseed", "country_code": "00", "scope": "world", "desk_heartbeat": False},
+    {"market_name": "Palm Oil", "commodity_code": "4243000", "commodity_name": "Oil, Palm", "country_code": "00", "scope": "world", "desk_heartbeat": False},
+    {"market_name": "Soybean Oil", "commodity_code": "4232000", "commodity_name": "Oil, Soybean", "country_code": "00", "scope": "world", "desk_heartbeat": False},
 ]
+
+# Only US desk markets write collector heartbeats; world veg-oil context rows
+# must never tick us_score_trajectory.
+DESK_HEARTBEAT_MARKETS = {m["market_name"] for m in MARKETS if m.get("desk_heartbeat")}
 
 HEARTBEAT_CLI = Path(__file__).with_name("write-collector-heartbeat.py")
 TRAJECTORY_SCAN_TYPE = "collector_wasde"
@@ -140,7 +164,12 @@ def request_json(url: str, *, timeout: int) -> Any:
 
 
 def fetch_rows(market: dict[str, Any], market_year: int, api_key: str) -> list[dict[str, Any]]:
-    url = f"{PSD_BASE_URL}/commodity/{market['commodity_code']}/country/{market['country_code']}/year/{market_year}?apikey={urllib.parse.quote(api_key)}"
+    if market.get("scope") == "world":
+        # World totals only exist on the dedicated world endpoint; the country
+        # endpoint with code 00 returns an empty list (verified 2026-06-09).
+        url = f"{PSD_BASE_URL}/commodity/{market['commodity_code']}/world/year/{market_year}?apikey={urllib.parse.quote(api_key)}"
+    else:
+        url = f"{PSD_BASE_URL}/commodity/{market['commodity_code']}/country/{market['country_code']}/year/{market_year}?apikey={urllib.parse.quote(api_key)}"
     try:
         data = request_json(url, timeout=USDA_TIMEOUT_SECONDS)
     except urllib.error.HTTPError as exc:
@@ -216,11 +245,12 @@ def _wasde_source_week_ending(calendar_year: int, month: int) -> str:
 
 
 def build_heartbeat_previews(all_rows: list[dict[str, Any]], summary: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """One heartbeat per market per market_year — uses latest PSD month in the fetched rows."""
+    """One heartbeat per US desk market per market_year — uses latest PSD month in the fetched rows."""
     previews = []
+    heartbeat_rows = [row for row in all_rows if row["market_name"] in DESK_HEARTBEAT_MARKETS]
     # Index latest row per (market_name, market_year) keyed on (calendar_year, month)
     latest: dict[tuple[str, str], dict[str, Any]] = {}
-    for row in all_rows:
+    for row in heartbeat_rows:
         key = (row['market_name'], row['market_year'])
         cur = latest.get(key)
         if cur is None:
@@ -231,7 +261,7 @@ def build_heartbeat_previews(all_rows: list[dict[str, Any]], summary: list[dict[
 
     # Latest ending-stocks value per (market, market_year) by (calendar_year, month)
     ending_stocks_latest: dict[tuple[str, str], tuple[tuple[int, int], float]] = {}
-    for row in all_rows:
+    for row in heartbeat_rows:
         if row.get('attribute_id') != ENDING_STOCKS_ATTRIBUTE_ID:
             continue
         if row.get('value') is None:

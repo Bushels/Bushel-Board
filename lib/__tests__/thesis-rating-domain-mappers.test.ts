@@ -1032,3 +1032,181 @@ describe("thesis rating domain packet mappers", () => {
     expect(mapUsPacketToDomainInputs(undefined)).toEqual([]);
   });
 });
+
+describe("bounded Canola world veg-oil demand context", () => {
+  const strongFreshness = [
+    { source_name: "cgc_observations", freshness_status: "strong" },
+    { source_name: "usda_wasde_raw", freshness_status: "strong" },
+  ];
+  // CGC demand primary fires bullish at +35: export/delivery 47%, process/delivery 34%.
+  const bullishCgcDemand = {
+    producer_deliveries_current_week: {
+      total_kt: 1_000,
+      process_deliveries_kt: 340,
+    },
+    exports: { current_week_kt: 470 },
+  };
+  // Average stocks/use shift of -0.6 pp YoY across the four world commodities.
+  const tighteningVegOil = [
+    { market_name: "Palm Oil", stocks_to_use_pct: 12.0, prior_stocks_to_use_pct: 12.6 },
+    { market_name: "Rapeseed", stocks_to_use_pct: 10.2, prior_stocks_to_use_pct: 11.0 },
+    { market_name: "Rapeseed Oil", stocks_to_use_pct: 7.1, prior_stocks_to_use_pct: 7.5 },
+    { market_name: "Soybean Oil", stocks_to_use_pct: 7.0, prior_stocks_to_use_pct: 7.6 },
+  ];
+  const looseningVegOil = tighteningVegOil.map((row) => ({
+    ...row,
+    stocks_to_use_pct: row.prior_stocks_to_use_pct,
+    prior_stocks_to_use_pct: row.stocks_to_use_pct,
+  }));
+
+  it("adds a bounded +6 tilt to an active CGC demand domain when world veg-oil balances tighten", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: strongFreshness,
+      demand: { ...bullishCgcDemand, global_veg_oil: tighteningVegOil },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand).toMatchObject({
+      domain: "demand",
+      score: 41,
+      freshness_status: "strong",
+      sources: ["cgc_observations", "usda_wasde_raw"],
+      confidence: "high",
+      isRequired: true,
+      isPrimaryDirectSource: true,
+    });
+    expect(demand?.positive_evidence?.join(" ")).toContain("Bounded low-confidence world veg-oil context");
+    expect(demand?.positive_evidence?.join(" ")).toContain("tightening global vegetable-oil balance");
+    expect(demand?.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "usda_wasde_raw",
+          label: "World veg-oil stocks/use YoY",
+          value: "-0.6%",
+          unit: "pct",
+        }),
+      ]),
+    );
+  });
+
+  it("subtracts the bounded tilt when world veg-oil balances loosen", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: strongFreshness,
+      demand: { ...bullishCgcDemand, global_veg_oil: looseningVegOil },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand?.score).toBe(29);
+    expect(demand?.sources).toEqual(["cgc_observations", "usda_wasde_raw"]);
+    expect(demand?.negative_evidence?.join(" ")).toContain("loosening global vegetable-oil balance");
+  });
+
+  it("never creates a demand domain from veg-oil context alone", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: strongFreshness,
+      demand: {
+        // Mid-range CGC ratios: export/delivery 30%, process/delivery 20% — no primary signal.
+        producer_deliveries_current_week: {
+          total_kt: 1_000,
+          process_deliveries_kt: 200,
+        },
+        exports: { current_week_kt: 300 },
+        global_veg_oil: tighteningVegOil,
+      },
+    });
+
+    expect(domains.find((domain) => domain.domain === "demand")).toBeUndefined();
+  });
+
+  it("drops the lane instead of degrading the CGC primary when WASDE freshness is not strong", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: [
+        { source_name: "cgc_observations", freshness_status: "strong" },
+        { source_name: "usda_wasde_raw", freshness_status: "usable but stale-risk" },
+      ],
+      demand: { ...bullishCgcDemand, global_veg_oil: tighteningVegOil },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand).toMatchObject({
+      score: 35,
+      freshness_status: "strong",
+      sources: ["cgc_observations"],
+      confidence: "high",
+    });
+    expect(demand?.positive_evidence?.join(" ")).not.toContain("veg-oil");
+  });
+
+  it("skips the lane when the usda_wasde_raw freshness row is missing entirely", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: [{ source_name: "cgc_observations", freshness_status: "strong" }],
+      demand: { ...bullishCgcDemand, global_veg_oil: tighteningVegOil },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand?.score).toBe(35);
+    expect(demand?.sources).toEqual(["cgc_observations"]);
+  });
+
+  it("applies the lane to Canola only", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Wheat",
+      freshness: strongFreshness,
+      demand: { ...bullishCgcDemand, global_veg_oil: tighteningVegOil },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand?.score).toBe(35);
+    expect(demand?.sources).toEqual(["cgc_observations"]);
+  });
+
+  it("requires at least two commodities with prior-year stocks/use", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: strongFreshness,
+      demand: {
+        ...bullishCgcDemand,
+        global_veg_oil: [
+          { market_name: "Palm Oil", stocks_to_use_pct: 11.0, prior_stocks_to_use_pct: 12.6 },
+          { market_name: "Rapeseed", stocks_to_use_pct: 10.2, prior_stocks_to_use_pct: null },
+        ],
+      },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand?.score).toBe(35);
+    expect(demand?.sources).toEqual(["cgc_observations"]);
+  });
+
+  it("stays neutral when the average YoY stocks/use shift is inside the dead zone", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Canola",
+      freshness: strongFreshness,
+      demand: {
+        ...bullishCgcDemand,
+        global_veg_oil: [
+          { market_name: "Palm Oil", stocks_to_use_pct: 12.4, prior_stocks_to_use_pct: 12.6 },
+          { market_name: "Rapeseed", stocks_to_use_pct: 10.8, prior_stocks_to_use_pct: 11.0 },
+          { market_name: "Rapeseed Oil", stocks_to_use_pct: 7.6, prior_stocks_to_use_pct: 7.5 },
+          { market_name: "Soybean Oil", stocks_to_use_pct: 7.7, prior_stocks_to_use_pct: 7.6 },
+        ],
+      },
+    });
+
+    const demand = domains.find((domain) => domain.domain === "demand");
+
+    expect(demand?.score).toBe(35);
+    expect(demand?.sources).toEqual(["cgc_observations"]);
+  });
+});

@@ -202,7 +202,11 @@ function dataCoverageRowForFactor(factor: GrainImpactFactor): GrainDataCoverageR
 }
 
 function coverageStepForSourceClass(sourceClass: ImpactSourceClass): GrainDataCoverageStep {
-  if (sourceClass === "official_thesis_input" || sourceClass === "price_context") {
+  if (
+    sourceClass === "official_thesis_input" ||
+    sourceClass === "price_context" ||
+    sourceClass === "bounded_context"
+  ) {
     return "scored";
   }
 
@@ -220,6 +224,10 @@ function nextActionForSourceClass(sourceClass: ImpactSourceClass): string {
 
   if (sourceClass === "price_context") {
     return "Use as confirmation or challenge only; never replace source-backed supply, demand, or movement facts.";
+  }
+
+  if (sourceClass === "bounded_context") {
+    return "Keep the bounded cap, freshness gate, and subordination guarantees intact; this lane leans an active primary read and must never create or drive one.";
   }
 
   if (sourceClass === "watch_only") {

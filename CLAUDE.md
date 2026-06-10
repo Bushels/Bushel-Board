@@ -149,8 +149,8 @@ Every piece of work must satisfy before being marked complete:
 - `npm run seed-capacity` — Seed processor capacity reference data
 - `npm run seed-prices` — Seed sample grain price data
 - `npm run import-prices` — Fetch daily grain futures from Yahoo Finance into Supabase
-- `python scripts/import-usda-wasde.py [--last-n-months N | --report-month YYYY-MM]` — USDA PSD API WASDE importer (latest snapshots only)
-- `python scripts/import-usda-wasde-archive.py [--last-n-months N | --release YYYY-MM]` — USDA ESMIS .xls archive importer (revision history). Run with `--last-n-months 12` for one-shot historical backfill; the monthly Claude Desktop Routine `collect-wasde-archive` runs it on the 13th of each month with `--last-n-months 2`.
+- `python scripts/import-usda-wasde.py [--last-n-months N | --report-month YYYY-MM]` — USDA PSD API WASDE importer (latest snapshots only). Covers the 5 US desk markets plus the world veg-oil complex (Rapeseed 2226000, Rapeseed Oil 4239100, Palm Oil 4243000, Soybean Oil 4232000; PSD `/world/` endpoint, `country_code '00'`, `desk_heartbeat=False`) admitted 2026-06-09 as the bounded Canola demand-context lane.
+- `python scripts/import-usda-wasde-archive.py [--last-n-months N | --release YYYY-MM]` — USDA ESMIS .xls archive importer (revision history). Run with `--last-n-months 12` for one-shot historical backfill; the monthly Claude Desktop Routine `collect-wasde-archive` runs it on the 13th of each month with `--last-n-months 2`. Does NOT cover the world veg-oil commodities (US-page XLS parser only; world per-oil history accrues forward from monthly live PSD runs).
 - `node scripts/import-producer-cars.mjs` — CGC Producer Car CSV importer (idempotent upsert into `producer_car_allocations`). Run by Claude Desktop Routine `collect-producer-cars` Thu 4 PM MT.
 - `npx supabase functions deploy <name>` — Deploy Edge Functions
 
@@ -197,11 +197,14 @@ Every piece of work must satisfy before being marked complete:
 - **Thesis packet RPCs:** `get_canada_thesis_packet(...)` and `get_us_thesis_packet(...)` build facts-only packet JSON; `refresh_thesis_packet_cache(...)` writes `thesis_packet_cache`; `get_thesis_board_cached(p_crop_year, p_market_year)` serves `/thesis`.
 - **Thesis board UI:** `/thesis` renders cached Canada/US thesis packet cards from `app/(dashboard)/thesis/page.tsx`, using stance, confidence, bull/bear drivers, freshness warnings, packet metrics, and source provenance from `lib/queries/thesis-board.ts`.
 - **Thesis query layer:** `lib/queries/thesis-board.ts` normalizes cached packet JSON into `/thesis` cards; `lib/__tests__/thesis-board.test.ts` covers stale flags, packet counts, stance labels, and empty-state handling.
+- **World veg-oil bounded Canola lane (2026-06-09):** `usda_wasde_raw` now carries world-level PSD rows (`country_code '00'`) for Rapeseed/Rapeseed Oil/Palm Oil/Soybean Oil. Canola packets get a `demand.global_veg_oil` block (current vs prior marketing-year stocks/use at the latest report month); `mapCanolaGlobalVegOilDemandContext()` in `lib/thesis/rating-domain-mappers.ts` applies at most a ±6 demand tilt inside an already-active CGC demand domain, only at strong `usda_wasde_raw` freshness, with ≥2 commodities and average YoY S/U shift ≥ ±0.5 pp. New `bounded_context` impact source class = admitted + deterministic + weight-neutral (no domain-weight boost). China policy/customs detail remains watch-only. Migration: `supabase/migrations/20260609170000_admit_world_veg_oil_canola_demand_context.sql`.
 
 ## Pipeline Monitoring
 - **Friday desk OUTPUT freshness (added 2026-06-09 after the silent April-June desk outage):** `npm run check:desk-freshness` — checks `market_analysis` / `us_market_analysis` recency (exit 1 when older than 9 days). Deliberately separate from `check:source-freshness` so a desk outage cannot cascade into Track 54 readiness holds. A desk thesis 2+ weeks behind the display week is stale-guarded on grain detail + My Farm via `assessDeskThesisStaleness()` in `lib/utils/thesis-staleness.ts`.
 - Source run freshness: `SELECT source_name, status, source_date, completed_at FROM source_runs ORDER BY completed_at DESC LIMIT 20;`
-- Thesis cache freshness: `SELECT side, item_key, crop_year, market_year, source_run_watermark, generated_at FROM thesis_packet_cache ORDER BY generated_at DESC LIMIT 25;`
+- Thesis cache freshness: `SELECT lane, item_slug, crop_year, market_year, source_run_watermark, refreshed_at FROM thesis_packet_cache ORDER BY refreshed_at DESC LIMIT 25;` (columns verified live 2026-06-09; `side`/`item_key`/`generated_at` do not exist)
+- World veg-oil context rows: `SELECT market_name, market_year, report_month, ending_stocks_kt, stocks_to_use_pct FROM usda_wasde_mapped WHERE country_code='00' ORDER BY market_name, market_year;`
+- Canola veg-oil packet block: `SELECT jsonb_array_length(get_canada_thesis_packet('Canola')->'demand'->'global_veg_oil') AS veg_oil_commodities;` (expected: 4)
 - Thesis board RPC: `SELECT jsonb_array_length(get_thesis_board_cached('2025-2026', 2025)->'canada') AS canada, jsonb_array_length(get_thesis_board_cached('2025-2026', 2025)->'us') AS us;`
 - Legacy cron drift check: `SELECT * FROM cron.job WHERE jobname = 'cgc-weekly-import';` (expected: zero rows)
 - Import audit: `SELECT * FROM cgc_imports ORDER BY imported_at DESC LIMIT 5;`

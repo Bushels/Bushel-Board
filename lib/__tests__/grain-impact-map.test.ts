@@ -64,7 +64,7 @@ describe("grain impact map", () => {
     }
   });
 
-  it("keeps canola tied to soy complex context without promoting global veg oil to source truth", () => {
+  it("keeps canola tied to soy complex price context while admitting world veg-oil balance as bounded demand context", () => {
     const profile = getGrainImpactProfile("Canola");
     expect(profile).not.toBeNull();
 
@@ -75,6 +75,17 @@ describe("grain impact map", () => {
       sourceClass: "price_context",
     });
     expect(oilseedFactor?.boundary).toContain("parked");
+
+    const vegOilBalance = profile?.impactFactors.find((factor) => factor.id === "canola-global-veg-oil-balance");
+    expect(vegOilBalance).toMatchObject({
+      domain: "demand",
+      scope: "world",
+      sourceClass: "bounded_context",
+      sourceIds: ["usda_wasde_raw"],
+    });
+    expect(vegOilBalance?.boundary).toMatch(/bounded/i);
+    expect(vegOilBalance?.boundary).toMatch(/cannot create, carry, or flip/i);
+    expect(profile?.parkedGaps).not.toContain("palm oil collector");
   });
 
   it("keeps wheat global and class-safe instead of using Spring/Winter proxies", () => {
@@ -183,7 +194,7 @@ describe("grain impact map", () => {
 
   it("keeps global competitor pressure visible without admitting it as direct score truth", () => {
     const globalFactors = [
-      ["Canola", "canola-global-policy-veg-oil-watch"],
+      ["Canola", "canola-china-policy-watch"],
       ["Wheat", "wheat-global-origin-competition"],
       ["Durum", "durum-import-tender-watch"],
       ["Barley", "barley-global-feed-malt-competition"],

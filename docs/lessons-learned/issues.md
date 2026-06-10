@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-09 - "official_thesis_input" is not just a label: classifying a bounded lane official silently inflates its domain weight
+
+**Symptom:** While admitting the world veg-oil balance as bounded Canola demand context (Track 55), classifying the new impact factor `official_thesis_input` made `lib/__tests__/grain-impact-domain-weights.test.ts` fail: Canola's normalized supply weight dropped below the lane baseline.
+
+**Root cause:** `getImpactAdjustedDomainWeights()` converts every `official_thesis_input` factor into a +12% relative weight boost for its domain (price_context +10%), then renormalizes to sum 1. A second official demand factor pushed Canola's demand boost from 0.12 to 0.24, inflating demand's weight share and shrinking every other domain's — a structural promotion of a lane whose whole contract is "must never become a primary score driver." The mapper-side caps (+/-6 tilt, freshness gate, subordination) did nothing to stop the weight side channel, because weights are derived from the impact-map classification, not from mapper behavior.
+
+**Fix:** New `ImpactSourceClass` value `bounded_context` — admitted + deterministic + weight-neutral. Coverage matrix treats it as `scored`, `grain-impact-domain-weights` gives it boost 0, the audit graph maps it to the existing `bounded_context` score role (authority 0.7), and both audit UIs render a "Bounded context" badge. The boundedness is now a type the compiler enforces (two exhaustive `Record<ImpactSourceClass, ...>` sites), not prose in a boundary string.
+
+**Prevention:** When admitting a bounded/context lane, grep every consumer of the factor's `sourceClass` before picking a class — at minimum `grain-data-coverage.ts` (scored step), `grain-impact-domain-weights.ts` (weight boosts), `grain-impact-graph.ts` (score role + authority), and the `/thesis` audit badge maps. A classification is a contract with all of them at once, and the weights test is the tripwire that catches accidental structural promotion.
+
+**Tags:** #thesis #impact-map #domain-weights #bounded-context #source-admission
+
+---
+
 ## 2026-06-09 - The Friday desk died silently for 7 weeks because its failure logging itself could not land
 
 **Symptom:** `market_analysis` (CAD desk) last wrote 2026-04-18 and `us_market_analysis` 2026-04-20, yet nothing on the board flagged it. Grain detail pages kept rendering the week-36 thesis under a "Week 44" hero with haul/hold recommendations derived from the 8-week-old stance.

@@ -73,6 +73,28 @@ describe("grain data coverage matrix", () => {
     });
   });
 
+  it("classifies the admitted world veg-oil balance lane as scored bounded demand context", () => {
+    const canola = getGrainDataCoverageProfile("Canola");
+    const vegOilBalance = canola?.rows.find((row) => row.id === "canola-global-veg-oil-balance");
+
+    expect(vegOilBalance).toMatchObject({
+      currentStep: "scored",
+      domain: "demand",
+      scope: "world",
+      sourceClass: "bounded_context",
+      sourceIds: ["usda_wasde_raw"],
+      checklist: {
+        pulled: true,
+        packeted: true,
+        scored: true,
+        explanation_only: false,
+        missing: false,
+      },
+    });
+    expect(vegOilBalance?.boundary).toMatch(/bounded/i);
+    expect(canola?.gaps.map((gap) => gap.label)).not.toContain("palm oil collector");
+  });
+
   it("turns parked gaps into missing coverage rows instead of source facts", () => {
     const oats = getGrainDataCoverageProfile("Oats");
     const qualityGap = oats?.gaps.find((gap) => gap.label === "milling bids");
@@ -95,7 +117,7 @@ describe("grain data coverage matrix", () => {
 
     expect(canola?.admissionPriorities[0]).toMatchObject({
       rank: 1,
-      id: "promote-canola-global-policy-veg-oil-watch",
+      id: "promote-canola-china-policy-watch",
       kind: "promote_watch_lane",
       currentStep: "explanation_only",
       domain: "demand",

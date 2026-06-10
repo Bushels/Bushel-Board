@@ -4,6 +4,7 @@ import type { RatingDomainId, SupportedRatingGrain } from "@/lib/thesis/rating-m
 export const IMPACT_SOURCE_CLASSES = [
   "official_thesis_input",
   "price_context",
+  "bounded_context",
   "watch_only",
   "parked",
 ] as const;
@@ -140,18 +141,32 @@ export const GRAIN_IMPACT_PROFILES = {
         sourceIds: ["grain_prices", "cftc_cot_positions"],
         bullSignal: "Soy oil/meal strength confirms oilseed demand and canola follow-through.",
         bearSignal: "Weak veg-oil complex or soybean pressure drags on canola.",
-        boundary: "Palm oil and detailed crush-margin collectors are parked.",
+        boundary:
+          "Detailed crush-margin collectors are parked; world palm-oil balance is admitted separately as bounded monthly demand context, not a price feed.",
       }),
       factor({
-        id: "canola-global-policy-veg-oil-watch",
-        label: "China policy, palm oil, and global vegetable-oil trade",
+        id: "canola-global-veg-oil-balance",
+        label: "World vegetable-oil balance (rapeseed, rapeseed oil, palm oil, soybean oil)",
+        domain: "demand",
+        scope: "world",
+        sourceClass: "bounded_context",
+        sourceIds: COMMON_GLOBAL_BALANCE_SOURCES,
+        bullSignal: "Tightening world veg-oil stocks/use extends Canadian canola crush and export demand confidence.",
+        bearSignal: "Loosening world veg-oil stocks/use caps crush/export optimism even when CGC flow is supportive.",
+        boundary:
+          "Bounded low-confidence demand tilt (max +/-6 inside the demand domain): admitted monthly world PSD rows can lean an already-active CGC demand read but cannot create, carry, or flip it, and they require strong usda_wasde_raw freshness.",
+      }),
+      factor({
+        id: "canola-china-policy-watch",
+        label: "China policy, customs, and trade-restriction watch",
         domain: "demand",
         scope: "world",
         sourceClass: "watch_only",
         sourceIds: COMMON_GLOBAL_BALANCE_SOURCES,
-        bullSignal: "Import access, tight veg-oil balances, or policy relief can extend Canadian canola demand.",
-        bearSignal: "Trade restrictions, palm/soy oil weakness, or policy risk can cap crush/export optimism.",
-        boundary: "Raw WASDE/PSD can anchor broad oilseed balance context; country policy, palm oil, and customs detail are not direct admitted score sources.",
+        bullSignal: "Import access or policy relief can extend Canadian canola demand before world balances show it.",
+        bearSignal: "Trade restrictions or policy risk can cap crush/export optimism before world balances move.",
+        boundary:
+          "Country policy, tender, and customs detail are not admitted score sources; world PSD trade rows only reflect policy after the fact.",
       }),
       factor({
         id: "canola-logistics",
@@ -180,13 +195,13 @@ export const GRAIN_IMPACT_PROFILES = {
       marketResponse({
         id: "canola-policy-veg-oil-veto",
         label: "Policy or veg-oil veto",
-        when: "CGC flow is supportive but China policy, palm/soy oil, or global veg-oil tone is adverse.",
+        when: "CGC flow is supportive but China policy is adverse or the admitted world veg-oil balance is loosening.",
         marketResponse:
-          "The board should read the local data as supportive but lower-confidence until price and policy evidence agree.",
+          "The board should read the local data as supportive but lower-confidence until price, balance, and policy evidence agree.",
         confidenceImpact:
-          "Do not let watch-only policy or palm-oil context flip the score; use it to explain divergence and inspection priority.",
+          "Do not let watch-only policy context flip the score; the admitted world veg-oil balance may only apply its bounded demand tilt, and divergence should lower conviction, not reverse the read.",
         vikingTopics: ["market_structure", "risk_management"],
-        sourceClasses: ["official_thesis_input", "price_context", "watch_only"],
+        sourceClasses: ["official_thesis_input", "price_context", "bounded_context", "watch_only"],
       }),
     ],
     relationships: [
@@ -203,7 +218,7 @@ export const GRAIN_IMPACT_PROFILES = {
         note: "Policy can move canola, but public thesis needs official or desk-corroborated evidence.",
       }),
     ],
-    parkedGaps: ["local basis", "explicit crush margins", "palm oil collector", "quality-grade scoring"],
+    parkedGaps: ["local basis", "explicit crush margins", "quality-grade scoring"],
   },
   Wheat: {
     grain: "Wheat",

@@ -60,7 +60,7 @@ grain
 | Canada supply baseline | `supply_disposition` | Official supply, production, carry-in/carry-out context. | Slower than CGC; not a replacement for current weekly flow. |
 | US crop progress | `usda_crop_progress` | Official US supply/weather input during active season. | Seasonal weight should drop outside active windows. |
 | US export sales | `usda_export_sales` | Official demand/flow input where projection pace is admitted. | Barley/Oats projection pace stays null unless importer admission passes. |
-| WASDE | `usda_wasde_raw`, `usda_wasde_mapped` | Monthly supply/demand baseline and revision reset. | Monthly cadence; not a weekly flow source. Raw WASDE/PSD can frame broad world balance context, but the mapped score view is currently a US-board input; country-specific policy, tender, freight, customs, palm-oil, malt, and quality detail remain watch-only until separately admitted. |
+| WASDE | `usda_wasde_raw`, `usda_wasde_mapped` | Monthly supply/demand baseline and revision reset. World veg-oil complex rows (rapeseed 2226000, rapeseed oil 4239100, palm oil 4243000, soybean oil 4232000; PSD `/world/` endpoint, country_code `00`) are admitted as bounded Canola demand context (2026-06-09). | Monthly cadence; not a weekly flow source. The world veg-oil lane is `bounded_context` class: max +/-6 demand tilt for Canola only, requires strong freshness, and only leans an already-active CGC demand read. Country-specific policy, tender, freight, customs, malt, and quality detail remain watch-only until separately admitted. |
 | US quarterly stocks | `usda_quarterly_stocks` | Measured inventory surprise and confirmation/challenge to WASDE supply context. | Quarterly cadence; merge with WASDE supply instead of creating a duplicate supply domain. |
 | CFTC COT | `cftc_cot_positions` | Positioning and crowding pressure. | Tuesday data released Friday; only primary rows move deterministic scores; proxy mappings must be visible context. |
 | Prices and FX | `grain_prices`, `fx_rates`, `grain_price_intraday` | Price confirmation and divergence checks. | No local basis claim from empty `posted_prices`; stale price proof blocks scoring. |
@@ -78,21 +78,21 @@ Primary impact factors:
 | Domain | High-impact factors | Current data class |
 | --- | --- | --- |
 | Supply | Canadian production, seeded area, yield, crop condition, harvest quality, carry-out. | Official thesis input |
-| Demand | Crush/process deliveries, terminal exports, direct export-destination flows, China/vegetable-oil demand. | Official for CGC/WASDE; global veg-oil detail is watch/parked |
+| Demand | Crush/process deliveries, terminal exports, direct export-destination flows, China/vegetable-oil demand. | Official for CGC; world veg-oil balance (rapeseed/rapeseed oil/palm oil/soybean oil world PSD stocks-to-use) is admitted bounded context |
 | Movement | Producer deliveries, process producer deliveries, commercial stocks, terminal receipts/exports. | Official thesis input |
 | Logistics | Vancouver/Prince Rupert/Thunder Bay execution, rail, producer cars. | Official thesis input |
 | Price | ICE Canola, CAD/USD, soybean oil, soybean meal, soybean futures. | Price context |
 | Positioning | Canola COT where direct; soy oil/meal as labelled context. | Official/proxy context |
 | Seasonal timing | Saskatchewan oilseed crop-development normal/ahead/behind rows. | Official proxy timing input; confidence-capped and not crop-specific Canola condition evidence |
 | Prairie moisture | AB All Crops and SK Cropland adequate/surplus moisture rows. | Official proxy weather input; confidence-capped and not crop-specific Canola condition/quality/yield evidence |
-| Global competitors | China policy, palm oil, global vegetable-oil trade, and broader oilseed balance. | Watch-only unless directly admitted; WASDE broad balance is context only |
+| Global competitors | World veg-oil balance (admitted): rapeseed, rapeseed oil, palm oil, soybean oil world stocks/use YoY. China policy, customs, and trade-restriction detail. | Veg-oil balance is bounded demand context (max +/-6 tilt inside an active CGC demand read, strong freshness required); China policy/customs detail stays watch-only |
 | Quality | Oil content, green seed, heated canola, dockage. | Mostly Viking/context; source data parked |
 
 Bull response: tight supply or crop stress plus active crush/export demand, slow farmer delivery, stocks draw, and price confirmation.
 
 Bear response: large supply, deliveries pressing into weak disappearance, export policy drag, weak oilseed complex, or new-crop acreage/condition pressure.
 
-Key gaps: local basis/posting data, explicit crush margins, palm oil/global veg-oil collector, quality-grade scoring.
+Key gaps: local basis/posting data, explicit crush margins, quality-grade scoring. (World palm/veg-oil balance collector admitted 2026-06-09 via the PSD world endpoint; China policy/customs detail remains the watch lane.)
 
 ### Wheat
 
@@ -318,7 +318,7 @@ Response rules are interpretation scaffolding, not a new scoring path. A watch-o
 
 Current mapping:
 
-- `official_thesis_input` and bounded `price_context` factors are score-capable lanes.
+- `official_thesis_input`, bounded `price_context`, and `bounded_context` factors are score-capable lanes. `bounded_context` lanes (first: Canola world veg-oil balance, 2026-06-09) are weight-neutral capped tilts that only lean an already-active primary domain.
 - `watch_only` factors are explanation-only until packet admission and mapper tests exist.
 - `parked` gaps are missing-source admissions and must not be described as live facts.
 
