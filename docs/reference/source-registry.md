@@ -148,3 +148,21 @@ Before a source feeds the weekly market read:
 ## First Pilot
 
 Canola is the first Canada analytics pilot, but Tier 1 mechanical collectors are portfolio-wide where the source supports it. A Canola read may be the first published surface, but COT, futures prices, CGC, Grain Monitor, Producer Cars, USDA, and freshness proof should keep collecting every mapped grain/contract so later grain lanes start from real source truth instead of a new backfill.
+
+## statcan_field_crops (admitted 2026-06-10)
+
+source_id: statcan_field_crops | StatsCan WDS REST (tables 32-10-0359 seeded area/production, 32-10-0007 tri-annual stocks) | target: `statcan_wds_raw` | collector: `npm run collect:statcan` (`scripts/import-statcan-wds.py --group field_crops`) | cadence: annual cycle (Mar intentions, ~late-Jun actual acres, Aug/Sep/Dec production, Mar/Jul/Dec stocks), all 8:30 AM ET | dating: refPer (Jan 1 of crop year for 0359; stock dates for 0007) + per-datapoint releaseTime | scope: Canada + AB/SK/MB | units: acres / tonnes / thousand tonnes (scalar_factor 3) | lag: same-day as The Daily | failure modes: WDS 409 midnight-8:30 AM ET; statusCode!=0 or null = not-yet-released (never zero); provincial commercial stocks do not exist | v1 use: Canada balance-sheet anchor (supply domain admission pending mapper work) | freshness: source_runs.source_name='statcan_field_crops'.
+
+## statcan_crush (admitted 2026-06-10)
+
+source_id: statcan_crush | StatsCan WDS pinned vectors (table 32-10-0352 monthly crushing): v383417 seed crushed, v383418 oil, v383419 meal, plus stocks v41714056/v1459124/v1459125 | target: `statcan_wds_raw` (product_id 32100352) | collector: `npm run collect:statcan` (`--group crush`) | cadence: monthly (~25th-31st) | scope: Canada | units: tonnes | note: COPA weekly crush is LSEG-paywalled - StatsCan monthly is the admitted path; crush-margin calc additionally needs oil/meal price series (not yet admitted) | v1 use: Canola demand-domain context (mapper admission pending) | freshness: source_runs.source_name='statcan_crush'.
+
+## sk_cash_prices (admitted 2026-06-10)
+
+source_id: sk_cash_prices | Saskatchewan Dashboard weekly crop prices (first-party CSV exports; ids: canola 4954, wheat 4956, barley 4959, oats 4962, flax 4965, mustard 4968, lentils 4971, chickpeas 4974, canary-seed 4977, field-peas 4980) | target: `sk_cash_prices` | collector: `npm run collect:sk-prices` (`scripts/import-sk-cash-prices.py`) | cadence: weekly Wednesday observations, ~2-7 day publication lag | scope: Saskatchewan provincial AVERAGE - explicitly NOT local elevator basis | units: $/tonne ($/cwt for some specialty series) | failure modes: 403 to non-browser User-Agents (importer sends a browser UA) | honest boundary: per-elevator bid aggregation has NO clean public machine-readable source in 2026 (PDQ is HTML-only with ToS forbidding automated reuse); posted_prices remains the local-bid lane | v1 use: provincial cash-vs-futures context for the area layer (display admission pending) | freshness: source_runs.source_name='sk_cash_prices'.
+
+## Identified, admission pending (research-verified 2026-06-10)
+
+- Per-crop condition ratings: AB per-crop "Regional Crop Condition Ratings" table debuts mid-June (2025: Jun 17 report; 2026 expected in the Fri Jun 19 release, conditions as-of Jun 16) and appears in every later report; pdftotext -layout misaligns it - parser needs coordinate-based extraction. Format template: agi-tedab-alberta-crop-report-2025-06-17.pdf. SK weekly Thursdays, MB Tuesdays.
+- CN rail performance: deterministic URL cn.ca/-/media/files/customer-centre/grain/western-canadian-grain-reports/grain-week-{W}-{YYYY}.pdf (W = CGC grain week, YYYY = calendar year week ends in; ~4-10 day lag); text-extractable; adds demand-side metrics the Grain Monitor lacks (net car orders, spotting percent, rationing, unfilled backlog, capacity vs guidance). CPKC scorecard = tonnage-only HTML; ATC public archive ~4.5 months stale.
+
