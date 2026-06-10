@@ -201,12 +201,6 @@ function getCurrentCropYear(now = new Date()): string {
   return `${year - 1}-${year}`;
 }
 
-function getReportCropYear(cropYear: string): string {
-  const [startYear] = cropYear.split("-");
-  const endYearSuffix = cropYear.slice(-2);
-  return `${startYear}-${endYearSuffix}`;
-}
-
 function getStartYear(cropYear: string): number {
   return Number.parseInt(cropYear.slice(0, 4), 10);
 }

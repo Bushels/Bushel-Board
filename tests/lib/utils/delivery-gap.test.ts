@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDeliveryGap, type DeliveryGapPoint } from "@/lib/utils/delivery-gap";
+import { computeDeliveryGap } from "@/lib/utils/delivery-gap";
 import type { CumulativeWeekRow } from "@/lib/queries/observations";
 
 function makeRow(grain_week: number, deliveries: number): CumulativeWeekRow {

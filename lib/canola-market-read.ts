@@ -240,7 +240,7 @@ function pct(value: number | null): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
-function sharePct(value: number | null): string {
+function ratioPctText(value: number | null): string {
   if (value === null) return "not available";
   return `${value.toFixed(1)}%`;
 }
@@ -668,8 +668,8 @@ function buildInterpretation(
   const currentDeliveryKt = numberValue(delivery, "total_kt");
   const currentExportsKt = numberValue(exports, "current_week_kt");
   const processKt = numberValue(delivery, "process_deliveries_kt");
-  const exportShare = percent(currentExportsKt, currentDeliveryKt);
-  const processShare = percent(processKt, currentDeliveryKt);
+  const exportDeliveryRatio = percent(currentExportsKt, currentDeliveryKt);
+  const processDeliveryRatio = percent(processKt, currentDeliveryKt);
   const gmWeek = numberValue(grainMonitor, "grain_week");
   const priceStatus = sourceStatus(freshnessBySource, "grain_prices");
   const cotStatus = sourceStatus(freshnessBySource, "cftc_cot_positions");
@@ -681,16 +681,22 @@ function buildInterpretation(
       title: "Commercial pull",
       body: `CGC week ${grainWeek ?? "unknown"} shows ${kt(currentDeliveryKt)} delivered and ${kt(
         currentExportsKt,
-      )} exported. Exports were ${sharePct(round(exportShare, 1))} of weekly deliveries, but this is not total demand because domestic crush is a separate pull.`,
+      )} exported. The current-week export/delivery ratio was ${ratioPctText(round(
+        exportDeliveryRatio,
+        1,
+      ))} against producer deliveries, but this is not total demand because domestic crush is a separate pull.`,
       source_names: ["cgc_observations"],
       confidence: "high",
     });
   }
 
-  if (processShare !== null) {
+  if (processDeliveryRatio !== null) {
     interpretations.push({
       title: "Domestic crush signal",
-      body: `Process deliveries were ${sharePct(round(processShare, 1))} of current-week producer deliveries. That keeps domestic crush visible in the read instead of treating export movement as the whole demand story.`,
+      body: `The current-week process/delivery ratio was ${ratioPctText(round(
+        processDeliveryRatio,
+        1,
+      ))} against producer deliveries. That keeps domestic crush visible in the read instead of treating export movement as the whole demand story.`,
       source_names: ["cgc_observations"],
       confidence: "high",
     });
@@ -753,26 +759,26 @@ function buildSpeculation(packet: JsonRecord): MarketReadSpeculation[] {
   const exports = asRecord(demand.exports);
   const currentDeliveryKt = numberValue(delivery, "total_kt");
   const currentExportsKt = numberValue(exports, "current_week_kt");
-  const exportShare = percent(currentExportsKt, currentDeliveryKt);
+  const exportDeliveryRatio = percent(currentExportsKt, currentDeliveryKt);
 
   const speculation: MarketReadSpeculation[] = [
     {
       label: "Cash-basis gap",
       statement:
-        "Best guess: farmer cheque relevance remains unproven until local cash bids or basis are wired. Futures strength alone is not enough for a pricing call.",
+        "Best guess: farmer cheque relevance remains unproven until local cash bids or basis are wired. Futures strength alone is not enough to prove a local cash-price read.",
       trigger:
         "Prove or disprove when posted_prices has current Canola rows or another documented cash-bid lane is admitted in the source registry.",
       source_names: ["posted_prices", "grain_prices"],
     },
   ];
 
-  if (exportShare !== null) {
+  if (exportDeliveryRatio !== null) {
     speculation.push({
-      label: "Export pull watch",
+      label: "Export/delivery watch",
       statement:
-        exportShare >= 80
-          ? "Best guess: export pull is taking a large share of weekly deliveries, but this needs one more CGC week before it becomes a stronger read."
-          : "Best guess: export pull is not carrying the whole demand story this week; domestic crush and logistics need to explain more of the movement.",
+        exportDeliveryRatio >= 80
+          ? "Best guess: the current-week export/delivery ratio is high, but this needs one more CGC week before it becomes a stronger read."
+          : "Best guess: the current-week export/delivery ratio is not carrying the whole demand story; domestic crush and logistics need to explain more of the movement.",
       trigger:
         "Check the next get_canada_thesis_packet result: current-week exports divided by current-week producer deliveries, plus current price freshness.",
       source_names: ["cgc_observations", "grain_prices"],
@@ -982,7 +988,7 @@ export function buildCanolaMarketRead(
       typeof delivery?.value === "number" ? delivery.value : null,
     )} delivered, ${kt(typeof exports?.value === "number" ? exports.value : null)} exported, ${visibleWarningCount} source warning(s)`,
     bottom_line:
-      "No pricing recommendation. This is a deterministic source read: physical movement is visible, while stale-risk, empty, lagged, and proxy lanes stay labelled.",
+      "Source read only. Physical movement is visible, while stale-risk, empty, lagged, and proxy lanes stay labelled.",
     what_changed: whatChanged,
     facts,
     interpretation,

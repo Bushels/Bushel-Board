@@ -51,6 +51,7 @@ lint-results*.json
 # large data files (downloaded at import time)
 data/grain-monitor-data-tables.xlsx
 data/CGC Weekly Snapshots/
+/data/X Scout Runs/
 data/CGC Weekly/*.xlsx
 data/Railcar Data/*.xlsx
 data/usda-export-scout-*.json
@@ -59,6 +60,7 @@ data/usda-export-scout-*.json
 .playwright-cli/
 output/
 canola-spring-loaded.html
+/scratch/
 
 # Historical CGC data files (too large for git)
 data/*.csv

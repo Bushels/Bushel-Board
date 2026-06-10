@@ -27,7 +27,6 @@ interface MetricSentimentVoteProps {
 
 export function MetricSentimentVote({
   metric,
-  grain,
   userVote: initialVote,
   aggregates: initialAggregates,
   role,

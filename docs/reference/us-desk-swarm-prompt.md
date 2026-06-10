@@ -4,9 +4,9 @@
 > Saved here for version control — the actual Routine reads this prompt.
 > **Trigger:** Claude Desktop Routine / Schedule `us-desk-weekly` — NOT Vercel cron, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
 > **Schedule:** Friday 7:30 PM ET (`30 19 * * 5`) — 43 minutes after the CAD desk Routine so USDA weekly reports (Thursday 8:30 AM ET export sales, Friday 3:30 PM ET CFTC COT) are settled and the CAD desk's Supabase load has cleared.
-> **Model:** Opus only (`claude-opus-4-7`) — NEVER Sonnet or Haiku for the Desk Chief role.
+> **Model:** Opus-class only (`claude-opus-4-8` or a newer Opus-generation flagship) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class model so a routine model refresh cannot silently kill the Friday desk.
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and author farmer-facing prose.
-> **Claude-only by policy:** NO xAI, NO Grok, NO non-Anthropic external LLM anywhere in the US chain. External search is Anthropic native `web_search_20250305` via us-macro-scout (Sonnet) plus the X API v2 gateway Edge Function.
+> **Claude-only by policy:** NO xAI, NO Grok, NO non-Anthropic external LLM anywhere in the US chain. External search is Anthropic native `web_search_20250305` via us-macro-scout (Sonnet) plus the X API v2 gateway Edge Function. A Codex-validated X signal bundle may include posts discovered by the quarantined Grok scout, but those posts are untrusted evidence inputs only; Grok never writes, ranks, or authors the US desk thesis.
 
 ---
 
@@ -18,16 +18,17 @@ Before dispatching any agents, verify your model and establish the current marke
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as Opus (`claude-opus-4-7`). If you are running as any other model, write a failure row and abort:
+Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as any other non-Opus-class model, write a failure row and abort:
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details, source)
+INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
 VALUES (
-  NULL, NULL, 'failed', 'us-desk-weekly',
-  '{"reason": "US Chief dispatched under wrong model — Opus required", "required_model": "claude-opus-4-7"}'::jsonb,
-  'claude-agent-us-desk'
+  NULL, NULL, 'failed', 'cron',
+  '{"reason": "US Chief dispatched under wrong model — Opus-class required", "required_model": "opus-class", "routine": "us-desk-weekly"}'::jsonb
 );
 ```
+
+> **Schema traps:** `pipeline_runs` has NO `source` and NO `metadata` column — the only JSONB sink is `failure_details`. And `pipeline_runs.triggered_by` only allows `manual | cron | retry`; scheduled routine runs MUST use `'cron'` and carry the routine name inside the JSON. Violating either kills the insert, the row never lands, and the run dies with zero trace.
 
 **Step 0.1 — Market year + crop_year resolution:**
 
@@ -90,9 +91,10 @@ SELECT
 If breached, write a failure row and stop:
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details, source)
-VALUES (NULL, NULL, 'failed', 'us-desk-weekly',
+INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
+VALUES (NULL, NULL, 'failed', 'cron',
   jsonb_build_object(
+    'routine', 'us-desk-weekly',
     'reason', 'stale_upstream_data',
     'wasde_age_days', $1, 'export_sales_age_days', $2, 'price_age_days', $3,
     'cot_age_days', $4, 'crop_progress_age_days', $5,
@@ -102,6 +104,24 @@ VALUES (NULL, NULL, 'failed', 'us-desk-weekly',
 ```
 
 If all within SLA, record timestamps in `metadata.data_freshness` on every `us_market_analysis` row.
+
+**Step 0.4 - Accepted X signal bundle (UNTRUSTED EVIDENCE):**
+
+Before scout dispatch, build the Friday bundle:
+
+```powershell
+npm run friday-x-signal-bundle
+```
+
+Read `friday_x_signal_bundle_v1` into each market's compiled brief as `x_signal_bundle`. Use it only after these checks pass:
+
+- `guardrails.no_grok_llm_in_desk_loop = true`.
+- Every signal has `post_url`, `post_date`, `source_cred_tier`, `allowed_claims`, `blocked_claims`, `needs_official_verification`, and `corroboration`.
+- If `corroboration.official_source_match = false`, treat numeric or factual X claims as review leads only. Do not restate them as facts unless USDA, CFTC, WASDE, export sales, crop progress, or price packets independently prove them.
+- Price-sensitive signals have matching `price_context`; if price context is missing, the signal is watch-only and cannot move the final score.
+- USDA, CFTC, WASDE, export sales, crop progress, and price tape outrank X chatter. X can explain why a risk deserves review; it cannot prove a supply, demand, basis, or price fact by itself.
+
+Attach accepted Corn, Soybeans, Wheat, Oats, and cross-market macro/logistics signals to the compiled US brief. Record the top signal ids used or rejected in `llm_metadata.x_signal_bundle_audit`.
 
 ## Phase 1: Scout Dispatch (8 agents in parallel)
 
@@ -521,10 +541,9 @@ Emit `metadata.meta_review` on every row:
 
 If any check fails and cannot be fixed, write a partial-failure row:
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details, source)
-VALUES (NULL, NULL, 'failed', 'us-desk-weekly',
-  jsonb_build_object('reason', 'meta_review_failed', 'checks_failed', $1, 'affected_markets', $2),
-  'claude-agent-us-desk');
+INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
+VALUES (NULL, NULL, 'failed', 'cron',
+  jsonb_build_object('routine', 'us-desk-weekly', 'reason', 'meta_review_failed', 'checks_failed', $1, 'affected_markets', $2));
 ```
 
 **Step 5.2:** Upsert to `us_market_analysis`.
@@ -561,8 +580,9 @@ VALUES
 **Step 5.4:** Log pipeline run:
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, source, metadata, triggered_by)
-VALUES (NULL, NULL, 'completed', 'claude-agent-us-desk', $1::jsonb, 'us-desk-weekly');
+INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
+VALUES (NULL, NULL, 'completed', 'cron',
+  jsonb_build_object('routine', 'us-desk-weekly', 'run_summary', $1::jsonb));
 ```
 
 ## Phase 6: Trigger Downstream

@@ -4,10 +4,10 @@
 > Saved here for version control — the actual Routine reads this prompt.
 > **Trigger:** Claude Desktop Routine / Schedule `grain-desk-weekly` — NOT Vercel cron, NOT Grok, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
 > **Schedule:** Friday 6:47 PM ET (`47 18 * * 5`)
-> **Model:** Opus only (`claude-opus-4-7`) — NEVER Sonnet or Haiku for the Desk Chief role.
+> **Model:** Opus-class only (`claude-opus-4-8` or a newer Opus-generation flagship) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class model so a routine model refresh cannot silently kill the Friday desk.
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and
 > author farmer-facing prose. If this task fires under any other model, abort in Phase 0.
-> **Claude-only by policy:** No xAI / Grok LLM anywhere in the V2 loop. External search is Anthropic native `web_search_20250305` plus the X API v2 gateway Edge Function.
+> **Claude-only by policy:** No xAI / Grok LLM anywhere in the V2 loop. External search is Anthropic native `web_search_20250305` plus the X API v2 gateway Edge Function. A Codex-validated X signal bundle may include posts discovered by the quarantined Grok scout, but those posts are untrusted evidence inputs only; Grok never writes, ranks, or authors the desk thesis.
 
 ---
 
@@ -19,7 +19,7 @@ Before dispatching any agents, verify your model and establish the current data 
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as Opus (`claude-opus-4-7`). If you are running as Sonnet, Haiku, or any other model, write a failure row and abort immediately:
+Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as Sonnet, Haiku, or any other non-Opus-class model, write a failure row and abort immediately:
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
@@ -27,10 +27,12 @@ VALUES (
   (SELECT crop_year FROM cgc_observations ORDER BY imported_at DESC LIMIT 1),
   (SELECT MAX(grain_week) FROM cgc_observations),
   'failed',
-  'grain-desk-weekly',
-  '{"reason": "Chief dispatched under wrong model — Opus required", "required_model": "claude-opus-4-7"}'::jsonb
+  'cron',
+  '{"reason": "Chief dispatched under wrong model — Opus-class required", "required_model": "opus-class", "routine": "grain-desk-weekly"}'::jsonb
 );
 ```
+
+> **`triggered_by` CHECK trap:** `pipeline_runs.triggered_by` only allows `manual | cron | retry`. Scheduled routine runs MUST use `'cron'` and carry the routine name inside `failure_details`/JSON instead. Inserting `'grain-desk-weekly'` violates the CHECK, the failure row never lands, and the run dies with zero trace.
 
 Do not proceed with the swarm under any non-Opus model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
 
@@ -64,10 +66,10 @@ Check freshness of the three upstream data sources the swarm depends on. If ANY 
 SELECT
   (SELECT MAX(imported_at) FROM cgc_imports) AS cgc_last_import,
   (SELECT MAX(imported_at) FROM cftc_cot_positions) AS cot_last_import,
-  (SELECT MAX(settlement_date) FROM grain_prices) AS price_last_settlement,
+  (SELECT MAX(price_date) FROM grain_prices) AS price_last_settlement,
   EXTRACT(EPOCH FROM (NOW() - (SELECT MAX(imported_at) FROM cgc_imports)))/86400 AS cgc_age_days,
   EXTRACT(EPOCH FROM (NOW() - (SELECT MAX(imported_at) FROM cftc_cot_positions)))/86400 AS cot_age_days,
-  (NOW()::date - (SELECT MAX(settlement_date) FROM grain_prices)) AS price_age_days;
+  (NOW()::date - (SELECT MAX(price_date) FROM grain_prices)) AS price_age_days;
 ```
 
 **SLAs — abort if breached:**
@@ -76,14 +78,15 @@ SELECT
 |--------|-----|-----|
 | CGC (`cgc_imports.imported_at`) | ≤ 8 days | Weekly CGC release cadence + 24h buffer |
 | CFTC COT (`cftc_cot_positions.imported_at`) | ≤ 8 days | Weekly COT release + 24h buffer |
-| Grain prices (`grain_prices.settlement_date`) | ≤ 4 calendar days | Accounts for weekends/holidays |
+| Grain prices (`grain_prices.price_date`) | ≤ 4 calendar days | Accounts for weekends/holidays |
 
 If breached, write a failure row and stop:
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'grain-desk-weekly',
+VALUES ($1, $2, 'failed', 'cron',
   jsonb_build_object(
+    'routine', 'grain-desk-weekly',
     'reason', 'stale_upstream_data',
     'cgc_age_days', $3,
     'cot_age_days', $4,
@@ -94,7 +97,25 @@ VALUES ($1, $2, 'failed', 'grain-desk-weekly',
 
 If all three are within SLA, record the timestamps in the `metadata.data_freshness` object that is written with every grain's `market_analysis` row.
 
-**Step 0.4 — Grain effort tiers (MAJOR / MID / MINOR):**
+**Step 0.3.5 - Accepted X signal bundle (UNTRUSTED EVIDENCE):**
+
+Before scout dispatch, build the Friday bundle:
+
+```powershell
+npm run friday-x-signal-bundle
+```
+
+Read `friday_x_signal_bundle_v1` into the compiled brief as `x_signal_bundle`. Use it only after these checks pass:
+
+- `guardrails.no_grok_llm_in_desk_loop = true`.
+- Every signal has `post_url`, `post_date`, `source_cred_tier`, `allowed_claims`, `blocked_claims`, `needs_official_verification`, and `corroboration`.
+- If `corroboration.official_source_match = false`, treat numeric or factual X claims as review leads only. Do not restate them as facts unless official packets independently prove them.
+- Price-sensitive signals have matching `price_context`; if price context is missing, the signal is watch-only and cannot move the final score.
+- Official source packets, CGC data, CFTC, and price tape outrank X chatter. X can explain why a risk deserves review; it cannot prove a supply, demand, basis, or price fact by itself.
+
+Attach accepted signals to the target grain's compiled brief under `x_signal_bundle.signals`. Record the top signal ids used or rejected in `llm_metadata.x_signal_bundle_audit`.
+
+**Step 0.4 - Grain effort tiers (MAJOR / MID / MINOR):**
 
 Scouts always extract data for all 16 grains in parallel — tiering does NOT skip any grain. What tiering controls is how much chief-level attention each grain gets in Phases 4, 4.5, and 5. A MINOR grain with clean signals gets a short stance note; a MAJOR grain always gets full specialist debate plus full anomaly investigation budget.
 
@@ -512,8 +533,8 @@ If any check fails and you cannot fix it, write a partial-failure row to `pipeli
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'grain-desk-weekly',
-  jsonb_build_object('reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
+VALUES ($1, $2, 'failed', 'cron',
+  jsonb_build_object('routine', 'grain-desk-weekly', 'reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
 ```
 
 **Step 5.2:** Upsert to market_analysis via Supabase MCP.

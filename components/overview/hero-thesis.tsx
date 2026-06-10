@@ -11,7 +11,6 @@ import { TrajectoryChart } from "@/components/overview/trajectory-chart";
 const PRAIRIE = "#437a22";
 const AMBER = "#b8702a";
 const INK = "#2a261e";
-const WHEAT_50 = "#f5f3ee";
 const WHEAT_100 = "#ebe7dc";
 const WHEAT_200 = "#d7cfba";
 const WHEAT_700 = "#5d5132";
@@ -176,7 +175,7 @@ export function HeroThesis({
             fontWeight: 600,
           }}
         >
-          The week&apos;s strongest move · {dateLabel}
+          Strongest source-backed pressure · {dateLabel}
         </span>
         <ConfidenceDot level={grain.confidence} />
       </div>
@@ -203,11 +202,11 @@ export function HeroThesis({
             margin: 0,
           }}
         >
-          {grain.grain} firms{" "}
+          {grain.grain} shows{" "}
           <em style={{ color: stanceColor, fontStyle: "italic" }}>
             {stanceWord}
           </em>
-          .
+          {" "}pressure.
         </h1>
         <div
           style={{
@@ -225,7 +224,7 @@ export function HeroThesis({
               marginBottom: 4,
             }}
           >
-            Stance
+            Pressure
           </div>
           <div
             style={{
@@ -250,7 +249,8 @@ export function HeroThesis({
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)} this week
+              {delta >= 0 ? "+" : "-"}
+              {Math.abs(delta)} from prior
             </div>
           )}
         </div>
@@ -440,10 +440,10 @@ export function HeroThesis({
                 marginBottom: 6,
               }}
             >
-              This week&apos;s trajectory
+              Packet trajectory
             </div>
             <div style={{ fontSize: 13, color: WHEAT_700 }}>
-              Stance resets every Friday. Drifts Mon–Thu as data arrives.
+              Weekly packet refreshes Friday; Mon-Thu movement stays review-gated.
             </div>
             <div
               style={{

@@ -92,27 +92,6 @@ interface FinalDistillation {
   evidence_highlights: Array<{ source_locator: string; takeaway: string }>;
 }
 
-function takeUniqueObjects<T>(items: T[], keyFn: (item: T) => string, limit: number): T[] {
-  const seen = new Set<string>();
-  const result: T[] = [];
-
-  for (const item of items) {
-    const key = keyFn(item);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    result.push(item);
-    if (result.length >= limit) break;
-  }
-
-  return result;
-}
-
-function truncateWords(text: string, maxWords: number): string {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return text.trim();
-  return `${words.slice(0, maxWords).join(" ")}...`;
-}
-
 /** Max packets per batch when doing batched LLM merge (keeps prompt under ~60K chars). */
 const MERGE_BATCH_SIZE = 10;
 
@@ -424,6 +403,7 @@ async function callStepGemini(
   jsonText: string;
   usage: { prompt_tokens: number | null; completion_tokens: number | null; total_tokens: number | null };
 }> {
+  void _maxTokens;
   const systemInstruction =
     "You distill commodity and grain marketing source material for western Canadian prairie farmers. Return only valid JSON with no markdown wrapper, no ```json fences. Preserve nuance, do not invent facts, and prefer practical marketing implications over academic trivia.";
 
@@ -539,7 +519,7 @@ async function callStep(prompt: string, maxTokens: number, overrideModel?: strin
               total_tokens: usage.total_tokens ?? null,
             },
           };
-        } catch (jsonError) {
+        } catch {
           // Model returned non-JSON — retry with same model
           console.error(`  ${modelId} returned non-JSON (attempt ${attempt + 1}/${MAX_RETRIES}), retrying...`);
           continue;
@@ -1213,7 +1193,7 @@ async function distillKnowledge() {
           try {
             packetDistillations.push(JSON.parse(jsonText) as PacketDistillation);
             parsed = true;
-          } catch (parseError) {
+          } catch {
             console.error(`  Malformed JSON on packet ${packet.packetIndex} (attempt ${parseAttempt + 1}/3), retrying...`);
           }
         }

@@ -80,7 +80,7 @@ function NetBalanceTooltip({
   );
 }
 
-export function NetBalanceChart({ data, grainName }: NetBalanceChartProps) {
+export function NetBalanceChart({ data }: NetBalanceChartProps) {
   if (!data || data.length === 0) return null;
 
   const chartData = data.map((d) => ({

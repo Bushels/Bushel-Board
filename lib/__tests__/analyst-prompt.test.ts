@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   buildAnalystSystemPrompt,
@@ -35,9 +36,20 @@ describe("buildAnalystSystemPrompt", () => {
 
   it("includes research protocol", () => {
     const prompt = buildAnalystSystemPrompt();
-    expect(prompt).toContain("RESEARCH FIRST");
+    expect(prompt).toContain("DATA FIRST");
+    expect(prompt).toContain("KEEP X PULSE QUARANTINED");
     expect(prompt).toContain("REASON THROUGH DATA");
     expect(prompt).toContain("CONCLUDE WITH CONVICTION");
+  });
+
+  it("keeps raw X search and advice language out of the analyst contract", () => {
+    const prompt = buildAnalystSystemPrompt();
+    expect(prompt).not.toContain("x_search");
+    expect(prompt).not.toContain("What would you recommend?");
+    expect(prompt).not.toContain("actionable final_assessment");
+    expect(prompt).toContain("accepted X Pulse evidence");
+    expect(prompt).toContain("watch-only lead");
+    expect(prompt).toContain("final_assessment as a source-backed read");
   });
 
   it("includes the Bushel Board agent team framing", () => {
@@ -81,8 +93,9 @@ describe("buildAnalystUserPrompt", () => {
 
   it("includes research depth guidance for major grains", () => {
     const prompt = buildAnalystUserPrompt(mockInput);
-    expect(prompt).toContain("4 web searches");
-    expect(prompt).toContain("4 X searches");
+    expect(prompt).toContain("4 approved web searches");
+    expect(prompt).toContain("4 accepted X Pulse signals");
+    expect(prompt).toContain("only if they are already supplied in the data brief");
   });
 
   it("includes the weekly farmer-summary framing in the task section", () => {
@@ -90,6 +103,20 @@ describe("buildAnalystUserPrompt", () => {
     expect(prompt).toContain("weekly farmer summary");
     expect(prompt).toContain("what is helping the farmer");
     expect(prompt).toContain("what is hurting the farmer");
+    expect(prompt).toContain("why the final read follows from that balance");
+    expect(prompt).not.toContain("why the recommendation follows");
   });
 
+});
+
+describe("Supabase shared analyst prompt", () => {
+  it("keeps the Edge-function copy aligned with the Track 54 X boundary", () => {
+    const source = readFileSync("supabase/functions/_shared/analyst-prompt.ts", "utf8");
+
+    expect(source).not.toContain("x_search");
+    expect(source).not.toContain("What would you recommend?");
+    expect(source).toContain("KEEP X PULSE QUARANTINED");
+    expect(source).toContain("accepted X Pulse evidence");
+    expect(source).toContain("final_assessment as a source-backed read");
+  });
 });

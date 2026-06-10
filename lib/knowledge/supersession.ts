@@ -144,11 +144,13 @@ function handleMarket(
 }
 
 function handleWeather(
-  _existing: KnowledgeEntry,
-  _incoming: IncomingData,
+  existing: KnowledgeEntry,
+  incoming: IncomingData,
 ): SupersessionDecision {
   // Weather aggressively supersedes — any new weather in same FSA replaces old,
   // even across different data types (precipitation → drought_observation, etc.)
+  void existing;
+  void incoming;
   return {
     action: 'supersede',
     decision_type: 'progression',

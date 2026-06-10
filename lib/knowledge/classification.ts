@@ -281,9 +281,10 @@ function extractPrice(msg: string, ctx: MessageContext): ExtractionCandidate[] {
 /**
  * Extract weather observations: precipitation, frost, drought, heat stress.
  */
-function extractWeather(msg: string, _ctx: MessageContext): ExtractionCandidate[] {
+function extractWeather(msg: string, ctx: MessageContext): ExtractionCandidate[] {
   const results: ExtractionCandidate[] = [];
   const lower = msg.toLowerCase();
+  void ctx;
 
   // Precipitation: "2 inches of rain", "got 50mm", "1.5 inches rain"
   const precipPattern = /(\d+(?:\.\d+)?)\s*(?:inches?|in\.?|mm|cm)\s*(?:of\s+)?(?:rain|precip|moisture|snow)/i;
@@ -572,9 +573,10 @@ function detectGrainFromRotation(msg: string): string | null {
 /**
  * Extract logistics data: elevator wait times, capacity, trucking.
  */
-function extractLogistics(msg: string, _ctx: MessageContext): ExtractionCandidate[] {
+function extractLogistics(msg: string, ctx: MessageContext): ExtractionCandidate[] {
   const results: ExtractionCandidate[] = [];
   const lower = msg.toLowerCase();
+  void ctx;
 
   // Elevator wait time: "3 hour wait", "waited 2 hours", "45 minute wait"
   const hourWaitPattern = /(\d+(?:\.\d+)?)\s*(?:hour|hr)s?\s*(?:wait|line|lineup|queue)/i;

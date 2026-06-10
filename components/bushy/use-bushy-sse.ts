@@ -448,7 +448,7 @@ export function useBushySSE(grainContext?: { grain: string; grainWeek: number })
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [grainContext]);
 
   // -- helpers (stable because they use setMessages functional updates) --
 

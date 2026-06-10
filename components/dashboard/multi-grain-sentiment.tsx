@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { cn } from "@/lib/utils";
 import { voteSentimentFromFarm } from "@/app/(dashboard)/my-farm/sentiment-actions";
-import type { UserRole } from "@/lib/auth/role-guard";
 import type { SentimentOverviewRow } from "@/lib/queries/sentiment";
 import {
   Lock,

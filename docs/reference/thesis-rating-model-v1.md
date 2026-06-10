@@ -2,7 +2,7 @@
 
 Purpose: define how Bushel Board turns admitted source facts into a transparent bull/bear rating before any LLM writes farmer-facing prose.
 
-Status as of 2026-05-31: V1 is implemented as a deterministic parallel scorecard/audit layer. The core code lives in `lib/thesis/rating-model.ts`, `lib/thesis/rating-domain-mappers.ts`, `lib/thesis/scorecard-llm-guardrails.ts`, and `lib/queries/thesis-board.ts`; audit details render only on `/thesis?audit=1`. The scorecard does not replace visible farmer-facing stance fields yet.
+Status as of 2026-06-03: V1 is implemented as a deterministic parallel scorecard/audit layer. The core code lives in `lib/thesis/rating-model.ts`, `lib/thesis/rating-domain-mappers.ts`, `lib/thesis/grain-impact-map.ts`, `lib/thesis/grain-data-coverage.ts`, `lib/thesis/scorecard-llm-guardrails.ts`, and `lib/queries/thesis-board.ts`; audit details render only on `/thesis?audit=1`. The scorecard does not replace visible farmer-facing stance fields yet.
 
 Use with:
 
@@ -10,6 +10,7 @@ Use with:
 - `docs/reference/source-registry.md` - which sources are admitted and how fresh they should be.
 - `docs/reference/canonical-grain-fact-model.md` - shared fact shape and quality fields.
 - `docs/reference/cgc-market-mechanics-v1.md` - Canadian CGC movement accounting and guardrails.
+- `docs/reference/grain-impact-mind-map-v1.md` - grain-specific impact factors, substitutes, seasonal gates, and admitted/watch/parked source boundaries.
 
 ## Core Rule
 
@@ -125,6 +126,23 @@ Initial weights should be boring and auditable. Do not optimize until we have re
 
 Weights should renormalize across admitted domains only when a domain is structurally absent for that lane. They should not renormalize across stale or failed sources; stale/failed sources should reduce confidence.
 
+As of 2026-06-03, `lib/thesis/grain-impact-domain-weights.ts` applies a small grain-specific tilt on top of these base lane weights before normalization. The tilt is derived from `lib/thesis/grain-impact-map.ts`:
+
+- `official_thesis_input` impact factors can increase that domain's weight by `0.12`, capped at `0.30` per domain.
+- `price_context` factors can increase that domain's weight by `0.10`, capped inside the same per-domain limit.
+- `bounded_context` factors (added 2026-06-09) are admitted, deterministic, and weight-neutral: they may apply a capped score tilt inside an already-active primary domain through their mapper, but they never increase a domain's weight share. The first lane in this class is the Canola world veg-oil balance.
+- `watch_only` and `parked` factors do not move the deterministic score. They stay visible in audit/mind-map surfaces until a source is admitted.
+
+This means Canola can weight admitted demand/logistics/soy-complex context differently from Wheat, Corn, or Durum without admitting new sources or letting global/watch chatter become a thesis fact.
+
+As of 2026-06-03, the impact map also carries explicit global competitor factors for Canola, Wheat, Durum, Barley, Oats, Corn, and Soybeans. These factors may cite `usda_wasde_raw` for broad monthly WASDE/PSD world-balance context, but they remain `watch_only` unless the specific country/origin/policy/tender/customs/freight/quality source is admitted and mapped. They do not add deterministic score weight.
+
+As of 2026-06-09, the Canola global lane is split: the world vegetable-oil balance (rapeseed `2226000`, rapeseed oil `4239100`, palm oil `4243000`, soybean oil `4232000`; PSD `/world/` endpoint, `country_code '00'`, imported by `scripts/import-usda-wasde.py`) is admitted as a `bounded_context` demand factor, while China policy/customs detail stays `watch_only`. The mapper lane (`mapCanolaGlobalVegOilDemandContext` in `lib/thesis/rating-domain-mappers.ts`) is Canola-only and quadruple-gated: strong `usda_wasde_raw` freshness, at least two commodities with current and prior-year stocks/use, average YoY stocks/use shift of at least +/-0.5 pp, and an already-active CGC demand signal. It applies at most a +/-6 tilt inside the CGC demand domain (against +/-35 of CGC range), never creates a demand domain, never carries a scorecard, and drops out silently — without degrading CGC freshness or confidence — when any gate fails.
+
+As of 2026-06-03, each grain profile also carries audit-only `marketResponses[]` rules. These rules describe how to interpret combinations such as official flow plus price confirmation, local bull signals capped by global competitors, feed substitution, thin liquidity, or quality/tender uncertainty. `buildScorecardLlmPayload()` exposes them as `market_response_context` in the roundtable prompt-pack guardrail JSON, alongside market shape, market structure, seasonal windows, and Viking topic hooks. They can guide LLM explanation and human review, but they do not create a new score path, allowed claim, blocked claim, or confidence override.
+
+As of 2026-06-03, `lib/thesis/grain-data-coverage.ts` derives an audit-only coverage matrix from the same grain impact map. Each factor is classified across `pulled`, `packeted`, `scored`, `explanation_only`, and `missing` checkpoints. `official_thesis_input`, bounded `price_context`, and weight-neutral `bounded_context` factors are treated as score-capable lanes, `watch_only` factors are explanation-only, and parked gaps become missing-source rows. The same profile emits bounded `admissionPriorities[]`: watch-only lanes rank ahead of missing-source gaps because they already have some source footing, but each priority still carries an explicit no-score boundary until packet admission, mapper logic, freshness handling, and tests exist. The `/thesis?audit=1` panel uses this matrix to show what is already connected versus what still needs source admission; normal `/thesis` stays farmer-facing.
+
 ## Source-to-Domain Map
 
 | Source ID / table | Domain | Signal role | Mapping rule |
@@ -133,12 +151,12 @@ Weights should renormalize across admitted domains only when a domain is structu
 | `cgc_producer_cars` / `producer_car_allocations` | Logistics, farmer-direct movement | Direct rail pressure and destination context | Context source; do not infer whole rail-service state alone. |
 | `grain_monitor_weekly` / `grain_monitor_snapshots` | Logistics | Corridor, vessel, unload, port context | Context source with natural lag label. |
 | `aafc_statscan_supply` / `supply_disposition` | Supply / balance sheet | Crop size, total supply, carryout, stocks-to-use | Direct when release date, crop year, and unit are present. |
-| `canada_crop_progress` | Weather / crop condition | Prairie seeding/condition state | Partial until MB+SK+AB are complete or missing province is explicitly stale/missing. |
+| `canada_crop_progress` | Weather / crop condition | Prairie seeding/condition/timing/moisture state | Partial until MB+SK+AB are complete or missing province is explicitly stale/missing; condition rows score only when the packet contains official `condition_good_excellent_pct` rows; Saskatchewan development group rows can score only as capped proxy timing evidence for mapped public grains; AB All Crops and SK Cropland moisture rows can score only as capped broad moisture proxy evidence for mapped Prairie grains. |
 | `usda_crop_progress` | Weather / crop condition, supply risk | US planting/harvest/condition | Direct for US commodities where NASS mapping is explicit. |
 | `usda_export_sales` | Demand | Export sales and projection pace | Direct only when commodity code, market year, units, and WASDE denominator pass admission. |
 | `usda_wasde` | Supply / balance sheet, demand | Monthly balance sheet and revisions | Direct for mapped commodities; revision deltas should be shown separately from latest level. |
 | `usda_quarterly_stocks` | Supply / balance sheet | Measured stocks surprise / inventory level | Direct for all-wheat/corn/soybeans/barley/oats where unit conversion is locked. |
-| `cftc_cot` | Positioning | Fund/commercial pressure | Direct or proxy by contract. Proxy labels must be visible. |
+| `cftc_cot` / `cftc_cot_positions` | Positioning | Fund/commercial pressure | Score only `mapping_type = primary` rows in V1. Proxy labels may be visible context, but proxy rows do not move deterministic Bull/Bear scores. |
 | `grain_prices` | Price / basis / spreads | Futures price follow-through and cross-market confirmation | Direct by contract only; Canada/US comparisons need FX and unit normalization. |
 | `fx_rates` | Price / basis / spreads | Currency translation | Context only, not standalone thesis evidence. |
 | `posted_prices` | Price / basis / spreads | Local cash/basis | Parked until rows exist and source/area cadence is defined. |
@@ -171,6 +189,9 @@ Guardrails:
 - A large crop is not automatically bearish if demand is also accelerating.
 - Annual/quarterly data can set the denominator, but weekly flow outranks it for "what is happening now" movement claims.
 - Projection changes and latest levels are different signals; do not blend them without showing both.
+- As of 2026-06-03, `lib/thesis/rating-domain-mappers.ts` scores Canada `supply_disposition` carryout <=8% of total supply as bullish supply pressure and >=18% as bearish supply pressure.
+- As of 2026-06-03, the US supply mapper scores `usda_wasde_mapped` ending-stocks cuts of at least 500 kt or stocks/use <=10% as bullish, and ending-stocks raises of at least 500 kt or stocks/use >=20% as bearish.
+- As of 2026-06-03, the same US supply mapper scores `usda_quarterly_stocks` surprises <=-1,000 kt or YoY stocks <=-5% as bullish, and surprises >=1,000 kt or YoY stocks >=5% as bearish. If WASDE and quarterly stocks both score, they merge into one `supply` domain instead of creating duplicate supply reads.
 
 ### 2. Demand / Disappearance
 
@@ -232,6 +253,9 @@ Guardrails:
 
 - Grain Monitor lags CGC; expected lag should reduce freshness but not automatically invalidate the source.
 - Logistics explains why movement can be delayed; it rarely proves standalone bull/bear direction.
+- As of 2026-06-03, `lib/thesis/rating-domain-mappers.ts` scores Canada `grain_monitor_snapshots` unloads >=15% above the four-week average as bullish logistics capacity and <=-15% as bearish movement friction.
+- The same mapper scores terminal capacity >=90% or Vancouver vessel lineup >=20 vessels as bearish logistics friction.
+- Canada `producer_car_allocations` can add bounded bullish context when the latest packet row has >=25 weekly cars or >=10 cars to US destinations. US logistics remains structurally outside V1 until a source is admitted.
 
 ### 5. Price / Basis / Spreads
 
@@ -252,6 +276,8 @@ Guardrails:
 - Futures prices can be stale on weekends/holidays.
 - Canada/US price comparisons require FX and unit normalization.
 - Do not make basis claims from empty `posted_prices`.
+- As of 2026-06-03, `lib/thesis/rating-domain-mappers.ts` scores fresh `grain_prices` moves >=0.5% as bullish price confirmation and <=-0.5% as bearish price pressure. This is optional context, not a required official thesis source.
+- Barchart latest-only rows can score only as low-confidence provisional momentum; stale or missing `grain_prices` freshness blocks the price contribution instead of making a price claim.
 
 ### 6. Positioning
 
@@ -270,6 +296,7 @@ Guardrails:
 - COT is Tuesday data released Friday; it is stale by design.
 - Contract-to-grain mapping must be direct/proxy-labelled.
 - Wheat-class COT must not be silently collapsed into generic wheat-class board rows.
+- As of 2026-06-03, `lib/thesis/rating-domain-mappers.ts` scores only primary CFTC rows. Net-long plus non-negative week-over-week net change is bullish; net-short or negative week-over-week net change is bearish.
 
 ### 7. Weather / Crop Condition
 
@@ -288,6 +315,13 @@ Guardrails:
 - Partial Prairie packages must say partial until Alberta lands or is explicitly stale/missing.
 - Weather is seasonal. Outside growing season, lower its weight unless it affects logistics or harvest.
 - Derived satellite/weather proxies require separate source admission.
+- As of 2026-06-03, Canada `canada_crop_progress` province seeded average <=25% scores as bullish seasonal delay risk; >=75% scores as bearish seeding-risk relief.
+- As of 2026-06-03, Canada `canada_crop_progress` `condition_good_excellent_pct` rows can score during May-October only when official province-level rows are present in the packet: <=50% good/excellent or <=-8% versus the five-year average is bullish crop-stress pressure; >=75% or >=8% versus the five-year average is bearish supply-cushion pressure.
+- As of 2026-06-03, Canada `canada_crop_progress` Saskatchewan `development_behind_pct` rows can add bounded proxy weather timing pressure after packet admission: >=60% behind normal adds bullish delay/timing risk, while <=25% behind normal lowers timing risk. This is low-confidence proxy evidence and applies only to mapped public lanes: Oilseeds -> Canola, Spring Cereals -> Wheat/Durum/Barley/Oats. It must not be described as crop-specific condition, quality, Spring Wheat, or Winter Wheat proof.
+- As of 2026-06-03, Canada `canada_crop_progress` `soil_moisture_adequate_surplus_pct` rows can add bounded proxy weather moisture pressure during May-October after packet admission: an average <=55% adequate/surplus or <=-8% versus five-year/previous-year context adds bullish crop-stress risk; an average >=75% or >=8% versus five-year/previous-year context lowers near-term moisture stress. This is low-confidence proxy evidence and applies only to AB All Crops / SK Cropland rows mapped to Canola, Wheat, Durum/Amber Durum, Barley, and Oats. It must not be described as crop-specific condition, quality, yield, Corn, or Soybeans proof.
+- Current Canada collector caveat: the table and packet path now support crop-condition, crop-development, and broad moisture proxy rows. `scripts/import-canada-crop-progress.py` imports seeded progress plus Alberta emergence, Alberta surface-soil moisture/pasture rows, Saskatchewan cropland/hayland/pasture topsoil moisture rows, and Saskatchewan crop-development group rows (`development_normal_pct`, `development_ahead_pct`, `development_behind_pct`). It does not yet emit admitted crop-specific `condition_good_excellent_pct` rows, so direct condition scoring remains dormant until official condition rows are parsed.
+- As of 2026-06-03, US `usda_crop_progress` good/excellent <=50% or YoY <=-8% scores as bullish crop stress, while good/excellent >=70% or YoY >=8% scores as bearish supply cushion during April-November.
+- US planting pace `planted_pct_vs_avg` <=-5% scores as bullish delay risk; >=5% scores as bearish planting comfort during the active crop-progress window.
 
 ### 8. Farmer / Local Behavior
 

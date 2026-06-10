@@ -4,7 +4,6 @@ import { getAuthenticatedUserContext } from "@/lib/auth/role-guard";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { submitSentimentVote } from "@/lib/queries/sentiment";
 import { z } from "zod";
 

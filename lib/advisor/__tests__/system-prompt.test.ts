@@ -157,6 +157,30 @@ describe("buildAdvisorSystemPrompt", () => {
     expect(prompt).toContain("No stored price data available");
   });
 
+  it("scrubs advice wording from X market chatter before the advisor sees it", () => {
+    const prompt = buildAdvisorSystemPrompt({
+      ...mockContext,
+      xSignals: [
+        {
+          grain: "Canola",
+          sentiment: "bullish",
+          category: "price",
+          post_summary:
+            "buy Canola, pricing-recommendation, and trade / signal chatter.",
+          relevance_score: 92,
+          post_date: "2026-06-07",
+          source: "x_market_signals",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("X Pulse watch-only, not advice or thesis fact");
+    expect(prompt).toContain(
+      "watch term Canola, watch term, and watch term chatter.",
+    );
+    expect(prompt).not.toMatch(/buy Canola|pricing-recommendation|trade \/ signal/i);
+  });
+
   it("handles missing knowledge gracefully", () => {
     const noKnowledgeCtx: ChatContext = {
       ...mockContext,

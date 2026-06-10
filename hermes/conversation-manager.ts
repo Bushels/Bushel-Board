@@ -350,10 +350,13 @@ export class ConversationManager {
    * market context, and Viking knowledge.
    */
   private buildSystemPrompt(
-    _farmerCard: FarmerCard,
-    _workingMemory: KnowledgeEntry[],
-    _recentHistory: ChatMessage[]
+    farmerCard: FarmerCard,
+    workingMemory: KnowledgeEntry[],
+    recentHistory: ChatMessage[]
   ): string {
+    void farmerCard;
+    void workingMemory;
+    void recentHistory;
     return "You are Bushy, a prairie grain market intelligence assistant.";
   }
 }

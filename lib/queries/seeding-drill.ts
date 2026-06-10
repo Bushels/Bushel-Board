@@ -53,11 +53,14 @@ async function stateCodeToName(
 
 /** posted_prices is FSA-keyed. Without a state→FSA proximity helper, return [] for now. */
 async function fetchCashBidsForState(
-  _supabase: Awaited<ReturnType<typeof createClient>>,
-  _stateCode: string,
-  _commodity: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  stateCode: string,
+  commodity: string,
 ): Promise<CashBidRow[]> {
   // TODO: when a state→FSA proximity lookup exists, wire via get_area_prices.
+  void supabase;
+  void stateCode;
+  void commodity;
   return [];
 }
 

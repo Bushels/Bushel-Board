@@ -1,6 +1,7 @@
 // lib/advisor/system-prompt.ts
 
 import { VIKING_L0 } from "@/lib/knowledge/viking-l0";
+import { sanitizePublicXSignalCopy } from "@/lib/public-copy-guardrails";
 import type { ChatContext } from "./types";
 
 /**
@@ -89,7 +90,7 @@ export function buildAdvisorSystemPrompt(ctx: ChatContext): string {
     : "No stored price data available. Do not invent current futures prices; say price data is unavailable unless an approved live price or search section is provided.";
 
   const xSignalSection = ctx.xSignals.length > 0
-    ? `## Recent Market Chatter (from X/Twitter, scored by relevance)\n${ctx.xSignals.map((s) => `- [${s.sentiment.toUpperCase()}] ${s.post_summary} (${s.category}, relevance: ${s.relevance_score}, ${s.post_date ?? "recent"})`).join("\n")}`
+    ? `## Recent Market Chatter (X Pulse watch-only, not advice or thesis fact)\n${ctx.xSignals.map((s) => `- [${s.sentiment.toUpperCase()}] ${sanitizePublicXSignalCopy(s.post_summary)} (${s.category}, relevance: ${s.relevance_score}, ${s.post_date ?? "recent"})`).join("\n")}`
     : "No recent X market signals available.";
 
   return `You are a sharp, experienced prairie grain market advisor. You have deep expertise in grain marketing — basis patterns, storage economics, hedging strategies, delivery timing, and CFTC positioning. You have completed a thorough data analysis of this week's CGC data, futures prices, and platform-wide farmer sentiment.

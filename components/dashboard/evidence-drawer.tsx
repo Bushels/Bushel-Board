@@ -4,10 +4,12 @@ import { useState } from "react";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { sanitizePublicXSignalCopy } from "@/lib/public-copy-guardrails";
 import type { XMarketSignal } from "@/lib/queries/x-signals";
 
 interface EvidenceDrawerProps {
@@ -81,9 +83,9 @@ export function EvidenceDrawer({ signals, grainName }: EvidenceDrawerProps) {
           <SheetTitle className="font-display">
             X Market Signals — {grainName}
           </SheetTitle>
-          <p className="text-xs text-muted-foreground">
+          <SheetDescription className="text-xs">
             Scored social posts from X/Twitter relevant to {grainName} markets.
-          </p>
+          </SheetDescription>
         </SheetHeader>
 
         <div className="px-4 pb-4 space-y-3">
@@ -108,7 +110,7 @@ export function EvidenceDrawer({ signals, grainName }: EvidenceDrawerProps) {
 
               {/* Post summary */}
               <p className="text-sm leading-relaxed text-foreground">
-                {signal.post_summary}
+                {sanitizePublicXSignalCopy(signal.post_summary)}
               </p>
 
               {/* Author + date row */}

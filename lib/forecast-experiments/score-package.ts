@@ -233,7 +233,8 @@ function assertHashMatches(
     throw new Error(`${hashField} must be a sha256 hash.`);
   }
 
-  const { [hashField]: _hash, ...withoutHash } = value;
+  const withoutHash = { ...value };
+  delete withoutHash[hashField];
   const actualHash = `sha256:${sha256(stableStringify(withoutHash))}`;
 
   if (actualHash !== expectedHash) {

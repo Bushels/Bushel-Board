@@ -71,6 +71,26 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         Report number 4, May 28, 2026
         Seeding progress reached 52 per cent across Saskatchewan, behind the five-year average of 74 per cent.
         One year ago seeding now 88 per cent complete.
+        Cropland topsoil moisture is:
+        • 19 per cent surplus;
+        • 70 per cent adequate; and
+        • 11 per cent short.
+        Hayland topsoil moisture is:
+        • 14 per cent surplus;
+        • 70 per cent adequate; and
+        • 16 per cent short.
+        Pasture topsoil moisture is:
+        • 9 per cent surplus;
+        • 68 per cent adequate;
+        • 20 per cent short; and
+        • 3 per cent very short.
+        Crop development varies due to localized weather, leading to differences in temperature and moisture.
+        Currently, fall cereals are at 58 per cent of normal development, with one per cent ahead and 41 per cent
+        behind in development. Spring cereals are 37 per cent normal, 63 per cent behind. Pulse crops are 45 per cent
+        normal and 55 per cent behind. Oilseeds are at 27 per cent of their normal stage of development and 73 per
+        cent behind. Perennial forage is 50 per cent at normal development, with two per cent ahead and 48 per cent
+        behind. Annual forage is at 39 per cent normal development, with two per cent ahead and 59 per cent behind.
+        For further information, contact Saskatchewan Agriculture.
         """
 
         def fake_pdf_to_text(url, *, layout):
@@ -98,6 +118,33 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertEqual(regional["period_start"], "2026-05-19")
         self.assertEqual(regional["period_end"], "2026-05-25")
         self.assertIn("2026-05-19 to 2026-05-25", regional["source_excerpt"])
+
+        moisture_rows = [row for row in rows if row["metric"] == "soil_moisture_adequate_surplus_pct"]
+        self.assertEqual(len(moisture_rows), 3)
+        moisture_by_crop = {row["crop_name"]: row for row in moisture_rows}
+        self.assertEqual(moisture_by_crop["Cropland"]["value_pct"], 89.0)
+        self.assertEqual(moisture_by_crop["Hayland"]["value_pct"], 84.0)
+        self.assertEqual(moisture_by_crop["Pasture"]["value_pct"], 77.0)
+        self.assertTrue(all(row["canonical_grain"] is None for row in moisture_rows))
+        self.assertTrue(all(row["document_url"] == "https://example.test/report.pdf" for row in moisture_rows))
+
+        development_rows = [row for row in rows if row["metric"].startswith("development_")]
+        self.assertEqual(len(development_rows), 15)
+        development_by_crop_metric = {
+            (row["crop_name"], row["metric"]): row["value_pct"] for row in development_rows
+        }
+        self.assertEqual(development_by_crop_metric[("Fall Cereals", "development_normal_pct")], 58.0)
+        self.assertEqual(development_by_crop_metric[("Fall Cereals", "development_ahead_pct")], 1.0)
+        self.assertEqual(development_by_crop_metric[("Fall Cereals", "development_behind_pct")], 41.0)
+        self.assertEqual(development_by_crop_metric[("Spring Cereals", "development_normal_pct")], 37.0)
+        self.assertEqual(development_by_crop_metric[("Spring Cereals", "development_behind_pct")], 63.0)
+        self.assertNotIn(("Spring Cereals", "development_ahead_pct"), development_by_crop_metric)
+        self.assertEqual(development_by_crop_metric[("Pulse Crops", "development_normal_pct")], 45.0)
+        self.assertEqual(development_by_crop_metric[("Oilseeds", "development_behind_pct")], 73.0)
+        self.assertEqual(development_by_crop_metric[("Perennial Forage", "development_ahead_pct")], 2.0)
+        self.assertEqual(development_by_crop_metric[("Annual Forage", "development_behind_pct")], 59.0)
+        self.assertTrue(all(row["canonical_grain"] is None for row in development_rows))
+        self.assertTrue(all(row["document_url"] == "https://example.test/report.pdf" for row in development_rows))
 
     def test_alberta_discovery_records_resource_metadata(self):
         payload = {
@@ -143,10 +190,34 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         pdf_text = """
         Crop conditions as of May 26, 2026
         ©2026 Government of Alberta | May 29, 2026
+        Provincial emergence of major crops (5-year average) is reported at 33 per cent, below the 5-year average of 43 per cent.
+        Crop emergence in the South Region is ahead of the 5-year average at 66 (52) per cent. In other regions, emergence is
+        behind their respective 5-year averages with Central at 36 (47) per cent, North East at 23 (39) per cent, North West at 16 (29)
+        per cent and Peace at 9 (39) per cent.
         Table 1: Alberta Major Crop Seeding Progress
         Spring Wheat, May 19     11%     12%     13%     14%     15%     16%
         Spring Wheat, May 26     97.1%   95.4%   87.4%   71.8%   62.0%   86.2%
         5-year All Crops         93%     91%     82%     70%     61%     84%
+        Source: AGI/AFSC Crop Reporting Survey
+        Table 2: Alberta Surface Soil (0-6 in) Moisture Ratings as of May 26, 2026
+                              Poor     Fair     Good     Excellent     Excessive
+        South                14.0%    30.9%    54.3%       0.7%          0.0%
+        Central              31.4%    23.3%    43.2%       2.1%          0.0%
+        North East            9.8%    14.6%    52.4%      19.5%          3.8%
+        North West           17.1%    15.2%    27.6%      29.5%         10.6%
+        Peace                 0.0%     5.9%    50.4%      39.4%          4.3%
+        Alberta              17.0%    21.3%    47.4%      12.0%          2.3%
+        5-year (2021-2025) Avg 8.6%   28.3%    50.1%      12.5%          0.6%
+        Source: AGI/AFSC Crop Reporting Survey
+        Table 3: Pasture Growth Conditions as of May 26, 2026
+                              Poor     Fair     Good     Excellent
+        South                 9.6%    37.0%    52.8%       0.6%
+        Central              15.3%    31.5%    51.3%       1.8%
+        North East            9.2%    48.0%    41.7%       1.2%
+        North West            9.8%    48.4%    40.9%       0.9%
+        Peace                35.1%    37.3%    23.5%       4.1%
+        Alberta              13.2%    38.0%    47.4%       1.4%
+        5-year (2021-2025) Avg 12.0%  33.5%    50.8%       3.7%
         Source: AGI/AFSC Crop Reporting Survey
         """
 
@@ -158,6 +229,23 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertEqual(len(spring_wheat_rows), 6)
         self.assertEqual(spring_wheat_rows[0]["value_pct"], 97.1)
         self.assertTrue(all(row["report_date"] == "2026-05-26" for row in spring_wheat_rows))
+        emergence_rows = [row for row in rows if row["metric"] == "emerged_pct"]
+        self.assertEqual(len(emergence_rows), 6)
+        provincial_emergence = next(row for row in emergence_rows if row["region_code"] == "PROV")
+        self.assertEqual(provincial_emergence["value_pct"], 33.0)
+        self.assertEqual(provincial_emergence["five_year_avg_pct"], 43.0)
+
+        soil_rows = [row for row in rows if row["metric"] == "soil_moisture_adequate_surplus_pct"]
+        self.assertEqual(len(soil_rows), 6)
+        provincial_soil = next(row for row in soil_rows if row["region_code"] == "PROV")
+        self.assertAlmostEqual(provincial_soil["value_pct"], 61.7)
+        self.assertAlmostEqual(provincial_soil["five_year_avg_pct"], 63.2)
+
+        pasture_rows = [row for row in rows if row["metric"] == "pasture_good_excellent_pct"]
+        self.assertEqual(len(pasture_rows), 6)
+        provincial_pasture = next(row for row in pasture_rows if row["region_code"] == "PROV")
+        self.assertAlmostEqual(provincial_pasture["value_pct"], 48.8)
+        self.assertAlmostEqual(provincial_pasture["five_year_avg_pct"], 54.5)
 
     def test_collect_records_discovery_evidence_per_province(self):
         fake_row = {

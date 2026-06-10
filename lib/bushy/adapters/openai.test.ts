@@ -15,7 +15,7 @@ vi.mock("openai", () => {
   class MockOpenAI {
     chat = {
       completions: {
-        create: async (_body: Record<string, unknown>) => {
+        create: async () => {
           const script = scripts.shift();
           if (!script) throw new Error("Test bug: script exhausted");
           return {

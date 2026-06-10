@@ -54,7 +54,8 @@ export const searchXTool: BushyTool = {
   source: "native",
   costEstimateUsd: 0.002, // ~$2 per 1000 tweets on X API basic tier
   rateLimit: { perTurn: 3, perConversation: 10 },
-  async execute(args, _ctx) {
+  async execute(args, ctx) {
+    void ctx;
     const start = Date.now();
     const parsed = SearchXArgs.safeParse(args);
     if (!parsed.success) {

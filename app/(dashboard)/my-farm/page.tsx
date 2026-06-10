@@ -9,6 +9,8 @@ import { getUserRole } from "@/lib/auth/role-guard";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { grainSlug } from "@/lib/constants/grains";
 import { deriveRecommendation } from "@/lib/utils/recommendations";
+import { assessDeskThesisStaleness } from "@/lib/utils/thesis-staleness";
+import { getDisplayWeek } from "@/lib/queries/data-freshness";
 import type { RecommendationResult } from "@/lib/utils/recommendations";
 import { FarmSummaryCard } from "@/components/dashboard/farm-summary-card";
 import { DeliveryPaceCard } from "@/components/dashboard/delivery-pace-card";
@@ -62,6 +64,7 @@ export default async function MyFarmPage() {
     grainOverviewData,
     storageComparisons,
     marketAnalyses,
+    displayWeek,
   ] = await Promise.all([
     grainSlugs.length > 0
       ? getSupplyDispositionForGrains(grainSlugs)
@@ -69,6 +72,7 @@ export default async function MyFarmPage() {
     getGrainOverview(),
     Promise.all(plans.map((p) => getGrainStorageComparison(p.grain))),
     Promise.all(plans.map((p) => getMarketAnalysis(p.grain))),
+    getDisplayWeek(),
   ]);
 
   const storageComparisonByGrain = new Map(
@@ -114,7 +118,9 @@ export default async function MyFarmPage() {
 
   for (const plan of plans) {
     const ma = marketAnalysisMap[plan.grain];
-    const marketStance = ma?.stance_score != null
+    // A desk thesis 2+ weeks behind the data week must not drive haul/hold framing.
+    const deskStaleness = assessDeskThesisStaleness(ma?.grain_week, displayWeek);
+    const marketStance = !deskStaleness.isStale && ma?.stance_score != null
       ? (ma.stance_score >= 20 ? "bullish" : ma.stance_score <= -20 ? "bearish" : "neutral")
       : "neutral";
     const startingGrain = Number(plan.starting_grain_kt ?? 0);
@@ -134,7 +140,7 @@ export default async function MyFarmPage() {
 
     const rec = deriveRecommendation({
       marketStance,
-      stanceScore: ma?.stance_score ?? null,
+      stanceScore: deskStaleness.isStale ? null : ma?.stance_score ?? null,
       deliveryPacePct,
       contractedPct,
       uncontractedKt: uncontracted,

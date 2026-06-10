@@ -6,6 +6,7 @@ import { CURRENT_US_MARKET_YEAR } from "@/lib/queries/us-intelligence";
 import type { ThesisArtifactV1 } from "@/lib/thesis/artifact-contract";
 import { buildRatingScorecard, type ThesisRatingScorecard } from "@/lib/thesis/rating-model";
 import { mapCanadaPacketToDomainInputs, mapUsPacketToDomainInputs } from "@/lib/thesis/rating-domain-mappers";
+import { getImpactAdjustedDomainWeights } from "@/lib/thesis/grain-impact-domain-weights";
 import { getVikingL2Context, type VikingL2Chunk } from "@/lib/knowledge/viking-l2";
 
 type JsonRecord = Record<string, unknown>;
@@ -125,6 +126,11 @@ export interface ThesisBoardItem {
   optionalSourceCount: number;
   vikingL2Chunks: VikingL2Chunk[];
   ratingScorecard: ThesisRatingScorecard;
+  scoreSource?: {
+    kind: "weekly_packet" | "daily_overlay";
+    recordedAt?: string | null;
+    trigger?: string | null;
+  };
 }
 
 export interface ThesisComparisonPoint {
@@ -1013,6 +1019,7 @@ export function buildCanadaThesisBoardItem(
     period_anchor: `${cropYear ?? "unknown"}:week:${grainWeek ?? "latest"}`,
     source_watermark: packetGeneratedAt,
     domains: mapCanadaPacketToDomainInputs(packet),
+    domainWeights: getImpactAdjustedDomainWeights(grain.name, "canada"),
   });
 
   return {
@@ -1411,6 +1418,7 @@ export function buildUsThesisBoardItem(
     period_anchor: String(marketYear),
     source_watermark: packetGeneratedAt,
     domains: mapUsPacketToDomainInputs(packet),
+    domainWeights: getImpactAdjustedDomainWeights(market.name, "us"),
   });
 
   return {
@@ -1607,7 +1615,7 @@ function comparisonReadiness(
   if (canada && us) {
     return {
       readinessLabel: "Source-backed",
-      readinessDetail: "Canada and US packets are present; use this as a scouting-quality thesis row, not final price advice.",
+      readinessDetail: "Canada and US packets are present; use this as a scouting-quality thesis row, not a pricing instruction.",
     };
   }
 

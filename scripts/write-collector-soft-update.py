@@ -74,6 +74,7 @@ ALLOWED_SCAN_TYPES = {
     "opus_review_cgc",
     "opus_review_cftc_cot",
     "opus_review_wasde",
+    "opus_review_daily_pulse",
 }
 
 STANCE_DELTA_BOUND = 5

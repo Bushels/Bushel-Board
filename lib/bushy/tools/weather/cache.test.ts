@@ -69,14 +69,18 @@ describe("writeCache", () => {
     const upsertSpy = vi.fn(async () => ({ data: null, error: null }));
     const supabase = {
       from: vi.fn(() => ({ upsert: upsertSpy })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as unknown as SupabaseClient;
 
     const before = Date.now();
     await writeCache(supabase, "T0L|true", "T0L 1A0", "CA", SNAP);
 
     expect(upsertSpy).toHaveBeenCalledTimes(1);
-    const [row, opts] = upsertSpy.mock.calls[0];
+    const firstCall = upsertSpy.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const [row, opts] = firstCall as unknown as [
+      Record<string, unknown>,
+      { onConflict: string },
+    ];
     expect(opts).toEqual({ onConflict: "cache_key" });
     expect(row).toMatchObject({
       cache_key: "T0L|true",
@@ -84,7 +88,7 @@ describe("writeCache", () => {
       country: "CA",
     });
     // expires_at should be ~1 hour later (within a 2-minute tolerance)
-    const expiresMs = new Date(row.expires_at).getTime();
+    const expiresMs = new Date(row.expires_at as string).getTime();
     expect(expiresMs - before).toBeGreaterThanOrEqual(55 * 60 * 1000);
     expect(expiresMs - before).toBeLessThanOrEqual(62 * 60 * 1000);
   });
@@ -96,7 +100,6 @@ describe("writeCache", () => {
     }));
     const supabase = {
       from: vi.fn(() => ({ upsert: upsertSpy })),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as unknown as SupabaseClient;
 
     // Should NOT throw

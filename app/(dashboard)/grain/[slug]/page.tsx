@@ -16,6 +16,7 @@ import { GrainBushyChat } from "@/components/bushy/grain-bushy-chat";
 import { GrainFarmProgress } from "@/components/dashboard/grain-farm-progress";
 import { getDisplayWeek } from "@/lib/queries/data-freshness";
 import { deriveRecommendation } from "@/lib/utils/recommendations";
+import { assessDeskThesisStaleness } from "@/lib/utils/thesis-staleness";
 
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR, cropYearLabel, getCurrentGrainWeek, grainWeekEndDate } from "@/lib/utils/crop-year";
@@ -138,14 +139,17 @@ export default async function GrainDetailPage({ params }: Props) {
   const openKt = Math.max(0, totalKt - deliveredKt - contractedKt);
   const deliveredPct = totalKt > 0 ? (deliveredKt / totalKt) * 100 : 0;
 
-  const marketStance: "bullish" | "bearish" | "neutral" = marketAnalysis?.stance_score != null
-    ? marketAnalysis.stance_score >= 20 ? "bullish"
-      : marketAnalysis.stance_score <= -20 ? "bearish" : "neutral"
-    : "neutral";
+  const deskStaleness = assessDeskThesisStaleness(marketAnalysis?.grain_week, displayWeek);
+
+  const marketStance: "bullish" | "bearish" | "neutral" =
+    !deskStaleness.isStale && marketAnalysis?.stance_score != null
+      ? marketAnalysis.stance_score >= 20 ? "bullish"
+        : marketAnalysis.stance_score <= -20 ? "bearish" : "neutral"
+      : "neutral";
 
   const recommendation = deriveRecommendation({
     marketStance,
-    stanceScore: marketAnalysis?.stance_score,
+    stanceScore: deskStaleness.isStale ? null : marketAnalysis?.stance_score,
     deliveryPacePct: deliveredPct,
     contractedPct: totalKt > 0 ? (contractedKt / totalKt) * 100 : 0,
     uncontractedKt: openKt,
@@ -168,7 +172,7 @@ export default async function GrainDetailPage({ params }: Props) {
                 <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                   {grain.name}
                 </h1>
-                {marketAnalysis && (
+                {marketAnalysis && !deskStaleness.isStale && (
                   <MarketStanceBadge
                     stance={
                       marketAnalysis?.stance_score != null
@@ -181,6 +185,11 @@ export default async function GrainDetailPage({ params }: Props) {
                     }
                     size="lg"
                   />
+                )}
+                {marketAnalysis && deskStaleness.isStale && (
+                  <span className="inline-flex items-center rounded-full bg-amber-500/10 border border-amber-500/30 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    Last desk read: week {deskStaleness.thesisWeek} &middot; {deskStaleness.ageWeeks} weeks old
+                  </span>
                 )}
               </div>
               {heroTitle && (
@@ -235,8 +244,23 @@ export default async function GrainDetailPage({ params }: Props) {
           <section className="space-y-6">
             <SectionHeader
               title="Market Thesis"
-              subtitle="AI analysis with US and Canadian market data"
+              subtitle={
+                deskStaleness.isStale
+                  ? `Last published desk analysis - week ${deskStaleness.thesisWeek}`
+                  : "AI analysis with US and Canadian market data"
+              }
             />
+            {deskStaleness.isStale && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-800 dark:text-amber-300">
+                This analysis is from week {deskStaleness.thesisWeek} - {deskStaleness.ageWeeks} weeks behind the
+                current data week. A newer Friday desk read has not been published yet, so treat it as background
+                rather than this week&apos;s call. The current source-backed read for this grain lives on the{" "}
+                <Link href="/thesis" className="font-medium underline underline-offset-2">
+                  Thesis board
+                </Link>
+                .
+              </div>
+            )}
             <SectionBoundary
               title="Market thesis unavailable"
               message="The market analysis is temporarily unavailable."

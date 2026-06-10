@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { triageExtraction, createEmptySummary, type TriageDecision } from '@/lib/knowledge/compression';
+import { triageExtraction, createEmptySummary } from '@/lib/knowledge/compression';
 import type { KnowledgeEntry } from '@/lib/knowledge/supersession';
 
 const makeKnowledge = (overrides: Partial<KnowledgeEntry>): KnowledgeEntry => ({
@@ -15,6 +15,7 @@ const makeKnowledge = (overrides: Partial<KnowledgeEntry>): KnowledgeEntry => ({
   confidence_level: 'single_report',
   status: 'active',
   last_updated_at: new Date(),
+  ...overrides,
 });
 
 describe('triageExtraction', () => {

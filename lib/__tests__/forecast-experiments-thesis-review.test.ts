@@ -315,7 +315,8 @@ describe("Canola thesis review CLI", () => {
 });
 
 function stripRunArtifact(input: ReturnType<typeof reviewInput>) {
-  const { run_artifact: _runArtifact, ...review } = input;
+  const { run_artifact: runArtifact, ...review } = input;
+  void runArtifact;
   return review;
 }
 
