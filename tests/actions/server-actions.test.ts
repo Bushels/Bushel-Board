@@ -222,7 +222,7 @@ describe("addCropPlan", () => {
       onConflict: "user_id,crop_year,grain",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/my-farm");
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/overview");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/thesis");
   });
 });
 
@@ -283,7 +283,7 @@ describe("logDelivery", () => {
       marketing_type: "contracted",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/my-farm");
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/overview");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/thesis");
   });
 
   it("treats duplicate submission ids as idempotent success", async () => {
@@ -322,7 +322,7 @@ describe("logDelivery", () => {
 
     expect(result).toEqual({ success: true, duplicate: true });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/my-farm");
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/overview");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/thesis");
   });
 
   it("returns a retry message when delivery logging is rate limited", async () => {

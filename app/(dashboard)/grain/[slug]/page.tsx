@@ -162,7 +162,7 @@ export default async function GrainDetailPage({ params }: Props) {
         {/* ========== HERO SECTION ========== */}
         <GlassCard hover={false} elevation={3} className="p-6 sm:p-8">
           <div className="flex items-start gap-4">
-            <Link href="/overview" className="mt-1 shrink-0">
+            <Link href="/thesis" className="mt-1 shrink-0">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
@@ -313,7 +313,7 @@ function GrainLockedView({ grain }: { grain: string }) {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
-        <Link href="/overview">
+        <Link href="/thesis">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>

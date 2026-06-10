@@ -159,7 +159,7 @@ export async function addCropPlan(formData: FormData) {
   }
 
   revalidatePath("/my-farm");
-  revalidatePath("/overview");
+  revalidatePath("/thesis");
 
   return { success: true };
 }
@@ -235,7 +235,7 @@ export async function updateGrainStorage(formData: FormData) {
   }
 
   revalidatePath("/my-farm");
-  revalidatePath("/overview");
+  revalidatePath("/thesis");
 
   return { success: true };
 }
@@ -318,14 +318,14 @@ export async function logDelivery(formData: FormData) {
   if (error) {
     if (error.code === "23505") {
       revalidatePath("/my-farm");
-      revalidatePath("/overview");
+      revalidatePath("/thesis");
       return { success: true, duplicate: true };
     }
     return { error: error.message };
   }
 
   revalidatePath("/my-farm");
-  revalidatePath("/overview");
+  revalidatePath("/thesis");
 
   return { success: true };
 }
@@ -350,7 +350,7 @@ export async function removeCropPlan(grain: string) {
   if (error) return { error: error.message };
 
   revalidatePath("/my-farm");
-  revalidatePath("/overview");
+  revalidatePath("/thesis");
 
   return { success: true };
 }

@@ -55,7 +55,7 @@ export function UpdatePasswordForm({ scene }: UpdatePasswordFormProps) {
     }
 
     setDone(true);
-    setTimeout(() => router.push("/overview"), 2000);
+    setTimeout(() => router.push("/thesis"), 2000);
   }
 
   return (

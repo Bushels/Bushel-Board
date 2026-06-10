@@ -9,5 +9,5 @@ import { redirect } from "next/navigation";
  * are gone. See STATUS Tracks 47 + 13 + 45 for context.
  */
 export default function RootPage() {
-  redirect("/overview");
+  redirect("/thesis");
 }
