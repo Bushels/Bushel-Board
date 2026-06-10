@@ -14,7 +14,7 @@ See also:
 | AI narratives + KPIs (CAD / US) | Claude Agent Desk (V2 swarm) | `market_analysis` / `us_market_analysis` + `score_trajectory` / `us_score_trajectory` | Per-grain weekly thesis, stance score, bull/bear reasoning |
 | Legacy AI narratives | Retired Grok V1 archive | `grain_intelligence` | Read-only history - never use for live surfaces or calculations |
 | X/Twitter social signals | X API v2 gateway + sentiment-scout | `x_market_signals` | Pre-scored, farmer-relevant |
-| US export sales / WASDE / conditions | USDA (FAS + NASS) | `usda_export_sales`, `usda_wasde_estimates`, `usda_crop_progress` | US national, mapped to CGC grains |
+| US export sales / WASDE / conditions | USDA (FAS + NASS) | `usda_export_sales`, `usda_wasde_raw` / `usda_wasde_mapped`, `usda_crop_progress` | US national, mapped to CGC grains; `usda_wasde_raw` also carries world veg-oil rows (`country_code '00'`: rapeseed, rapeseed oil, palm oil, soybean oil) for the bounded Canola demand-context lane. `usda_wasde_estimates` is deprecated/orphaned — do not use for active reads. |
 | Fund / commercial positioning | CFTC Disaggregated COT | `cftc_cot_positions` | Per-commodity weekly |
 | User farm data | User input | `crop_plans` / `farm_summaries` | Per-user |
 
