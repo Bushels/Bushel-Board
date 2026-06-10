@@ -178,7 +178,8 @@ describe("GrainRelationshipConstellation Three.js lifecycle", () => {
       configurable: true,
     });
     HTMLCanvasElement.prototype.getContext = function getContext(type: string) {
-      if (type === "webgl2" || type === "webgl") return {} as never;
+      // The probe calls getExtension("WEBGL_lose_context") to release itself.
+      if (type === "webgl2" || type === "webgl") return { getExtension: () => null } as never;
       return null;
     } as typeof HTMLCanvasElement.prototype.getContext;
     globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
