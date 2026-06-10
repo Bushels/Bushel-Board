@@ -1913,7 +1913,7 @@ function runAcceptanceTestProof(): AcceptanceTestProof {
 }
 
 const MAX_BROWSER_SMOKE_PROOF_AGE_MS = 6 * 60 * 60 * 1000;
-const REQUIRED_BROWSER_SMOKE_ROUTES = ["/thesis", "/thesis?audit=1", "/overview"] as const;
+const REQUIRED_BROWSER_SMOKE_ROUTES = ["/thesis", "/thesis?audit=1"] as const;
 const REQUIRED_BROWSER_SMOKE_VIEWPORTS = ["desktop", "mobile"] as const;
 const MIN_BROWSER_SMOKE_SCREENSHOT_BYTES = 2_048;
 const MIN_BROWSER_SMOKE_SCREENSHOT_SAMPLE_PIXELS = 1_000;
@@ -2645,8 +2645,8 @@ function buildTrack54AcceptanceAudit(
       "This readiness report did not run browser smoke for `/thesis`, `/thesis?audit=1`, and `/overview`.",
     ];
   const browserSmokeBlockers = browserProof.checked
-    ? browserProof.ok ? [] : ["Browser smoke failed for `/thesis`, `/thesis?audit=1`, or `/overview`."]
-    : ["Run fresh browser smoke for `/thesis`, `/thesis?audit=1`, and `/overview` before declaring Track 54 complete."];
+    ? browserProof.ok ? [] : ["Browser smoke failed for `/thesis` or `/thesis?audit=1`."]
+    : ["Run fresh browser smoke for `/thesis` and `/thesis?audit=1` before declaring Track 54 complete."];
 
   function codeProofStatus(filesPresent: boolean): AcceptanceStatus {
     if (!filesPresent) return "hold_manual_review";

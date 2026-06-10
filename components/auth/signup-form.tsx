@@ -141,7 +141,7 @@ export function SignupForm({ scene }: SignupFormProps) {
       }
     }
 
-    router.replace(isFarmer ? "/my-farm" : "/overview");
+    router.replace(isFarmer ? "/my-farm" : "/thesis");
     router.refresh();
   }
 

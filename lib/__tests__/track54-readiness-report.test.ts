@@ -429,7 +429,7 @@ const cleanAcceptanceTestProof: AcceptanceTestProof = {
 };
 
 const browserSmokeViewports = ["desktop", "mobile"] as const;
-const browserSmokeRoutes = ["/thesis", "/thesis?audit=1", "/overview"] as const;
+const browserSmokeRoutes = ["/thesis", "/thesis?audit=1"] as const;
 
 function browserScreenshotFileName(viewport: string, route: string): string {
   const routeStem = route.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "root";
@@ -1260,7 +1260,7 @@ describe("Track 54 readiness report", () => {
     expect(report.acceptance_audit.overall_status).toBe("needs_live_verification");
     expect(report.acceptance_audit.items.find((item) => item.id === "browser_smoke_clean")?.status).toBe("needs_live_verification");
     expect(report.acceptance_audit.completion_blockers).toContain(
-      "Run fresh browser smoke for `/thesis`, `/thesis?audit=1`, and `/overview` before declaring Track 54 complete.",
+      "Run fresh browser smoke for `/thesis` and `/thesis?audit=1` before declaring Track 54 complete.",
     );
   });
 
@@ -1299,7 +1299,7 @@ describe("Track 54 readiness report", () => {
     tempRoots.push(root);
     const proofPath = join(root, "browser-smoke-proof.json");
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
-    const missingScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/overview"));
+    const missingScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/thesis"));
     rmSync(missingScreenshotPath);
     writeFileSync(proofPath, JSON.stringify(browserProof));
 
@@ -1307,7 +1307,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      `Browser smoke proof screenshot file not found for mobile /overview: ${missingScreenshotPath}`,
+      `Browser smoke proof screenshot file not found for mobile /thesis: ${missingScreenshotPath}`,
     );
   });
 
@@ -1319,8 +1319,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line === "mobile /overview: loaded http://127.0.0.1:3110/overview"
-          ? "mobile /overview: loaded http://127.0.0.1:3110/thesis"
+        line === "mobile /thesis: loaded http://127.0.0.1:3110/thesis"
+          ? "mobile /thesis: loaded http://127.0.0.1:3110/data-universe"
           : line,
       ),
     }));
@@ -1328,7 +1328,7 @@ describe("Track 54 readiness report", () => {
     const proof = loadBrowserSmokeProof(proofPath, new Date("2026-06-06T00:30:00.000Z"));
 
     expect(proof?.ok).toBe(false);
-    expect(proof?.output).toContain("Browser smoke proof loaded wrong route for mobile /overview: /thesis");
+    expect(proof?.output).toContain("Browser smoke proof loaded wrong route for mobile /thesis: /data-universe");
   });
 
   it("rejects browser smoke proof when a loaded URL is not the local app", () => {
@@ -1358,7 +1358,7 @@ describe("Track 54 readiness report", () => {
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
-      command: "Browser smoke /thesis /thesis?audit=1 /overview",
+      command: "Browser smoke /thesis /thesis?audit=1",
     }));
 
     const proof = loadBrowserSmokeProof(proofPath, new Date("2026-06-06T00:30:00.000Z"));
@@ -1375,8 +1375,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line === "desktop /overview: loaded http://127.0.0.1:3110/overview"
-          ? "desktop /overview: loaded http://127.0.0.1:3111/overview"
+        line === "desktop /thesis?audit=1: loaded http://127.0.0.1:3110/thesis?audit=1"
+          ? "desktop /thesis?audit=1: loaded http://127.0.0.1:3111/thesis?audit=1"
           : line,
       ),
     }));
@@ -1385,7 +1385,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      "Browser smoke proof loaded URL origin does not match command base URL for desktop /overview: loaded=http://127.0.0.1:3111 expected=http://127.0.0.1:3110",
+      "Browser smoke proof loaded URL origin does not match command base URL for desktop /thesis?audit=1: loaded=http://127.0.0.1:3111 expected=http://127.0.0.1:3110",
     );
   });
 
@@ -1395,13 +1395,13 @@ describe("Track 54 readiness report", () => {
     tempRoots.push(root, outsideRoot);
     const proofPath = join(root, "browser-smoke-proof.json");
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
-    const outsideScreenshotPath = join(outsideRoot, browserScreenshotFileName("mobile", "/overview"));
+    const outsideScreenshotPath = join(outsideRoot, browserScreenshotFileName("mobile", "/thesis?audit=1"));
     writeFileSync(outsideScreenshotPath, fakePngBytes(390, 844));
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line.startsWith("mobile /overview: screenshot=")
-          ? `mobile /overview: screenshot=${outsideScreenshotPath}`
+        line.startsWith("mobile /thesis?audit=1: screenshot=")
+          ? `mobile /thesis?audit=1: screenshot=${outsideScreenshotPath}`
           : line,
       ),
     }));
@@ -1410,7 +1410,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      `Browser smoke proof screenshot path is outside proof directory for mobile /overview: ${outsideScreenshotPath}`,
+      `Browser smoke proof screenshot path is outside proof directory for mobile /thesis?audit=1: ${outsideScreenshotPath}`,
     );
   });
 
@@ -1423,8 +1423,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line.startsWith("desktop /overview: screenshot=")
-          ? `desktop /overview: screenshot=${reusedScreenshotPath}`
+        line.startsWith("desktop /thesis?audit=1: screenshot=")
+          ? `desktop /thesis?audit=1: screenshot=${reusedScreenshotPath}`
           : line,
       ),
     }));
@@ -1433,7 +1433,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      `Browser smoke proof reuses screenshot path for desktop /overview; already used by desktop /thesis: ${reusedScreenshotPath}`,
+      `Browser smoke proof reuses screenshot path for desktop /thesis?audit=1; already used by desktop /thesis: ${reusedScreenshotPath}`,
     );
   });
 
@@ -1447,8 +1447,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line.startsWith("desktop /overview: screenshot=")
-          ? `desktop /overview: screenshot=${wrongScreenshotPath}`
+        line.startsWith("desktop /thesis?audit=1: screenshot=")
+          ? `desktop /thesis?audit=1: screenshot=${wrongScreenshotPath}`
           : line,
       ),
     }));
@@ -1457,7 +1457,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      "Browser smoke proof screenshot filename does not match desktop /overview: proof=desktop-thesis.png.copy.png expected=desktop-overview.png",
+      "Browser smoke proof screenshot filename does not match desktop /thesis?audit=1: proof=desktop-thesis.png.copy.png expected=desktop-thesis-audit-1.png",
     );
   });
 
@@ -1470,8 +1470,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line === `mobile /overview: screenshot_bytes=${tinyPngBytes.length}`
-          ? `mobile /overview: screenshot_bytes=${badByteCount}`
+        line === `mobile /thesis?audit=1: screenshot_bytes=${tinyPngBytes.length}`
+          ? `mobile /thesis?audit=1: screenshot_bytes=${badByteCount}`
           : line,
       ),
     }));
@@ -1480,7 +1480,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      `Browser smoke proof screenshot byte count mismatch for mobile /overview: proof=${badByteCount} actual=${tinyPngBytes.length}`,
+      `Browser smoke proof screenshot byte count mismatch for mobile /thesis?audit=1: proof=${badByteCount} actual=${tinyPngBytes.length}`,
     );
   });
 
@@ -1489,7 +1489,7 @@ describe("Track 54 readiness report", () => {
     tempRoots.push(root);
     const proofPath = join(root, "browser-smoke-proof.json");
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
-    const corruptScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/overview"));
+    const corruptScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/thesis"));
     writeFileSync(corruptScreenshotPath, Buffer.alloc(tinyPngBytes.length, 1));
     writeFileSync(proofPath, JSON.stringify(browserProof));
 
@@ -1497,7 +1497,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      `Browser smoke proof screenshot is not a PNG file for mobile /overview: ${corruptScreenshotPath}`,
+      `Browser smoke proof screenshot is not a PNG file for mobile /thesis: ${corruptScreenshotPath}`,
     );
   });
 
@@ -1509,8 +1509,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line === "mobile /overview: screenshot_dimensions=390x844"
-          ? "mobile /overview: screenshot_dimensions=390x800"
+        line === "mobile /thesis?audit=1: screenshot_dimensions=390x844"
+          ? "mobile /thesis?audit=1: screenshot_dimensions=390x800"
           : line,
       ),
     }));
@@ -1519,7 +1519,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      "Browser smoke proof screenshot dimensions do not match mobile viewport for /overview: proof=390x800 expected=390x844",
+      "Browser smoke proof screenshot dimensions do not match mobile viewport for /thesis?audit=1: proof=390x800 expected=390x844",
     );
   });
 
@@ -1528,7 +1528,7 @@ describe("Track 54 readiness report", () => {
     tempRoots.push(root);
     const proofPath = join(root, "browser-smoke-proof.json");
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
-    const wrongSizeScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/overview"));
+    const wrongSizeScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/thesis"));
     writeFileSync(wrongSizeScreenshotPath, fakePngBytes(390, 800));
     writeFileSync(proofPath, JSON.stringify(browserProof));
 
@@ -1536,7 +1536,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain(
-      "Browser smoke proof screenshot dimension mismatch for mobile /overview: proof=390x844 actual=390x800",
+      "Browser smoke proof screenshot dimension mismatch for mobile /thesis: proof=390x844 actual=390x800",
     );
   });
 
@@ -1547,13 +1547,13 @@ describe("Track 54 readiness report", () => {
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
-      output: browserProof.output.filter((line) => !line.startsWith("mobile /overview: screenshot_visual=")),
+      output: browserProof.output.filter((line) => !line.startsWith("mobile /thesis?audit=1: screenshot_visual=")),
     }));
 
     const proof = loadBrowserSmokeProof(proofPath, new Date("2026-06-06T00:30:00.000Z"));
 
     expect(proof?.ok).toBe(false);
-    expect(proof?.output).toContain("Browser smoke proof missing mobile /overview: screenshot_visual=");
+    expect(proof?.output).toContain("Browser smoke proof missing mobile /thesis?audit=1: screenshot_visual=");
   });
 
   it("rejects browser smoke proof when screenshot visual stats look blank", () => {
@@ -1564,8 +1564,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line === "mobile /overview: screenshot_visual=sample_pixels=6912 distinct_colors=42 non_white_ratio=0.38 luma_range=196.4"
-          ? "mobile /overview: screenshot_visual=sample_pixels=6912 distinct_colors=1 non_white_ratio=0 luma_range=0"
+        line === "mobile /thesis?audit=1: screenshot_visual=sample_pixels=6912 distinct_colors=42 non_white_ratio=0.38 luma_range=196.4"
+          ? "mobile /thesis?audit=1: screenshot_visual=sample_pixels=6912 distinct_colors=1 non_white_ratio=0 luma_range=0"
           : line,
       ),
     }));
@@ -1573,9 +1573,9 @@ describe("Track 54 readiness report", () => {
     const proof = loadBrowserSmokeProof(proofPath, new Date("2026-06-06T00:30:00.000Z"));
 
     expect(proof?.ok).toBe(false);
-    expect(proof?.output).toContain("Browser smoke proof screenshot has too few sampled colors for mobile /overview: 1");
-    expect(proof?.output).toContain("Browser smoke proof screenshot non-white ratio is too low for mobile /overview: 0");
-    expect(proof?.output).toContain("Browser smoke proof screenshot luma range is too low for mobile /overview: 0");
+    expect(proof?.output).toContain("Browser smoke proof screenshot has too few sampled colors for mobile /thesis?audit=1: 1");
+    expect(proof?.output).toContain("Browser smoke proof screenshot non-white ratio is too low for mobile /thesis?audit=1: 0");
+    expect(proof?.output).toContain("Browser smoke proof screenshot luma range is too low for mobile /thesis?audit=1: 0");
   });
 
   it("rejects browser smoke proof when actual screenshot visual content looks blank", () => {
@@ -1583,16 +1583,16 @@ describe("Track 54 readiness report", () => {
     tempRoots.push(root);
     const proofPath = join(root, "browser-smoke-proof.json");
     const browserProof = cleanBrowserSmokeProofWithScreenshots(root);
-    const blankScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/overview"));
+    const blankScreenshotPath = join(root, "screenshots", browserScreenshotFileName("mobile", "/thesis"));
     writeFileSync(blankScreenshotPath, blankPngBytes(390, 844, tinyPngBytes.length));
     writeFileSync(proofPath, JSON.stringify(browserProof));
 
     const proof = loadBrowserSmokeProof(proofPath, new Date("2026-06-06T00:30:00.000Z"));
 
     expect(proof?.ok).toBe(false);
-    expect(proof?.output).toContain("Browser smoke proof actual screenshot has too few sampled colors for mobile /overview: 1");
-    expect(proof?.output).toContain("Browser smoke proof actual screenshot non-white ratio is too low for mobile /overview: 0");
-    expect(proof?.output).toContain("Browser smoke proof actual screenshot luma range is too low for mobile /overview: 0");
+    expect(proof?.output).toContain("Browser smoke proof actual screenshot has too few sampled colors for mobile /thesis: 1");
+    expect(proof?.output).toContain("Browser smoke proof actual screenshot non-white ratio is too low for mobile /thesis: 0");
+    expect(proof?.output).toContain("Browser smoke proof actual screenshot luma range is too low for mobile /thesis: 0");
   });
 
   it("rejects legacy browser smoke proof that lacks mobile and interaction evidence", () => {
@@ -1604,7 +1604,7 @@ describe("Track 54 readiness report", () => {
       output: [
         "/thesis clean console",
         "/thesis?audit=1 clean console",
-        "/overview clean console",
+        "/thesis?audit=1 clean console",
       ],
     }));
 
@@ -1628,7 +1628,7 @@ describe("Track 54 readiness report", () => {
 
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain("Browser smoke proof missing desktop /thesis: loaded ");
-    expect(proof?.output).toContain("Browser smoke proof missing mobile /overview: interaction=theme_toggle:ok");
+    expect(proof?.output).toContain("Browser smoke proof missing mobile /thesis?audit=1: interaction=theme_toggle:ok");
     expect(report.acceptance_audit.items.find((item) => item.id === "browser_smoke_clean")?.status).toBe("hold_manual_review");
   });
 
@@ -1640,8 +1640,8 @@ describe("Track 54 readiness report", () => {
     writeFileSync(proofPath, JSON.stringify({
       ...browserProof,
       output: browserProof.output.map((line) =>
-        line === "mobile /overview: visible_markers=Source health:visible, Weekly Data Intake:visible"
-          ? "mobile /overview: visible_markers=Source health:visible, Weekly Data Intake:hidden"
+        line === "mobile /thesis?audit=1: visible_markers=Source health:visible, Weekly Data Intake:visible"
+          ? "mobile /thesis?audit=1: visible_markers=Source health:visible, Weekly Data Intake:hidden"
           : line,
       ),
     }));
@@ -1649,7 +1649,7 @@ describe("Track 54 readiness report", () => {
     const proof = loadBrowserSmokeProof(proofPath, new Date("2026-06-06T00:30:00.000Z"));
 
     expect(proof?.ok).toBe(false);
-    expect(proof?.output).toContain("Browser smoke proof has hidden, covered, or missing visible markers for mobile /overview.");
+    expect(proof?.output).toContain("Browser smoke proof has hidden, covered, or missing visible markers for mobile /thesis?audit=1.");
   });
 
   it("rejects browser smoke proof when a marker is visible but covered by another element", () => {
@@ -1817,7 +1817,7 @@ describe("Track 54 readiness report", () => {
     expect(proof?.ok).toBe(false);
     expect(proof?.output).toContain("Browser smoke proof is older than 6 hours; rerun npm run track54:browser-smoke.");
     expect(report.acceptance_audit.items.find((item) => item.id === "browser_smoke_clean")?.status).toBe("hold_manual_review");
-    expect(report.acceptance_audit.completion_blockers).toContain("Browser smoke failed for `/thesis`, `/thesis?audit=1`, or `/overview`.");
+    expect(report.acceptance_audit.completion_blockers).toContain("Browser smoke failed for `/thesis` or `/thesis?audit=1`.");
   });
 
   it("rejects browser smoke proof missing generated_at", () => {

@@ -145,11 +145,6 @@ const ROUTES: RouteSmokeConfig[] = [
     markers: ["Source health", "Source-backed pressure summary", "Your area", "Board update mode", "Daily Update Status", "Daily decision path", "Today update window", "Today update checklist", "Daily automation gate progress", "Readiness proof", "Score source", "X Pulse Watch", "Weekly Data Intake", "Analyzed data", "Current week pull tracker", "Weekly pull calendar", "Track 54 production gate", "How data becomes Bull/Bear pressure", "Role", "Pressure lane", "Current board status", "Latest collector", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution", "Scorecard audit", "Data coverage matrix", "Next source admissions", "Impact Map audit"],
     forbiddenText: [...PUBLIC_ADVICE_FORBIDDEN_TERMS],
   },
-  {
-    path: "/overview",
-    markers: ["Source-backed pressure", "All markets", "Weekly Deliveries and Farmer Storage"],
-    forbiddenText: [...PUBLIC_BOARD_FORBIDDEN_TERMS],
-  },
 ];
 
 function findChromePath(): string {
