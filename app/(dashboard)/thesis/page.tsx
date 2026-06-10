@@ -15,8 +15,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { cookies } from "next/headers";
 import { GrainImpactGraphPanel } from "@/components/dashboard/grain-impact-graph-panel";
 import { GrainReadLinkage } from "@/components/dashboard/grain-read-linkage";
+import { YourAreaCard } from "@/components/dashboard/your-area-card";
+import { getAreaBids, getProvincialFlow } from "@/lib/queries/area-read";
+import { AREA_FSA_COOKIE, areaFromFsa } from "@/lib/utils/area";
 import type { GrainImpactGraphBoardRead } from "@/lib/thesis/grain-impact-graph";
 import {
   Card,
@@ -4602,13 +4606,18 @@ export default async function ThesisPage({
 } = {}) {
   const params = await searchParams;
   const auditMode = params?.audit === "1";
-  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot] = await Promise.all([
-    getThesisBoardData(),
-    getXPulseWatchSummary(),
-    getLatestSourceRunSummaries(WEEKLY_DATA_SOURCE_RUN_NAMES),
-    getLatestDailyThesisUpdates(4),
-    getLocalTrack54ReadinessSnapshot(),
-  ]);
+  const cookieStore = await cookies();
+  const area = areaFromFsa(cookieStore.get(AREA_FSA_COOKIE)?.value);
+  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, provincialFlow, areaBids] =
+    await Promise.all([
+      getThesisBoardData(),
+      getXPulseWatchSummary(),
+      getLatestSourceRunSummaries(WEEKLY_DATA_SOURCE_RUN_NAMES),
+      getLatestDailyThesisUpdates(4),
+      getLocalTrack54ReadinessSnapshot(),
+      area?.provinceName ? getProvincialFlow(area.provinceName) : Promise.resolve(null),
+      area ? getAreaBids(area.fsa) : Promise.resolve([]),
+    ]);
   const currentData = applyDailyTrajectoryOverlay(data, dailyUpdates);
 
   return (
@@ -4636,6 +4645,13 @@ export default async function ThesisPage({
       <ThesisQuickGlanceBoard rows={currentData.comparisonRows} />
 
       <MajorThesisMatrix rows={currentData.comparisonRows} />
+
+      <YourAreaCard
+        area={area}
+        flows={provincialFlow?.flows ?? []}
+        grainWeek={provincialFlow?.grainWeek ?? null}
+        bids={areaBids}
+      />
 
       <DataQualityBanner data={currentData} />
 

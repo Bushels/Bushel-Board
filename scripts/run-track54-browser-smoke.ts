@@ -134,7 +134,7 @@ const ROUTES: RouteSmokeConfig[] = [
     // only farmer-facing surfaces. Operator telemetry markers are FORBIDDEN here and must
     // render in audit mode instead.
     path: "/thesis",
-    markers: ["Source-backed pressure summary", "Source health", "Board update mode", "Score source", "What feeds this read", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution"],
+    markers: ["Source-backed pressure summary", "Source health", "Board update mode", "Score source", "What feeds this read", "Your area", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution"],
     // "Watch-only social evidence" is the moved X Pulse panel's badge; the panel title
     // "X Pulse Watch" cannot be used as a sentinel because it case-insensitively matches
     // the legitimate "X Pulse watch leads" copy in the farmer-facing pressure map.
@@ -142,7 +142,7 @@ const ROUTES: RouteSmokeConfig[] = [
   },
   {
     path: "/thesis?audit=1",
-    markers: ["Source health", "Source-backed pressure summary", "Board update mode", "Daily Update Status", "Daily decision path", "Today update window", "Today update checklist", "Daily automation gate progress", "Readiness proof", "Score source", "X Pulse Watch", "Weekly Data Intake", "Analyzed data", "Current week pull tracker", "Weekly pull calendar", "Track 54 production gate", "How data becomes Bull/Bear pressure", "Role", "Pressure lane", "Current board status", "Latest collector", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution", "Scorecard audit", "Data coverage matrix", "Next source admissions", "Impact Map audit"],
+    markers: ["Source health", "Source-backed pressure summary", "Your area", "Board update mode", "Daily Update Status", "Daily decision path", "Today update window", "Today update checklist", "Daily automation gate progress", "Readiness proof", "Score source", "X Pulse Watch", "Weekly Data Intake", "Analyzed data", "Current week pull tracker", "Weekly pull calendar", "Track 54 production gate", "How data becomes Bull/Bear pressure", "Role", "Pressure lane", "Current board status", "Latest collector", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution", "Scorecard audit", "Data coverage matrix", "Next source admissions", "Impact Map audit"],
     forbiddenText: [...PUBLIC_ADVICE_FORBIDDEN_TERMS],
   },
   {

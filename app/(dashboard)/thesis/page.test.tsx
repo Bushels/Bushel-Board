@@ -19,12 +19,32 @@ const {
   getLatestSourceRunSummariesMock,
   getLatestDailyThesisUpdatesMock,
   getLocalTrack54ReadinessSnapshotMock,
+  cookieGetMock,
+  getProvincialFlowMock,
+  getAreaBidsMock,
 } = vi.hoisted(() => ({
   getThesisBoardDataMock: vi.fn<() => Promise<ThesisBoardData>>(),
   getXPulseWatchSummaryMock: vi.fn<() => Promise<XPulseWatchSummary>>(),
   getLatestSourceRunSummariesMock: vi.fn<() => Promise<SourceRunSummary[]>>(),
   getLatestDailyThesisUpdatesMock: vi.fn<() => Promise<DailyThesisUpdateSummary[]>>(),
   getLocalTrack54ReadinessSnapshotMock: vi.fn<() => Promise<Track54ReadinessSnapshot | null>>(),
+  cookieGetMock: vi.fn<(name: string) => { value: string } | undefined>(),
+  getProvincialFlowMock: vi.fn(),
+  getAreaBidsMock: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ get: cookieGetMock })),
+}));
+
+vi.mock("@/lib/queries/area-read", () => ({
+  getProvincialFlow: getProvincialFlowMock,
+  getAreaBids: getAreaBidsMock,
+}));
+
+vi.mock("@/app/(dashboard)/thesis/area-actions", () => ({
+  setAreaFsa: vi.fn(),
+  clearAreaFsa: vi.fn(),
 }));
 
 vi.mock("@/lib/queries/thesis-board", async (importOriginal) => {
@@ -545,6 +565,9 @@ describe("ThesisPage scorecard audit mode", () => {
     getLatestSourceRunSummariesMock.mockResolvedValue([]);
     getLatestDailyThesisUpdatesMock.mockResolvedValue([]);
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
+    cookieGetMock.mockReturnValue(undefined);
+    getProvincialFlowMock.mockResolvedValue(null);
+    getAreaBidsMock.mockResolvedValue([]);
   });
 
   it("keeps scorecard audit details hidden in thesis audit mode", async () => {
@@ -799,6 +822,63 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("Daily automation gate progress");
     expect(html).not.toContain("Readiness proof");
     expect(html).not.toContain("Track 54 production gate");
+  });
+
+  it("prompts for a postal code in the Your area card when no area is saved", async () => {
+    const html = await renderThesisPage();
+
+    expect(html).toContain("Your area");
+    expect(html).toContain("Enter your postal code");
+    expect(html).toContain("Saved on this device only");
+    // The farmer read still leads; the area card sits after the matrix.
+    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Your area"));
+  });
+
+  it("localizes the board with provincial flow and honest empty bids when an area is saved", async () => {
+    cookieGetMock.mockReturnValue({ value: "S0K" });
+    getProvincialFlowMock.mockResolvedValue({
+      province: "Saskatchewan",
+      grainWeek: 42,
+      cropYear: "2025-2026",
+      flows: [
+        { grain: "Canola", weekKt: 47.4, seasonKt: 4525.9, priorSeasonKt: 4200, seasonYoyPct: 8 },
+        { grain: "Wheat", weekKt: 88.1, seasonKt: 7200.5, priorSeasonKt: 7500, seasonYoyPct: -4 },
+      ],
+    });
+
+    const html = await renderThesisPage();
+
+    expect(html).toContain("Local context for S0K (Saskatchewan)");
+    expect(html).toContain("Saskatchewan elevator deliveries");
+    expect(html).toContain("CGC week 42");
+    expect(html).toContain("8% ahead of last season");
+    expect(html).toContain("4% behind last season");
+    expect(html).toContain("No elevator or processor prices are posted for your area yet");
+    expect(getProvincialFlowMock).toHaveBeenCalledWith("Saskatchewan");
+    expect(getAreaBidsMock).toHaveBeenCalledWith("S0K");
+  });
+
+  it("shows posted local bids with the local price gap when operators have posted", async () => {
+    cookieGetMock.mockReturnValue({ value: "T0L" });
+    getProvincialFlowMock.mockResolvedValue({ province: "Alberta", grainWeek: 42, cropYear: "2025-2026", flows: [] });
+    getAreaBidsMock.mockResolvedValue([
+      {
+        facilityName: "Foothills Grain",
+        businessType: "elevator",
+        grain: "Canola",
+        pricePerTonne: 612.5,
+        basis: -38.25,
+        deliveryPeriod: "June",
+        postedAt: "2026-06-09T15:00:00Z",
+      },
+    ]);
+
+    const html = await renderThesisPage();
+
+    expect(html).toContain("Prices posted near you");
+    expect(html).toContain("Foothills Grain");
+    expect(html).toContain("$612.50/t");
+    expect(html).toContain("local price gap -38.25");
   });
 
   it("keeps the operator telemetry panels in audit mode, after the farmer read", async () => {
