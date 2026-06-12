@@ -92,6 +92,33 @@ type RatingRelation = {
 
 **Bounds and ordering:** sum of `adjust` effects clamped to **±15**; `floor_domain` applies during assembly; `cap` effects apply **after** adjustments; final clamp ±100 unchanged. Every fired relation appended to `relations_fired[]` with provenance text.
 
+### 5b. Per-grain profiles (added 2026-06-12)
+
+One formula does not fit all 16 grains. V2 introduces **grain profiles** that parameterize both the domain weights and the relation set, replacing the single per-lane weight table:
+
+```ts
+type GrainProfile = {
+  grain_class: "milling_cereal" | "oilseed" | "feed_grain" | "pulse" | "specialty";
+  weights: Partial<Record<DomainKey, number>>;   // overrides lane defaults, re-normalized
+  relations: { [relationId: string]: { enabled: boolean; thresholds?: Record<string, number> } };
+  bounded_contexts: string[];                    // which context mappers apply
+};
+```
+
+Class assignments: Wheat/Amber Durum → `milling_cereal`; Canola/Flaxseed/Mustard Seed/Sunflower/Soybeans → `oilseed`; Barley/Corn/Oats/Rye → `feed_grain`; Peas/Lentils/Chick Peas/Beans → `pulse`; Canaryseed → `specialty`.
+
+Class-level differences in V2 (full threshold table lives with the implementation plan):
+
+| Class | Weight emphasis vs lane default | Relation differences | Contexts |
+|---|---|---|---|
+| milling_cereal | demand/positioning ↑ (futures-anchored) | full set incl. `quality_premium_watch`, `class_spread` sub-signal | world_balance, fx, x_sentiment |
+| oilseed | demand ↑ (crush + export pull), movement ↑ | `quality_premium_watch` off; crush-utilization variant of `pipeline_drain` (process deliveries in the absorption sum) | veg_oil (Canola), world_balance, fx, x_sentiment |
+| feed_grain | logistics ↓, price ↓ (thin futures for Oats/Rye), supply ↑ | `divergence_timing` off where no liquid contract; `pipeline_drain` thresholds lowered (smaller weekly volumes) | world_balance (Corn/Barley), fx |
+| pulse | price ↓↓ (no futures), demand ↑↑ (export-program driven), weather ↑ | price-pattern domain inactive → weight redistributed; `priced_in_cap`/`basis_veto` inactive; `pipeline_drain` primary signal | fx only |
+| specialty | supply/demand only, low confidence baseline | minimal set (`pipeline_drain`/`pipeline_flood`) | fx only |
+
+Profiles are static config (`lib/thesis/grain-profiles.ts`), versioned in the scorecard output (`profile_version`), and unit-tested per class. Unknown grain → lane default (current behavior), never an error.
+
 ## 6. International Bounded-Context Lane
 
 **6a. World + major-exporter WASDE (wheat/feed complex).**
@@ -104,6 +131,22 @@ type RatingRelation = {
 **6b. FX (CAD/USD).**
 - New table `fx_rates` (`rate_date date PK, pair text, rate numeric, source text, imported_at`); collector `scripts/import-fx-rates.ts` hitting the **Bank of Canada Valet API** (`FXUSDCAD`, free/official/JSON); wrapper `collect:fx` so successful runs refresh the thesis cache; `source_runs` lane `cross_border`.
 - Mapper `mapFxContext()` — Canada lane only: CAD weakened ≥0.5% WoW → **+3** price-context tilt (export competitiveness, CAD bid cushion); strengthened ≥0.5% → **−3**; else 0. `bounded_context` class, strong freshness only.
+
+### 6c. Reserves & on-farm stocks lane (added 2026-06-12)
+
+Three tiers, ordered by data quality:
+
+**Tier 1 — On-farm stocks, Canada (official, importable now).** Statistics Canada *Stocks of principal field crops* survey reports **on-farm vs commercial** stocks three times per crop year (as at Mar 31, Jul 31, Dec 31), per grain. We already run a StatsCan WDS importer (`collect:statcan`); extend it to the stocks table into a new `farm_stocks` table (`country, grain, as_at_date, on_farm_kt, commercial_kt, total_kt, source`). Mapper `mapFarmStocksContext()`: on-farm stocks YoY at the latest survey date → bounded **±5** supply-context tilt (on-farm down ≥10% YoY = grain genuinely gone, +; up ≥10% = the "farmers holding" overhang is real, −). `bounded_context` class; survey cadence means freshness window is wide (a survey ≤120 days old counts as strong).
+
+**Tier 2 — On-farm stocks, USA (official, importable now).** USDA NASS *Grain Stocks* (quarterly: Mar 1, Jun 1, Sep 1, Dec 1) splits **on-farm vs off-farm** per state and US total. We already hold `USDA_NASS_API_KEY` (same Quick Stats API as crop progress). Import into the same `farm_stocks` table (`country='US'`); same mapper, US lane.
+
+**Tier 3 — Strategic reserves by country (estimates only, watch + desk context).** True strategic reserve levels are state secrets in the countries that matter most; the honest implementation:
+- **USDA PSD country ending stocks** (already arriving via the §6a exporter extension, plus adding **China and India** country rows for Wheat/Corn) serve as the canonical *estimate* of who holds what. This also unlocks the **ex-China S/U** computation directly (world minus China rows).
+- **India**: FCI publishes monthly central-pool wheat/rice stocks — admit later as an optional collector if India trade policy becomes thesis-relevant; not in V2 scope.
+- **China**: no credible direct source; remains **watch-only desk context** (debate Rule 21 note: China reserve releases/purchases are a risk flag, never a scored input).
+- These rows feed the desk brief as a "who holds the world's wheat" table; only the exporter-S/U mapper (§6a) scores numerically.
+
+The My Farm `crop_plans` remaining-grain data (already in packets as `farmer_behavior`) stays a color signal only — n is too small to score until the user base grows; revisit at ≥100 reporting farms per grain.
 
 ## 7. Price-Pattern Domain Upgrade
 
@@ -191,10 +234,11 @@ Written on every `refresh_thesis_packet_cache` run (and `collect:*` wrapper succ
 
 | Phase | Scope | New data? |
 |---|---|---|
-| **P1** | `rating-relations.ts` + relation set; `mapPricePatternDomain()`; `thesis_scorecards` persistence; golden-packet tests | none |
-| **P2** | WASDE world + 8-exporter rows for Wheat/Corn/Barley; `mapWorldBalanceContext()`; `fx_rates` + `collect:fx`; `mapFxContext()` | PSD extension + BoC Valet |
+| **P1** | `rating-relations.ts` + relation set; **grain profiles** (`lib/thesis/grain-profiles.ts`); `mapPricePatternDomain()`; `thesis_scorecards` persistence; golden-packet tests | none |
+| **P2** | WASDE world + 8-exporter rows + **China/India rows** for Wheat/Corn/Barley; `mapWorldBalanceContext()` incl. **ex-China S/U**; `fx_rates` + `collect:fx`; `mapFxContext()` | PSD extension + BoC Valet |
+| **P2b** | **`farm_stocks` table**; StatsCan stocks-survey extension of `collect:statcan` (Canada on-farm) + NASS Grain Stocks importer (US on-farm); `mapFarmStocksContext()` | StatsCan WDS + NASS Quick Stats (keys/importers exist) |
 | **P3** | X scout 72h window + dedup + sentiment-summary prompt shape; `sentiment_consensus` + ±5 bounded tilt | none (existing gateway) |
-| **P4** | Debate Rules 20–23; swarm prompt baseline injection; analyst agent def updates | none |
+| **P4** | Debate Rules 20–23 (incl. China-reserves watch note); swarm prompt baseline injection + "who holds the world's wheat" brief table; analyst agent def updates | none |
 
 P4 items that document P1–P3 behavior ship alongside their phase. Exception: a **minimal prompt addendum** (the `DETERMINISTIC BASELINE` block + deviation-justification instruction) ships with P1, since the persisted baseline exists from P1 onward; the fuller Rules 20–23 rewrite and analyst agent def updates remain P4.
 
@@ -210,3 +254,4 @@ P4 items that document P1–P3 behavior ship alongside their phase. Exception: a
 
 - 2026-06-12 (Kyle): improvements land in **both** layers, tiered; international admitted as **bounded set** (WASDE world/exporter + FX; MATIF deferred); X sentiment gets the **bounded ±5 tilt**, not a weighted domain.
 - Approach A (relation overlays) chosen over learned interaction model (no training history, opacity) and prompt-only (auditability, drift history).
+- 2026-06-12 (Kyle, spec review): formulas must differ **per grain** → §5b grain profiles (class-based weights + relation applicability/thresholds). Track **reserves**: on-farm stocks for Canada (StatsCan stocks survey) and US (NASS Grain Stocks) admitted as bounded ±5 supply context (§6c, P2b); country "strategic reserves" handled honestly as PSD estimates (China/India rows, ex-China S/U) with China scored never, watched always.
