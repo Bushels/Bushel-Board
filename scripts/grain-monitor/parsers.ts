@@ -411,12 +411,25 @@ export function parseCountryDeliveriesAndPortPerformance(page1Text: string, page
   );
 
   const octBulletMatch = page1Flat.match(
-    /The total average terminal out-of-car time \(OCT\).*?to ([\d.]+)% from ([\d.]+)% the previous week\. The OCT for Week \d+ was ([\d.]+)% at Vancouver, ([\d.]+)% at Prince Rupert, and ([\d.]+)% at Thunder Bay\./i,
+    /The total average terminal out-of-car time \(OCT\).*?to ([\d.]+)% from ([\d.]+)% the previous week\./i,
   );
 
   if (!octBulletMatch) {
     throw new Error("Could not parse OCT metrics from page 1 summary bullets");
   }
+
+  // Per-port OCT values are optional: ports that "had not yet reported" are
+  // omitted from the bullet (first seen Week 43 2025-26, Prince Rupert missing).
+  const octBulletTail = page1Flat.slice(
+    (octBulletMatch.index ?? 0) + octBulletMatch[0].length,
+  );
+  const octForWeekSentence =
+    octBulletTail.match(/The OCT for Week \d+ was [^•]*?(?=\.\s|\. [A-Z0-9])/i)?.[0] ??
+    octBulletTail.slice(0, 300);
+  const octPortPct = (port: string): string | null =>
+    octForWeekSentence.match(new RegExp(`([\\d.]+)% at ${port}`, "i"))?.[1] ?? null;
+  const octVancouver = octPortPct("Vancouver");
+  const octPrinceRupert = octPortPct("Prince Rupert");
 
   return {
     country_deliveries_kt: parseNumericToken(deliveryTokens[4]),
@@ -430,8 +443,9 @@ export function parseCountryDeliveriesAndPortPerformance(page1Text: string, page
     var_to_four_week_avg_pct: parseNumericToken(varToFourWeekAverageTokens[5]),
     ytd_unloads_cars: parseNumericToken(ytdUnloadTokens[5], { integer: true, dashAsZero: true }),
     out_of_car_time_pct: parseNumericToken(octBulletMatch[1]),
-    out_of_car_time_vancouver_pct: parseNumericToken(octBulletMatch[3]),
-    out_of_car_time_prince_rupert_pct: parseNumericToken(octBulletMatch[4]),
+    out_of_car_time_vancouver_pct: octVancouver === null ? null : parseNumericToken(octVancouver),
+    out_of_car_time_prince_rupert_pct:
+      octPrinceRupert === null ? null : parseNumericToken(octPrinceRupert),
   };
 }
 
