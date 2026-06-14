@@ -200,6 +200,29 @@ Action: [one sentence]
 
 ---
 
+## Rules 20-21: Stance Accountability
+
+These exist because stance scores have historically wandered turn-to-turn (e.g. wheat Canada `+10→+25→+18→+15`, US `+12→+20→+30→+20` in one session) in a partly ad-hoc way, with at least one jump triggered by a *reframing request* before any new evidence was gathered. A reader could not distinguish evidence-updating from mood-updating. These rules make every move auditable. They are the prose precursor to the deterministic `thesis_scorecards` + >15-point desk-deviation justification in `docs/plans/2026-06-12-stance-model-v2-design.md`.
+
+### Rule 20 — Stance-Change Ledger
+Every published change to a grain's stance score emits a one-line ledger row:
+`{ grain | old → new | driver = specific new datum + source + date | prior_direction_requested = yes/no }`.
+- Any revision **> 5 points** must decompose the delta as a sum of **named domain/overlay changes** whose magnitudes sum to the net move — e.g. `demand +6 (June WASDE production cut, 2026-06-11) + positioning −4 (COT flip MM short, 2026-06-09) = net +2`.
+- If the **only** driver is a reframing/perspective request with **no new datum** (e.g. "look at it bullish"), the score **MUST NOT move**: state `reframed lens, evidence unchanged, stance held at X`. Reframing changes emphasis, not the number.
+- A point may be **rejected** only by citing a fact at least as fresh as the one it overturns; print both dates.
+
+### Rule 21 — Reconciliation Table (on subagent / reviewer disagreement)
+When a second reviewer (Codex, another desk pass) returns a divergent score, do **not** silently average the two priors. Emit:
+
+| contested claim | reviewer position | our prior | accept / reject / partial | single deciding datum + its freshness date | resulting delta |
+|---|---|---|---|---|---|
+
+- Every accept/partial must attribute to a specific row; the deltas sum to the net change.
+- Land **between** the two priors unless one is evidentially dominated (cite the dominating fact).
+- The final score is the prior ± the summed reconciliation deltas — never a vibe-blend.
+
+---
+
 ## Validation Checklist (Post-Generation)
 
 Before publishing any grain intelligence, verify:
@@ -220,6 +243,9 @@ Before publishing any grain intelligence, verify:
 - [ ] **Coiled Spring — bid spread check:** If thesis cites "withholding," is Process vs Primary delivery divergence ruled out? (Rule 17)
 - [ ] **Basis veto applied:** If basis component ≤ -2, is composite score capped at +2? (Rule 18)
 - [ ] **COT cover confirmation:** Is any short-cover signal backed by 3 weeks of same-direction moves OR matching USDA shipment acceleration? (Rule 19)
+- [ ] **Stance-change ledger emitted:** Does every score change show `old → new` with the specific dated driver, and is any >5-point move decomposed into summed domain deltas? (Rule 20)
+- [ ] **No reframe-only moves:** If the score changed, was it driven by a NEW datum and not merely a reframing request? (Rule 20)
+- [ ] **Reconciliation table on disagreement:** If a reviewer/Codex diverged, is there a reconciliation table instead of a silent average? (Rule 21)
 
 ## Price Accountability Log
 

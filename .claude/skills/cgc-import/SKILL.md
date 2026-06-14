@@ -68,7 +68,7 @@ npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"
 1. Check `cgc_imports` and `MAX(grain_week)` in `cgc_observations`.
 2. Run `npm run import-cgc`.
 3. Confirm the latest `cgc_imports` row is `success` or explain `failed` / `partial`.
-4. Confirm `MAX(grain_week)` moved forward when a new CGC week was published.
+4. **Confirm week CONTIGUITY, not just that `MAX(grain_week)` advanced.** A `success` import whose `latest_validation.checks.week_continuity.passed === false` (verdict `MISSING_WEEK_INCIDENT`, exit code 1) is a **MISSING-WEEK INCIDENT, not a pass** — a week was skipped. Backfill the skipped week(s) with `npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"` and re-validate before declaring done. Contiguity check: `SELECT generate_series(MIN(grain_week), MAX(grain_week)) AS wk FROM cgc_observations WHERE crop_year='2025-2026' EXCEPT SELECT DISTINCT grain_week FROM cgc_observations WHERE crop_year='2025-2026' ORDER BY wk;` — any rows returned are skipped weeks.
 5. Confirm `collector_cgc` heartbeats were written for CAD grains.
 
 ## Common Issues
@@ -82,3 +82,4 @@ npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"
 | Canola deliveries undercounted | Formula omitted BC Primary or Producer Cars | Use the canonical country-delivery path: `Primary (AB/SK/MB/BC) + Process + Producer Cars`, with `grade=''` on aggregate rows |
 | Duplicate week import | Already imported | Safe to ignore - upsert handles it |
 | `validate-import` flagged anomaly | YoY variance >50% or missing grains | Review validation reports; may be normal for new crop year |
+| `MISSING_WEEK_INCIDENT` verdict / exit 1 | Import succeeded but skipped a prior week (gap in `grain_week`) | NOT a pass. Backfill the skipped week(s) from the cumulative CSV, then re-run/validate until contiguous |
