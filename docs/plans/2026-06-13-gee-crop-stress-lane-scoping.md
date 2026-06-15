@@ -11,6 +11,8 @@ The repo has **zero GEE wiring**: no `earthengine-api` / `@google/earthengine` d
 - **(c) Earth Engine on Vertex AI / commercial plan** — required if Bushel Board is commercial use (GEE's free tier is non-commercial only — **licensing flag for Kyle**).
 **Action:** Kyle confirms which of (a)/(b)/(c) we have. If (a), provide the service-account JSON path as `GEE_SERVICE_ACCOUNT_JSON` (gitignored). If only (b), we prototype but can't automate yet.
 
+**RESOLVED 2026-06-15 (prototype access):** Personal account `gronningk@gmail.com` (path (b)), project **`monette-494717`** (registered non-commercial via the Code Editor). Auth: `earthengine authenticate --scopes=https://www.googleapis.com/auth/earthengine,https://www.googleapis.com/auth/cloud-platform` — **must exclude the `drive` scope** (the default client ID is now `access_blocked` for `drive`, which silently fails the whole authorization). **Python 3.13 gotcha:** `ee.Initialize(project=...)` raises "Please authorize" even with a valid saved refresh token (`ee.oauth.is_valid_credentials()` wrongly returns False on 3.13); the working pattern is to build `google.oauth2.credentials.Credentials` from `~/.config/earthengine/credentials` and pass them explicitly: `ee.Initialize(credentials=creds, project='monette-494717')` — implemented in `scripts/gee/hrw-stress-prototype.py::init_ee()`. **For P-G2 automation, move to path (a) (service account)** — interactive tokens won't survive the Claude Desktop Routine cadence.
+
 ## 2. What GEE gives wheat (datasets)
 | Signal | GEE dataset | Why it matters for wheat |
 |---|---|---|
@@ -61,7 +63,7 @@ Per the wheat-only discipline: backtest `stress_index` against realized conditio
 
 ## 8. Build order
 - **P-G0** Confirm access (§1) + licensing.
-- **P-G1** Prototype: 1 belt (US HRW), NDVI + SMAP, z-score vs baseline — prove the pipeline end-to-end.
+- **P-G1** ✅ **DONE 2026-06-15** — `scripts/gee/hrw-stress-prototype.py` proves the pipeline end-to-end: CDL-masked winter-wheat NDVI (MODIS/061/MOD13Q1) + root-zone soil moisture (NASA/SMAP/SPL4SMGP/**008** — /007 deprecated) over the HRW belt, z-scored vs trailing-5yr same-window baseline. First reading (2026-06-15): NDVI z −0.88, soil-moisture z −1.43, **stress_index −0.73 (stressed/bullish supply)** — independently corroborates the 25% G/E rating + drought narrative.
 - **P-G2** Full belt set (§3) + `gee_crop_stress` table + collector + wrapper.
 - **P-G3** Phenology-aware `stress_index` + data-quality flags.
 - **P-G4** `mapGeeCropStressContext()` bounded_context (±6); surface on /thesis as a "global crop stress" strip (watch-only).
