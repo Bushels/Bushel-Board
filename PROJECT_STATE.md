@@ -11,6 +11,8 @@
 
 Wheat thesis-of-record persisted this session: Canada Wheat +9 (HOLD) / US Wheat +11, with score_trajectory anchors. The Track 54 / daily-thesis infrastructure below remains the underlying pipeline.
 
+**Open thread at 2026-06-15 session end — collector scheduled-task fixes (≈15 min to finish):** the 6 registered grain collectors had stale hand-rolled SKILL.md prompts bypassing the tested `npm run collect:*` wrappers (dead `/api/pipeline/run`, Supabase-MCP `-32600` under the routine harness, Firecrawl + hand SQL, deprecated `usda_wasde_estimates`, no cache refresh) — that is why they "weren't pulling data". `collect-cgc` and `collect-gee-crop-stress` are fixed + enabled; **`collect-cftc-cot`, `collect-crop-progress`, `collect-export-sales`, `collect-wasde`, `collect-grain-monitor` still need their corrected prompts applied + enabling.** Exact corrected prompts + crons + apply instructions: `docs/plans/handoff/2026-06-15-session-handoff.md` (+ the raw prompts JSON beside it). Also flagged there: 3 stale analysis-side skill docs to reconcile, and a seasonal `import-usda-crop-progress.py` off-season NameError (moot until Dec).
+
 ---
 
 Prior focus (still the operating pipeline): **Grok X Scout, Prices, and Daily Thesis Completion** from `docs/plans/2026-06-01-grok-x-price-daily-thesis-completion-plan.md`. This extends the source-backed Bullish/Bearish board with daily prices, a quarantined Grok/X evidence scout, deterministic X signal validation, bounded weekday soft updates, Friday accepted-signal bundles, and an `/thesis` X Pulse Watch panel.
