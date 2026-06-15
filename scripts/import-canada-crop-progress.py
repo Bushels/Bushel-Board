@@ -598,6 +598,80 @@ def parse_alberta_emergence_rows(
     return rows
 
 
+def parse_alberta_narrative_seeding_rows(
+    text: str,
+    *,
+    report_date: str,
+    release_date: str | None,
+    document_url: str,
+) -> list[dict[str, Any]]:
+    paragraph_match = re.search(
+        r"Provincial seeding progress of major crops.*?(?:\n\s*\n|Provincial emergence|Table\s+1:)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not paragraph_match:
+        return []
+
+    paragraph = re.sub(r"\s+", " ", paragraph_match.group(0)).strip()
+    province_match = re.search(
+        r"Provincial seeding progress of major crops has reached\s+([0-9]+(?:\.[0-9]+)?)\s+per cent"
+        r".*?5-year average of\s+([0-9]+(?:\.[0-9]+)?)\s+per cent",
+        paragraph,
+        flags=re.IGNORECASE,
+    )
+    if not province_match:
+        return []
+
+    values_by_region: dict[str, tuple[float, float | None]] = {
+        "PROV": (float(province_match.group(1)), float(province_match.group(2)))
+    }
+
+    for value, five_year_avg, raw_region in re.findall(
+        r"([0-9]+(?:\.[0-9]+)?)\s+\(([0-9]+(?:\.[0-9]+)?)\)\s+per\s+cent\s+in\s+the\s+(\w+(?:\s+\w+)?)\s+Region",
+        paragraph,
+        flags=re.IGNORECASE,
+    ):
+        region = ALBERTA_REGION_LABELS.get(raw_region.lower())
+        if not region:
+            continue
+        region_code, _region_name = region
+        values_by_region[region_code] = (float(value), float(five_year_avg))
+
+    rows: list[dict[str, Any]] = []
+    for region_code, region_name in ALBERTA_REGIONS:
+        values = values_by_region.get(region_code)
+        if not values:
+            continue
+        value, five_year_avg = values
+        rows.append(
+            make_row(
+                province_code="AB",
+                province_name="Alberta",
+                crop_year=2026,
+                report_date=report_date,
+                release_date=release_date,
+                period_start=None,
+                period_end=report_date,
+                report_label=f"Alberta Crop Report - {report_date}",
+                source_name="Alberta Crop Report",
+                source_url=ALBERTA_PAGE_URL,
+                document_url=document_url,
+                region_scope="province" if region_code == "PROV" else "crop_region",
+                region_code=region_code,
+                region_name="Alberta" if region_code == "PROV" else region_name,
+                crop_name="All Crops",
+                metric="seeded_pct",
+                value_pct=value,
+                five_year_avg_pct=five_year_avg,
+                source_excerpt=f"Alberta narrative seeding progress summary as of {report_date}.",
+                confidence="high",
+            )
+        )
+
+    return rows
+
+
 def parse_saskatchewan_topsoil_moisture_rows(
     text: str,
     *,
@@ -1073,75 +1147,88 @@ def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]],
     )
     table_start = table_heading.start() if table_heading else -1
     table_end = text.find("Source: AGI/AFSC Crop Reporting Survey", table_start)
-    if table_start < 0 or table_end <= table_start:
-        raise RuntimeError("Could not locate Alberta Table 1 seeding progress.")
-
-    table_text = text[table_start:table_end]
-    parsed_rows: dict[str, list[float | None]] = {}
-    five_year_all_crops: list[float | None] | None = None
-
-    for line in table_text.splitlines():
-        parsed = values_from_table_line(line, expected_count=6)
-        if not parsed:
-            continue
-        raw_label, values = parsed
-
-        # If the label has a date, ensure it matches the report_date
-        date_in_label = re.search(r"([A-Za-z]+)\s+([0-9]{1,2})", raw_label)
-        if date_in_label:
-            month_str, day_str = date_in_label.groups()
-            if month_str in MONTHS:
-                report_year = report_date.split("-")[0]
-                label_date = f"{month_str} {day_str}, {report_year}"
-                parsed_label_date = parse_report_date(label_date)
-                if parsed_label_date and parsed_label_date != report_date:
-                    # Skip historical date rows (e.g. previous week)
-                    continue
-
-        crop_name = clean_alberta_crop_label(raw_label)
-        if crop_name.startswith("5-year All Crops"):
-            five_year_all_crops = values
-            continue
-        if crop_name.startswith("10-year All Crops"):
-            continue
-        parsed_rows[crop_name] = values
-
-    if not parsed_rows:
-        raise RuntimeError("Could not parse Alberta Table 1 crop rows.")
-
     rows: list[dict[str, Any]] = []
-    for crop_name, values in parsed_rows.items():
-        for idx, ((region_code, region_name), value) in enumerate(zip(ALBERTA_REGIONS, values)):
-            five_year_avg = (
-                five_year_all_crops[idx]
-                if crop_name == "All Crops" and five_year_all_crops and idx < len(five_year_all_crops)
-                else None
-            )
-            rows.append(
-                make_row(
-                    province_code="AB",
-                    province_name="Alberta",
-                    crop_year=2026,
-                    report_date=report_date,
-                    release_date=release_date,
-                    period_start=None,
-                    period_end=report_date,
-                    report_label=f"Alberta Crop Report - {report_date}",
-                    source_name="Alberta Crop Report",
-                    source_url=ALBERTA_PAGE_URL,
-                    document_url=document_url,
-                    region_scope="province" if region_code == "PROV" else "crop_region",
-                    region_code=region_code,
-                    region_name="Alberta" if region_code == "PROV" else region_name,
-                    crop_name=crop_name,
-                    metric="seeded_pct",
-                    value_pct=value,
-                    five_year_avg_pct=five_year_avg,
-                    source_excerpt=f"Table 1: Alberta Seeding Progress as of {report_date}.",
-                    confidence="high" if value is not None else "medium",
-                    quality_flags=[] if value is not None else ["region_not_reported"],
+
+    if table_heading:
+        if table_end <= table_start:
+            raise RuntimeError("Could not locate Alberta Table 1 seeding progress.")
+
+        table_text = text[table_start:table_end]
+        parsed_rows: dict[str, list[float | None]] = {}
+        five_year_all_crops: list[float | None] | None = None
+
+        for line in table_text.splitlines():
+            parsed = values_from_table_line(line, expected_count=6)
+            if not parsed:
+                continue
+            raw_label, values = parsed
+
+            # If the label has a date, ensure it matches the report_date
+            date_in_label = re.search(r"([A-Za-z]+)\s+([0-9]{1,2})", raw_label)
+            if date_in_label:
+                month_str, day_str = date_in_label.groups()
+                if month_str in MONTHS:
+                    report_year = report_date.split("-")[0]
+                    label_date = f"{month_str} {day_str}, {report_year}"
+                    parsed_label_date = parse_report_date(label_date)
+                    if parsed_label_date and parsed_label_date != report_date:
+                        # Skip historical date rows (e.g. previous week)
+                        continue
+
+            crop_name = clean_alberta_crop_label(raw_label)
+            if crop_name.startswith("5-year All Crops"):
+                five_year_all_crops = values
+                continue
+            if crop_name.startswith("10-year All Crops"):
+                continue
+            parsed_rows[crop_name] = values
+
+        if not parsed_rows:
+            raise RuntimeError("Could not parse Alberta Table 1 crop rows.")
+
+        for crop_name, values in parsed_rows.items():
+            for idx, ((region_code, region_name), value) in enumerate(zip(ALBERTA_REGIONS, values)):
+                five_year_avg = (
+                    five_year_all_crops[idx]
+                    if crop_name == "All Crops" and five_year_all_crops and idx < len(five_year_all_crops)
+                    else None
                 )
+                rows.append(
+                    make_row(
+                        province_code="AB",
+                        province_name="Alberta",
+                        crop_year=2026,
+                        report_date=report_date,
+                        release_date=release_date,
+                        period_start=None,
+                        period_end=report_date,
+                        report_label=f"Alberta Crop Report - {report_date}",
+                        source_name="Alberta Crop Report",
+                        source_url=ALBERTA_PAGE_URL,
+                        document_url=document_url,
+                        region_scope="province" if region_code == "PROV" else "crop_region",
+                        region_code=region_code,
+                        region_name="Alberta" if region_code == "PROV" else region_name,
+                        crop_name=crop_name,
+                        metric="seeded_pct",
+                        value_pct=value,
+                        five_year_avg_pct=five_year_avg,
+                        source_excerpt=f"Table 1: Alberta Seeding Progress as of {report_date}.",
+                        confidence="high" if value is not None else "medium",
+                        quality_flags=[] if value is not None else ["region_not_reported"],
+                    )
+                )
+    else:
+        rows.extend(
+            parse_alberta_narrative_seeding_rows(
+                text,
+                report_date=report_date,
+                release_date=release_date,
+                document_url=document_url,
             )
+        )
+        if not rows:
+            raise RuntimeError("Could not locate Alberta Table 1 seeding progress or narrative seeding progress.")
 
     rows.extend(
         parse_alberta_emergence_rows(
@@ -1167,14 +1254,14 @@ def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]],
     rows.extend(
         parse_alberta_metric_table(
             text,
-            heading_pattern=r"Table 3:\s+Pasture Growth Conditions",
+            heading_pattern=r"Table 3:\s+(?:Alberta\s+)?Pasture Growth Conditions",
             expected_count=4,
             metric="pasture_good_excellent_pct",
             value_indexes=[2, 3],
             report_date=report_date,
             release_date=release_date,
             document_url=document_url,
-            source_excerpt=f"Table 3: Alberta Pasture Growth Conditions as of {report_date}; value is good plus excellent.",
+            source_excerpt=f"Table 3: Pasture Growth Conditions as of {report_date}; value is good plus excellent.",
         )
     )
 
