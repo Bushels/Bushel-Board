@@ -4,6 +4,8 @@
 
 **Account/project:** `gronningk@gmail.com`, Cloud project **`monette-494717`** (already registered for non-commercial Earth Engine — the Code Editor works on it). Non-commercial is fine; do **not** attach billing.
 
+> **⚠️ STATUS 2026-06-15 — SA-key path BLOCKED by org policy.** The SA `bushel-gee@monette-494717.iam.gserviceaccount.com` was created and granted `roles/earthengine.writer`, **but** the org enforces `constraints/iam.disableServiceAccountKeyCreation`, so Step 3 (key download) fails with "Key creation is not allowed on this service account." **Resolution for the prototype:** don't use a SA key — leave `GEE_SERVICE_ACCOUNT_JSON` unset and let `init_ee()` use gronningk's persisted Earth Engine refresh token (`~/.config/earthengine/credentials`), which refreshes silently and works unattended. To use a real SA key, an **Org Policy Admin** must first lift `iam.disableServiceAccountKeyCreation` for this project/org (Console → IAM & Admin → Organization Policies), then run Step 3. Also fix the gcloud account first: `gcloud auth login gronningk@gmail.com && gcloud config set account gronningk@gmail.com && gcloud config set project monette-494717` (default gcloud account here is `kyle@bushelsenergy.com`, which does NOT own the EE project).
+
 ---
 
 ## Step 1 — Create the service account
