@@ -68,9 +68,28 @@ def _explicit_credentials():
 
 
 def init_ee(project: str | None):
+    """Initialize Earth Engine. Priority:
+    1. Service account key at GEE_SERVICE_ACCOUNT_JSON (preferred for UNATTENDED runs).
+    2. Standard ee.Initialize(project=...).
+    3. Personal persisted refresh token via explicit creds (interactive dev; Py3.13 workaround).
+    """
     import ee
 
+    sa_path = os.environ.get("GEE_SERVICE_ACCOUNT_JSON")
     proj = project or os.environ.get("GEE_PROJECT")
+
+    if sa_path and os.path.exists(sa_path):
+        with open(sa_path, encoding="utf-8") as fh:
+            sa = json.load(fh)
+        proj = proj or sa.get("project_id")
+        if not proj:
+            log("Service account JSON lacks project_id; pass --project or set GEE_PROJECT.")
+            raise SystemExit(2)
+        creds = ee.ServiceAccountCredentials(sa.get("client_email"), sa_path)
+        ee.Initialize(credentials=creds, project=proj)
+        log(f"[gee] init via service account {sa.get('client_email')} project={proj}")
+        return ee, proj
+
     if not proj:
         log("No project. Pass --project <id> or set GEE_PROJECT (e.g. monette-494717).")
         raise SystemExit(2)

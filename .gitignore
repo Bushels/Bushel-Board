@@ -97,3 +97,9 @@ supabase/functions/_shared/commodity-knowledge.ts
 .claude/settings.local.json
 .agents/
 /.baoyu-skills/
+
+# Service-account keys / secrets — NEVER commit
+.secrets/
+*-service-account*.json
+*service-account-key*.json
+*gee-sa*.json
