@@ -64,10 +64,11 @@ Per the wheat-only discipline: backtest `stress_index` against realized conditio
 ## 8. Build order
 - **P-G0** Confirm access (§1) + licensing.
 - **P-G1** ✅ **DONE 2026-06-15** — `scripts/gee/hrw-stress-prototype.py` proves the pipeline end-to-end: CDL-masked winter-wheat NDVI (MODIS/061/MOD13Q1) + root-zone soil moisture (NASA/SMAP/SPL4SMGP/**008** — /007 deprecated) over the HRW belt, z-scored vs trailing-5yr same-window baseline. First reading (2026-06-15): NDVI z −0.88, soil-moisture z −1.43, **stress_index −0.73 (stressed/bullish supply)** — independently corroborates the 25% G/E rating + drought narrative.
-- **P-G2** Full belt set (§3) + `gee_crop_stress` table + collector + wrapper.
+- **P-G2** ✅ **DONE 2026-06-15** — `gee_crop_stress` table (migration `20260615120000`, public-read RLS), shared `scripts/gee/gee_stress_core.py`, collector `scripts/gee/import-gee-crop-stress.py` (per-state KS/OK/TX/NE/CO + belt, PostgREST upsert + source_run). First load (wk ending 2026-06-14): all HRW states stressed, OK/NE worst (sm_z −2.6/−2.2), belt stress_index −0.73. *Still owed for full P-G2: a `collect:gee-crop-stress` npm wrapper + Claude Desktop Routine (needs the service account — see §1 RESOLVED).*
+- **P-G2-VALIDATION** ✅ **DONE 2026-06-15** — `scripts/gee/validate-hrw-vs-nass.py` backtested the belt `stress_index` vs NASS US-TOTAL winter-wheat ratings across all 10 report weeks (Apr 5–Jun 7 2026): **Pearson r = +0.93 vs G/E%, +0.98 vs condition_index** (artifact: `docs/reference/gee/hrw-nass-validation-2026-06-15.json`). **CAVEAT:** single season with a monotonic decline — both series trended down together, which inflates r. Must re-validate across a season with a mid-year condition *reversal* (and ideally multiple years) before graduating to scoring. **Status: still WATCH-ONLY.**
 - **P-G3** Phenology-aware `stress_index` + data-quality flags.
 - **P-G4** `mapGeeCropStressContext()` bounded_context (±6); surface on /thesis as a "global crop stress" strip (watch-only).
-- **P-G5** Validate (§7) → graduate to weather domain for belts where it backtests.
+- **P-G5** Validate across multiple seasons incl. a reversal (§7) → graduate to weather domain for belts where it backtests. Add the Russia belt (biggest blind spot) once the collector has a service account.
 
 ## 9. Open questions for Kyle
 1. Which access do we have — service account (a), personal (b), or Vertex/commercial (c)? Provide the credential path if (a).
