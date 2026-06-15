@@ -255,3 +255,29 @@ P4 items that document P1–P3 behavior ship alongside their phase. Exception: a
 - 2026-06-12 (Kyle): improvements land in **both** layers, tiered; international admitted as **bounded set** (WASDE world/exporter + FX; MATIF deferred); X sentiment gets the **bounded ±5 tilt**, not a weighted domain.
 - Approach A (relation overlays) chosen over learned interaction model (no training history, opacity) and prompt-only (auditability, drift history).
 - 2026-06-12 (Kyle, spec review): formulas must differ **per grain** → §5b grain profiles (class-based weights + relation applicability/thresholds). Track **reserves**: on-farm stocks for Canada (StatsCan stocks survey) and US (NASS Grain Stocks) admitted as bounded ±5 supply context (§6c, P2b); country "strategic reserves" handled honestly as PSD estimates (China/India rows, ex-China S/U) with China scored never, watched always.
+
+## 16. Addendum — Wheat-Desk Dry-Run Findings (2026-06-12)
+
+Findings from manually applying the V2 relation model to a live wheat desk (CGC wk44 / COT Jun 9 / June WASDE), adversarially reviewed by Codex (Rule 21) and sentiment-checked via Hermes/Grok. These amend the design **before** implementation.
+
+### 16.1 Rule-9 positioning/divergence double-count (BUG — fix before P1)
+The **positioning domain** subtracts COT directionally (net-short → −20 × weight) **and** the **`divergence_timing` relation** subtracts another −5 for the same spec/commercial divergence. On US wheat this stacked to ~−7 on a single funds-short signal, mechanically dragging US from a defensible ~+11 to +4. This violates **debate Rule 9 ("COT informs TIMING, not direction")**.
+**Fix:** when `divergence_timing` fires, the positioning **domain** must contribute to **confidence/timing only, not the directional score** (set its directional weight to ~0 for that run, or cap the combined COT contribution at a single −5). COT level + divergence must never both subtract directionally. Add a fixture asserting a net-short + divergence week costs ≤ −5 total, not ≤ −7.
+
+**Shipped 2026-06-13 (mapper-level half):** `mapCftcPositioningDomain` directional magnitude reduced **±20 → ±10** (`rating-domain-mappers.ts`) so COT is a bounded timing lean, not a direction-setter — sign preserved, magnitude locked by tests (`thesis-rating-domain-mappers.test.ts`, `toBe(10)`/`toBe(-10)`). **Still owed (relations layer, P1):** the combined-COT cap (positioning domain + `divergence_timing` ≤ |5| total) — must be enforced where the two combine when `rating-relations.ts` is built; the fixture (net-short + divergence ≤ −5) ships with that module.
+
+### 16.2 International needs a structural area/production-trajectory signal (not just current S/U)
+The Russia case (2026-06-12): Sizov/SovEcon report Russian **spring**-wheat area possibly the smallest in decades (Volga/Siberia delays, structural oilseed shift), yet 2026/27 **total** crop is large (~90–91.5 MMT) and exports intact (~47.5 MMT) because winter wheat dominates. Current `mapWorldBalanceContext()` keys off current-year exporter S/U and would miss this entirely.
+**Fix:** add a **watch-level** (not scored, or ≤ ±2) `competitor_area_trajectory` signal inside the international lane — multi-year exporter area/mix direction (e.g. wheat→oilseed shift) — surfaced as a **forward bull/bear risk note** distinct from the current-year S/U tilt. Keeps "structurally bullish / cyclically neutral" expressible without letting a forward story move the current-week score.
+
+### 16.3 Weather domain is proxy-only — admit a GEE crop-stress lane
+The §7 weather domain uses seeding%/condition% proxies; `weather_cache` is empty, so real crop stress never reaches the score. Google Earth Engine (NDVI, soil moisture, GDD, heat/drought stress) is available.
+**Plan:** a `gee_crop_stress` collector for the key wheat belts (US HRW + N. Plains spring; Canadian prairies; Russian Volga/Siberia + winter belt; EU; Australia) → a real (not proxy) weather domain or bounded context. Sequenced as a Wheat-Desk-v1 prerequisite (see 16.5).
+
+### 16.4 Data-input gaps surfaced (Wheat Desk v1 prerequisites)
+- **Canadian cash/basis empty** → debate Rule 18 basis-veto can never fire. Need a SK/AB cash wheat feed (`posted_prices`/SK cash) before basis logic is real.
+- **Alberta seeding parser** (`scripts/import-canada-crop-progress.py:1071`) failed on the June report — the `Table 1: ... Seeding Progress` heading regex is too strict (a real robustness bug, NOT seasonal; the report still carries seeding data). AB stuck at May 26 while SK/MB are current. Same dump→diagnose→fix→seatbelt playbook as the grain-monitor charter.
+- **Producer cars** lag ~3 weeks (wk43, May 22) — minor logistics input, refresh cadence to confirm.
+
+### 16.5 Strategic decision — wheat-only until the pipeline is validated
+Per Kyle (2026-06-12): focus the entire pipeline on **wheat** until the bull/bear engine is proven, then generalize per grain class. Wheat is the right proving ground (exercises CGC + WASDE/world, 3 COT classes, both lanes, richest international dimension). "Proven" = a **persisted weekly call + price at call-time → next-week outcome check → threshold calibration** (the `desk_performance_reviews`/`accuracy_scorecard` loop). First persisted anchor: Canada +9 / US +11, 2026-06-12 (grain_week 44). **Wheat Desk v1 build order:** fix 16.1 → add GEE (16.3) + Canadian cash (16.4) + competitor-trajectory (16.2) → golden-packet test → ≥6–8 week backtest vs realized price → then clone the profile to the other 15 grains.

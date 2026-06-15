@@ -960,7 +960,7 @@ describe("thesis rating domain packet mappers", () => {
       isRequired: true,
       isPrimaryDirectSource: true,
     });
-    expect(positioning?.score).toBeGreaterThan(0);
+    expect(positioning?.score).toBe(10); // Rule 9: COT is a timing lean (±10), not a ±20 direction-setter
     expect(positioning?.positive_evidence?.join(" ")).toContain("net long");
     expect(positioning?.positive_evidence?.join(" ")).toContain("+1,100 contracts");
   });
@@ -981,7 +981,7 @@ describe("thesis rating domain packet mappers", () => {
 
     const positioning = domains.find((domain) => domain.domain === "positioning");
 
-    expect(positioning?.score).toBeLessThan(0);
+    expect(positioning?.score).toBe(-10); // Rule 9: bounded timing lean (was -20)
     expect(positioning?.negative_evidence?.join(" ")).toContain("net long");
     expect(positioning?.negative_evidence?.join(" ")).toContain("-1,750 contracts");
   });
@@ -1008,7 +1008,7 @@ describe("thesis rating domain packet mappers", () => {
       isRequired: true,
       isPrimaryDirectSource: true,
     });
-    expect(positioning?.score).toBeLessThan(0);
+    expect(positioning?.score).toBe(-10); // Rule 9: bounded timing lean (was -20)
     expect(positioning?.negative_evidence?.join(" ")).toContain("net short");
   });
 
