@@ -250,6 +250,7 @@ Every piece of work must satisfy before being marked complete:
 - WASDE context: `SELECT * FROM get_usda_wasde_context('Wheat', 2);`
 - Crop progress freshness: `SELECT commodity, cgc_grain, week_ending, good_excellent_pct, ge_pct_yoy_change FROM usda_crop_progress WHERE state='US TOTAL' ORDER BY week_ending DESC LIMIT 10;`
 - Crop conditions: `SELECT * FROM get_usda_crop_conditions('Wheat', 4);`
+- GEE crop-stress (satellite NDVI+SMAP, watch-only, V2 §16.3): `SELECT crop_belt, region_code, week_ending, ROUND(ndvi_z,2) AS ndvi_z, ROUND(sm_z,2) AS sm_z, stress_index, reading FROM gee_crop_stress ORDER BY week_ending DESC, crop_belt, stress_index LIMIT 25;` — negative stress_index = stressed = bullish supply. Validated vs NASS r=0.93/0.98 (single-season); NOT scored yet. Collector: `scripts/gee/import-gee-crop-stress.py --belt <US_HRW|RU_WINTER|RU_SPRING> --project monette-494717`.
 - Posted prices (active): `SELECT business_type, facility_name, grain, price_per_tonne, basis, capacity_notes, delivery_notes, posted_at, expires_at FROM posted_prices WHERE expires_at > now() ORDER BY posted_at DESC LIMIT 10;`
 - Posted prices by area: `SELECT * FROM get_area_prices('T0L');`
 - Operator products: `SELECT op.product_name, op.product_category, op.is_active, p.company_name FROM operator_products op JOIN profiles p ON p.id = op.operator_id ORDER BY op.added_at DESC LIMIT 20;`
@@ -307,3 +308,12 @@ All scripts in `scripts/` must: accept `--help`, output JSON to stdout, diagnost
 - `docs/lessons-learned/issues.md` — Data bugs and root cause analyses
 - `docs/lessons-learned/canola-week31-debate-moderation.md` — Full evidence-based moderation of Canola Week 31 Grok vs Step 3.5 disagreement
 - `docs/reference/viking-knowledge-architecture.md` — Viking L0/L1/L2 tiered knowledge system: historical architecture, now used as reference context for Claude/Codex workflows
+
+## Shared memory (Hindsight eval — bushel-board bank)
+
+*Experimental (2026-06-15), removable. This repo is wired to its own Hindsight bank `bushel-board` (separate from MPS, and separate from Supabase) via `.mcp.json`, to evaluate whether an external agent-memory layer adds value beyond the built-in Hermes knowledge tiers. Delete this section + `.mcp.json` to disable.*
+
+- **At the start of a task**, call the `hindsight` `recall`/`reflect` tool against the `bushel-board` bank for relevant prior decisions, architecture, and project state.
+- **At the end of a task**, `retain` key decisions, schema/RPC/pipeline specs, bugs + fixes, and outcomes — tag with `bushel-board`.
+- This is a *dev-toolchain* memory. It is NOT the farmer-facing Hermes pipeline (`chat_extractions` / `knowledge_state` / `knowledge_patterns` / `compression_summaries`) and NOT Supabase — keep all three separate.
+- Requires the local Hindsight container (`C:\Users\kyle\MPS\mps-memory` → `docker compose up -d`). If `recall` errors, the container is down — skip silently.

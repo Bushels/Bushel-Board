@@ -190,3 +190,55 @@ def hrw_state_geometries(ee):
         out[abbr] = (name, fc.filter(ee.Filter.eq("NAME", name)).geometry())
     out["BELT"] = ("US HRW belt", fc.geometry())
     return out
+
+
+# --- Multi-belt support (P-G2 Russia extension) ----------------------------
+# US belts use the USDA CDL winter-wheat mask. Non-US belts have no CDL, so they
+# mask to ESA WorldCover cropland (class 40) and define the AOI as the country
+# boundary (stable GAUL name) intersected with a winter/spring bounding box.
+
+# Approximate bounding boxes [west, south, east, north] for the Russian wheat belts.
+RU_WINTER_BBOX = [35.0, 43.0, 48.0, 53.0]   # S European Russia: Kuban / Black Earth
+RU_SPRING_BBOX = [45.0, 50.0, 87.0, 57.0]   # Volga / Urals / West Siberia
+
+BELTS = {
+    "US_HRW": {"lane": "us", "country": None, "bbox": None, "mask": "cdl_winter_wheat"},
+    "RU_WINTER": {"lane": "international", "country": "Russian Federation",
+                  "bbox": RU_WINTER_BBOX, "mask": "worldcover_cropland",
+                  "name": "Russia winter-wheat belt (south)"},
+    "RU_SPRING": {"lane": "international", "country": "Russian Federation",
+                  "bbox": RU_SPRING_BBOX, "mask": "worldcover_cropland",
+                  "name": "Russia spring-wheat belt (Volga/Urals/Siberia)"},
+}
+
+
+def worldcover_cropland_mask(ee):
+    """ESA WorldCover v200 cropland (class 40) — global static cropland mask."""
+    wc = ee.ImageCollection("ESA/WorldCover/v200").first().select("Map")
+    return wc.eq(40)
+
+
+def mask_for_belt(ee, belt: str, target_year: int):
+    """Return (mask, mask_year_or_None, mask_desc, source_datasets, lane)."""
+    cfg = BELTS[belt]
+    if cfg["mask"] == "cdl_winter_wheat":
+        mask, cdl_year = cdl_wheat_mask(ee, target_year)
+        return mask, cdl_year, "CDL winter wheat (class 24)", list(SOURCE_DATASETS), cfg["lane"]
+    mask = worldcover_cropland_mask(ee)
+    return (mask, None, "ESA WorldCover cropland (class 40)",
+            ["MODIS/061/MOD13Q1", "NASA/SMAP/SPL4SMGP/008", "ESA/WorldCover/v200"], cfg["lane"])
+
+
+def belt_geometries(ee, belt: str):
+    """dict {code: (name, geometry)} for any belt. US_HRW = states + union;
+    Russia belts = single BELT = country-boundary ∩ bbox (cropland-masked at reduce)."""
+    if belt == "US_HRW":
+        return hrw_state_geometries(ee)
+    cfg = BELTS[belt]
+    country = (
+        ee.FeatureCollection("FAO/GAUL/2015/level0")
+        .filter(ee.Filter.eq("ADM0_NAME", cfg["country"]))
+        .geometry()
+    )
+    bbox = ee.Geometry.Rectangle(cfg["bbox"], proj="EPSG:4326", geodesic=False)
+    return {"BELT": (cfg["name"], country.intersection(bbox, maxError=1000))}

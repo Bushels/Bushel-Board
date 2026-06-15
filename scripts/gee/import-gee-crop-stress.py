@@ -30,12 +30,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/ for source_run
 
 from gee_stress_core import (  # noqa: E402
-    SOURCE_DATASETS, WINDOW_DAYS, NDVI_SCALE, SM_SCALE,
-    cdl_wheat_mask, compute_region_stress, hrw_state_geometries, init_ee, log,
+    BELTS, WINDOW_DAYS, NDVI_SCALE, SM_SCALE,
+    belt_geometries, compute_region_stress, mask_for_belt, init_ee, log,
 )
 from source_run import write_source_run, SourceRunError  # noqa: E402
 
-CROP_BELT = "US_HRW"
 SUPABASE_TIMEOUT = 60
 
 
@@ -95,45 +94,48 @@ def upsert_rows(rows, supabase_url, service_key):
 
 
 def main():
-    p = argparse.ArgumentParser(description="US HRW GEE crop-stress collector")
+    p = argparse.ArgumentParser(description="GEE crop-stress collector (wheat belts)")
+    p.add_argument("--belt", default="US_HRW", choices=list(BELTS.keys()),
+                   help="Wheat belt to collect (default US_HRW)")
     p.add_argument("--project", help="Earth Engine Cloud project id (or GEE_PROJECT env)")
     p.add_argument("--date", help="Target date YYYY-MM-DD (default: today)")
     p.add_argument("--dry-run", action="store_true", help="Compute + print, do not write to Supabase")
     args = p.parse_args()
 
+    belt = args.belt
     target = dt.date.fromisoformat(args.date) if args.date else dt.date.today()
     week_ending = sunday_on_or_before(target)
     started_at = dt.datetime.now(dt.timezone.utc).isoformat()
-    log(f"[gee-collector] target {target} -> week_ending {week_ending}")
+    log(f"[gee-collector] belt {belt} target {target} -> week_ending {week_ending}")
 
     ee, proj = init_ee(args.project)
-    mask, cdl_year = cdl_wheat_mask(ee, target.year)
-    geoms = hrw_state_geometries(ee)
+    mask, mask_year, mask_desc, source_datasets, lane = mask_for_belt(ee, belt, target.year)
+    geoms = belt_geometries(ee, belt)
 
     data_quality = {"window_days": WINDOW_DAYS, "ndvi_scale": NDVI_SCALE, "sm_scale": SM_SCALE,
-                    "mask": "CDL winter wheat (class 24)"}
+                    "mask": mask_desc}
     rows = []
     for code, (name, geom) in geoms.items():
-        log(f"[gee-collector] computing {code} ({name})...")
-        s = compute_region_stress(ee, geom, mask, target, cdl_year)
+        log(f"[gee-collector] computing {belt}/{code} ({name})...")
+        s = compute_region_stress(ee, geom, mask, target, mask_year)
         rows.append({
-            "crop_belt": CROP_BELT, "region_code": code, "region_name": name, "grain": "Wheat",
+            "crop_belt": belt, "region_code": code, "region_name": name, "grain": "Wheat",
             "week_ending": week_ending.isoformat(),
             "ndvi_current": s["ndvi_current"], "ndvi_baseline_mean": s["ndvi_baseline_mean"],
             "ndvi_baseline_std": s["ndvi_baseline_std"], "ndvi_z": s["ndvi_z"],
             "sm_current": s["sm_current"], "sm_baseline_mean": s["sm_baseline_mean"],
             "sm_baseline_std": s["sm_baseline_std"], "sm_z": s["sm_z"],
             "stress_index": s["stress_index"], "reading": s["reading"],
-            "baseline_years": s["baseline_years"], "cdl_year": cdl_year,
-            "data_quality": data_quality, "source_datasets": SOURCE_DATASETS,
+            "baseline_years": s["baseline_years"], "cdl_year": mask_year,
+            "data_quality": data_quality, "source_datasets": source_datasets,
         })
 
-    belt = next((r for r in rows if r["region_code"] == "BELT"), None)
+    belt_row = next((r for r in rows if r["region_code"] == "BELT"), None)
     summary = {
-        "ok": True, "dry_run": args.dry_run, "project": proj, "crop_belt": CROP_BELT,
+        "ok": True, "dry_run": args.dry_run, "project": proj, "crop_belt": belt,
         "week_ending": week_ending.isoformat(), "regions": len(rows),
-        "belt_stress_index": belt["stress_index"] if belt else None,
-        "belt_reading": belt["reading"] if belt else None,
+        "belt_stress_index": belt_row["stress_index"] if belt_row else None,
+        "belt_reading": belt_row["reading"] if belt_row else None,
         "rows": rows,
     }
 
@@ -154,14 +156,14 @@ def main():
     try:
         sr = write_source_run(
             supabase_url, service_key,
-            source_name="gee_crop_stress", source_lane="us",
+            source_name="gee_crop_stress", source_lane=lane,
             collector_name="import-gee-crop-stress", status="success",
             source_period_end=week_ending.isoformat(),
-            latest_source_label=f"{CROP_BELT} {week_ending.isoformat()}",
-            rows_inserted=len(written), source_url="earthengine:MODIS+SMAP+CDL",
+            latest_source_label=f"{belt} {week_ending.isoformat()}",
+            rows_inserted=len(written), source_url="earthengine:MODIS+SMAP+mask",
             started_at=started_at,
-            metadata={"belt_stress_index": summary["belt_stress_index"],
-                      "belt_reading": summary["belt_reading"], "cdl_year": cdl_year},
+            metadata={"belt": belt, "belt_stress_index": summary["belt_stress_index"],
+                      "belt_reading": summary["belt_reading"], "mask_year": mask_year},
         )
         summary["source_run_id"] = sr.get("id")
     except SourceRunError as exc:
