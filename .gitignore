@@ -103,3 +103,4 @@ supabase/functions/_shared/commodity-knowledge.ts
 *-service-account*.json
 *service-account-key*.json
 *gee-sa*.json
+graphify-out/
