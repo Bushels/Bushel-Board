@@ -1666,9 +1666,9 @@ function countryReadTitle(lane: ThesisLane): string {
 }
 
 function countryCardClass(score: number): string {
-  if (score > 0) return "border-prairie/30 bg-prairie/8";
-  if (score < 0) return "border-amber-600/25 bg-amber-500/8";
-  return "border-border bg-background/80";
+  if (score > 0) return "border-prairie/30 bg-gradient-to-br from-prairie/18 via-prairie/8 to-background";
+  if (score < 0) return "border-amber-600/30 bg-gradient-to-br from-amber-500/18 via-amber-500/8 to-background";
+  return "border-border bg-gradient-to-br from-muted/40 via-background to-background";
 }
 
 function countryBadgeClass(score: number): string {
@@ -1780,8 +1780,9 @@ function WheatCountryDecisionCard({
   }
 
   return (
-    <article className={cn("flex min-h-[255px] flex-col justify-between rounded-xl border p-4 shadow-sm", countryCardClass(item.stanceScore))}>
-      <div className="flex items-start justify-between gap-3">
+    <article className={cn("relative flex min-h-[275px] flex-col justify-between overflow-hidden rounded-2xl border p-5 shadow-sm", countryCardClass(item.stanceScore))}>
+      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 text-foreground opacity-[0.06]" aria-hidden="true" />
+      <div className="relative flex items-start justify-between gap-3">
         <div>
           <Badge variant="outline" className={countryBadgeClass(item.stanceScore)}>
             {countryCodeLabel(item.lane)} packet
@@ -1798,14 +1799,14 @@ function WheatCountryDecisionCard({
         </div>
       </div>
 
-      <div className="my-4">
+      <div className="relative my-5">
         <p className="mb-3 text-2xl font-semibold text-foreground">
           {directionalIndicatorLabel(item.stanceScore)}
         </p>
         <CountryStanceRail item={item} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="relative flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
           {item.confidenceScore}% confidence
         </Badge>
@@ -1835,63 +1836,64 @@ function WheatCountrySplitGraphic({
   const splitDelta = canadaScore !== null && usScore !== null ? usScore - canadaScore : null;
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-canola/25 bg-background/80 p-3 shadow-sm">
-      <div className="absolute inset-x-4 top-4 h-px bg-gradient-to-r from-transparent via-canola/35 to-transparent motion-safe:animate-pulse" aria-hidden="true" />
+    <div className="relative overflow-hidden rounded-2xl border border-wheat-900/20 bg-foreground p-4 text-background shadow-lg dark:border-white/10 dark:bg-wheat-50 dark:text-wheat-900">
+      <div className="absolute inset-x-4 top-4 h-px bg-gradient-to-r from-transparent via-canola/60 to-transparent motion-safe:animate-pulse" aria-hidden="true" />
+      <WheatIcon className="pointer-events-none absolute -bottom-10 -right-8 h-36 w-36 text-canola opacity-10" aria-hidden="true" />
       <div className="relative flex flex-col items-center text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-canola/30 bg-canola/10 text-canola shadow-sm">
-          <WheatIcon className="h-5 w-5" aria-hidden="true" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-canola/40 bg-canola/15 text-canola shadow-sm">
+          <WheatIcon className="h-6 w-6" aria-hidden="true" />
         </div>
-        <Badge variant="outline" className="mt-3 border-canola/35 bg-canola/10 text-canola">
+        <Badge variant="outline" className="mt-3 border-canola/40 bg-canola/15 text-canola">
           Combined Wheat read
         </Badge>
-        <p className="mt-2 font-display text-xl font-semibold text-foreground">
+        <p className="mt-3 font-display text-2xl font-semibold">
           {directionalIndicatorLabel(safeScore)}
         </p>
-        <p className={cn("text-4xl font-semibold tabular-nums", stanceClass(safeScore))}>
+        <p className={cn("text-6xl font-semibold tabular-nums", stanceClass(safeScore))}>
           {signedNumber(safeScore)}
         </p>
-        <p className="text-xs text-muted-foreground tabular-nums">{safeConfidence}% combined confidence</p>
+        <p className="text-xs tabular-nums opacity-75">{safeConfidence}% combined confidence</p>
       </div>
 
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="rounded-lg border border-border bg-muted/20 p-2 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Canada</p>
+      <div className="relative mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="rounded-xl border border-background/20 bg-background/10 p-2 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">Canada</p>
           <p className={cn("mt-1 text-2xl font-semibold tabular-nums", stanceClass(canadaScore ?? 0))}>
             {canadaScore === null ? "n/a" : signedNumber(canadaScore)}
           </p>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-background/25 bg-background/10 opacity-80">
           <Scale className="h-4 w-4" aria-hidden="true" />
         </div>
-        <div className="rounded-lg border border-border bg-muted/20 p-2 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">USA</p>
+        <div className="rounded-xl border border-background/20 bg-background/10 p-2 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">USA</p>
           <p className={cn("mt-1 text-2xl font-semibold tabular-nums", stanceClass(usScore ?? 0))}>
             {usScore === null ? "n/a" : signedNumber(usScore)}
           </p>
         </div>
       </div>
 
-      <div className="mt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="relative mt-5">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-70">
           Wheat stance meter
         </p>
-        <div className="relative h-3 rounded-full bg-muted" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
-          <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
+        <div className="relative h-3 rounded-full bg-background/15" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
+          <span className="absolute left-1/2 top-0 h-full w-px bg-background/40" aria-hidden="true" />
           <span
-            className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
+            className="absolute top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
             data-confidence-scaled-position={`${combinedPosition.toFixed(2)}%`}
-            style={{ left: `calc(${combinedPosition}% - 0.75rem)` }}
+            style={{ left: `calc(${combinedPosition}% - 0.875rem)` }}
             aria-hidden="true"
           />
         </div>
-        <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+        <div className="mt-2 flex justify-between text-[11px] font-medium opacity-70">
           <span>Bear</span>
           <span>Balanced</span>
           <span>Bull</span>
         </div>
       </div>
 
-      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+      <p className="relative mt-4 text-xs leading-5 opacity-75">
         {splitDelta === null
           ? "One country packet is missing, so the combined read is partial."
           : `USA is ${signedNumber(splitDelta)} points versus Canada; the combined read stays confidence-weighted.`}
@@ -1913,6 +1915,7 @@ function WheatMobileDecisionSnapshot({
 }) {
   const safeScore = score ?? 0;
   const safeConfidence = confidence ?? 0;
+  const combinedPosition = confidenceScaledPosition(safeScore, safeConfidence);
 
   return (
     <div className="space-y-2 px-4 pb-4 sm:hidden">
@@ -1937,16 +1940,31 @@ function WheatMobileDecisionSnapshot({
         <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
       </div>
 
-      <div className="rounded-lg border border-canola/25 bg-canola/10 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold text-canola">Combined Wheat read</p>
-          <p className={cn("text-xl font-semibold tabular-nums", stanceClass(safeScore))}>
+      <div className="relative overflow-hidden rounded-2xl border border-wheat-900/20 bg-foreground p-4 text-background shadow-sm dark:border-white/10 dark:bg-wheat-50 dark:text-wheat-900">
+        <WheatIcon className="pointer-events-none absolute -bottom-8 -right-6 h-28 w-28 text-canola opacity-10" aria-hidden="true" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-canola">Combined Wheat read</p>
+            <p className="mt-1 text-sm font-semibold">{directionalIndicatorLabel(safeScore)}</p>
+          </div>
+          <p className={cn("text-4xl font-semibold tabular-nums", stanceClass(safeScore))}>
             {signedNumber(safeScore)}
           </p>
         </div>
-        <p className="mt-1 text-[11px] font-semibold text-canola">Combined Wheat stance meter</p>
-        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-          {directionalIndicatorLabel(safeScore)} / {safeConfidence}% confidence from Canada + USA packets.
+        <p className="relative mt-3 text-[11px] font-semibold uppercase tracking-wide opacity-70">
+          Wheat stance meter
+        </p>
+        <div className="relative mt-2 h-3 rounded-full bg-background/15" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
+          <span className="absolute left-1/2 top-0 h-full w-px bg-background/40" aria-hidden="true" />
+          <span
+            className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
+            data-confidence-scaled-position={`${combinedPosition.toFixed(2)}%`}
+            style={{ left: `calc(${combinedPosition}% - 0.75rem)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <p className="relative mt-2 text-[11px] leading-4 opacity-75">
+          {safeConfidence}% confidence from Canada + USA packets.
         </p>
       </div>
 
@@ -2030,8 +2048,9 @@ function WheatDecisionSurface({
 
   return (
     <section className="space-y-3" aria-labelledby="wheat-decision-heading">
-      <Card className="overflow-hidden rounded-lg border-canola/30 bg-gradient-to-br from-canola/10 via-card to-prairie/8 py-0 shadow-sm">
-        <CardHeader className="gap-3 px-4 py-4 sm:px-5">
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-canola/30 bg-gradient-to-br from-canola/15 via-background to-prairie/12 p-4 shadow-[0_24px_70px_-48px_rgba(42,38,30,0.8)] sm:p-5">
+        <WheatIcon className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 text-canola opacity-[0.06]" aria-hidden="true" />
+        <div className="relative">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <Badge variant="outline" className="mb-2 border-canola/35 bg-background/70 text-canola sm:mb-3">
@@ -2053,10 +2072,12 @@ function WheatDecisionSurface({
               </Badge>
             </div>
           </div>
-        </CardHeader>
-        <WheatMobileDecisionSnapshot row={row} score={score} confidence={confidence} localContext={localContext} />
-        <CardContent className="hidden gap-3 px-4 pb-4 sm:grid sm:px-5">
-          <div className="grid gap-3 sm:grid-cols-3 sm:items-stretch">
+        </div>
+        <div className="relative mt-4">
+          <WheatMobileDecisionSnapshot row={row} score={score} confidence={confidence} localContext={localContext} />
+        </div>
+        <div className="relative mt-5 hidden gap-4 sm:grid">
+          <div className="grid gap-4 sm:grid-cols-3 sm:items-stretch">
             <WheatCountryDecisionCard item={row.canada} lane="canada" />
             <WheatCountrySplitGraphic row={row} score={score} confidence={confidence} />
             <WheatCountryDecisionCard item={row.us} lane="us" />
@@ -2073,8 +2094,8 @@ function WheatDecisionSurface({
               {action.detail} {row.explanation} Use this to inspect the evidence stack, not as an instruction to market grain.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <WheatDataFlowStrip />
     </section>
