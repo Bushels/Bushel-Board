@@ -8,6 +8,10 @@ import { buildRatingScorecard, type ThesisRatingScorecard } from "@/lib/thesis/r
 import { mapCanadaPacketToDomainInputs, mapUsPacketToDomainInputs } from "@/lib/thesis/rating-domain-mappers";
 import { getImpactAdjustedDomainWeights } from "@/lib/thesis/grain-impact-domain-weights";
 import { getVikingL2Context, type VikingL2Chunk } from "@/lib/knowledge/viking-l2";
+import {
+  ACTIVE_FARMER_THESIS_GRAIN_LANES,
+  isActiveFarmerThesisGrain,
+} from "@/lib/thesis/active-grain-display";
 
 type JsonRecord = Record<string, unknown>;
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -210,6 +214,12 @@ const THESIS_BOARD_V1_LANE_SOURCE_MAP: readonly ThesisBoardV1LaneSource[] = [
   { lane: "Oats", canadaSourceName: "Oats", usSourceName: "Oats" },
 ];
 
+export const THESIS_BOARD_ACTIVE_FARMER_GRAIN_LANES = ACTIVE_FARMER_THESIS_GRAIN_LANES;
+
+const THESIS_BOARD_ACTIVE_FARMER_LANE_SOURCE_MAP = THESIS_BOARD_V1_LANE_SOURCE_MAP.filter((lane) =>
+  isActiveFarmerThesisGrain(lane.lane),
+);
+
 export const THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES = THESIS_BOARD_V1_LANE_SOURCE_MAP.map(
   (lane) => lane.canadaSourceName,
 ).filter((name): name is string => Boolean(name));
@@ -218,8 +228,20 @@ export const THESIS_BOARD_MAJOR_US_MARKET_NAMES = THESIS_BOARD_V1_LANE_SOURCE_MA
   (lane) => lane.usSourceName,
 ).filter((name): name is string => Boolean(name));
 
+export const THESIS_BOARD_ACTIVE_FARMER_CANADA_GRAIN_NAMES =
+  THESIS_BOARD_ACTIVE_FARMER_LANE_SOURCE_MAP.map((lane) => lane.canadaSourceName).filter(
+    (name): name is string => Boolean(name),
+  );
+
+export const THESIS_BOARD_ACTIVE_FARMER_US_MARKET_NAMES =
+  THESIS_BOARD_ACTIVE_FARMER_LANE_SOURCE_MAP.map((lane) => lane.usSourceName).filter(
+    (name): name is string => Boolean(name),
+  );
+
 const MAJOR_CANADA_GRAIN_NAMES = new Set<string>(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES);
 const MAJOR_US_MARKET_NAMES = new Set<string>(THESIS_BOARD_MAJOR_US_MARKET_NAMES);
+const ACTIVE_FARMER_CANADA_GRAIN_NAMES = new Set<string>(THESIS_BOARD_ACTIVE_FARMER_CANADA_GRAIN_NAMES);
+const ACTIVE_FARMER_US_MARKET_NAMES = new Set<string>(THESIS_BOARD_ACTIVE_FARMER_US_MARKET_NAMES);
 const SOURCE_MAPPING_NEEDED_LANES = new Set<string>(
   THESIS_BOARD_V1_LANE_SOURCE_MAP.filter((lane) => lane.placeholderReason).map((lane) => lane.lane),
 );
@@ -256,6 +278,14 @@ export function isMajorCanadaThesisGrain(name: string): boolean {
 
 export function isMajorUsThesisMarket(name: string): boolean {
   return MAJOR_US_MARKET_NAMES.has(name);
+}
+
+export function isActiveFarmerCanadaThesisGrain(name: string): boolean {
+  return ACTIVE_FARMER_CANADA_GRAIN_NAMES.has(name);
+}
+
+export function isActiveFarmerUsThesisMarket(name: string): boolean {
+  return ACTIVE_FARMER_US_MARKET_NAMES.has(name);
 }
 
 export function getMajorCanadaThesisGrains(): GrainDef[] {
@@ -1729,6 +1759,34 @@ export function buildMajorThesisComparisonRows(
       strongestBearPoints,
     };
   });
+}
+
+export function filterThesisBoardDataForActiveFarmerDisplay(data: ThesisBoardData): ThesisBoardData {
+  const canadaItems = data.canadaItems.filter((item) => isActiveFarmerCanadaThesisGrain(item.name));
+  const usItems = data.usItems.filter((item) => isActiveFarmerUsThesisMarket(item.name));
+  const comparisonRows = data.comparisonRows.filter((row) => isActiveFarmerThesisGrain(row.grain));
+  const allItems = [...canadaItems, ...usItems];
+  const sourceHealth = buildSourceHealthSummary(allItems);
+
+  return {
+    ...data,
+    canadaItems,
+    usItems,
+    comparisonRows,
+    totals: {
+      itemCount: allItems.length,
+      strongSourceCount: sourceHealth.strongSourceCount,
+      staleSourceCount: sourceHealth.watchSourceInstanceCount,
+      watchSourceInstanceCount: sourceHealth.watchSourceInstanceCount,
+      uniqueWatchSourceCount: sourceHealth.uniqueWatchSourceCount,
+      optionalSourceCount: sourceHealth.optionalSourceCount,
+      blockerCount: allItems.reduce(
+        (total, item) => total + item.warnings.filter((warning) => warning.severity === "blocker").length,
+        0,
+      ),
+    },
+    sourceHealth,
+  };
 }
 
 async function fetchCanadaPacket(

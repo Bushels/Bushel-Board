@@ -736,42 +736,44 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("write-mode routines stay disabled");
   });
 
-  it("surfaces split-market top takeaways before weaker one-country reads", async () => {
+  it("surfaces the Wheat split-market evidence before supporting detail", async () => {
     const html = await renderThesisPage();
 
+    expect(html).toContain("Wheat Bull/Bear decision surface");
+    expect(html).toContain("Wheat stance meter");
+    expect(html).toContain("Canada + US");
+    expect(html).toContain("Top bull evidence");
     expect(html).toContain(
-      "Wheat shows the strongest source-backed bull pressure in the CA read at +20 (80% confidence).",
+      "CA Canada export basis stays firm: Canada wheat flow is firmer than the US wheat packet. (+20 stance / CGC weekly grain stats).",
     );
-    expect(html).toContain("Lead evidence: CA Canada export basis stays firm (+20 stance / CGC weekly grain stats).");
+    expect(html).toContain("Top bear evidence");
     expect(html).toContain(
-      "Wheat shows the strongest source-backed bear pressure in the US read at -20 (80% confidence).",
-    );
-    expect(html).toContain(
-      "Lead evidence: US Crop condition adds supply pressure (76% good/excellent / USDA Crop Progress).",
+      "US Crop condition adds supply pressure: Good crop ratings are keeping supply pressure in the US packet. (76% good/excellent / USDA Crop Progress).",
     );
   });
 
-  it("labels one-country top takeaways instead of calling them full Canada-US reads", async () => {
+  it("does not substitute a non-wheat one-country row into the active farmer display", async () => {
     const data = boardData();
     getThesisBoardDataMock.mockResolvedValue({
       ...data,
+      canadaItems: [data.canadaItems[0]!],
+      usItems: [],
       comparisonRows: data.comparisonRows.filter((row) => row.grain === "Canola"),
     });
     const html = await renderThesisPage();
 
-    expect(html).toContain(
-      "Canola shows the strongest source-backed one-country bull pressure at +24 (CA only, 82% confidence).",
-    );
-    expect(html).toContain("Lead evidence: CA Export pull visible (260 kt / CGC weekly grain stats).");
+    expect(html).toContain("Wheat is the active farmer-facing grain, but no Wheat thesis packet is available");
+    expect(html).not.toContain("Canola shows the strongest");
+    expect(html).not.toContain("Export pull visible");
   });
 
-  it("shows row action cues for one-country and split-market reads", async () => {
+  it("shows Wheat row action cues without rendering one-country non-wheat cues", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("One-country read");
-    expect(html).toContain("Use as Canada context only; no matching US packet is modeled in V1.");
     expect(html).toContain("Open first");
     expect(html).toContain("Canada and US disagree; read both lead drivers before relying on this row.");
+    expect(html).not.toContain("One-country read");
+    expect(html).not.toContain("Use as Canada context only; no matching US packet is modeled in V1.");
     expect(html).not.toContain("before changing a pricing plan");
   });
 
@@ -805,14 +807,13 @@ describe("ThesisPage scorecard audit mode", () => {
   it("leads with the farmer read and keeps operator telemetry off the normal board", async () => {
     const html = await renderThesisPage();
 
-    // Farmer read first: takeaway, then the quick scan, then source health and snapshot.
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("All Grains at a Glance"));
-    expect(html.indexOf("All Grains at a Glance")).toBeLessThan(
-      html.indexOf("Official source rows are clean for this board"),
-    );
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Your area")).toBeLessThan(html.indexOf("Official source rows are clean for this board"));
     expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(
       html.indexOf("Current snapshot"),
     );
+    expect(html).not.toContain("All Grains at a Glance");
+    expect(html).not.toContain("Major Grain Thesis Matrix");
 
     // Operator telemetry must not render on the normal farmer view.
     expect(html).not.toContain("Daily Update Status");
@@ -830,8 +831,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Your area");
     expect(html).toContain("Enter your postal code");
     expect(html).toContain("Saved on this device only");
-    // The farmer read still leads; the area card sits after the matrix.
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
   });
 
   it("localizes the board with provincial flow and honest empty bids when an area is saved", async () => {
@@ -851,7 +851,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Local context for S0K (Saskatchewan)");
     expect(html).toContain("Saskatchewan elevator deliveries");
     expect(html).toContain("CGC week 42");
-    expect(html).toContain("8% ahead of last season");
+    expect(html).not.toContain("8% ahead of last season");
     expect(html).toContain("4% behind last season");
     expect(html).toContain("No elevator or processor prices are posted for your area yet");
     expect(getProvincialFlowMock).toHaveBeenCalledWith("Saskatchewan");
@@ -871,20 +871,31 @@ describe("ThesisPage scorecard audit mode", () => {
         deliveryPeriod: "June",
         postedAt: "2026-06-09T15:00:00Z",
       },
+      {
+        facilityName: "Prairie Wheat Terminal",
+        businessType: "elevator",
+        grain: "Wheat",
+        pricePerTonne: 282.25,
+        basis: -12.5,
+        deliveryPeriod: "June",
+        postedAt: "2026-06-09T15:00:00Z",
+      },
     ]);
 
     const html = await renderThesisPage();
 
     expect(html).toContain("Prices posted near you");
-    expect(html).toContain("Foothills Grain");
-    expect(html).toContain("$612.50/t");
-    expect(html).toContain("local price gap -38.25");
+    expect(html).not.toContain("Foothills Grain");
+    expect(html).not.toContain("$612.50/t");
+    expect(html).toContain("Prairie Wheat Terminal");
+    expect(html).toContain("$282.25/t");
+    expect(html).toContain("local price gap -12.50");
   });
 
   it("keeps the operator telemetry panels in audit mode, after the farmer read", async () => {
     const html = await renderThesisPage("1");
 
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Daily Update Status"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Daily Update Status"));
     expect(html.indexOf("Daily Update Status")).toBeLessThan(html.indexOf("X Pulse Watch"));
     expect(html.indexOf("X Pulse Watch")).toBeLessThan(html.indexOf("Weekly Data Intake"));
     expect(html).toContain("Source Packets");
@@ -1225,9 +1236,9 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("1/4 complete");
     expect(html).toContain("Board update mode");
     expect(html).toContain("partial today");
-    expect(html).toContain("1/3 visible Bull/Bear rows have same-day bounded overlays;");
+    expect(html).toContain("1/2 visible Bull/Bear rows have same-day bounded overlays;");
     expect(html).toContain("write automation stays approval-gated");
-    expect(html).toContain("1/3 today");
+    expect(html).toContain("1/2 today");
     expect(html).toContain("1 of 3 board rows have current-period daily trajectory overlays;");
     expect(html).toContain("1 of those are stamped today.");
   });
@@ -1247,14 +1258,11 @@ describe("ThesisPage scorecard audit mode", () => {
 
     const html = await renderThesisPage("1");
 
-    expect(html).toContain(
-      "Wheat shows the strongest source-backed bull pressure in the CA read at +19 (82% confidence).",
-    );
+    expect(html).toContain("Wheat stance meter");
+    expect(html).toContain("Wheat confidence-scaled stance score 0");
     expect(html).toContain("CA +19 Lean bull");
+    expect(html).toContain("Score source: Daily overlay Jun 1 (review-gated)");
     expect(html).toContain("Review-gated movement rows overlaid on visible scores");
-    expect(html).not.toContain(
-      "Wheat shows the strongest source-backed bull pressure in the CA read at +20 (80% confidence).",
-    );
   });
 
   it("shows how much of the visible board is covered by daily trajectory overlays", async () => {
@@ -1272,11 +1280,14 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Review-gated daily overlay coverage");
     expect(html).toContain("Board update mode");
     expect(html).toContain("prior overlay active");
-    expect(html).toContain("0/3 today");
-    expect(html).toContain("1/3 visible Bull/Bear rows use current-period review-gated daily overlays, but none are stamped today.");
+    expect(html).toContain("0/2 today");
+    expect(html).toContain("1/2 visible Bull/Bear rows use current-period review-gated daily overlays, but none are stamped today.");
     expect(html).toContain("1 of 3 board rows have current-period daily trajectory overlays;");
     expect(html).toContain("0 of those are stamped today.");
-    expect(html).toContain("2 rows remain on weekly packet scores until a matching daily row exists.");
+    expect(html).toContain("1 row");
+    expect(html).toContain("remains");
+    expect(html).toContain("weekly packet");
+    expect(html).toContain("matching daily row exists");
     expect(html).toContain("Latest overlay row Jun 1");
     expect(html).toContain("Review-gated overlay rows");
     expect(html).toContain("CAD Wheat: review-gated daily overlay");
@@ -1473,64 +1484,64 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Direct packet data; no archive fallback.");
     expect(html).not.toContain("No retired AI archive fallback is used on this page.");
     expect(html).not.toContain("Stale, empty, lagged, and proxy source lanes stay visible.");
-    // Farmer-first split: the read leads; source health and snapshot provenance follow it.
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(
       html.indexOf("Official source rows are clean for this board"),
     );
-    expect(html.indexOf("Source-backed pressure summary")).toBeLessThan(html.indexOf("Current snapshot"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Current snapshot"));
     expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(html.indexOf("Current snapshot"));
   });
 
-  it("summarizes priority rows in the top takeaway", async () => {
+  it("keeps the Wheat current read as the priority row", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Start with: Wheat (country split), Canola (Canada-only read).");
+    expect(html).toContain("Current read");
+    expect(html).toContain("Canada and US disagree; read both lead drivers before relying on this row.");
     expect(html).not.toContain("Open first: Wheat (Open first)");
   });
 
-  it("keeps quick-scan legend and takeaway badges tied to visible row statuses", async () => {
+  it("keeps visible status badges tied to the active Wheat row", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Country split = evidence disagrees");
-    expect(html).toContain("One-country = V1 has only CA or US modeled");
+    expect(html).toContain("Country split");
+    expect(html).toContain("Canada + US");
+    expect(html).not.toContain("One-country = V1 has only CA or US modeled");
     expect(html).not.toContain("Mapping needed = no class-safe source yet");
     expect(html).not.toContain("0 mapping gaps");
   });
 
-  it("scales stance bar length by confidence", async () => {
+  it("scales the Wheat stance meter by confidence", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("CA confidence-scaled stance score 24");
-    expect(html).toContain('data-confidence-scaled-width="9.84%"');
+    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain('data-confidence-scaled-position="50.00%"');
   });
 
   it("renders scorecard audit details only when audit=1 is present", async () => {
     const html = await renderThesisPage("1");
 
     expect(html).toContain("Scorecard audit");
-    expect(html).toContain("Overall rating: 37.5 / bull");
-    expect(html).toContain("Confidence: 64% / medium");
+    expect(html).toContain("Overall rating: 20.4 / lean_bull");
+    expect(html).toContain("Confidence: 80% / high");
     expect(html).toContain("demand: 60 × 0.25");
-    expect(html).toContain("movement: -20 × 0.2");
-    expect(html).toContain("Quality adjustments: 1");
-    expect(html).toContain("Missing required sources: price");
-    expect(html).toContain("Blocked claims: movement_without_current_week_cgc");
+    expect(html).toContain("supply: 30 × 0.18");
+    expect(html).toContain("Overall rating: -19.8 / lean_bear");
+    expect(html).toContain("weather: -30 × 0.16");
     expect(html).toContain("Data coverage matrix");
-    expect(html).toContain("Audit-only map of pulled, packeted, scored, explanation-only, and missing lanes for Canola.");
+    expect(html).toContain("Audit-only map of pulled, packeted, scored, explanation-only, and missing lanes for Wheat.");
     expect(html).toContain("Pull");
     expect(html).toContain("Packet");
     expect(html).toContain("Score");
     expect(html).toContain("Explain");
     expect(html).toContain("Gap");
-    expect(html).toContain("Source IDs: cgc_observations, cgc_imports");
+    expect(html).toContain("Source IDs: cgc_observations, usda_export_sales, usda_wasde_mapped");
     expect(html).toContain("Use for explanation and inspection priority until packet admission and mapper tests are added.");
     expect(html).toContain("Next source admissions");
     expect(html).toContain("Ranked by lowest-friction path from the current impact map");
     expect(html).toContain("Priority 1");
     expect(html).toContain("Promote watch lane");
-    expect(html).toContain("Candidate source IDs: usda_wasde_raw");
+    expect(html).toContain("Candidate source IDs: x_scout_runs, x_market_signals");
     expect(html).toContain("Currently explanation-only. It may guide review priority, but it cannot move the deterministic score.");
-    expect(html).toContain("Saskatchewan Oilseeds rows are official group-level timing proxies");
+    expect(html).toContain("Spring Cereals rows are official group-level timing proxies");
     expect(html).toContain("Missing source admissions");
     expect(html).toContain("Admit a source contract, collector, units, freshness proof, and mapper before it can affect the thesis.");
     expect(html).toContain("Impact Map audit");
@@ -1572,16 +1583,16 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Source, relationship, and gap lanes");
     expect(html).toContain("Top ranked links");
     expect(html).toContain(
-      "Canada-first oilseed with strong crush, export, vegetable-oil, soy-complex, China, and policy sensitivity.",
+      "Global benchmark grain where Canada/US data matters but Black Sea, EU, Australia, quality class, and feed substitution can dominate.",
     );
-    expect(html).toContain("canada first");
+    expect(html).toContain("global benchmark");
     expect(html).toContain("Official input");
     expect(html).toContain("Price context");
-    expect(html).toContain("Bounded context");
+    expect(html).toContain("Watch-only");
     expect(html).toContain("Market response rules");
-    expect(html).toContain("Flow plus soy-complex confirmation");
-    expect(html).toContain("Viking overlay: basis pricing, logistics exports, market structure, grain specifics");
-    expect(html).toContain("Soybeans and soy products are the main public cross-market context for canola.");
-    expect(html).toContain("Parked gaps: local basis, explicit crush margins, quality-grade scoring.");
+    expect(html).toContain("Local bull signal capped by global origins");
+    expect(html).toContain("Viking overlay: market structure, logistics exports, basis pricing");
+    expect(html).toContain("Feed wheat competes with corn when spreads narrow.");
+    expect(html).toContain("Parked gaps: Spring Wheat mapping, Winter Wheat mapping, global origin collector, protein/falling-number feed, local basis.");
   });
 });

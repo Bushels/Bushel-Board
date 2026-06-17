@@ -6,10 +6,14 @@ import {
   type ProvincialFlowObservation,
   type ProvincialGrainFlow,
 } from "@/lib/queries/area-read-utils";
+import {
+  ACTIVE_FARMER_THESIS_GRAIN_LANES,
+  isActiveFarmerThesisGrain,
+} from "@/lib/thesis/active-grain-display";
 
 export type { AreaBid, ProvincialGrainFlow } from "@/lib/queries/area-read-utils";
 
-const AREA_GRAINS = ["Canola", "Wheat", "Amber Durum", "Barley", "Oats", "Corn", "Soybeans"] as const;
+const AREA_GRAINS = ACTIVE_FARMER_THESIS_GRAIN_LANES;
 
 function priorCropYear(cropYear: string): string {
   const [start, end] = cropYear.split("-").map(Number);
@@ -81,13 +85,15 @@ export async function getAreaBids(fsa: string): Promise<AreaBid[]> {
   const result = await supabase.rpc("get_area_prices", { p_fsa_code: fsa });
   if (result.error) return [];
 
-  return ((result.data ?? []) as AreaPriceRow[]).map((row) => ({
-    facilityName: row.facility_name,
-    businessType: row.business_type,
-    grain: row.grain,
-    pricePerTonne: row.price_per_tonne === null ? null : Number(row.price_per_tonne),
-    basis: row.basis === null ? null : Number(row.basis),
-    deliveryPeriod: row.delivery_period,
-    postedAt: row.posted_at,
-  }));
+  return ((result.data ?? []) as AreaPriceRow[])
+    .filter((row) => isActiveFarmerThesisGrain(row.grain))
+    .map((row) => ({
+      facilityName: row.facility_name,
+      businessType: row.business_type,
+      grain: row.grain,
+      pricePerTonne: row.price_per_tonne === null ? null : Number(row.price_per_tonne),
+      basis: row.basis === null ? null : Number(row.basis),
+      deliveryPeriod: row.delivery_period,
+      postedAt: row.posted_at,
+    }));
 }

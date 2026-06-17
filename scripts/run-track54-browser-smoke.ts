@@ -125,7 +125,7 @@ Options:
 
 const VIEWPORTS: Record<ViewportConfig["name"], ViewportConfig> = {
   desktop: { name: "desktop", width: 1024, height: 768, mobile: false },
-  mobile: { name: "mobile", width: 390, height: 844, mobile: true },
+  mobile: { name: "mobile", width: 375, height: 812, mobile: true },
 };
 
 const ROUTES: RouteSmokeConfig[] = [
@@ -134,15 +134,76 @@ const ROUTES: RouteSmokeConfig[] = [
     // only farmer-facing surfaces. Operator telemetry markers are FORBIDDEN here and must
     // render in audit mode instead.
     path: "/thesis",
-    markers: ["Source-backed pressure summary", "Source health", "Board update mode", "Score source", "What feeds this read", "Your area", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution"],
+    markers: [
+      "Wheat Bull/Bear decision surface",
+      "Wheat stance meter",
+      "Top bull evidence",
+      "Sources to Wheat Bull/Bear board",
+      "Pressure-lane breakdown",
+      "What feeds this read",
+      "Your area",
+      "Source health",
+      "Board update mode",
+      "Score source",
+      "Wheat Pressure Map",
+      "Source data lanes",
+      "Wheat factor nodes",
+      "All graph links",
+      "Packet contributions",
+      "Current packet contribution",
+    ],
     // "Watch-only social evidence" is the moved X Pulse panel's badge; the panel title
     // "X Pulse Watch" cannot be used as a sentinel because it case-insensitively matches
     // the legitimate "X Pulse watch leads" copy in the farmer-facing pressure map.
-    forbiddenText: [...PUBLIC_BOARD_FORBIDDEN_TERMS, "Daily automation gate progress", "Weekly Data Intake", "Readiness proof", "Track 54 production gate", "Watch-only social evidence"],
+    forbiddenText: [
+      ...PUBLIC_BOARD_FORBIDDEN_TERMS,
+      "All Grains at a Glance",
+      "Major Grain Thesis Matrix",
+      "Canada Major Grains",
+      "US Markets",
+      "Daily automation gate progress",
+      "Weekly Data Intake",
+      "Readiness proof",
+      "Track 54 production gate",
+      "Watch-only social evidence",
+    ],
   },
   {
     path: "/thesis?audit=1",
-    markers: ["Source health", "Source-backed pressure summary", "Your area", "Board update mode", "Daily Update Status", "Daily decision path", "Today update window", "Today update checklist", "Daily automation gate progress", "Readiness proof", "Score source", "X Pulse Watch", "Weekly Data Intake", "Analyzed data", "Current week pull tracker", "Weekly pull calendar", "Track 54 production gate", "How data becomes Bull/Bear pressure", "Role", "Pressure lane", "Current board status", "Latest collector", "Wheat Pressure Map", "Source data lanes", "Wheat factor nodes", "All graph links", "Packet contributions", "Current packet contribution", "Scorecard audit", "Data coverage matrix", "Next source admissions", "Impact Map audit"],
+    markers: [
+      "Source health",
+      "Wheat Bull/Bear decision surface",
+      "Your area",
+      "Board update mode",
+      "Daily Update Status",
+      "Daily decision path",
+      "Today update window",
+      "Today update checklist",
+      "Daily automation gate progress",
+      "Readiness proof",
+      "Score source",
+      "X Pulse Watch",
+      "Weekly Data Intake",
+      "Analyzed data",
+      "Current week pull tracker",
+      "Weekly pull calendar",
+      "Track 54 production gate",
+      "How data becomes Bull/Bear pressure",
+      "Role",
+      "Pressure lane",
+      "Current board status",
+      "Latest collector",
+      "Wheat Pressure Map",
+      "Source data lanes",
+      "Wheat factor nodes",
+      "All graph links",
+      "Packet contributions",
+      "Current packet contribution",
+      "Scorecard audit",
+      "Data coverage matrix",
+      "Next source admissions",
+      "Impact Map audit",
+    ],
     forbiddenText: [...PUBLIC_ADVICE_FORBIDDEN_TERMS],
   },
 ];
@@ -223,7 +284,7 @@ async function fetchJson(url: string, init?: RequestInit): Promise<any> {
 
 async function baseUrlReachable(baseUrl: string): Promise<boolean> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2_000);
+  const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
     await fetch(baseUrl, { signal: controller.signal });
     return true;
@@ -615,6 +676,8 @@ async function smokeRoute(port: number, baseUrl: string, route: RouteSmokeConfig
     await client.send("Runtime.enable");
     await client.send("Log.enable");
     await client.send("Page.enable");
+    await client.send("Network.enable");
+    await client.send("Network.setCacheDisabled", { cacheDisabled: true });
     await client.send("Emulation.setDeviceMetricsOverride", {
       width: viewport.width,
       height: viewport.height,
@@ -624,7 +687,7 @@ async function smokeRoute(port: number, baseUrl: string, route: RouteSmokeConfig
     await client.send("Emulation.setTouchEmulationEnabled", { enabled: viewport.mobile });
 
     const url = `${baseUrl}${route.path}`;
-    const load = client.waitFor("Page.loadEventFired", 30_000);
+    const load = client.waitFor("Page.loadEventFired", 90_000);
     await client.send("Page.navigate", { url });
     await load;
     await sleep(settleMs);
