@@ -130,14 +130,15 @@ const VIEWPORTS: Record<ViewportConfig["name"], ViewportConfig> = {
 
 const ROUTES: RouteSmokeConfig[] = [
   {
-    // Farmer-first split (2026-06-09): normal /thesis leads with the market read and keeps
-    // only farmer-facing surfaces. Operator telemetry markers are FORBIDDEN here and must
-    // render in audit mode instead.
+    // Wheat-first country split (2026-06-16): normal /thesis leads with the Canada/USA
+    // Wheat Bull/Bear read and keeps only farmer-facing surfaces. Operator telemetry
+    // markers are FORBIDDEN here and must render in audit mode instead.
     path: "/thesis",
     markers: [
-      "Wheat Bull/Bear decision surface",
+      "Canada vs USA Wheat Bull/Bear",
+      "Canada Wheat Bull/Bear",
+      "USA Wheat Bull/Bear",
       "Wheat stance meter",
-      "Top bull evidence",
       "Sources to Wheat Bull/Bear board",
       "Pressure-lane breakdown",
       "What feeds this read",
@@ -172,7 +173,7 @@ const ROUTES: RouteSmokeConfig[] = [
     path: "/thesis?audit=1",
     markers: [
       "Source health",
-      "Wheat Bull/Bear decision surface",
+      "Canada vs USA Wheat Bull/Bear",
       "Your area",
       "Board update mode",
       "Daily Update Status",

@@ -739,7 +739,9 @@ describe("ThesisPage scorecard audit mode", () => {
   it("surfaces the Wheat split-market evidence before supporting detail", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Wheat Bull/Bear decision surface");
+    expect(html).toContain("Canada vs USA Wheat Bull/Bear");
+    expect(html).toContain("Canada Wheat Bull/Bear");
+    expect(html).toContain("USA Wheat Bull/Bear");
     expect(html).toContain("Wheat stance meter");
     expect(html).toContain("Canada + US");
     expect(html).toContain("Top bull evidence");
@@ -807,7 +809,7 @@ describe("ThesisPage scorecard audit mode", () => {
   it("leads with the farmer read and keeps operator telemetry off the normal board", async () => {
     const html = await renderThesisPage();
 
-    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Canada vs USA Wheat Bull/Bear")).toBeLessThan(html.indexOf("Your area"));
     expect(html.indexOf("Your area")).toBeLessThan(html.indexOf("Official source rows are clean for this board"));
     expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(
       html.indexOf("Current snapshot"),
@@ -831,7 +833,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Your area");
     expect(html).toContain("Enter your postal code");
     expect(html).toContain("Saved on this device only");
-    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Canada vs USA Wheat Bull/Bear")).toBeLessThan(html.indexOf("Your area"));
   });
 
   it("localizes the board with provincial flow and honest empty bids when an area is saved", async () => {
