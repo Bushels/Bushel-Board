@@ -45,7 +45,6 @@ import {
   type ThesisComparisonPoint,
   type ThesisComparisonRow,
   type ThesisDriver,
-  type ThesisDriverTone,
 } from "@/lib/queries/thesis-board";
 import {
   getXPulseWatchSummary,
@@ -1511,12 +1510,6 @@ function wheatCoverageLabel(row: ThesisComparisonRow): string {
   return "No active packet";
 }
 
-function firstPointLabel(points: ThesisComparisonPoint[], fallback: string): string {
-  const point = points[0];
-  if (!point) return fallback;
-  return `${point.country} ${point.title}: ${point.body} (${point.metricLabel} / ${sourceDisplayName(point.sourceName)}).`;
-}
-
 const WHEAT_PRESSURE_LANE_IDS = [
   "supply",
   "demand",
@@ -1684,29 +1677,9 @@ function countryBadgeClass(score: number): string {
   return "border-border bg-background/70 text-muted-foreground";
 }
 
-function leadDriver(item: ThesisBoardItem, tone: ThesisDriverTone): ThesisDriver | null {
-  const drivers = tone === "bull" ? item.bullDrivers : item.bearDrivers;
-  return drivers[0] ?? null;
-}
-
-function driverSummary(driver: ThesisDriver | null, fallback: string): string {
-  if (!driver) return fallback;
-  return `${driver.title}: ${driver.body} (${driver.metricLabel} / ${sourceDisplayName(driver.sourceName)}).`;
-}
-
 function comparisonPointSummary(point: ThesisComparisonPoint | null, fallback: string): string {
   if (!point) return fallback;
   return `${point.country} ${point.title}: ${point.body} (${point.metricLabel} / ${sourceDisplayName(point.sourceName)}).`;
-}
-
-function countryComparisonPoint(
-  row: ThesisComparisonRow,
-  lane: ThesisLane,
-  tone: ThesisDriverTone,
-): ThesisComparisonPoint | null {
-  const country = countryCodeLabel(lane);
-  const points = tone === "bull" ? row.strongestBullPoints : row.strongestBearPoints;
-  return points.find((point) => point.country === country) ?? null;
 }
 
 function CountryStanceRail({ item }: { item: ThesisBoardItem }) {
@@ -1738,38 +1711,49 @@ function CountryStanceRail({ item }: { item: ThesisBoardItem }) {
   );
 }
 
-function CountryEvidencePair({
-  item,
-  bullPoint,
-  bearPoint,
+function EvidencePointCard({
+  point,
+  tone,
 }: {
-  item: ThesisBoardItem;
-  bullPoint: ThesisComparisonPoint | null;
-  bearPoint: ThesisComparisonPoint | null;
+  point: ThesisComparisonPoint | null;
+  tone: "bull" | "bear";
 }) {
-  const bull = leadDriver(item, "bull");
-  const bear = leadDriver(item, "bear");
+  const Icon = tone === "bull" ? TrendingUp : TrendingDown;
+  const title = tone === "bull" ? "Top bull evidence" : "Top bear evidence";
+  const fallback =
+    tone === "bull"
+      ? "No bullish Wheat driver in the current packets."
+      : "No bearish Wheat driver in the current packets.";
+  const toneClass =
+    tone === "bull"
+      ? "border-prairie/20 bg-prairie/8 text-prairie"
+      : "border-amber-600/20 bg-amber-500/8 text-amber-700 dark:text-amber-300";
 
   return (
-    <div className="grid gap-2">
-      <div className="rounded-lg border border-prairie/20 bg-background/75 p-2.5">
-        <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-prairie">
-          <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
-          Top bull evidence
+    <div className={cn("rounded-lg border p-3", toneClass)}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          {title}
         </div>
-        <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-          {comparisonPointSummary(bullPoint, driverSummary(bull, "No bullish Wheat driver in this packet."))}
-        </p>
+        {point ? (
+          <Badge variant="outline" className="border-border bg-background/70 text-[10px] text-muted-foreground">
+            {point.country}
+          </Badge>
+        ) : null}
       </div>
-      <div className="rounded-lg border border-amber-600/20 bg-background/75 p-2.5">
-        <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-          <TrendingDown className="h-3.5 w-3.5" aria-hidden="true" />
-          Top bear evidence
-        </div>
-        <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-          {comparisonPointSummary(bearPoint, driverSummary(bear, "No bearish Wheat driver in this packet."))}
-        </p>
-      </div>
+      <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+        {comparisonPointSummary(point, fallback)}
+      </p>
+    </div>
+  );
+}
+
+function WheatLeadEvidencePanel({ row }: { row: ThesisComparisonRow }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <EvidencePointCard point={row.strongestBullPoints[0] ?? null} tone="bull" />
+      <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
     </div>
   );
 }
@@ -1777,11 +1761,9 @@ function CountryEvidencePair({
 function WheatCountryDecisionCard({
   item,
   lane,
-  row,
 }: {
   item: ThesisBoardItem | null;
   lane: ThesisLane;
-  row: ThesisComparisonRow;
 }) {
   if (!item) {
     return (
@@ -1798,8 +1780,8 @@ function WheatCountryDecisionCard({
   }
 
   return (
-    <article className={cn("rounded-xl border p-3 shadow-sm", countryCardClass(item.stanceScore))}>
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <article className={cn("flex min-h-[255px] flex-col justify-between rounded-xl border p-4 shadow-sm", countryCardClass(item.stanceScore))}>
+      <div className="flex items-start justify-between gap-3">
         <div>
           <Badge variant="outline" className={countryBadgeClass(item.stanceScore)}>
             {countryCodeLabel(item.lane)} packet
@@ -1807,29 +1789,26 @@ function WheatCountryDecisionCard({
           <h3 className="mt-2 font-display text-lg font-semibold text-foreground">
             {countryReadTitle(item.lane)}
           </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {directionalIndicatorLabel(item.stanceScore)} / {item.confidenceScore}% confidence
-          </p>
         </div>
         <div className="text-right">
-          <p className={cn("text-3xl font-semibold tabular-nums", stanceClass(item.stanceScore))}>
+          <p className={cn("text-5xl font-semibold tabular-nums", stanceClass(item.stanceScore))}>
             {signedNumber(item.stanceScore)}
           </p>
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">score</p>
         </div>
       </div>
 
-      <CountryStanceRail item={item} />
-
-      <div className="mt-3">
-        <CountryEvidencePair
-          item={item}
-          bullPoint={countryComparisonPoint(row, item.lane, "bull")}
-          bearPoint={countryComparisonPoint(row, item.lane, "bear")}
-        />
+      <div className="my-4">
+        <p className="mb-3 text-2xl font-semibold text-foreground">
+          {directionalIndicatorLabel(item.stanceScore)}
+        </p>
+        <CountryStanceRail item={item} />
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+          {item.confidenceScore}% confidence
+        </Badge>
         <ScoreSourceBadge item={item} />
         <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
           {item.sourceCount} sources
@@ -1863,7 +1842,7 @@ function WheatCountrySplitGraphic({
           <WheatIcon className="h-5 w-5" aria-hidden="true" />
         </div>
         <Badge variant="outline" className="mt-3 border-canola/35 bg-canola/10 text-canola">
-          Country split read
+          Combined Wheat read
         </Badge>
         <p className="mt-2 font-display text-xl font-semibold text-foreground">
           {directionalIndicatorLabel(safeScore)}
@@ -1915,7 +1894,7 @@ function WheatCountrySplitGraphic({
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
         {splitDelta === null
           ? "One country packet is missing, so the combined read is partial."
-          : `USA is ${signedNumber(splitDelta)} points versus Canada, which is why the country split is the lead read.`}
+          : `USA is ${signedNumber(splitDelta)} points versus Canada; the combined read stays confidence-weighted.`}
       </p>
     </div>
   );
@@ -1953,19 +1932,14 @@ function WheatMobileDecisionSnapshot({
         ))}
       </div>
 
-      <div className="rounded-lg border border-prairie/20 bg-background/80 p-3">
-        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-prairie">
-          <TrendingUp className="h-4 w-4" aria-hidden="true" />
-          Top bull evidence
-        </div>
-        <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">
-          {firstPointLabel(row.strongestBullPoints, "No bullish Wheat driver in the current packets.")}
-        </p>
+      <div className="grid gap-2">
+        <EvidencePointCard point={row.strongestBullPoints[0] ?? null} tone="bull" />
+        <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
       </div>
 
       <div className="rounded-lg border border-canola/25 bg-canola/10 p-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold text-canola">Country split read</p>
+          <p className="text-xs font-semibold text-canola">Combined Wheat read</p>
           <p className={cn("text-xl font-semibold tabular-nums", stanceClass(safeScore))}>
             {signedNumber(safeScore)}
           </p>
@@ -2061,16 +2035,13 @@ function WheatDecisionSurface({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <Badge variant="outline" className="mb-2 border-canola/35 bg-background/70 text-canola sm:mb-3">
-                Wheat country split
+                Wheat Bull/Bear
               </Badge>
               <h1 id="wheat-decision-heading" className="font-display text-2xl font-semibold leading-tight text-foreground sm:text-3xl md:text-4xl">
                 Canada vs USA Wheat Bull/Bear
               </h1>
-              <CardDescription className="mt-2 text-sm leading-6">
-                The country split is the lead read: Canada and the USA can point different directions before the combined Wheat board settles on one visible stance.
-              </CardDescription>
             </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
+            <div className="hidden flex-wrap gap-2 sm:flex lg:justify-end">
               <Badge variant="outline" className={comparisonClass(row.status)}>
                 {row.statusLabel}
               </Badge>
@@ -2086,10 +2057,12 @@ function WheatDecisionSurface({
         <WheatMobileDecisionSnapshot row={row} score={score} confidence={confidence} localContext={localContext} />
         <CardContent className="hidden gap-3 px-4 pb-4 sm:grid sm:px-5">
           <div className="grid gap-3 sm:grid-cols-3 sm:items-stretch">
-            <WheatCountryDecisionCard item={row.canada} lane="canada" row={row} />
+            <WheatCountryDecisionCard item={row.canada} lane="canada" />
             <WheatCountrySplitGraphic row={row} score={score} confidence={confidence} />
-            <WheatCountryDecisionCard item={row.us} lane="us" row={row} />
+            <WheatCountryDecisionCard item={row.us} lane="us" />
           </div>
+
+          <WheatLeadEvidencePanel row={row} />
 
           <div className="rounded-lg border border-border bg-background/75 p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
