@@ -80,6 +80,21 @@ LIMIT 20;
 4. Treat `grain_intelligence` as historical archive only.
 5. Present the report as a compact markdown table or narrative.
 
+## Crop Progress And Wheat Thesis Overlay
+
+When the user asks how Prairie crop progress changes the Wheat bull/bear thesis:
+
+1. Inspect or run the weekly package with `npm run report:prairie-crop-progress` and read `output/prairie-crop-progress/latest/summary.json`.
+2. Compare the crop-progress facts against the latest Wheat `market_analysis`; do not overwrite, publish, or refresh thesis rows from this skill.
+3. Treat crop-progress data as a bounded weather/supply/quality pressure overlay:
+   - Manitoba crop reports may provide seeding, flooding, disease, and field-access evidence, but the current report format does not provide structured Excellent/Good/Fair/Poor crop-quality buckets.
+   - Saskatchewan provides full Excellent/Good/Fair/Poor/Very Poor regional crop-condition tables; if averaged, label it as a simple regional average unless acreage weighting is implemented.
+   - Alberta currently publishes Good-to-Excellent condition only; do not split it into Excellent/Good/Fair/Poor without a source table.
+4. For Wheat specifically, classify prairie crop-progress pressure before changing the read:
+   - Bullish risk: Manitoba flooding/unseeded exposure, Saskatchewan development lag or surplus moisture, weak Alberta/North West crop condition.
+   - Bearish/neutral offset: Saskatchewan spring wheat mostly seeded and mostly Good/Excellent.
+5. Use "acre-equivalent exposure" for derived estimates. Do not write "lost acres", "damaged acres", or "affected acres" unless the province publishes that number.
+
 ## Hard Stop
 
 Do not manually trigger `generate-intelligence`, `analyze-grain-market`, or

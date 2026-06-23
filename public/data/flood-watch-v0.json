@@ -1,14 +1,14 @@
 {
   "acre_totals": {
-    "excess_moisture_acres": 8772.0,
+    "excess_moisture_acres": 7456.0,
     "forecast_3day_at_risk_acres": 0.0,
-    "forecast_7day_at_risk_acres": 3245.2,
-    "forecast_at_risk_acres": 3245.2,
-    "observed_inundation_acres": 1298.0,
-    "watch_acres": 44849.7
+    "forecast_7day_at_risk_acres": 4538.0,
+    "forecast_at_risk_acres": 4538.0,
+    "observed_inundation_acres": 2596.0,
+    "watch_acres": 56457.7
   },
   "claim_boundary": "Acres are at risk/watch acres from satellite, rainfall, forecast, and terrain screening; they are not confirmed damaged acres or crop-loss proof.",
-  "computed_at": "2026-06-22T18:14:03+00:00",
+  "computed_at": "2026-06-23T11:38:24+00:00",
   "datasets": {
     "aafc_aci": "AAFC/ACI",
     "gfs": "NOAA/GFS0P25",
@@ -21,9 +21,9 @@
   },
   "event": {
     "aoi": "Western Canada plus contiguous US cropland envelope",
-    "end": "2026-06-21",
-    "label": "2026-06-14 to 2026-06-21 Western Canada/US rain watch",
-    "start": "2026-06-14"
+    "end": "2026-06-23",
+    "label": "2026-06-16 to 2026-06-23 Western Canada/US moisture watch",
+    "start": "2026-06-16"
   },
   "method": {
     "forecast_layer": "GFS 3-day/7-day precipitation risk on cropland with wetness, recent-rain, or lowland susceptibility context.",
@@ -40,7 +40,6 @@
     "sentinel_drop_db": 2.0,
     "sentinel_water_threshold_db": -17.0
   },
-  "ok": true,
   "official_moisture_layers": [
     {
       "coverage": "Canada",
@@ -59,16 +58,16 @@
       "description": "Crop-CASMA SMAP hybrid weekly anomaly layer used as official U.S. visual context.",
       "id": "crop_casma_smap_hybrid_1km_weekly_anomaly",
       "label": "Crop-CASMA weekly SMAP hybrid soil moisture anomaly",
-      "latest_at": "2026-06-21T23:59:59+00:00",
-      "layer_name": "SMAP-HYB-1KM-ANOMALY-WEEKLY_2026_25_2026.06.15_2026.06.21",
+      "latest_at": "2026-06-28T23:59:59+00:00",
+      "layer_name": "SMAP-HYB-1KM-ANOMALY-WEEKLY_2026_26_2026.06.22_2026.06.28",
       "map": "/WMS/SMAP-HYB-1KM-ANOMALY-WEEKLY_2026.map",
       "provider": "USDA NASS, NASA, and George Mason University",
       "resolution": "1 km hybrid weekly anomaly",
       "service": "WMS",
-      "service_url": "https://cloud.csiss.gmu.edu/smap_server/cgi-bin/mapserv",
       "source_url": "https://nassgeo.csiss.gmu.edu/Crop-CASMA-Developer/wms/SMAP-HYB-1KM-ANOMALY/"
     }
   ],
+  "ok": true,
   "rows": [
     {
       "center_lat": 50.25,
@@ -82,8 +81,8 @@
       "north": 51.5,
       "observed_inundation_acres": 0.0,
       "south": 49,
-      "total_watch_layer_acres": 11435.5,
-      "watch_acres": 11435.5,
+      "total_watch_layer_acres": 10122.2,
+      "watch_acres": 10122.2,
       "west": -102.5
     },
     {
@@ -92,15 +91,31 @@
       "east": -102.5,
       "excess_moisture_acres": 0.0,
       "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 1751.1,
-      "forecast_at_risk_acres": 1751.1,
+      "forecast_7day_at_risk_acres": 0.0,
+      "forecast_at_risk_acres": 0.0,
       "grid_id": "grid_m105p00_49p00",
       "north": 51.5,
       "observed_inundation_acres": 0.0,
       "south": 49,
-      "total_watch_layer_acres": 8699.5,
-      "watch_acres": 5197.3,
+      "total_watch_layer_acres": 9575.0,
+      "watch_acres": 9575.0,
       "west": -105
+    },
+    {
+      "center_lat": 50.25,
+      "center_lon": -108.75,
+      "east": -107.5,
+      "excess_moisture_acres": 0.0,
+      "forecast_3day_at_risk_acres": 0.0,
+      "forecast_7day_at_risk_acres": 2000.5,
+      "forecast_at_risk_acres": 2000.5,
+      "grid_id": "grid_m110p00_49p00",
+      "north": 51.5,
+      "observed_inundation_acres": 875.5,
+      "south": 49,
+      "total_watch_layer_acres": 8630.6,
+      "watch_acres": 3754.1,
+      "west": -110
     },
     {
       "center_lat": 50.25,
@@ -130,8 +145,8 @@
       "north": 49,
       "observed_inundation_acres": 0.0,
       "south": 46.5,
-      "total_watch_layer_acres": 5518.0,
-      "watch_acres": 5518.0,
+      "total_watch_layer_acres": 4884.2,
+      "watch_acres": 4884.2,
       "west": -102.5
     },
     {
@@ -140,15 +155,31 @@
       "east": -102.5,
       "excess_moisture_acres": 0.0,
       "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 845.0,
-      "forecast_at_risk_acres": 845.0,
+      "forecast_7day_at_risk_acres": 0.0,
+      "forecast_at_risk_acres": 0.0,
       "grid_id": "grid_m105p00_46p50",
       "north": 49,
       "observed_inundation_acres": 0.0,
       "south": 46.5,
-      "total_watch_layer_acres": 4199.6,
-      "watch_acres": 2509.6,
+      "total_watch_layer_acres": 4622.1,
+      "watch_acres": 4622.1,
       "west": -105
+    },
+    {
+      "center_lat": 47.75,
+      "center_lon": -108.75,
+      "east": -107.5,
+      "excess_moisture_acres": 0.0,
+      "forecast_3day_at_risk_acres": 0.0,
+      "forecast_7day_at_risk_acres": 964.6,
+      "forecast_at_risk_acres": 964.6,
+      "grid_id": "grid_m110p00_46p50",
+      "north": 49,
+      "observed_inundation_acres": 422.5,
+      "south": 46.5,
+      "total_watch_layer_acres": 4163.9,
+      "watch_acres": 1812.2,
+      "west": -110
     },
     {
       "center_lat": 47.75,
@@ -167,38 +198,6 @@
       "west": -97.5
     },
     {
-      "center_lat": 47.75,
-      "center_lon": -68.75,
-      "east": -67.5,
-      "excess_moisture_acres": 3367.9,
-      "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 0.0,
-      "forecast_at_risk_acres": 0.0,
-      "grid_id": "grid_m70p00_46p50",
-      "north": 49,
-      "observed_inundation_acres": 0.0,
-      "south": 46.5,
-      "total_watch_layer_acres": 3367.9,
-      "watch_acres": 0.0,
-      "west": -70
-    },
-    {
-      "center_lat": 45.25,
-      "center_lon": -68.75,
-      "east": -67.5,
-      "excess_moisture_acres": 1363.3,
-      "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 0.0,
-      "forecast_at_risk_acres": 0.0,
-      "grid_id": "grid_m70p00_44p00",
-      "north": 46.5,
-      "observed_inundation_acres": 0.0,
-      "south": 44,
-      "total_watch_layer_acres": 2730.8,
-      "watch_acres": 1367.5,
-      "west": -70
-    },
-    {
       "center_lat": 50.25,
       "center_lon": -106.25,
       "east": -105,
@@ -210,32 +209,62 @@
       "north": 51.5,
       "observed_inundation_acres": 875.5,
       "south": 49,
-      "total_watch_layer_acres": 2626.6,
-      "watch_acres": 1751.1,
+      "total_watch_layer_acres": 3685.4,
+      "watch_acres": 2809.9,
       "west": -107.5
+    },
+    {
+      "center_lat": 47.75,
+      "center_lon": -68.75,
+      "east": -67.5,
+      "excess_moisture_acres": 2698.5,
+      "forecast_3day_at_risk_acres": 0.0,
+      "forecast_7day_at_risk_acres": 0.0,
+      "forecast_at_risk_acres": 0.0,
+      "grid_id": "grid_m70p00_46p50",
+      "north": 49,
+      "observed_inundation_acres": 0.0,
+      "south": 46.5,
+      "total_watch_layer_acres": 2698.5,
+      "watch_acres": 0.0,
+      "west": -70
+    },
+    {
+      "center_lat": 50.25,
+      "center_lon": -111.25,
+      "east": -110,
+      "excess_moisture_acres": 0.0,
+      "forecast_3day_at_risk_acres": 0.0,
+      "forecast_7day_at_risk_acres": 1061.3,
+      "forecast_at_risk_acres": 1061.3,
+      "grid_id": "grid_m112p50_49p00",
+      "north": 51.5,
+      "observed_inundation_acres": 0.0,
+      "south": 49,
+      "total_watch_layer_acres": 2560.4,
+      "watch_acres": 437.8,
+      "west": -112.5
     }
   ],
-  "rows_returned": 9,
-  "runtime_seconds": 320.88,
+  "rows_returned": 11,
+  "runtime_seconds": 312.65,
   "source_freshness": {
     "aafc_aci_latest": "2024-01-01T00:00:00+00:00",
-    "aafc_smos_weekly_anomaly_latest": "2026-06-21T12:00:00+00:00",
-    "crop_casma_smap_hybrid_weekly_layer": "SMAP-HYB-1KM-ANOMALY-WEEKLY_2026_25_2026.06.15_2026.06.21",
     "gfs_168h": {
       "horizon_hours": 168,
       "image_count": 136,
-      "latest_creation_time": "2026-06-22T12:00:00+00:00"
+      "latest_creation_time": "2026-06-23T06:00:00+00:00"
     },
     "gfs_72h": {
       "horizon_hours": 72,
       "image_count": 72,
-      "latest_creation_time": "2026-06-22T12:00:00+00:00"
+      "latest_creation_time": "2026-06-23T06:00:00+00:00"
     },
-    "imerg_latest_in_event_window": "2026-06-21T03:30:00+00:00",
+    "imerg_latest_in_event_window": "2026-06-22T03:30:00+00:00",
     "jrc_surface_water": "static JRC/GSW1_4 occurrence/seasonality",
     "merit_hydro": "static MERIT/Hydro v1_0_1 HAND/water",
-    "sentinel1_latest_in_event_window": "2026-06-21T23:53:23+00:00",
-    "smap_l4_latest_in_context_window": "2026-06-19T22:30:00+00:00",
+    "sentinel1_latest_in_event_window": "2026-06-23T08:31:14+00:00",
+    "smap_l4_latest_in_context_window": "2026-06-20T22:30:00+00:00",
     "usda_cdl_latest": "2025-01-01T00:00:00+00:00"
   },
   "watch_only": true

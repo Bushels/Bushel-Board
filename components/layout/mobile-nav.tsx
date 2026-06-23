@@ -87,6 +87,17 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                 Thesis
               </Link>
               <Link
+                href="/data"
+                className={cn(
+                  "rounded-2xl px-3 py-2.5 transition-colors",
+                  pathname === "/data" || pathname.startsWith("/data/")
+                    ? "bg-white/70 text-foreground shadow-sm dark:bg-white/10"
+                    : "hover:bg-white/55 dark:hover:bg-white/7"
+                )}
+              >
+                Wheat Data
+              </Link>
+              <Link
                 href="/environmental"
                 className={cn(
                   "rounded-2xl px-3 py-2.5 transition-colors",
@@ -106,7 +117,7 @@ export function MobileNav({ allGrains, unlockedGrains, userEmail }: MobileNavPro
                     : "hover:bg-white/55 dark:hover:bg-white/7"
                 )}
               >
-                Data Map
+                Data Flow
               </Link>
               <Link
                 href="/us"

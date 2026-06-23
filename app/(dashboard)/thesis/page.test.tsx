@@ -736,22 +736,25 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("write-mode routines stay disabled");
   });
 
-  it("surfaces the Wheat split-market evidence before supporting detail", async () => {
+  it("surfaces one Wheat decision read before supporting detail", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Canada vs USA Wheat Bull/Bear");
-    expect(html).toContain("Canada Wheat Bull/Bear");
-    expect(html).toContain("USA Wheat Bull/Bear");
-    expect(html).toContain("Wheat stance meter");
+    expect(html).toContain("Wheat Bull/Bear decision surface");
+    expect(html).toContain("Current Wheat read");
+    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain("CA source geography");
+    expect(html).toContain("US source geography");
     expect(html).toContain("Canada + US");
-    expect(html).toContain("Top bull evidence");
-    expect(html).toContain(
-      "CA Canada export basis stays firm: Canada wheat flow is firmer than the US wheat packet. (+20 stance / CGC weekly grain stats).",
-    );
-    expect(html).toContain("Top bear evidence");
-    expect(html).toContain(
-      "US Crop condition adds supply pressure: Good crop ratings are keeping supply pressure in the US packet. (76% good/excellent / USDA Crop Progress).",
-    );
+    expect(html).toContain("Bull case");
+    expect(html).toContain("Canada export basis stays firm");
+    expect(html).toContain("Bear case");
+    expect(html).toContain("Crop condition adds supply pressure");
+    expect(html).toContain("One Wheat read");
+    expect(html).toContain("Geography is evidence context, not the page structure.");
+    expect(html).toContain("Wheat crop progress - week ending 2026-06-21");
+    expect(html).toContain("Winter harvested");
+    expect(html).toContain("Condition feeds the weather score; harvest and heading explain crop stage.");
+    expect(html).not.toContain("Canada vs USA Wheat Bull/Bear");
   });
 
   it("does not substitute a non-wheat one-country row into the active farmer display", async () => {
@@ -809,7 +812,7 @@ describe("ThesisPage scorecard audit mode", () => {
   it("leads with the farmer read and keeps operator telemetry off the normal board", async () => {
     const html = await renderThesisPage();
 
-    expect(html.indexOf("Canada vs USA Wheat Bull/Bear")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
     expect(html.indexOf("Your area")).toBeLessThan(html.indexOf("Official source rows are clean for this board"));
     expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(
       html.indexOf("Current snapshot"),
@@ -833,7 +836,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Your area");
     expect(html).toContain("Enter your postal code");
     expect(html).toContain("Saved on this device only");
-    expect(html.indexOf("Canada vs USA Wheat Bull/Bear")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
   });
 
   it("localizes the board with provincial flow and honest empty bids when an area is saved", async () => {
@@ -1260,7 +1263,6 @@ describe("ThesisPage scorecard audit mode", () => {
 
     const html = await renderThesisPage("1");
 
-    expect(html).toContain("Wheat stance meter");
     expect(html).toContain("Wheat confidence-scaled stance score 0");
     expect(html).toContain("CA +19 Lean bull");
     expect(html).toContain("Score source: Daily overlay Jun 1 (review-gated)");
@@ -1496,7 +1498,7 @@ describe("ThesisPage scorecard audit mode", () => {
   it("keeps the Wheat current read as the priority row", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Current read");
+    expect(html).toContain("Current Wheat read");
     expect(html).toContain("Canada and US disagree; read both lead drivers before relying on this row.");
     expect(html).not.toContain("Open first: Wheat (Open first)");
   });

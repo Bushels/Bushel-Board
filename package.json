@@ -39,6 +39,7 @@
     "collect:sk-prices": "tsx -- scripts/run-collector-with-thesis-cache-refresh.ts --name collect-sk-prices python scripts/import-sk-cash-prices.py",
     "import-canada-crop-progress": "python3 scripts/import-canada-crop-progress.py",
     "import-canada-crop-progress:dry": "python3 scripts/import-canada-crop-progress.py --dry-run",
+    "report:prairie-crop-progress": "python scripts/build-prairie-crop-progress-report.py",
     "collect:cgc": "tsx -- scripts/run-collector-with-thesis-cache-refresh.ts --name collect-cgc node scripts/import-cgc-weekly-codex.mjs",
     "collect:crop-progress": "tsx -- scripts/run-collector-with-thesis-cache-refresh.ts --name collect-crop-progress python3 scripts/import-usda-crop-progress.py",
     "collect:canada-crop-progress:mb": "tsx -- scripts/run-collector-with-thesis-cache-refresh.ts --name collect-canada-crop-progress-mb python3 scripts/import-canada-crop-progress.py --province MB",
