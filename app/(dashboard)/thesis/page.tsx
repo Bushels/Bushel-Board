@@ -49,6 +49,7 @@ import {
   type ThesisComparisonRow,
   type ThesisCountryCode,
   type ThesisDriver,
+  type ThesisPriceRow,
 } from "@/lib/queries/thesis-board";
 import {
   getXPulseWatchSummary,
@@ -2078,6 +2079,19 @@ type WheatPriceBasketLeg = {
   period: string | null;
 };
 
+type WheatPriceTrendLeg = {
+  label: WheatPriceBasketLeg["label"];
+  market: WheatPriceBasketLeg["market"];
+  latestDate: string | null;
+  earliestDate: string | null;
+  latestSettlement: string;
+  earliestSettlement: string;
+  latestChangeText: string;
+  windowMovePct: number | null;
+  rowCount: number;
+  sourceNote: string;
+};
+
 const WHEAT_PRICE_BASKET_MARKETS: Record<WheatPriceBasketLeg["label"], WheatPriceBasketLeg["market"]> = {
   "Spring Wheat": "MGEX",
   "HRW Wheat": "KCBT",
@@ -2089,6 +2103,28 @@ function wheatPriceLegLabel(label: string): WheatPriceBasketLeg["label"] | null 
   if (label.startsWith("HRW Wheat ")) return "HRW Wheat";
   if (label.startsWith("SRW Wheat ")) return "SRW Wheat";
   return null;
+}
+
+function wheatPriceLegLabelForRow(row: ThesisPriceRow): WheatPriceBasketLeg["label"] | null {
+  const contract = row.contract?.toUpperCase() ?? "";
+  const exchange = row.exchange?.toUpperCase() ?? "";
+  const grain = row.grain?.toLowerCase() ?? "";
+  if (contract.startsWith("MW") || exchange.includes("MGEX") || grain.includes("spring wheat")) return "Spring Wheat";
+  if (contract.startsWith("KE") || exchange.includes("KCBT") || grain.includes("hrw") || grain.includes("hard red")) return "HRW Wheat";
+  if (contract.startsWith("ZW") || grain === "wheat" || grain.includes("srw") || grain.includes("soft red")) return "SRW Wheat";
+  return null;
+}
+
+function wheatPriceDisplay(value: number | null, currency: string | null, unit: string | null): string {
+  if (value === null) return "not reported";
+  const suffix = currency ? ` ${currency}${unit ? unit.replace(/^\$/, "") : ""}` : unit ? ` ${unit}` : "";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 3 })}${suffix}`;
+}
+
+function signedPctText(value: number | null): string {
+  if (value === null) return "n/a";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)}%`;
 }
 
 function wheatPriceBasketLegs(row: ThesisComparisonRow): WheatPriceBasketLeg[] {
@@ -2144,6 +2180,52 @@ function wheatPriceBasketAgreement(legs: WheatPriceBasketLeg[]): string {
   if (bullCount === reported.length) return "All reported contracts bullish";
   if (bearCount > 0 && bullCount > 0) return "Split price basket";
   return "Price basket mixed/neutral";
+}
+
+function wheatPriceTrendLegs(row: ThesisComparisonRow): WheatPriceTrendLeg[] {
+  const dedupedRows = new Map<string, ThesisPriceRow>();
+
+  for (const item of rowItems(row)) {
+    for (const priceRow of item.priceRows ?? []) {
+      const label = wheatPriceLegLabelForRow(priceRow);
+      if (!label || !priceRow.priceDate || priceRow.settlementPrice === null) continue;
+      const key = `${label}:${priceRow.priceDate}:${priceRow.settlementPrice}:${priceRow.contract ?? ""}`;
+      dedupedRows.set(key, priceRow);
+    }
+  }
+
+  return (["Spring Wheat", "HRW Wheat", "SRW Wheat"] as const).map((label) => {
+    const rows = [...dedupedRows.values()]
+      .filter((priceRow) => wheatPriceLegLabelForRow(priceRow) === label)
+      .sort((left, right) => String(right.priceDate ?? "").localeCompare(String(left.priceDate ?? "")));
+    const latest = rows[0] ?? null;
+    const earliest = rows[rows.length - 1] ?? null;
+    const latestSettlement = latest?.settlementPrice ?? null;
+    const earliestSettlement = earliest?.settlementPrice ?? null;
+    const windowMovePct =
+      latestSettlement !== null && earliestSettlement !== null && earliestSettlement !== 0 && latest?.priceDate !== earliest?.priceDate
+        ? ((latestSettlement - earliestSettlement) / earliestSettlement) * 100
+        : null;
+    const sourceSet = new Set(rows.map((priceRow) => priceRow.source).filter(Boolean));
+    const hasBarchart = [...sourceSet].some((source) => source?.toLowerCase() === "barchart");
+
+    return {
+      label,
+      market: WHEAT_PRICE_BASKET_MARKETS[label],
+      latestDate: latest?.priceDate ?? null,
+      earliestDate: earliest?.priceDate ?? null,
+      latestSettlement: wheatPriceDisplay(latestSettlement, latest?.currency ?? null, latest?.unit ?? null),
+      earliestSettlement: wheatPriceDisplay(earliestSettlement, earliest?.currency ?? null, earliest?.unit ?? null),
+      latestChangeText: signedPctText(latest?.changePct ?? null),
+      windowMovePct,
+      rowCount: rows.length,
+      sourceNote: rows.length === 0
+        ? "No packet rows"
+        : hasBarchart
+          ? "Barchart latest-only leg"
+          : `${rows.length} packet closes`,
+    };
+  });
 }
 
 function wheatPressureMarkerPosition(score: number): number {
@@ -2638,6 +2720,7 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
 
 function WheatPriceBasketProof({ row }: { row: ThesisComparisonRow }) {
   const legs = wheatPriceBasketLegs(row);
+  const trendLegs = wheatPriceTrendLegs(row);
   const agreement = wheatPriceBasketAgreement(legs);
 
   return (
@@ -2675,8 +2758,56 @@ function WheatPriceBasketProof({ row }: { row: ThesisComparisonRow }) {
           );
         })}
       </div>
+      <div className="mt-3 rounded-lg border border-border bg-background/80 p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Packet trend context</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Short settlement window from the current packet; use it to judge whether the latest price move confirms the official source stack.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
+            Packet window, not full chart
+          </Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          {trendLegs.map((leg) => {
+            const isBear = leg.windowMovePct !== null && leg.windowMovePct < -0.5;
+            const isBull = leg.windowMovePct !== null && leg.windowMovePct > 0.5;
+            const width = leg.windowMovePct === null ? 3 : Math.max(5, Math.min(48, Math.abs(leg.windowMovePct) * 8));
+            const left = isBear ? 50 - width : isBull ? 50 : 48.5;
+            return (
+              <div key={`trend-${leg.label}`} className="rounded-md border border-border bg-card px-3 py-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">{leg.label}</p>
+                  <Badge variant="outline" className="border-border bg-background text-[10px] text-muted-foreground">
+                    {leg.sourceNote}
+                  </Badge>
+                </div>
+                <p className={cn("text-xl font-semibold tabular-nums", isBear ? "text-orange-700 dark:text-orange-300" : isBull ? "text-prairie" : "text-foreground")}>
+                  {signedPctText(leg.windowMovePct)}
+                </p>
+                <div className="relative mt-2 h-2 rounded-full bg-muted">
+                  <span className="absolute left-1/2 top-0 h-2 w-px bg-background" aria-hidden="true" />
+                  <span
+                    className={cn("absolute top-0 h-2 rounded-full", isBear ? "bg-orange-600" : isBull ? "bg-prairie" : "bg-foreground")}
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {leg.earliestDate && leg.latestDate
+                    ? `${wheatPeriodLabel(leg.earliestDate)} to ${wheatPeriodLabel(leg.latestDate)}. `
+                    : ""}
+                  Latest close {leg.latestSettlement}; latest daily change {leg.latestChangeText}.
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        This is market confirmation only. A split basket lowers confidence; it does not overrule official supply, demand, and movement rows by itself.
+        This is market confirmation only. A split basket or short packet window lowers confidence; it does not overrule official supply, demand, and movement rows by itself.
       </p>
     </section>
   );

@@ -257,10 +257,17 @@ Completed 2026-06-24: USDA relationship-read slice.
 - Each USDA card now carries a `Decision role` block that explains how Crop Progress, WASDE, Export Sales, and Quarterly Stocks should affect the Wheat read.
 - This remains an explanation surface over the existing scorecard; it adds no score authority and does not change data weights.
 
+Completed 2026-06-24: price packet-window context slice.
+
+- `ThesisBoardItem` now carries normalized packet price rows so the farmer-facing Wheat page can summarize the existing packet window without a new public `grain_prices` read.
+- `/thesis` now shows `Packet trend context` under the Spring Wheat / HRW / SRW price-basket proof strip.
+- The trend block compares the earliest and latest packet settlements for each Wheat leg and labels sparse/provisional sources such as the Barchart Spring Wheat leg.
+- This is explicitly `Packet window, not full chart`; full historical price context still needs a proper public-safe query/RPC before it can become a broader chart.
+
 Next loop should start from source-specific Wheat data depth:
 
 - Use the enhanced USDA Wheat source-sweep panel as the visible source inventory, then verify Crop Progress, WASDE, Export Sales, and quarterly stocks against live packets and historical context.
-- Verify the repaired price basket against the live packet on `/thesis`, then add historical contract context so Spring Wheat, HRW, and SRW disagreement is easy to interpret.
+- Verify the repaired price basket against the live packet on `/thesis`, then add full historical contract context so Spring Wheat, HRW, and SRW disagreement is easy to interpret beyond the current packet window.
 - Refine the reconciliation judge's source-specific explanation patterns after the visible USDA sweep is verified, especially where crop stress fights balance-sheet or price confirmation.
 - Decide whether spiderweb distance should remain pure weighted-score impact or also incorporate source authority, freshness, and replay accuracy.
 - Rerun the relationship loop after the next official export-sales and stocks rows update.

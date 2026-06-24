@@ -350,6 +350,74 @@ function boardData(): ThesisBoardData {
       llm_allowed_claims: ["CGC wheat exports are firm against producer deliveries."],
       llm_blocked_claims: [],
     },
+    priceRows: [
+      {
+        grain: "Spring Wheat",
+        contract: "MWK26",
+        exchange: "MGEX",
+        priceDate: "2026-06-24",
+        settlementPrice: 7.11,
+        changePct: -0.594,
+        currency: "USD",
+        unit: "$/bu",
+        source: "barchart",
+      },
+      {
+        grain: "Spring Wheat",
+        contract: "MWK26",
+        exchange: "MGEX",
+        priceDate: "2026-06-13",
+        settlementPrice: 7.11,
+        changePct: -0.594,
+        currency: "USD",
+        unit: "$/bu",
+        source: "barchart",
+      },
+      {
+        grain: "HRW Wheat",
+        contract: "KE",
+        exchange: "KCBT",
+        priceDate: "2026-06-22",
+        settlementPrice: 6.335,
+        changePct: -1.63,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+      {
+        grain: "HRW Wheat",
+        contract: "KE",
+        exchange: "KCBT",
+        priceDate: "2026-06-15",
+        settlementPrice: 6.4,
+        changePct: 0.867,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+      {
+        grain: "Wheat",
+        contract: "ZW",
+        exchange: "CBOT",
+        priceDate: "2026-06-22",
+        settlementPrice: 5.975,
+        changePct: -1.362,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+      {
+        grain: "Wheat",
+        contract: "ZW",
+        exchange: "CBOT",
+        priceDate: "2026-06-15",
+        settlementPrice: 5.8975,
+        changePct: 0.898,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+    ],
   });
   const usWheat = item({
     id: "us-wheat",
@@ -860,6 +928,11 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("MGEX");
     expect(html).toContain("KCBT");
     expect(html).toContain("CBOT");
+    expect(html).toContain("Packet trend context");
+    expect(html).toContain("Packet window, not full chart");
+    expect(html).toContain("Barchart latest-only leg");
+    expect(html).toContain("Jun 15, 2026 to Jun 22, 2026");
+    expect(html).toContain("Latest close 6.335 USD/bu; latest daily change -1.6%.");
     expect(html).toContain("Bull case");
     expect(html).toContain("Canada export basis stays firm");
     expect(html).toContain("Bear case");
