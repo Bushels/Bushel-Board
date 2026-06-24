@@ -16,7 +16,8 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - No new Wheat agent was created. The existing `grain-report` skill now carries the next-session Wheat loop start order, source inventory, and no-write Hermes/Grok boundary.
 - The retired `ai-pipeline-v2` skill was tightened into an archive-only tombstone so it cannot be mistaken for a live recovery path.
 - The `cftc-cot` skill was tightened so CFTC stays a Wheat timing/crowding input, not a primary direction creator by itself.
-- This closeout did not add new score authority or new dashboard behavior. It is documentation and skill hygiene for the next Wheat source sweep.
+- This closeout added no new score authority. The latest dashboard behavior is a farmer-facing USDA Wheat source-sweep panel that inventories official U.S. rows already represented in the scorecard.
+- An unfinished Wheat X-sentiment prototype was parked at `docs/plans/2026-06-24-wheat-x-sentiment-ranking-plan.md`; its executable TypeScript/test draft was removed because the prototype scored trusted prairie bearish signals as bullish.
 
 ## What Is Done
 
@@ -43,6 +44,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - Wheat price scoring no longer uses the "latest price row wins" shortcut when multiple Wheat futures classes are present. `lib/thesis/rating-domain-mappers.ts` now builds a Spring Wheat / HRW / SRW basket; agreement sets direction and disagreement lowers confidence. Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
 - `/thesis` now has a farmer-facing reconciliation judge, a node-and-edge relationship spiderweb, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum, shows freshness proof, compares the main counterweight, and keeps the visual layers as explanation over the existing scorecard rather than new scoring authority.
+- `/thesis` now has a USDA Wheat source-sweep panel that shows Crop Progress, WASDE balance, Export Sales, and Quarterly Stocks with source freshness, cadence, latest row date, weighted score effect, and relation labels such as deciding row, bear pressure, bull support, or cadence-limited context.
 - Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
 - Source freshness loop was completed after the first UI proof:
   - CFTC official SODA feed was checked directly; Wheat contracts were available for report date 2026-06-16.
@@ -54,9 +56,9 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 
 ## What Is Not Done
 
-- Full USDA Wheat sweep is not complete.
+- The visible USDA Wheat sweep is started, but it is still an inventory/explanation layer. The next loop needs live-packet verification, historical export/price context, and source-specific judge language before treating it as a complete USDA scoring review.
 - The relationship spiderweb now makes side, distance, node rank, and edge thickness visible, but the next scoring pass still needs to prove whether source authority should alter distance separately from weighted score impact.
-- The reconciliation judge now has deciding-datum, freshness, and counterweight language; the next loop should make that language more source-specific after the full USDA Wheat sweep and historical price/export context are added.
+- The reconciliation judge now has deciding-datum, freshness, and counterweight language; the next loop should make that language more source-specific after the visible USDA Wheat sweep is verified against live packets and historical price/export context is added.
 - Wheat price basket scoring is repaired and visible, but the top visual can still be improved with live-packet verification and historical contract context.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
@@ -64,7 +66,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 
 ## Next Technical Sequence
 
-1. Inventory every Wheat metric currently wired into the packet and scorecard:
+1. Use the new USDA Wheat source-sweep panel as the visible inventory, then verify every Wheat metric currently wired into the packet and scorecard:
    - USDA Crop Progress
    - USDA WASDE
    - USDA Export Sales

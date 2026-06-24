@@ -1700,6 +1700,67 @@ type WheatSpiderwebPoint = WheatDomainDatum & {
   y: number;
 };
 
+type WheatUsdaSweepConfig = {
+  id: "crop-progress" | "wasde" | "export-sales" | "quarterly-stocks";
+  title: string;
+  sourceLabel: string;
+  sourceNames: string[];
+  role: string;
+  cadence: string;
+  emptyEvidence: string;
+};
+
+type WheatUsdaSweepItem = WheatUsdaSweepConfig & {
+  datum: WheatDomainDatum | null;
+  freshness: ThesisFreshnessRow | null;
+  relationLabel: string;
+  relationClass: string;
+  sourceStatus: string;
+  period: string | null;
+  metricLabel: string;
+  effectLabel: string;
+  evidence: string;
+};
+
+const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
+  {
+    id: "crop-progress",
+    title: "Crop Progress",
+    sourceLabel: "USDA Crop Progress",
+    sourceNames: ["usda_crop_progress"],
+    role: "Condition, harvest, and heading pressure",
+    cadence: "Weekly in season",
+    emptyEvidence: LATEST_USDA_WHEAT_PROGRESS_UPDATE.read,
+  },
+  {
+    id: "wasde",
+    title: "WASDE balance",
+    sourceLabel: "USDA WASDE",
+    sourceNames: ["usda_wasde_mapped", "usda_wasde_raw"],
+    role: "Production, exports, ending stocks, and stocks/use",
+    cadence: "Monthly",
+    emptyEvidence: "No active WASDE score row is attached to the current Wheat packet.",
+  },
+  {
+    id: "export-sales",
+    title: "Export Sales",
+    sourceLabel: "USDA Export Sales",
+    sourceNames: ["usda_export_sales"],
+    role: "Weekly demand execution versus USDA target",
+    cadence: "Weekly with publication lag",
+    emptyEvidence: "Cadence-limited demand proof. Keep watching whether sales confirm or challenge the WASDE export target.",
+  },
+  {
+    id: "quarterly-stocks",
+    title: "Quarterly Stocks",
+    sourceLabel: "USDA Quarterly Grain Stocks",
+    sourceNames: ["usda_quarterly_stocks"],
+    role: "Inventory cushion and surprise versus balance-sheet context",
+    cadence: "Quarterly",
+    emptyEvidence: "Quarterly inventory proof stays cadence-bound until USDA publishes the next stocks row.",
+  },
+];
+
 function wheatVisualLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
   const summaries = pressureLaneSummaries(row);
   const byDomain = new Map(summaries.map((lane) => [lane.domain, lane]));
@@ -1754,6 +1815,90 @@ function wheatDomainDatums(row: ThesisComparisonRow): WheatDomainDatum[] {
       };
     }),
   );
+}
+
+function wheatDatumMatchesSource(datum: WheatDomainDatum, sourceNames: string[]): boolean {
+  return (
+    datum.domain.sources.some((source) => sourceNames.includes(source)) ||
+    (datum.domain.metrics ?? []).some((metric) => sourceNames.includes(metric.source))
+  );
+}
+
+function wheatMetricTextForSource(datum: WheatDomainDatum | null, sourceNames: string[]): string {
+  if (!datum) return "No score move in this packet";
+  const metric =
+    (datum.domain.metrics ?? []).find((candidate) => sourceNames.includes(candidate.source)) ??
+    datum.domain.metrics?.[0] ??
+    null;
+  if (metric) return `${metric.label}: ${metric.value}`;
+  if (datum.metricLabel && datum.metricValue) return `${datum.metricLabel}: ${datum.metricValue}`;
+  if (Math.round(datum.weightedScore) === 0) return "No score move in this packet";
+  return "Scorecard metric not itemized";
+}
+
+function wheatFreshnessForSources(item: ThesisBoardItem | null, sourceNames: string[]): ThesisFreshnessRow | null {
+  if (!item) return null;
+  return item.freshness.find((row) => sourceNames.includes(row.sourceName)) ?? null;
+}
+
+function wheatUsdaRelationLabel(datum: WheatDomainDatum | null, strongest: WheatDomainDatum | null): string {
+  if (!datum) return "Cadence-limited";
+  if (
+    strongest &&
+    datum.country === strongest.country &&
+    datum.domain.domain === strongest.domain.domain &&
+    Math.round(datum.weightedScore) === Math.round(strongest.weightedScore)
+  ) {
+    return "Deciding row";
+  }
+  if (datum.weightedScore < -3) return "Bear pressure";
+  if (datum.weightedScore > 3) return "Bull support";
+  return "Context row";
+}
+
+function wheatUsdaRelationClass(label: string): string {
+  if (label === "Deciding row") return "border-canola/35 bg-canola/10 text-canola";
+  if (label === "Bear pressure") return "border-orange-600/25 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+  if (label === "Bull support") return "border-prairie/25 bg-prairie/10 text-prairie";
+  if (label === "Cadence-limited") return "border-border bg-background/80 text-muted-foreground";
+  return "border-border bg-card text-muted-foreground";
+}
+
+function wheatUsdaSweepItems(row: ThesisComparisonRow): WheatUsdaSweepItem[] {
+  const datums = wheatDomainDatums(row);
+  const strongest = strongestDatum(datums, "absolute");
+
+  return WHEAT_USDA_SWEEP_CONFIGS.map((config) => {
+    const datum = datums.find((candidate) => wheatDatumMatchesSource(candidate, config.sourceNames)) ?? null;
+    const freshness = wheatFreshnessForSources(row.us, config.sourceNames);
+    const sourceStatus = freshness?.freshnessStatus ?? datum?.domain.freshness_status ?? "empty";
+    const period = freshness?.latestPeriodEnd ?? freshness?.latestPeriod ?? datum?.period ?? null;
+    let relationLabel = wheatUsdaRelationLabel(datum, strongest);
+    if (
+      relationLabel === "Deciding row" &&
+      config.id === "quarterly-stocks" &&
+      datum?.domain.sources.includes("usda_wasde_mapped")
+    ) {
+      relationLabel = datum.weightedScore < 0 ? "Bear pressure" : datum.weightedScore > 0 ? "Bull support" : "Context row";
+    }
+    if (config.id === "export-sales" && Math.round(datum?.weightedScore ?? 0) === 0) {
+      relationLabel = "Cadence-limited";
+    }
+    const evidence =
+      datum?.evidence && datum.evidence !== "No evidence line is attached yet." ? datum.evidence : config.emptyEvidence;
+    return {
+      ...config,
+      datum,
+      freshness,
+      relationLabel,
+      relationClass: wheatUsdaRelationClass(relationLabel),
+      sourceStatus,
+      period,
+      metricLabel: wheatMetricTextForSource(datum, config.sourceNames),
+      effectLabel: datum ? `${signedNumber(Math.round(datum.weightedScore))} weighted points` : "Watch only right now",
+      evidence,
+    };
+  });
 }
 
 function strongestDatum(datums: WheatDomainDatum[], direction: "bull" | "bear" | "absolute"): WheatDomainDatum | null {
@@ -2452,6 +2597,78 @@ function WheatPriceBasketProof({ row }: { row: ThesisComparisonRow }) {
   );
 }
 
+function WheatUsdaSourceSweep({ row }: { row: ThesisComparisonRow }) {
+  const items = wheatUsdaSweepItems(row);
+
+  return (
+    <section className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm" aria-labelledby="wheat-usda-sweep-heading">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">USDA Wheat sweep</p>
+          <h2 id="wheat-usda-sweep-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Official U.S. rows behind the Wheat read
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            These rows explain the U.S. side of the scorecard. Crop stress can support price, but WASDE, stocks, exports, and price confirmation decide whether it changes the full Wheat read.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-canola/30 bg-canola/10 text-canola">
+          Official source rows only
+        </Badge>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-4">
+        {items.map((item) => {
+          const score = item.datum ? Math.round(item.datum.weightedScore) : 0;
+          const scorePosition = wheatPressureMarkerPosition(score);
+          return (
+            <article key={item.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-3">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className={cn("w-fit", item.relationClass)}>
+                  {item.relationLabel}
+                </Badge>
+                <Badge variant="outline" className={cn("w-fit", wheatDatumFreshnessClass(item.sourceStatus))}>
+                  {wheatFreshnessProofLabel(item.sourceStatus)}
+                </Badge>
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">{item.sourceLabel}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.role}</p>
+              </div>
+
+              <div className="mt-3 rounded-md border border-border bg-background/80 px-3 py-2">
+                <p className={cn("text-lg font-semibold tabular-nums", wheatPressureReadClass(score))}>
+                  {item.effectLabel}
+                </p>
+                <div className="relative mt-2 h-2 rounded-full bg-muted">
+                  <span
+                    className={cn(
+                      "absolute top-0 block h-2 w-1 rounded-full",
+                      score < -3 ? "bg-orange-600" : score > 3 ? "bg-prairie" : "bg-foreground",
+                    )}
+                    style={{ left: `calc(${scorePosition}% - 0.125rem)` }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.metricLabel}</p>
+              </div>
+
+              <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">{item.evidence}</p>
+
+              <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3 text-xs text-muted-foreground">
+                <span>Cadence: {item.cadence}</span>
+                <span>Latest row: {item.period ? wheatPeriodLabel(item.period) : "not available in packet"}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function usdaProgressMetricClass(tone: (typeof LATEST_USDA_WHEAT_PROGRESS_UPDATE.metrics)[number]["tone"]): string {
   if (tone === "bull") return "border-prairie/25 bg-prairie/8 text-prairie";
   if (tone === "bear") return "border-amber-600/25 bg-amber-500/8 text-amber-800 dark:text-amber-300";
@@ -2807,6 +3024,7 @@ function WheatDecisionSurface({
       </div>
 
       <WheatReconciliationJudgeCard row={row} />
+      <WheatUsdaSourceSweep row={row} />
       <WheatRelationshipSpiderweb row={row} />
       <WheatPressureDecisionMatrix row={row} />
       <WheatPriceBasketProof row={row} />

@@ -362,6 +362,13 @@ function boardData(): ThesisBoardData {
     stanceScore: -20,
     stanceLabel: "Bearish",
     confidenceScore: 80,
+    freshness: [
+      freshnessRow("usda_crop_progress", "strong", "2026-06-21"),
+      freshnessRow("usda_wasde_mapped", "strong", "2026-06-01"),
+      freshnessRow("usda_wasde_raw", "strong", "2026-06-01"),
+      freshnessRow("usda_export_sales", "strong", "2026-06-11"),
+      freshnessRow("usda_quarterly_stocks", "strong", "2026-03-01"),
+    ],
     ratingScorecard: {
       grain: "Wheat",
       lane: "us",
@@ -813,6 +820,20 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Strong source proof");
     expect(html).toContain("Counterweight check");
     expect(html).toContain("US Supply is the main counterweight at -6.");
+    expect(html).toContain("USDA Wheat sweep");
+    expect(html).toContain("Official U.S. rows behind the Wheat read");
+    expect(html).toContain("Official source rows only");
+    expect(html).toContain("Crop Progress");
+    expect(html).toContain("WASDE balance");
+    expect(html).toContain("Export Sales");
+    expect(html).toContain("Quarterly Stocks");
+    expect(html).toContain("Bear pressure");
+    expect(html).toContain("Cadence-limited");
+    expect(html).toContain("No score move in this packet");
+    expect(html).toContain("Cadence-limited demand proof");
+    expect(html).toContain("Good/excellent: 76.0%");
+    expect(html).toContain("Latest row: Jun 21, 2026");
+    expect(html).toContain("Latest row: Jun 11, 2026");
     expect(html).toContain("Relationship spiderweb");
     expect(html).toContain("Distance shows impact on the Wheat read");
     expect(html).toContain("Closer nodes carry more score weight.");

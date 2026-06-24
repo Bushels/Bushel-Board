@@ -252,9 +252,9 @@ Completed 2026-06-24: source freshness loop.
 
 Next loop should start from source-specific Wheat data depth:
 
-- Complete the full USDA Wheat sweep across Crop Progress, WASDE, Export Sales, and quarterly stocks.
+- Use the new USDA Wheat source-sweep panel as the visible source inventory, then verify Crop Progress, WASDE, Export Sales, and quarterly stocks against live packets and historical context.
 - Verify the repaired price basket against the live packet on `/thesis`, then add historical contract context so Spring Wheat, HRW, and SRW disagreement is easy to interpret.
-- Teach the reconciliation judge source-specific explanation patterns after the full USDA sweep, especially where crop stress fights balance-sheet or price confirmation.
+- Teach the reconciliation judge source-specific explanation patterns after the visible USDA sweep is verified, especially where crop stress fights balance-sheet or price confirmation.
 - Decide whether spiderweb distance should remain pure weighted-score impact or also incorporate source authority, freshness, and replay accuracy.
 - Rerun the relationship loop after the next official export-sales and stocks rows update.
 
@@ -264,7 +264,7 @@ The next session handoff is `docs/plans/2026-06-24-wheat-thesis-goal-handoff.md`
 
 Do not restart from UI mockups. Start from the scoring and relationship problem:
 
-- full USDA Wheat metric sweep
+- visible USDA source-sweep verification and historical context
 - live verification and visual surfacing of the repaired Wheat price basket across Spring Wheat, HRW, and SRW
 - one canonical Wheat judge for headline score and lane bars
 - relationship-spiderweb v2 where distance can separate source authority, freshness, replay accuracy, and score impact if the next loop proves that improves the read
