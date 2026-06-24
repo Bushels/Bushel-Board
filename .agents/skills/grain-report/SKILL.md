@@ -112,6 +112,18 @@ Recommended v1 weights for the next scoring repair:
 
 Relationship visual status: the farmer-facing spiderweb now has the Wheat read in the center, bear pressure left, bull support right, numbered nodes, inner/middle/outer distance rings, and thicker edges for larger weighted score impacts. The next loop should decide whether distance remains pure weighted-score impact or should also encode source authority, freshness, and replay accuracy.
 
+Closeout guidance for the next Wheat session:
+
+1. Start from `docs/plans/2026-06-24-wheat-thesis-goal-handoff.md`, `PROJECT_STATE.md`, and `docs/plans/STATUS.md`; do not restart from visual mockups.
+2. Query Hindsight for Wheat/USDA/Rule 21 context if available, but treat checked-in repo docs as operating truth. The 2026-06-24 Hindsight check found no matching Wheat documents, memories, tags, or mental models.
+3. Inventory source rows before changing weights: USDA Crop Progress, WASDE, Export Sales, Quarterly Stocks, CGC flow, Grain Monitor, producer cars, CFTC COT, prices/FX, and Hermes/X pulse artifacts.
+4. Keep source role separate from score effect:
+   - USDA/WASDE/stocks/crop progress are high-authority official rows.
+   - Price basket is confirmation, especially when Spring Wheat, HRW, and SRW agree.
+   - CFTC is timing/crowding context, not a primary direction creator.
+   - Hermes/Grok X pulse is watch-only unless accepted evidence ties back to official or admitted market data.
+5. Reuse the existing lane-agent and reconciliation-judge contract. Do not create a new Wheat agent unless a new source family needs a durable owner.
+
 Source-freshness sequence for Wheat loops:
 
 1. Run `npm run --silent check:source-freshness -- --json` and inspect `get_thesis_data_freshness('Wheat', NULL)` before changing the read.

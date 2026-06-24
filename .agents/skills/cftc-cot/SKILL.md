@@ -6,8 +6,8 @@ description: >
   'spec positions', 'managed money', 'who is long wheat', 'canola futures positioning',
   'speculative positioning', 'commercial hedging data'.
   Do NOT use for: general Supabase queries (use Supabase MCP directly), deploying Edge Functions
-  (use supabase-deploy skill), triggering CGC imports (use cgc-import skill), or generating
-  intelligence narratives (those chain automatically from the pipeline).
+  (use supabase-deploy skill), triggering CGC imports (use cgc-import skill), scoring Wheat
+  direction by itself, or generating intelligence narratives. The old Grok writer chain is retired.
 ---
 
 # CFTC COT Skill — Bushel Board
@@ -120,6 +120,7 @@ curl -X POST "https://ibgsloyjxdopkvwqcqwh.supabase.co/functions/v1/import-cftc-
 - Use `get_cot_positioning()` RPC for computed metrics
 - Look for: extreme positioning, spec/commercial divergence, multi-week trends
 - Report findings to user in plain language
+- For Wheat Bull/Bear work, treat CFTC as timing/crowding context. It can raise or lower confidence, but it should not become the primary direction creator without official supply/demand or price confirmation.
 
 ## Common Issues
 

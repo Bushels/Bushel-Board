@@ -10,6 +10,14 @@ Recommended goal objective:
 Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, CFTC, logistics, and Hermes/X pulse data into one consistent farmer-facing score, with a visual relationship spiderweb where distance/weight shows impact on the Wheat bullish/bearish read, then deploy and verify it.
 ```
 
+## Clean Closeout - 2026-06-24
+
+- Hindsight memory was checked again for Wheat/USDA/Rule 21/Hermes/Grok context. It returned no matching documents, memories, tags, or mental models. Checked-in repo docs remain the operating truth.
+- No new Wheat agent was created. The existing `grain-report` skill now carries the next-session Wheat loop start order, source inventory, and no-write Hermes/Grok boundary.
+- The retired `ai-pipeline-v2` skill was tightened into an archive-only tombstone so it cannot be mistaken for a live recovery path.
+- The `cftc-cot` skill was tightened so CFTC stays a Wheat timing/crowding input, not a primary direction creator by itself.
+- This closeout did not add new score authority or new dashboard behavior. It is documentation and skill hygiene for the next Wheat source sweep.
+
 ## What Is Done
 
 - `/thesis` is visually redesigned around one Wheat read.
