@@ -250,11 +250,18 @@ Completed 2026-06-24: source freshness loop.
 - Thesis packet cache refreshed 12/12 after the source updates; source freshness watchdog is green with 0 alerts and freshness watch count 15.
 - Export sales dry-run confirmed the latest ALL WHEAT data is still 2026-06-11; this is waiting on the next weekly USDA release, not a parser failure.
 
+Completed 2026-06-24: USDA relationship-read slice.
+
+- `/thesis` now adds source-specific reconciliation judge copy so the deciding datum is interpreted by source role, not only by weighted points.
+- The USDA Wheat sweep now shows a visible relationship chain: Condition signal -> Balance anchor -> Demand confirmation -> Inventory check -> Price confirmation.
+- Each USDA card now carries a `Decision role` block that explains how Crop Progress, WASDE, Export Sales, and Quarterly Stocks should affect the Wheat read.
+- This remains an explanation surface over the existing scorecard; it adds no score authority and does not change data weights.
+
 Next loop should start from source-specific Wheat data depth:
 
-- Use the new USDA Wheat source-sweep panel as the visible source inventory, then verify Crop Progress, WASDE, Export Sales, and quarterly stocks against live packets and historical context.
+- Use the enhanced USDA Wheat source-sweep panel as the visible source inventory, then verify Crop Progress, WASDE, Export Sales, and quarterly stocks against live packets and historical context.
 - Verify the repaired price basket against the live packet on `/thesis`, then add historical contract context so Spring Wheat, HRW, and SRW disagreement is easy to interpret.
-- Teach the reconciliation judge source-specific explanation patterns after the visible USDA sweep is verified, especially where crop stress fights balance-sheet or price confirmation.
+- Refine the reconciliation judge's source-specific explanation patterns after the visible USDA sweep is verified, especially where crop stress fights balance-sheet or price confirmation.
 - Decide whether spiderweb distance should remain pure weighted-score impact or also incorporate source authority, freshness, and replay accuracy.
 - Rerun the relationship loop after the next official export-sales and stocks rows update.
 

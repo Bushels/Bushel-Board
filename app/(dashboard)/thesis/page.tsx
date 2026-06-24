@@ -1706,6 +1706,7 @@ type WheatUsdaSweepConfig = {
   sourceLabel: string;
   sourceNames: string[];
   role: string;
+  decisionRole: string;
   cadence: string;
   emptyEvidence: string;
 };
@@ -1719,6 +1720,7 @@ type WheatUsdaSweepItem = WheatUsdaSweepConfig & {
   period: string | null;
   metricLabel: string;
   effectLabel: string;
+  decisionDetail: string;
   evidence: string;
 };
 
@@ -1729,6 +1731,7 @@ const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
     sourceLabel: "USDA Crop Progress",
     sourceNames: ["usda_crop_progress"],
     role: "Condition, harvest, and heading pressure",
+    decisionRole: "Condition signal",
     cadence: "Weekly in season",
     emptyEvidence: LATEST_USDA_WHEAT_PROGRESS_UPDATE.read,
   },
@@ -1738,6 +1741,7 @@ const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
     sourceLabel: "USDA WASDE",
     sourceNames: ["usda_wasde_mapped", "usda_wasde_raw"],
     role: "Production, exports, ending stocks, and stocks/use",
+    decisionRole: "Balance anchor",
     cadence: "Monthly",
     emptyEvidence: "No active WASDE score row is attached to the current Wheat packet.",
   },
@@ -1747,6 +1751,7 @@ const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
     sourceLabel: "USDA Export Sales",
     sourceNames: ["usda_export_sales"],
     role: "Weekly demand execution versus USDA target",
+    decisionRole: "Demand confirmation",
     cadence: "Weekly with publication lag",
     emptyEvidence: "Cadence-limited demand proof. Keep watching whether sales confirm or challenge the WASDE export target.",
   },
@@ -1756,8 +1761,32 @@ const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
     sourceLabel: "USDA Quarterly Grain Stocks",
     sourceNames: ["usda_quarterly_stocks"],
     role: "Inventory cushion and surprise versus balance-sheet context",
+    decisionRole: "Inventory check",
     cadence: "Quarterly",
     emptyEvidence: "Quarterly inventory proof stays cadence-bound until USDA publishes the next stocks row.",
+  },
+];
+
+const WHEAT_USDA_RELATIONSHIP_STEPS = [
+  {
+    label: "Condition signal",
+    detail: "Crop Progress shows whether weather is creating yield stress before the balance sheet catches up.",
+  },
+  {
+    label: "Balance anchor",
+    detail: "WASDE turns acres, yield, exports, and ending stocks into the baseline supply cushion.",
+  },
+  {
+    label: "Demand confirmation",
+    detail: "Export Sales tests whether buyers are pulling enough Wheat to hit the WASDE export target.",
+  },
+  {
+    label: "Inventory check",
+    detail: "Quarterly Stocks checks the actual grain cushion and can confirm or challenge WASDE.",
+  },
+  {
+    label: "Price confirmation",
+    detail: "The Spring Wheat / HRW / SRW basket shows whether futures are trading the official story.",
   },
 ];
 
@@ -1864,6 +1893,21 @@ function wheatUsdaRelationClass(label: string): string {
   return "border-border bg-card text-muted-foreground";
 }
 
+function wheatUsdaDecisionDetail(config: WheatUsdaSweepConfig, relationLabel: string): string {
+  if (config.id === "crop-progress") {
+    return "First supply clue: crop stress can raise bull risk, but it needs WASDE, stocks, exports, or price to confirm that the system is actually tightening.";
+  }
+  if (config.id === "wasde") {
+    return "Balance-sheet anchor: WASDE decides whether crop stress is large enough to change stocks/use, export targets, and ending stocks.";
+  }
+  if (config.id === "export-sales") {
+    return relationLabel === "Cadence-limited"
+      ? "Demand test: this row stays watch context until the next official sales release proves whether buyers are keeping pace with the WASDE export target."
+      : "Demand test: export sales confirm or challenge the WASDE export target before demand can overturn the supply read.";
+  }
+  return "Inventory test: quarterly stocks check the actual cushion. A surprise can challenge WASDE, but between releases this stays cadence-bound context.";
+}
+
 function wheatUsdaSweepItems(row: ThesisComparisonRow): WheatUsdaSweepItem[] {
   const datums = wheatDomainDatums(row);
   const strongest = strongestDatum(datums, "absolute");
@@ -1896,6 +1940,7 @@ function wheatUsdaSweepItems(row: ThesisComparisonRow): WheatUsdaSweepItem[] {
       period,
       metricLabel: wheatMetricTextForSource(datum, config.sourceNames),
       effectLabel: datum ? `${signedNumber(Math.round(datum.weightedScore))} weighted points` : "Watch only right now",
+      decisionDetail: wheatUsdaDecisionDetail(config, relationLabel),
       evidence,
     };
   });
@@ -1950,6 +1995,43 @@ function wheatJudgeCounterweightCopy(deciding: WheatDomainDatum | null, counterw
         ? `The counterweight is ${Math.abs(gap)} weighted points stronger, so the net score depends on the full lane stack.`
         : "The deciding datum and counterweight are equal size, so the full lane stack breaks the tie.";
   return `${counterweight.country} ${wheatDomainTitle(counterweight.domain.domain)} is the main counterweight at ${signedNumber(counterweight.weightedScore)}. ${gapCopy}`;
+}
+
+function wheatDatumSourceFamily(datum: WheatDomainDatum | null): "crop-progress" | "wasde" | "export-sales" | "quarterly-stocks" | "cgc" | "price" | "cftc" | "other" {
+  if (!datum) return "other";
+  if (wheatDatumMatchesSource(datum, ["usda_crop_progress"])) return "crop-progress";
+  if (wheatDatumMatchesSource(datum, ["usda_wasde_mapped", "usda_wasde_raw"])) return "wasde";
+  if (wheatDatumMatchesSource(datum, ["usda_export_sales"])) return "export-sales";
+  if (wheatDatumMatchesSource(datum, ["usda_quarterly_stocks"])) return "quarterly-stocks";
+  if (wheatDatumMatchesSource(datum, ["cgc_observations"])) return "cgc";
+  if (datum.domain.domain === "price") return "price";
+  if (datum.domain.domain === "positioning") return "cftc";
+  return "other";
+}
+
+function wheatSourceSpecificJudgeCopy(deciding: WheatDomainDatum | null, counterweight: WheatDomainDatum | null): string {
+  const decidingFamily = wheatDatumSourceFamily(deciding);
+  const counterFamily = wheatDatumSourceFamily(counterweight);
+
+  if (decidingFamily === "crop-progress" && (counterFamily === "wasde" || counterFamily === "quarterly-stocks")) {
+    return "Crop stress is a real supply risk, but the judge checks WASDE and stocks before letting condition data become the full Wheat read.";
+  }
+  if ((decidingFamily === "wasde" || decidingFamily === "quarterly-stocks") && counterFamily === "crop-progress") {
+    return "The balance sheet is heavier right now; poor crop condition becomes decisive only when exports, stocks, or the price basket confirm a tighter cushion.";
+  }
+  if (decidingFamily === "export-sales") {
+    return "Export Sales are demand confirmation. They can strengthen a bull case only when they prove buyers are keeping pace with the WASDE target.";
+  }
+  if (decidingFamily === "price") {
+    return "Price is confirmation. The Spring Wheat, HRW, and SRW basket shows whether the trade accepts or rejects the official data stack.";
+  }
+  if (decidingFamily === "cgc") {
+    return "CGC flow proves Canadian movement, but USDA supply rows, U.S. exports, and the Wheat price basket still decide whether that pull changes the whole read.";
+  }
+  if (counterFamily === "crop-progress" || counterFamily === "wasde" || counterFamily === "quarterly-stocks" || counterFamily === "export-sales") {
+    return "USDA rows are the official U.S. counterweight: condition, balance sheet, exports, and stocks must line up before the board upgrades conviction.";
+  }
+  return "The judge keeps source role separate from effect size: official rows set the evidence stack, price confirms it, and watch leads stay outside the score.";
 }
 
 function wheatImpactRing(absScore: number): { label: string; detail: string; radius: number } {
@@ -2375,6 +2457,9 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
               <p className="mt-2 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">
                 Counterweight check: {wheatJudgeCounterweightCopy(deciding, counterweight)}
               </p>
+              <p className="mt-2 rounded-md border border-canola/20 bg-canola/8 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                Source-specific read: {wheatSourceSpecificJudgeCopy(deciding, counterweight)}
+              </p>
             </>
           ) : (
             <p className="text-sm leading-6 text-muted-foreground">No scorecard datum is available yet.</p>
@@ -2617,6 +2702,33 @@ function WheatUsdaSourceSweep({ row }: { row: ThesisComparisonRow }) {
         </Badge>
       </div>
 
+      <div className="mb-4 rounded-lg border border-border bg-card p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">USDA relationship read</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Read the row chain left to right before changing the Wheat stance.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
+            Condition to price confirmation
+          </Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-5">
+          {WHEAT_USDA_RELATIONSHIP_STEPS.map((step, index) => (
+            <div key={step.label} className="relative rounded-md border border-border bg-background p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-canola/30 bg-canola/10 text-[11px] font-semibold text-canola">
+                  {index + 1}
+                </span>
+                <p className="text-xs font-semibold uppercase tracking-wide text-foreground">{step.label}</p>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">{step.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-3 lg:grid-cols-4">
         {items.map((item) => {
           const score = item.datum ? Math.round(item.datum.weightedScore) : 0;
@@ -2636,6 +2748,12 @@ function WheatUsdaSourceSweep({ row }: { row: ThesisComparisonRow }) {
                 <p className="text-sm font-semibold text-foreground">{item.title}</p>
                 <p className="mt-1 text-xs font-medium text-muted-foreground">{item.sourceLabel}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.role}</p>
+              </div>
+
+              <div className="mt-3 rounded-md border border-canola/20 bg-canola/8 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-canola">Decision role</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{item.decisionRole}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.decisionDetail}</p>
               </div>
 
               <div className="mt-3 rounded-md border border-border bg-background/80 px-3 py-2">

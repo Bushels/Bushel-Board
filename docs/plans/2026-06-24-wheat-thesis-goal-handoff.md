@@ -45,6 +45,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
 - `/thesis` now has a farmer-facing reconciliation judge, a node-and-edge relationship spiderweb, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum, shows freshness proof, compares the main counterweight, and keeps the visual layers as explanation over the existing scorecard rather than new scoring authority.
 - `/thesis` now has a USDA Wheat source-sweep panel that shows Crop Progress, WASDE balance, Export Sales, and Quarterly Stocks with source freshness, cadence, latest row date, weighted score effect, and relation labels such as deciding row, bear pressure, bull support, or cadence-limited context.
+- `/thesis` now shows the USDA relationship chain from condition signal to balance anchor to demand confirmation to inventory check to price confirmation, plus source-specific judge copy and `Decision role` blocks for each USDA source card.
 - Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
 - Source freshness loop was completed after the first UI proof:
   - CFTC official SODA feed was checked directly; Wheat contracts were available for report date 2026-06-16.
@@ -56,9 +57,9 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 
 ## What Is Not Done
 
-- The visible USDA Wheat sweep is started, but it is still an inventory/explanation layer. The next loop needs live-packet verification, historical export/price context, and source-specific judge language before treating it as a complete USDA scoring review.
+- The visible USDA Wheat sweep now has source-specific relationship language, but it is still an explanation layer. The next loop needs live-packet verification plus historical export/price context before treating it as a complete USDA scoring review.
 - The relationship spiderweb now makes side, distance, node rank, and edge thickness visible, but the next scoring pass still needs to prove whether source authority should alter distance separately from weighted score impact.
-- The reconciliation judge now has deciding-datum, freshness, and counterweight language; the next loop should make that language more source-specific after the visible USDA Wheat sweep is verified against live packets and historical price/export context is added.
+- The reconciliation judge now has deciding-datum, freshness, counterweight, and source-specific language; the next loop should verify those patterns against live USDA packets and historical price/export context.
 - Wheat price basket scoring is repaired and visible, but the top visual can still be improved with live-packet verification and historical contract context.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
@@ -85,7 +86,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 3. Extend the reconciliation judge after the full Wheat source sweep.
    - headline score is already scorecard-backed for Wheat weekly packets
    - judge card now shows the deciding datum, freshness proof, and strongest counterweight on `/thesis`
-   - CFTC, Grain Monitor, and producer cars are refreshed; next loop should add source-specific explanations for USDA exports, stocks, WASDE, crop progress, and price confirmation
+   - CFTC, Grain Monitor, and producer cars are refreshed; next loop should verify and refine source-specific explanations for USDA exports, stocks, WASDE, crop progress, and price confirmation
    - daily overlays should stay visibly separate from weekly scorecard truth
 4. Deepen the relationship spiderweb model:
    - center: one Wheat read
