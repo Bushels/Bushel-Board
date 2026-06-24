@@ -78,10 +78,10 @@ Current demand/movement facts:
 | Canada process/delivery ratio | 2.0% | Bearish domestic processing weakness |
 | Canada crop-year producer deliveries | 22,563.7 kt | Context |
 | Canada crop-year exports | 37,937.7 kt | Context, CGC week 45 is now fresh |
-| Grain Monitor total unloads | 9,389 cars | Logistics context |
-| Grain Monitor vs 4-week unload avg | -7% | Slight logistics drag |
-| Vancouver vessels | 18 | Watch, near pressure threshold |
-| Producer cars | 540 week cars, 63 to U.S. | Bullish movement support |
+| Grain Monitor total unloads | 8,027 cars | Logistics context |
+| Grain Monitor vs 4-week unload avg | -9% | Slight logistics drag |
+| Vancouver vessels | 21 | Watch, above one-year average of 20 |
+| Producer cars | 587 week cars, 63 to U.S. | Bullish movement support |
 | USDA Wheat export sales | 400,844 mt net sales | New-crop demand context |
 | USDA export pace vs projection | unavailable | Blocked claim |
 
@@ -90,7 +90,7 @@ Finding:
 - CGC week 45 is now fresh: 4,411 rows imported for week ending 2026-06-14, all 16 grains present, and collector heartbeats written.
 - Canada export disappearance still reads mildly bullish at 49.7% of deliveries, but the week shifted from the prior extreme export/delivery read to heavier farm deliveries and weaker current-week exports.
 - U.S. export-sales pace cannot be claimed because projection pace is unavailable in the current packet.
-- Movement/logistics support exists, but it should not override stale CFTC, Grain Monitor, and producer-car warnings.
+- Movement/logistics support exists, but it should not override the balance sheet and price confirmation. Grain Monitor and producer-car rows are now refreshed; they explain execution pressure rather than decide the headline.
 
 ## Loop 4 - Start From Positioning
 
@@ -101,17 +101,18 @@ Current primary CFTC Wheat row:
 | Metric | Value | Read |
 | --- | ---: | --- |
 | Primary CFTC market | WHEAT-HRSpring |
-| Report date | 2026-06-09 |
-| Managed money long | 22,280 |
-| Managed money short | 12,324 |
-| Net | +9,956 contracts |
-| Weekly net change | -8,400 contracts |
+| Report date | 2026-06-16 |
+| Managed money long | 20,344 |
+| Managed money short | 14,192 |
+| Net | +6,152 contracts |
+| Weekly net change | -3,804 contracts |
 
 Finding:
 
-- Net is still long, but funds liquidated heavily week over week.
+- Primary HRSpring net is still long, but less long week over week.
+- SRW is heavily net short at -69,531 contracts, while HRW is modestly net long at +7,620 contracts.
 - Current mapper treats this as bearish positioning pressure.
-- V2 repair: positioning should be a timing/crowding modifier, not a standalone direction creator. A crowded short can cap bearish conviction; liquidation can explain why a bullish supply story is not lifting price.
+- V2 repair: positioning should be a timing/crowding modifier, not a standalone direction creator. A crowded SRW short can cap bearish conviction; spring-wheat long liquidation can explain why a bullish supply story is not lifting price.
 
 ## Loop 5 - Start From Grok/Hermes Pulse
 
@@ -211,7 +212,7 @@ High confidence:
 
 Medium confidence:
 
-- Current Wheat read. Price and CGC are now fresh, but Grain Monitor, CFTC, producer cars, and U.S. export-sales freshness still cap confidence.
+- Current Wheat read. Price, CGC, Grain Monitor, producer cars, CFTC, crop progress, and WASDE are now refreshed/strong enough for the mechanical spine. U.S. export sales and quarterly stocks still cap confidence until their next official release windows.
 
 Low confidence:
 
@@ -234,12 +235,18 @@ Completed 2026-06-24: reconciliation explanation and visual proof.
 - `/thesis` now shows a `Price basket proof` strip for Spring Wheat/MGEX, HRW/KCBT, and SRW/CBOT agreement/disagreement.
 - Public-copy guardrails now allow Spring Wheat as a futures contract leg while still forbidding separate Spring Wheat/Winter Wheat Bull/Bear lanes or mapping claims.
 
-Next loop should start from source freshness and stronger reconciliation proof:
+Completed 2026-06-24: source freshness loop.
+
+- Official CFTC SODA check showed all three Wheat contracts available for report date 2026-06-16; import wrote 8 rows and 9 COT heartbeat rows.
+- Grain Monitor advanced to week 45 from the 2026-06-23 weekly report; total unloads are 8,027 cars, 9% below the four-week average, with 21 Vancouver vessels.
+- Producer Cars advanced to week 47; Wheat week cars are 587, crop-year cars are 14,750, and destination split includes 63 U.S., 300 Pacific, and 174 Thunder Bay cars.
+- Thesis packet cache refreshed 12/12 after the source updates; source freshness watchdog is green with 0 alerts and freshness watch count 15.
+- Export sales dry-run confirmed the latest ALL WHEAT data is still 2026-06-11; this is waiting on the next weekly USDA release, not a parser failure.
+
+Next loop should start from stronger reconciliation proof:
 
 - Verify the repaired price basket against the live packet on `/thesis`.
-- Refresh CFTC if a newer report is available.
-- Refresh Grain Monitor and producer cars.
-- Improve the reconciliation judge language after the stale rows are refreshed.
+- Improve the reconciliation judge language now that the stale rows are refreshed.
 - Improve the Wheat pressure map so distance from the Wheat read and edge thickness visibly communicate impact.
 - Rerun the relationship loop after those official rows update.
 

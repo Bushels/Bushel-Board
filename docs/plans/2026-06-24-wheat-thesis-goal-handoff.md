@@ -36,12 +36,19 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
 - `/thesis` now has a first reconciliation judge card, relationship-spiderweb ring view, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum and compares it with the strongest bull/bear offsets; the visual layers do not add new scoring authority.
 - Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
+- Source freshness loop was completed after the first UI proof:
+  - CFTC official SODA feed was checked directly; Wheat contracts were available for report date 2026-06-16.
+  - CFTC import wrote 8 rows and heartbeats; Wheat positioning now shows HRSpring managed money net +6,152, down 3,804 contracts week over week, with SRW net -69,531 and HRW net +7,620.
+  - Grain Monitor importer advanced from week 43 to week 45, report date 2026-06-23, covered period 2026-06-08 to 2026-06-14.
+  - Producer Cars importer advanced to week 47; Wheat week cars 587, crop-year cars 14,750, with 63 cars to the U.S., 300 to Pacific, and 174 to Thunder Bay.
+  - Thesis packet cache refreshed 12/12 with source watermark 2026-06-24T15:46:49Z.
+  - Source freshness watchdog is green: cache items 12, alerts 0, freshness watch count reduced from 33 to 15.
 
 ## What Is Not Done
 
 - Full USDA Wheat sweep is not complete.
 - The first relationship map and ring-style spiderweb exist, but the radial metaphor still needs visual polish: distance from the Wheat read, edge thickness, and impact ranking should be faster to read at a glance.
-- The canonical Wheat reconciliation judge has a first implementation, but it still needs source-refresh proof and stronger deciding-datum language after stale CFTC/logistics rows are refreshed.
+- The canonical Wheat reconciliation judge has a first implementation, but it still needs stronger deciding-datum language now that CFTC/logistics rows are refreshed.
 - Wheat price basket scoring is repaired and visible, but the top visual can still be improved with live-packet verification and historical contract context.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
@@ -65,10 +72,10 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - HRW Wheat / KCBT
    - SRW Wheat / CBOT
    - show disagreement as lower confidence
-3. Improve the reconciliation judge with refreshed source rows.
+3. Improve the reconciliation judge with the refreshed source rows.
    - headline score is already scorecard-backed for Wheat weekly packets
    - first judge card now exists on `/thesis`
-   - next loop should refresh stale rows and make the deciding datum language more source-specific
+   - CFTC, Grain Monitor, and producer cars are now refreshed; next loop should make the deciding datum language more source-specific
    - daily overlays should stay visibly separate from weekly scorecard truth
 4. Polish the relationship spiderweb:
    - center: one Wheat read
@@ -93,7 +100,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 The current best read is lean bear / balanced-to-bear:
 
 - bullish side: poor U.S. winter wheat condition is real supply stress
-- bearish side: WASDE/stocks, fresh price action, and current CGC flow do not confirm a bullish breakout
-- watch side: X pulse was quiet; no accepted Hermes signal moved the thesis
+- bearish side: WASDE/stocks, fresh price action, refreshed logistics, and current CGC flow do not confirm a bullish breakout
+- watch side: X pulse was quiet; no accepted Hermes signal moved the thesis; positioning is now fresher but remains timing/crowding context, not the deciding datum
 
 Do not hard-code that read. It is the starting checkpoint for the next loop.

@@ -94,6 +94,7 @@ Use `docs/plans/2026-06-23-wheat-metric-relationship-loop.md` as the active hand
 - Wheat price scoring now uses a three-contract basket across Spring Wheat, HRW, and SRW when the packet carries multiple Wheat-class futures. Basket agreement sets direction; contract disagreement lowers confidence. Focused proof: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Wheat weekly-packet headline scores now come from the deterministic rating scorecard when a Wheat scorecard is populated; driver counts remain explanation copy, not the Wheat headline score. Daily overlays remain the only current-day override.
 - `/thesis` now has a first reconciliation judge, relationship-spiderweb ring view, and Spring Wheat / HRW / SRW price-basket proof strip. These are visual/explanation layers over the existing scorecard, not new score authority.
+- The 2026-06-24 source-freshness loop refreshed the mechanical Wheat spine: CFTC Wheat contracts to 2026-06-16, Grain Monitor to week 45, producer cars to week 47, and thesis packet cache 12/12 with zero source-freshness alerts. Export sales remains at 2026-06-11 until the next USDA weekly release; quarterly stocks stays on its official reporting cadence.
 - Positioning is a timing/crowding modifier, not a primary direction creator.
 - Grok/Hermes X pulse is watch-only unless an accepted signal is tied back to official or admitted market data.
 - The farmer-facing board should show one Wheat read; Canada and the U.S. are evidence geography, not separate product lanes.
@@ -110,6 +111,13 @@ Recommended v1 weights for the next scoring repair:
 | Watch leads | 0% | Review priority only |
 
 Relationship visual status: the first Wheat pressure map model/panel exists on `/thesis`; the next visual pass should make the distance/weight metaphor more obvious, with the Wheat read in the center, high-authority score lanes close, and watch/context lanes farther away.
+
+Source-freshness sequence for Wheat loops:
+
+1. Run `npm run --silent check:source-freshness -- --json` and inspect `get_thesis_data_freshness('Wheat', NULL)` before changing the read.
+2. For CFTC, check the official SODA dataset `kh3c-gbw2` for the latest Wheat contract date before importing. The CFTC wrapper `--dry-run` reads the current database only; it does not prove whether the official feed has a newer Tuesday report.
+3. Refresh safe official lanes when stale and available: CFTC, Grain Monitor, producer cars, prices, crop progress, CGC, and thesis packet cache.
+4. Treat export sales and quarterly stocks as cadence-bound if the official latest date has not advanced; do not force a source-run write just to make freshness look green.
 
 ## Crop Progress And Wheat Thesis Overlay
 
