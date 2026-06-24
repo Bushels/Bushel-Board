@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-24 - Auditor skills must not reference missing eval-core files
+
+**Symptom:** During closeout, `agent-auditor` and `skill-auditor` both instructed the operator to read `eval-core/framework.md`, `eval-core/rubric.md`, `eval-core/replay-policy.md`, `eval-core/promotion-rules.md`, and `eval-core/report-template.md`, but those files did not exist under either skill folder. The audit workflow could not be followed as written.
+
+**Root cause:** The skills had been copied with references to a shared evaluator core, but the shared core was never included in the project skill package and the relative paths were not adjusted.
+
+**Fix status:** Added `.agents/skills/_eval-core/` with the shared framework, rubric, replay policy, promotion rules, report template, and `scripts/score_audit.py`. Updated both auditor skills to reference `../_eval-core/...`.
+
+**Prevention:** When adding a skill that references reusable evaluation docs or scripts, run a static existence check for every referenced file before committing the skill. A skill that cannot read its own required references should be treated as broken, even if the prompt text looks correct.
+
+**Tags:** #skills #agents #audit #closeout
+
+---
+
 ## 2026-06-23 - CGC CSV fetch can fail when the importer reuses HTML Accept headers
 
 **Symptom:** The CGC weekly importer failed at `stage = source_fetch` with `fetch failed`, leaving `cgc_observations` stale at week 44 while the CGC page had already published week 45. A direct page fetch worked, but the CSV request returned HTTP 406 when the request advertised an HTML-oriented `Accept` header.

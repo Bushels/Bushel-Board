@@ -231,3 +231,15 @@ Then start from source freshness:
 - Refresh CFTC if a newer report is available.
 - Refresh Grain Monitor and producer cars.
 - Rerun the relationship loop after those official rows update.
+
+## Closeout And Next Goal
+
+The next session handoff is `docs/plans/2026-06-24-wheat-thesis-goal-handoff.md`.
+
+Do not restart from UI mockups. Start from the scoring and relationship problem:
+
+- full USDA Wheat metric sweep
+- Wheat price basket across Spring Wheat, HRW, and SRW
+- one canonical Wheat judge for headline score and lane bars
+- relationship spiderweb where distance and edge weight show source authority and score impact
+- Hermes/Grok pulse remains watch-only unless tied back to official or admitted market data

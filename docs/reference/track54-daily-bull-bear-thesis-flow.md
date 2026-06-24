@@ -165,15 +165,14 @@ Friday also:
 5:15 PM MT  Friday artifact health check
 ```
 
-## Current Operating State As Of 2026-06-09 Early MT
+## Current Operating State As Of 2026-06-24 Closeout
 
 - `production_writes_enabled = false`
-- daily_pulse: 3 artifact days found, 2 clean, 3 clean days still missing
-- daily_pulse earliest candidate date: 2026-06-12
-- friday_deep: 0 artifact days found, 0 clean, 1 clean Friday artifact missing
-- friday_deep earliest candidate date: 2026-06-12
-- Grok CLI/API credential issue: `missing_credential`
-- Hermes terminal scout proof: OK with `xai-oauth` and `grok-4.3`
+- latest manual daily_pulse proof: 2026-06-23 Hermes terminal artifact with fresh price proof, 0 raw signals, 0 accepted signals
+- latest reviewer verdict: `insufficient_artifacts`
+- Grok CLI/API credential issue: `expired_auth`; local CLI auth expired 2026-06-10 and no `XAI_API_KEY` is configured
+- Hermes terminal scout proof: OK with `xai-oauth`, `grok-4.3`, and `x_search` listed
+- `grok-composer-2.5-fast`: referenced by recovery commands but not callable until Grok CLI auth or `XAI_API_KEY` is repaired
 - write-mode automations: missing/inactive by design
 
-Next safe action: let the scheduled no-write windows collect clean artifacts through June 12, use Hermes only through the deterministic fallback path if a same-day artifact is due and invalid, and refresh original Grok credentials before any write-mode approval.
+Next safe action: keep X pulse watch-only, repair Grok auth only if Composer/CLI scouting is required, and do not enable write-mode automation until a mode-scoped artifact gate passes and Kyle approves the exact reviewed window.

@@ -80,6 +80,35 @@ LIMIT 20;
 4. Treat `grain_intelligence` as historical archive only.
 5. Present the report as a compact markdown table or narrative.
 
+## Wheat Bull/Bear Relationship Loop
+
+When the task is the Wheat thesis board or a Wheat bullish/bearish rating, use the current loop contract instead of a generic grain report:
+
+```text
+official data rows -> lane score -> price confirmation -> watch leads -> one Wheat read
+```
+
+Use `docs/plans/2026-06-23-wheat-metric-relationship-loop.md` as the active handoff. Current loop findings:
+
+- Official rows and price context support a lean bear / balanced-to-bear read until U.S. crop stress is confirmed by price, demand, or a fresher supply shock.
+- The current price mapper has a known weakness: "latest price row wins" can let Spring Wheat/MWK26 dominate the Wheat price lane. Next repair is a Wheat price basket across Spring, HRW, and SRW.
+- Positioning is a timing/crowding modifier, not a primary direction creator.
+- Grok/Hermes X pulse is watch-only unless an accepted signal is tied back to official or admitted market data.
+- The farmer-facing board should show one Wheat read; Canada and the U.S. are evidence geography, not separate product lanes.
+
+Recommended v1 weights for the next scoring repair:
+
+| Lane | Weight | Role |
+| --- | ---: | --- |
+| Supply/weather | 30% | Production and balance-sheet driver |
+| Demand/export flow | 25% | Disappearance confirmation |
+| Movement/logistics | 15% | Execution and basis pressure |
+| Price/FX/basis | 15% | Market confirmation |
+| Positioning/timing | 10% | Crowding and liquidation context |
+| Watch leads | 0% | Review priority only |
+
+Next visual: relationship spiderweb centered on one Wheat read. Closer nodes carry higher source authority and score weight; outer nodes are lower-impact watch/context lanes.
+
 ## Crop Progress And Wheat Thesis Overlay
 
 When the user asks how Prairie crop progress changes the Wheat bull/bear thesis:

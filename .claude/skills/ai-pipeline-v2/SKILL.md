@@ -28,7 +28,8 @@ Codex CGC importer -> cgc_observations -> Claude/Codex desk workflow -> market_a
 
 - CGC import: `npm run import-cgc`
 - Analysis: Claude Agent Desk / Codex-authored desk routines
-- X/Twitter input: future direct X API v2 gateway, not Grok `x_search`
+- X/Twitter input for production writers: future direct X API v2 gateway, not the retired Grok `search-x-intelligence` chain.
+- Track 54 exception: Grok/Hermes may create local no-write X scout artifacts only through the reviewed Track 54 path. That path is evidence discovery, not pipeline recovery, and must not write Supabase rows or thesis rows without the explicit promotion gate.
 - Legacy table: `grain_intelligence` is read-only history
 
 ## Key Rule

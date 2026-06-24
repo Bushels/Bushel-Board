@@ -73,7 +73,8 @@ Codex CGC importer -> cgc_observations -> Claude/Codex desk workflow -> market_a
 - Grok/xAI analysis functions (`analyze-grain-market`, `search-x-intelligence`, `analyze-market-data`, `generate-intelligence`, `generate-farm-summary`) are tombstoned.
 - `/api/pipeline/run` is also tombstoned and must not be used for CGC import or analysis recovery.
 - `grain_week` resolved from `MAX(grain_week) FROM cgc_observations` - NOT calendar week.
-- Direct X API v2 can be added later as an input lane for `x_market_signals`; do not revive Grok `x_search`.
+- Direct X API v2 can be added later as an input lane for `x_market_signals`; do not revive the retired Grok `search-x-intelligence` / thesis-writing chain.
+- Track 54 exception: Grok/Hermes may run only as a local no-write X evidence scout through the reviewed artifact gate. It cannot write `market_analysis`, `us_market_analysis`, `thesis_packet_cache`, or trajectory rows without explicit promotion approval.
 - **Key lesson:** When transitioning pipeline versions, clean up stale data from the old version. See `docs/lessons-learned/issues.md`.
 
 ### LLM Prompt Engineering Lessons

@@ -125,4 +125,7 @@ Operator/audit surfaces stay behind `?audit=1`.
 - Build a lane-agent runner that writes local no-write audit packets before any Supabase write path.
 - Add a replay harness for Wheat lane weights: compare prior weekly source packets against subsequent price/basis movement.
 - Add a visual "driver changed this week" sparkline once historical lane deltas are reliable.
+- Build the Wheat relationship spiderweb: center one Wheat read, place high-weight official/price/demand lanes close, place lower-authority watch/global/local-basis gaps farther out, and use edge color/thickness for bull/bear effect size.
+- Promote the deterministic rating scorecard to the headline score source before the spiderweb is treated as farmer-facing truth.
+- Replace the Wheat price lane's "latest row wins" behavior with a Spring Wheat / HRW / SRW basket.
 - Admit class-safe spring/winter mappings only when source identity, public wording, and tests prove they cannot leak unsupported class claims.
