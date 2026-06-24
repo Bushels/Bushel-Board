@@ -17,7 +17,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - The retired `ai-pipeline-v2` skill was tightened into an archive-only tombstone so it cannot be mistaken for a live recovery path.
 - The `cftc-cot` skill was tightened so CFTC stays a Wheat timing/crowding input, not a primary direction creator by itself.
 - This closeout added no new score authority. The latest dashboard behavior is a farmer-facing USDA Wheat source-sweep panel that inventories official U.S. rows already represented in the scorecard.
-- An unfinished Wheat X-sentiment prototype was parked at `docs/plans/2026-06-24-wheat-x-sentiment-ranking-plan.md`; its executable TypeScript/test draft was removed because the prototype scored trusted prairie bearish signals as bullish.
+- An unfinished Wheat X-sentiment prototype was parked at `docs/plans/2026-06-24-wheat-x-sentiment-ranking-plan.md`; its executable TypeScript/test draft and leftover component draft were removed because the prototype scored trusted prairie bearish signals as bullish and the component depended on the removed scorer.
 
 ## What Is Done
 

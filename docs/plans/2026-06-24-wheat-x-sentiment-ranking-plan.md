@@ -7,7 +7,7 @@
 
 ## Parking Note - 2026-06-24
 
-This was found as untracked prototype work during the Wheat USDA source-sweep closeout. The executable prototype was removed from the live tree because its own test failed:
+This was found as untracked prototype work during the Wheat USDA source-sweep closeout. The executable scorer/test draft and the leftover farmer-card component draft were removed from the live tree because the scorer's own test failed and the component imported that removed scorer:
 
 ```text
 npx vitest run lib/__tests__/x-pulse-sentiment.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node
@@ -15,7 +15,7 @@ npx vitest run lib/__tests__/x-pulse-sentiment.test.ts --pool=threads --maxWorke
 
 Result: 1 passed, 2 failed. The core bug was directional: trusted prairie bearish signals produced `lean_bullish`, because source quality and location weights were added as positive score terms instead of weighting the signed sentiment direction.
 
-Keep this document as a future design note only. The next implementation must rebuild the pure scoring function with source tier and location relevance as confidence or magnitude weights, not as bullish points.
+Keep this document as a future design note only. There is no live `components/thesis` Wheat X Pulse component in this lane. The next implementation must rebuild the pure scoring function with source tier and location relevance as confidence or magnitude weights, not as bullish points, before adding UI.
 
 ## Objective
 
