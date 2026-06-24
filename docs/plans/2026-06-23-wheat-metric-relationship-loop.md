@@ -186,19 +186,20 @@ Use one canonical Wheat judge for both the headline and the visual lane bars:
 | Positioning/timing | 10% | Crowding, liquidation, short-cover risk |
 | Watch leads | 0% | Review priority only |
 
-Important: the current product has a two-score problem.
+Important: the first score mismatch is repaired for Wheat weekly packets.
 
-- The visible stance is still based mainly on bull/bear driver counting.
-- The lane bars come from the deterministic rating scorecard.
-- Those can disagree.
+- The visible Wheat weekly stance now uses the deterministic rating scorecard when a Wheat scorecard is populated.
+- Bull/bear driver counting remains useful explanation copy, but it no longer sets the Wheat weekly headline score.
+- Daily overlays remain visibly separate because they are current-day ticks, not a rebuild of the weekly lane scorecard.
 
-V1 implementation repair:
+V1 implementation repair status:
 
-1. Make the deterministic rating scorecard the source of the headline score.
-2. Add a small reconciliation judge that chooses the deciding datum when evidence is mixed.
-3. Render daily overlays as a separate "daily tick" unless they rebuild lane contributions.
-4. Change Wheat price from "latest row wins" to a Wheat price basket or three-contract visual.
-5. Keep X pulse as watch-only until accepted and tied to official/admitted market data.
+1. Done: make the deterministic rating scorecard the source of the Wheat weekly headline score.
+2. Done: render daily overlays as a separate current-day tick unless they rebuild lane contributions.
+3. Done in the mapper: change Wheat price from "latest row wins" to a Wheat price basket.
+4. Next: add a small reconciliation judge that explains the deciding datum when evidence is mixed.
+5. Next: expose the Spring Wheat / HRW / SRW price split visually.
+6. Standing boundary: keep X pulse as watch-only until accepted and tied to official/admitted market data.
 
 ## Current Confidence
 
@@ -226,11 +227,11 @@ Completed 2026-06-24: price lane repair.
 - The 2026-06-24 handoff packet rows would score as bearish price context from the basket, not only from newest MWK26.
 - Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 
-Next loop should start from score reconciliation:
+Next loop should start from reconciliation explanation and visual proof:
 
 - Verify the repaired price basket against the live packet on `/thesis`.
-- Make the deterministic rating scorecard the headline source of truth.
-- Add a reconciliation judge that explains which datum is deciding when the score is mixed.
+- Add a reconciliation judge that explains which datum is deciding when the score is mixed, now that the Wheat weekly headline is scorecard-backed.
+- Surface the Spring Wheat / HRW / SRW contract split so farmers can see price agreement/disagreement immediately.
 - Improve the Wheat pressure map so distance from the Wheat read and edge thickness visibly communicate impact.
 
 Then start from source freshness:

@@ -704,6 +704,39 @@ function scoreDrivers(bullDrivers: ThesisDriver[], bearDrivers: ThesisDriver[]):
   return Math.max(-100, Math.min(100, bull - bear));
 }
 
+function shouldUseScorecardForHeadline(grainName: string, scorecard: ThesisRatingScorecard): boolean {
+  return grainName.toLowerCase() === "wheat" && scorecard.domains.length > 0;
+}
+
+function headlineReadFromScorecard(params: {
+  grainName: string;
+  driverScore: number;
+  driverConfidence: { confidence: ThesisConfidence; score: number };
+  scorecard: ThesisRatingScorecard;
+}): {
+  stanceScore: number;
+  stanceLabel: string;
+  confidence: ThesisConfidence;
+  confidenceScore: number;
+} {
+  if (!shouldUseScorecardForHeadline(params.grainName, params.scorecard)) {
+    return {
+      stanceScore: params.driverScore,
+      stanceLabel: stanceLabel(params.driverScore),
+      confidence: params.driverConfidence.confidence,
+      confidenceScore: params.driverConfidence.score,
+    };
+  }
+
+  const stanceScore = Math.round(params.scorecard.overall_score);
+  return {
+    stanceScore,
+    stanceLabel: stanceLabel(stanceScore),
+    confidence: params.scorecard.confidence_label,
+    confidenceScore: params.scorecard.confidence_score,
+  };
+}
+
 function caseSummary(label: string, drivers: ThesisDriver[]): string {
   if (drivers.length === 0) {
     return `No clear ${label.toLowerCase()} driver in the current packet.`;
@@ -1039,7 +1072,7 @@ export function buildCanadaThesisBoardItem(
 
   const warnings = normalizeWarnings(packet, freshness);
   const confidence = confidenceFromFreshness(freshness, warnings);
-  const stanceScore = scoreDrivers(bullDrivers, bearDrivers);
+  const driverScore = scoreDrivers(bullDrivers, bearDrivers);
   const cropYear = textValue(packet, "crop_year");
   const grainWeek = numberValue(packet, "grain_week");
   const packetGeneratedAt = textValue(packet, "packet_generated_at");
@@ -1051,6 +1084,12 @@ export function buildCanadaThesisBoardItem(
     domains: mapCanadaPacketToDomainInputs(packet),
     domainWeights: getImpactAdjustedDomainWeights(grain.name, "canada"),
   });
+  const headlineRead = headlineReadFromScorecard({
+    grainName: grain.name,
+    driverScore,
+    driverConfidence: confidence,
+    scorecard: ratingScorecard,
+  });
 
   return {
     id: `ca-${grain.slug}`,
@@ -1061,10 +1100,10 @@ export function buildCanadaThesisBoardItem(
     grainWeek,
     marketYear: null,
     packetGeneratedAt,
-    stanceScore,
-    stanceLabel: stanceLabel(stanceScore),
-    confidence: confidence.confidence,
-    confidenceScore: confidence.score,
+    stanceScore: headlineRead.stanceScore,
+    stanceLabel: headlineRead.stanceLabel,
+    confidence: headlineRead.confidence,
+    confidenceScore: headlineRead.confidenceScore,
     bullCase: caseSummary("Bull", bullDrivers),
     bearCase: caseSummary("Bear", bearDrivers),
     bullDrivers,
@@ -1439,7 +1478,7 @@ export function buildUsThesisBoardItem(
 
   const warnings = normalizeWarnings(packet, freshness);
   const confidence = confidenceFromFreshness(freshness, warnings);
-  const stanceScore = scoreDrivers(bullDrivers, bearDrivers);
+  const driverScore = scoreDrivers(bullDrivers, bearDrivers);
   const marketYear = numberValue(packet, "market_year") ?? CURRENT_US_MARKET_YEAR;
   const packetGeneratedAt = textValue(packet, "packet_generated_at");
   const ratingScorecard = buildRatingScorecard({
@@ -1449,6 +1488,12 @@ export function buildUsThesisBoardItem(
     source_watermark: packetGeneratedAt,
     domains: mapUsPacketToDomainInputs(packet),
     domainWeights: getImpactAdjustedDomainWeights(market.name, "us"),
+  });
+  const headlineRead = headlineReadFromScorecard({
+    grainName: market.name,
+    driverScore,
+    driverConfidence: confidence,
+    scorecard: ratingScorecard,
   });
 
   return {
@@ -1460,10 +1505,10 @@ export function buildUsThesisBoardItem(
     grainWeek: null,
     marketYear,
     packetGeneratedAt,
-    stanceScore,
-    stanceLabel: stanceLabel(stanceScore),
-    confidence: confidence.confidence,
-    confidenceScore: confidence.score,
+    stanceScore: headlineRead.stanceScore,
+    stanceLabel: headlineRead.stanceLabel,
+    confidence: headlineRead.confidence,
+    confidenceScore: headlineRead.confidenceScore,
     bullCase: caseSummary("Bull", bullDrivers),
     bearCase: caseSummary("Bear", bearDrivers),
     bullDrivers,

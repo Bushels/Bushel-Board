@@ -8,7 +8,7 @@ import { createServer } from "node:net";
 import { pathToFileURL } from "node:url";
 import {
   PUBLIC_ADVICE_FORBIDDEN_TERMS,
-  PUBLIC_BOARD_FORBIDDEN_TERMS,
+  PUBLIC_PARKED_GRAIN_LABELS,
   publicForbiddenTermPatternSpecs,
 } from "../lib/public-copy-guardrails";
 
@@ -130,18 +130,18 @@ const VIEWPORTS: Record<ViewportConfig["name"], ViewportConfig> = {
 
 const ROUTES: RouteSmokeConfig[] = [
   {
-    // Wheat-first country split (2026-06-16): normal /thesis leads with the Canada/USA
-    // Wheat Bull/Bear read and keeps only farmer-facing surfaces. Operator telemetry
-    // markers are FORBIDDEN here and must render in audit mode instead.
+    // Wheat-first board (2026-06-24): normal /thesis leads with one Wheat
+    // Bull/Bear read and keeps only farmer-facing surfaces. Operator telemetry
+    // markers are forbidden here and must render in audit mode instead.
     path: "/thesis",
     markers: [
-      "Canada vs USA Wheat Bull/Bear",
-      "Canada Wheat Bull/Bear",
-      "USA Wheat Bull/Bear",
-      "Wheat stance meter",
-      "Sources to Wheat Bull/Bear board",
-      "Pressure-lane breakdown",
+      "Current stance",
+      "Thesis confidence",
+      "Source (what we watch)",
+      "Wheat Crop Progress",
       "What feeds this read",
+      "Watch leads (what could change the thesis)",
+      "Read the evidence",
       "Your area",
       "Source health",
       "Board update mode",
@@ -149,7 +149,6 @@ const ROUTES: RouteSmokeConfig[] = [
       "Wheat Pressure Map",
       "Source data lanes",
       "Wheat factor nodes",
-      "All graph links",
       "Packet contributions",
       "Current packet contribution",
     ],
@@ -157,7 +156,12 @@ const ROUTES: RouteSmokeConfig[] = [
     // "X Pulse Watch" cannot be used as a sentinel because it case-insensitively matches
     // the legitimate "X Pulse watch leads" copy in the farmer-facing pressure map.
     forbiddenText: [
-      ...PUBLIC_BOARD_FORBIDDEN_TERMS,
+      ...PUBLIC_ADVICE_FORBIDDEN_TERMS,
+      ...PUBLIC_PARKED_GRAIN_LABELS.filter((label) => label !== "Spring Wheat" && label !== "Winter Wheat"),
+      "Spring Wheat Bull/Bear",
+      "Winter Wheat Bull/Bear",
+      "Spring Wheat mapping",
+      "Winter Wheat mapping",
       "All Grains at a Glance",
       "Major Grain Thesis Matrix",
       "Canada Major Grains",
@@ -172,8 +176,9 @@ const ROUTES: RouteSmokeConfig[] = [
   {
     path: "/thesis?audit=1",
     markers: [
+      "Current stance",
+      "Thesis confidence",
       "Source health",
-      "Canada vs USA Wheat Bull/Bear",
       "Your area",
       "Board update mode",
       "Daily Update Status",

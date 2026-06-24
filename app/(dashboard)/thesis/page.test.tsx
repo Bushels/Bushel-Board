@@ -1303,10 +1303,10 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("CAD Wheat: review-gated daily overlay");
     expect(html).toContain("Weekly packet rows");
     expect(html).toContain("CAD Canola: weekly packet score");
-    expect(html).toContain("US Wheat: weekly packet score");
+    expect(html).toContain("US Wheat: deterministic scorecard");
     expect(html).toContain("Score source: Daily overlay Jun 1 (review-gated)");
     expect(html).toContain("Score source: Daily overlay");
-    expect(html).toContain("Score source: Weekly packet");
+    expect(html).toContain("Score source: Deterministic scorecard");
   });
 
   it("explains weekly data pulls and what each source signifies", async () => {

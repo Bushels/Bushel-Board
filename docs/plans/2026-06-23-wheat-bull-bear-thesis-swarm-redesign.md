@@ -126,6 +126,7 @@ Operator/audit surfaces stay behind `?audit=1`.
 - Add a replay harness for Wheat lane weights: compare prior weekly source packets against subsequent price/basis movement.
 - Add a visual "driver changed this week" sparkline once historical lane deltas are reliable.
 - Build the Wheat relationship spiderweb: center one Wheat read, place high-weight official/price/demand lanes close, place lower-authority watch/global/local-basis gaps farther out, and use edge color/thickness for bull/bear effect size.
-- Promote the deterministic rating scorecard to the headline score source before the spiderweb is treated as farmer-facing truth.
-- Replace the Wheat price lane's "latest row wins" behavior with a Spring Wheat / HRW / SRW basket.
+- Done after this redesign: Wheat weekly-packet headlines now use the deterministic rating scorecard when populated.
+- Done after this redesign in the mapper: the Wheat price lane now uses a Spring Wheat / HRW / SRW basket when multiple Wheat-class futures rows are present.
+- Still needed: expose the three-contract price split visually and add a reconciliation judge that explains which datum decides the read when lanes disagree.
 - Admit class-safe spring/winter mappings only when source identity, public wording, and tests prove they cannot leak unsupported class claims.

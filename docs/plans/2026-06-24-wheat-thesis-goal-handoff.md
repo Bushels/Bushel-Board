@@ -33,14 +33,15 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - Vercel preview was deployed and build checks passed before this closeout.
 - First Wheat pressure-map model/panel is wired into `/thesis` from `lib/thesis/wheat-pressure-map.ts`. It traces source nodes, factor nodes, packet contributions, CA/US evidence geography, X Pulse watch proof, and relationship nodes into one Wheat read.
 - Wheat price scoring no longer uses the "latest price row wins" shortcut when multiple Wheat futures classes are present. `lib/thesis/rating-domain-mappers.ts` now builds a Spring Wheat / HRW / SRW basket; agreement sets direction and disagreement lowers confidence. Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
+- Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
 - Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
 
 ## What Is Not Done
 
 - Full USDA Wheat sweep is not complete.
 - The first relationship map exists, but the radial "spiderweb" metaphor still needs visual polish: distance from the Wheat read, edge thickness, and impact ranking should be faster to read at a glance.
-- The canonical Wheat judge is not implemented.
-- The visible headline score and deterministic scorecard can still disagree.
+- The canonical Wheat reconciliation judge is not implemented.
+- The Wheat weekly headline score now uses the deterministic scorecard, but the final reconciliation judge still needs to explain the deciding datum when CA/US lanes or source domains conflict.
 - Wheat price basket scoring is repaired in the deterministic mapper, but the top visual still needs a clearer three-contract split so farmers can see Spring Wheat, HRW, and SRW agreement/disagreement immediately.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
@@ -64,9 +65,11 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - HRW Wheat / KCBT
    - SRW Wheat / CBOT
    - show disagreement as lower confidence
-3. Make the deterministic rating scorecard the headline source of truth.
-4. Add a reconciliation judge that explains the deciding datum when evidence is mixed.
-5. Polish the relationship spiderweb:
+3. Add a reconciliation judge that explains the deciding datum when evidence is mixed.
+   - headline score is already scorecard-backed for Wheat weekly packets
+   - the judge still needs to explain why the score is leaning that way
+   - daily overlays should stay visibly separate from weekly scorecard truth
+4. Polish the relationship spiderweb:
    - center: one Wheat read
    - first ring: high-authority lanes with score weight
    - second ring: movement/logistics and positioning
@@ -74,7 +77,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - edge color: bull/bear/neutral
    - edge thickness: effect size
    - distance: lower authority or lower score impact
-6. Run visual QA on desktop and mobile, then deploy.
+5. Run visual QA on desktop and mobile, then deploy.
 
 ## No-Write And Retired-Path Boundaries
 

@@ -1454,12 +1454,22 @@ function applyDailyTrajectoryOverlay(
   };
 }
 
-function dailyOverlayItemLabel(item: ThesisBoardItem, state: "review-gated daily overlay" | "weekly packet score"): string {
+function dailyOverlayItemLabel(item: ThesisBoardItem, state: string): string {
   return `${dailyUpdateSideLabel(dailyUpdateItemSide(item))} ${item.name}: ${state}`;
 }
 
+function weeklyScoreStateLabel(item: ThesisBoardItem): string {
+  return item.name === "Wheat" && item.ratingScorecard.domains.length > 0
+    ? "deterministic scorecard"
+    : "weekly packet score";
+}
+
 function scoreSourceLabel(item: ThesisBoardItem): string {
-  if (item.scoreSource?.kind !== "daily_overlay") return "Weekly packet";
+  if (item.scoreSource?.kind !== "daily_overlay") {
+    return item.name === "Wheat" && item.ratingScorecard.domains.length > 0
+      ? "Deterministic scorecard"
+      : "Weekly packet";
+  }
   const dateKey = localDateKeyFromTimestamp(item.scoreSource.recordedAt);
   return dateKey
     ? `Daily overlay ${dateLabelFromKey(dateKey)} (review-gated)`
@@ -2421,7 +2431,7 @@ function dailyOverlayCoverage(
       matchedUpdates.push(update);
       overlaidLabels.push(dailyOverlayItemLabel(item, "review-gated daily overlay"));
     } else {
-      weeklyLabels.push(dailyOverlayItemLabel(item, "weekly packet score"));
+      weeklyLabels.push(dailyOverlayItemLabel(item, weeklyScoreStateLabel(item)));
     }
   }
 
