@@ -281,6 +281,68 @@ function boardData(): ThesisBoardData {
           negative_evidence: [],
           blocked_claims: [],
         },
+        {
+          domain: "price",
+          score: -17,
+          weight: 0.15,
+          weighted_score: -2.55,
+          confidence: "medium",
+          freshness_status: "strong",
+          sources: ["grain_prices"],
+          metrics: [
+            {
+              source: "grain_prices",
+              label: "Spring Wheat futures change",
+              value: "-0.6%",
+              numericValue: -0.594,
+              unit: "pct",
+              period: "2026-06-24",
+            },
+            {
+              source: "grain_prices",
+              label: "Spring Wheat settlement price",
+              value: "7.11 USD/bu",
+              numericValue: 7.11,
+              unit: "$/bu",
+              period: "2026-06-24",
+            },
+            {
+              source: "grain_prices",
+              label: "HRW Wheat futures change",
+              value: "-1.6%",
+              numericValue: -1.63,
+              unit: "pct",
+              period: "2026-06-22",
+            },
+            {
+              source: "grain_prices",
+              label: "HRW Wheat settlement price",
+              value: "6.335 USD/bu",
+              numericValue: 6.335,
+              unit: "$/bu",
+              period: "2026-06-22",
+            },
+            {
+              source: "grain_prices",
+              label: "SRW Wheat futures change",
+              value: "-1.4%",
+              numericValue: -1.362,
+              unit: "pct",
+              period: "2026-06-22",
+            },
+            {
+              source: "grain_prices",
+              label: "SRW Wheat settlement price",
+              value: "5.975 USD/bu",
+              numericValue: 5.975,
+              unit: "$/bu",
+              period: "2026-06-22",
+            },
+          ],
+          positive_evidence: [],
+          negative_evidence: ["Fresh Wheat price basket shows futures pressure: Spring Wheat -0.6%, HRW Wheat -1.6%, SRW Wheat -1.4%."],
+          blocked_claims: [],
+        },
       ],
       contradictions: [],
       quality_adjustments: [],
@@ -745,9 +807,20 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Thesis confidence");
     expect(html).toContain("Wheat confidence-scaled stance score 0");
     expect(html).toContain("Source coverage: Canada + US");
+    expect(html).toContain("Reconciliation judge");
+    expect(html).toContain("Deciding datum");
+    expect(html).toContain("+15 weighted points from CGC weekly grain stats");
+    expect(html).toContain("Relationship spiderweb");
+    expect(html).toContain("Distance shows impact on the Wheat read");
     expect(html).toContain("Source (what we watch)");
     expect(html).toContain("Crop Condition / Weather");
     expect(html).toContain("Demand / Exports");
+    expect(html).toContain("Price basket proof");
+    expect(html).toContain("Spring Wheat / HRW / SRW confirmation");
+    expect(html).toContain("All reported contracts bearish");
+    expect(html).toContain("MGEX");
+    expect(html).toContain("KCBT");
+    expect(html).toContain("CBOT");
     expect(html).toContain("Bull case");
     expect(html).toContain("Canada export basis stays firm");
     expect(html).toContain("Bear case");

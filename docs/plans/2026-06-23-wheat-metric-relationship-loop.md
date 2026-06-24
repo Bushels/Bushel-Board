@@ -197,8 +197,8 @@ V1 implementation repair status:
 1. Done: make the deterministic rating scorecard the source of the Wheat weekly headline score.
 2. Done: render daily overlays as a separate current-day tick unless they rebuild lane contributions.
 3. Done in the mapper: change Wheat price from "latest row wins" to a Wheat price basket.
-4. Next: add a small reconciliation judge that explains the deciding datum when evidence is mixed.
-5. Next: expose the Spring Wheat / HRW / SRW price split visually.
+4. Done as a first UI pass: add a reconciliation judge that explains the deciding datum when evidence is mixed.
+5. Done as a first UI pass: expose the Spring Wheat / HRW / SRW price split visually.
 6. Standing boundary: keep X pulse as watch-only until accepted and tied to official/admitted market data.
 
 ## Current Confidence
@@ -227,17 +227,20 @@ Completed 2026-06-24: price lane repair.
 - The 2026-06-24 handoff packet rows would score as bearish price context from the basket, not only from newest MWK26.
 - Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 
-Next loop should start from reconciliation explanation and visual proof:
+Completed 2026-06-24: reconciliation explanation and visual proof.
+
+- `/thesis` now shows a `Reconciliation judge` card that selects the largest weighted scorecard datum and compares it with the strongest bull/bear offsets.
+- `/thesis` now shows a `Relationship spiderweb` ring view where inner/middle/outer distance bands represent impact on the Wheat read and edge-width pills represent weighted points.
+- `/thesis` now shows a `Price basket proof` strip for Spring Wheat/MGEX, HRW/KCBT, and SRW/CBOT agreement/disagreement.
+- Public-copy guardrails now allow Spring Wheat as a futures contract leg while still forbidding separate Spring Wheat/Winter Wheat Bull/Bear lanes or mapping claims.
+
+Next loop should start from source freshness and stronger reconciliation proof:
 
 - Verify the repaired price basket against the live packet on `/thesis`.
-- Add a reconciliation judge that explains which datum is deciding when the score is mixed, now that the Wheat weekly headline is scorecard-backed.
-- Surface the Spring Wheat / HRW / SRW contract split so farmers can see price agreement/disagreement immediately.
-- Improve the Wheat pressure map so distance from the Wheat read and edge thickness visibly communicate impact.
-
-Then start from source freshness:
-
 - Refresh CFTC if a newer report is available.
 - Refresh Grain Monitor and producer cars.
+- Improve the reconciliation judge language after the stale rows are refreshed.
+- Improve the Wheat pressure map so distance from the Wheat read and edge thickness visibly communicate impact.
 - Rerun the relationship loop after those official rows update.
 
 ## Closeout And Next Goal

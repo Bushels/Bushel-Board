@@ -34,15 +34,15 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - First Wheat pressure-map model/panel is wired into `/thesis` from `lib/thesis/wheat-pressure-map.ts`. It traces source nodes, factor nodes, packet contributions, CA/US evidence geography, X Pulse watch proof, and relationship nodes into one Wheat read.
 - Wheat price scoring no longer uses the "latest price row wins" shortcut when multiple Wheat futures classes are present. `lib/thesis/rating-domain-mappers.ts` now builds a Spring Wheat / HRW / SRW basket; agreement sets direction and disagreement lowers confidence. Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
+- `/thesis` now has a first reconciliation judge card, relationship-spiderweb ring view, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum and compares it with the strongest bull/bear offsets; the visual layers do not add new scoring authority.
 - Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
 
 ## What Is Not Done
 
 - Full USDA Wheat sweep is not complete.
-- The first relationship map exists, but the radial "spiderweb" metaphor still needs visual polish: distance from the Wheat read, edge thickness, and impact ranking should be faster to read at a glance.
-- The canonical Wheat reconciliation judge is not implemented.
-- The Wheat weekly headline score now uses the deterministic scorecard, but the final reconciliation judge still needs to explain the deciding datum when CA/US lanes or source domains conflict.
-- Wheat price basket scoring is repaired in the deterministic mapper, but the top visual still needs a clearer three-contract split so farmers can see Spring Wheat, HRW, and SRW agreement/disagreement immediately.
+- The first relationship map and ring-style spiderweb exist, but the radial metaphor still needs visual polish: distance from the Wheat read, edge thickness, and impact ranking should be faster to read at a glance.
+- The canonical Wheat reconciliation judge has a first implementation, but it still needs source-refresh proof and stronger deciding-datum language after stale CFTC/logistics rows are refreshed.
+- Wheat price basket scoring is repaired and visible, but the top visual can still be improved with live-packet verification and historical contract context.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
 - Global origin competition is still watch-only.
@@ -60,14 +60,15 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - CFTC COT
    - grain prices and FX
    - Hermes/X pulse artifacts
-2. Verify the repaired Wheat price basket against the live packet and expose the contract split visually:
+2. Verify the repaired Wheat price basket against the live packet and refine the visible contract split:
    - Spring Wheat / MGEX
    - HRW Wheat / KCBT
    - SRW Wheat / CBOT
    - show disagreement as lower confidence
-3. Add a reconciliation judge that explains the deciding datum when evidence is mixed.
+3. Improve the reconciliation judge with refreshed source rows.
    - headline score is already scorecard-backed for Wheat weekly packets
-   - the judge still needs to explain why the score is leaning that way
+   - first judge card now exists on `/thesis`
+   - next loop should refresh stale rows and make the deciding datum language more source-specific
    - daily overlays should stay visibly separate from weekly scorecard truth
 4. Polish the relationship spiderweb:
    - center: one Wheat read

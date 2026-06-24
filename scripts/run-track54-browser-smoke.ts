@@ -8,7 +8,7 @@ import { createServer } from "node:net";
 import { pathToFileURL } from "node:url";
 import {
   PUBLIC_ADVICE_FORBIDDEN_TERMS,
-  PUBLIC_PARKED_GRAIN_LABELS,
+  PUBLIC_BOARD_FORBIDDEN_TERMS,
   publicForbiddenTermPatternSpecs,
 } from "../lib/public-copy-guardrails";
 
@@ -137,7 +137,10 @@ const ROUTES: RouteSmokeConfig[] = [
     markers: [
       "Current stance",
       "Thesis confidence",
+      "Reconciliation judge",
+      "Relationship spiderweb",
       "Source (what we watch)",
+      "Price basket proof",
       "Wheat Crop Progress",
       "What feeds this read",
       "Watch leads (what could change the thesis)",
@@ -156,12 +159,7 @@ const ROUTES: RouteSmokeConfig[] = [
     // "X Pulse Watch" cannot be used as a sentinel because it case-insensitively matches
     // the legitimate "X Pulse watch leads" copy in the farmer-facing pressure map.
     forbiddenText: [
-      ...PUBLIC_ADVICE_FORBIDDEN_TERMS,
-      ...PUBLIC_PARKED_GRAIN_LABELS.filter((label) => label !== "Spring Wheat" && label !== "Winter Wheat"),
-      "Spring Wheat Bull/Bear",
-      "Winter Wheat Bull/Bear",
-      "Spring Wheat mapping",
-      "Winter Wheat mapping",
+      ...PUBLIC_BOARD_FORBIDDEN_TERMS,
       "All Grains at a Glance",
       "Major Grain Thesis Matrix",
       "Canada Major Grains",
@@ -178,7 +176,10 @@ const ROUTES: RouteSmokeConfig[] = [
     markers: [
       "Current stance",
       "Thesis confidence",
+      "Reconciliation judge",
+      "Relationship spiderweb",
       "Source health",
+      "Price basket proof",
       "Your area",
       "Board update mode",
       "Daily Update Status",

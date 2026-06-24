@@ -93,6 +93,7 @@ Use `docs/plans/2026-06-23-wheat-metric-relationship-loop.md` as the active hand
 - Official rows and price context support a lean bear / balanced-to-bear read until U.S. crop stress is confirmed by price, demand, or a fresher supply shock.
 - Wheat price scoring now uses a three-contract basket across Spring Wheat, HRW, and SRW when the packet carries multiple Wheat-class futures. Basket agreement sets direction; contract disagreement lowers confidence. Focused proof: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Wheat weekly-packet headline scores now come from the deterministic rating scorecard when a Wheat scorecard is populated; driver counts remain explanation copy, not the Wheat headline score. Daily overlays remain the only current-day override.
+- `/thesis` now has a first reconciliation judge, relationship-spiderweb ring view, and Spring Wheat / HRW / SRW price-basket proof strip. These are visual/explanation layers over the existing scorecard, not new score authority.
 - Positioning is a timing/crowding modifier, not a primary direction creator.
 - Grok/Hermes X pulse is watch-only unless an accepted signal is tied back to official or admitted market data.
 - The farmer-facing board should show one Wheat read; Canada and the U.S. are evidence geography, not separate product lanes.

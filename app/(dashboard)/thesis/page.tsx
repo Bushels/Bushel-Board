@@ -47,6 +47,7 @@ import {
   type ThesisFreshnessRow,
   type ThesisBoardItem,
   type ThesisComparisonRow,
+  type ThesisCountryCode,
   type ThesisDriver,
 } from "@/lib/queries/thesis-board";
 import {
@@ -1670,6 +1671,20 @@ const WHEAT_VISUAL_LANES: WheatVisualLaneConfig[] = [
   },
 ];
 
+type WheatScorecardDomain = ThesisBoardItem["ratingScorecard"]["domains"][number];
+
+type WheatDomainDatum = {
+  item: ThesisBoardItem;
+  country: ThesisCountryCode;
+  domain: WheatScorecardDomain;
+  weightedScore: number;
+  evidence: string;
+  sourceLabel: string;
+  metricLabel: string | null;
+  metricValue: string | null;
+  period: string | null;
+};
+
 type WheatVisualLaneRow = WheatVisualLaneConfig & {
   score: number;
   sources: string[];
@@ -1702,6 +1717,126 @@ function wheatVisualLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
       evidence,
     };
   });
+}
+
+function wheatDomainTitle(domain: WheatScorecardDomain["domain"]): string {
+  return WHEAT_PRESSURE_LANE_LABELS[domain as keyof typeof WHEAT_PRESSURE_LANE_LABELS] ?? domain.replaceAll("_", " ");
+}
+
+function wheatDomainDatums(row: ThesisComparisonRow): WheatDomainDatum[] {
+  return rowItems(row).flatMap((item) =>
+    item.ratingScorecard.domains.map((domain) => {
+      const weightedScore = Math.round(domain.weighted_score);
+      const evidence =
+        weightedScore >= 0
+          ? domain.positive_evidence[0] ?? domain.negative_evidence[0] ?? "No evidence line is attached yet."
+          : domain.negative_evidence[0] ?? domain.positive_evidence[0] ?? "No evidence line is attached yet.";
+      const metric = domain.metrics?.[0] ?? null;
+      return {
+        item,
+        country: item.lane === "canada" ? "CA" : "US",
+        domain,
+        weightedScore,
+        evidence,
+        sourceLabel: domain.sources.length ? domain.sources.map(sourceDisplayName).join(" + ") : "Scorecard lane",
+        metricLabel: metric?.label ?? null,
+        metricValue: metric?.value ?? null,
+        period: metric?.period ?? item.packetGeneratedAt ?? item.ratingScorecard.period_anchor,
+      };
+    }),
+  );
+}
+
+function strongestDatum(datums: WheatDomainDatum[], direction: "bull" | "bear" | "absolute"): WheatDomainDatum | null {
+  const filtered = datums.filter((datum) => {
+    if (direction === "bull") return datum.weightedScore > 0;
+    if (direction === "bear") return datum.weightedScore < 0;
+    return datum.weightedScore !== 0;
+  });
+  return filtered.sort((left, right) => Math.abs(right.weightedScore) - Math.abs(left.weightedScore))[0] ?? null;
+}
+
+function wheatPeriodLabel(value: string | null): string {
+  if (!value) return "current packet";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return reportDateLabel(value);
+  return value;
+}
+
+type WheatPriceBasketLeg = {
+  label: "Spring Wheat" | "HRW Wheat" | "SRW Wheat";
+  market: "MGEX" | "KCBT" | "CBOT";
+  change: number | null;
+  changeText: string;
+  settlement: string | null;
+  period: string | null;
+};
+
+const WHEAT_PRICE_BASKET_MARKETS: Record<WheatPriceBasketLeg["label"], WheatPriceBasketLeg["market"]> = {
+  "Spring Wheat": "MGEX",
+  "HRW Wheat": "KCBT",
+  "SRW Wheat": "CBOT",
+};
+
+function wheatPriceLegLabel(label: string): WheatPriceBasketLeg["label"] | null {
+  if (label.startsWith("Spring Wheat ")) return "Spring Wheat";
+  if (label.startsWith("HRW Wheat ")) return "HRW Wheat";
+  if (label.startsWith("SRW Wheat ")) return "SRW Wheat";
+  return null;
+}
+
+function wheatPriceBasketLegs(row: ThesisComparisonRow): WheatPriceBasketLeg[] {
+  const byLabel = new Map<WheatPriceBasketLeg["label"], WheatPriceBasketLeg>();
+  const priceDomains = rowItems(row).flatMap((item) =>
+    item.ratingScorecard.domains.filter((domain) => domain.domain === "price"),
+  );
+
+  for (const domain of priceDomains) {
+    for (const metric of domain.metrics ?? []) {
+      const label = wheatPriceLegLabel(metric.label);
+      if (!label) continue;
+      const existing = byLabel.get(label) ?? {
+        label,
+        market: WHEAT_PRICE_BASKET_MARKETS[label],
+        change: null,
+        changeText: "not reported",
+        settlement: null,
+        period: metric.period ?? null,
+      };
+
+      if (metric.label.endsWith("futures change")) {
+        existing.change = typeof metric.numericValue === "number" ? metric.numericValue : existing.change;
+        existing.changeText = metric.value;
+        existing.period = metric.period ?? existing.period;
+      } else if (metric.label.endsWith("settlement price")) {
+        existing.settlement = metric.value;
+        existing.period = metric.period ?? existing.period;
+      }
+
+      byLabel.set(label, existing);
+    }
+  }
+
+  return (["Spring Wheat", "HRW Wheat", "SRW Wheat"] as const).map((label) =>
+    byLabel.get(label) ?? {
+      label,
+      market: WHEAT_PRICE_BASKET_MARKETS[label],
+      change: null,
+      changeText: "missing",
+      settlement: null,
+      period: null,
+    },
+  );
+}
+
+function wheatPriceBasketAgreement(legs: WheatPriceBasketLeg[]): string {
+  const reported = legs.filter((leg) => leg.change !== null);
+  if (reported.length === 0) return "Price basket unavailable";
+  const bearCount = reported.filter((leg) => (leg.change ?? 0) < -0.5).length;
+  const bullCount = reported.filter((leg) => (leg.change ?? 0) > 0.5).length;
+  if (bearCount === reported.length) return "All reported contracts bearish";
+  if (bullCount === reported.length) return "All reported contracts bullish";
+  if (bearCount > 0 && bullCount > 0) return "Split price basket";
+  return "Price basket mixed/neutral";
 }
 
 function wheatPressureMarkerPosition(score: number): number {
@@ -1950,6 +2085,224 @@ function WheatDecisionBoard({
         </div>
       </div>
     </div>
+  );
+}
+
+function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
+  const datums = wheatDomainDatums(row);
+  const deciding = strongestDatum(datums, "absolute");
+  const strongestBull = strongestDatum(datums, "bull");
+  const strongestBear = strongestDatum(datums, "bear");
+  const score = aggregateRowScore(row) ?? 0;
+  const scoreTone = score < 0 ? "bear" : score > 0 ? "bull" : "balanced";
+  const scoreCopy =
+    scoreTone === "bear"
+      ? "bearish pressure is still heavier than support"
+      : scoreTone === "bull"
+        ? "bullish support is still heavier than pressure"
+        : "bull and bear pressure are balanced";
+
+  return (
+    <section className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm" aria-labelledby="wheat-reconciliation-heading">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reconciliation judge</p>
+          <h2 id="wheat-reconciliation-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Why the board lands here
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            The weekly headline is scorecard-backed. The judge looks for the largest weighted datum, then checks whether the opposite side is strong enough to overturn it.
+          </p>
+        </div>
+        <Badge variant="outline" className={cn("w-fit", score < 0 ? "border-orange-600/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" : score > 0 ? "border-prairie/25 bg-prairie/10 text-prairie" : "border-border bg-background text-muted-foreground")}>
+          {signedNumber(Math.round(score))} / {currentStanceLabel(score)}
+        </Badge>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="border-canola/30 bg-canola/10 text-canola">
+              Deciding datum
+            </Badge>
+            {deciding ? (
+              <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                {deciding.country} / {wheatDomainTitle(deciding.domain.domain)}
+              </Badge>
+            ) : null}
+          </div>
+          {deciding ? (
+            <>
+              <p className="text-base font-semibold leading-6 text-foreground">
+                {signedNumber(deciding.weightedScore)} weighted points from {deciding.sourceLabel}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{deciding.evidence}</p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                {deciding.metricLabel && deciding.metricValue ? `${deciding.metricLabel}: ${deciding.metricValue}. ` : ""}
+                Period: {wheatPeriodLabel(deciding.period)}.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm leading-6 text-muted-foreground">No scorecard datum is available yet.</p>
+          )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="rounded-lg border border-prairie/20 bg-prairie/8 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-prairie">Best bull offset</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {strongestBull ? `${strongestBull.country} ${wheatDomainTitle(strongestBull.domain.domain)} ${signedNumber(strongestBull.weightedScore)}` : "No bull offset"}
+            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              {strongestBull?.evidence ?? "The current scorecard has no positive weighted datum."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-orange-600/20 bg-orange-500/8 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Best bear offset</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {strongestBear ? `${strongestBear.country} ${wheatDomainTitle(strongestBear.domain.domain)} ${signedNumber(strongestBear.weightedScore)}` : "No bear offset"}
+            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              {strongestBear?.evidence ?? "The current scorecard has no negative weighted datum."}
+            </p>
+          </div>
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        Current judge read: {scoreCopy}. Canada and the U.S. stay as evidence geography; this is still one Wheat read.
+      </p>
+    </section>
+  );
+}
+
+function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
+  const datums = wheatDomainDatums(row)
+    .filter((datum) => datum.weightedScore !== 0)
+    .sort((left, right) => Math.abs(right.weightedScore) - Math.abs(left.weightedScore));
+  const rings = [
+    {
+      label: "Inner ring",
+      detail: "closest to the read",
+      items: datums.filter((datum) => Math.abs(datum.weightedScore) >= 8),
+    },
+    {
+      label: "Middle ring",
+      detail: "meaningful context",
+      items: datums.filter((datum) => Math.abs(datum.weightedScore) < 8 && Math.abs(datum.weightedScore) >= 3),
+    },
+    {
+      label: "Outer ring",
+      detail: "watch or light pressure",
+      items: datums.filter((datum) => Math.abs(datum.weightedScore) < 3),
+    },
+  ];
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 shadow-sm" aria-labelledby="wheat-spiderweb-heading">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relationship spiderweb</p>
+          <h2 id="wheat-spiderweb-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Distance shows impact on the Wheat read
+          </h2>
+        </div>
+        <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
+          Edge width = weighted points
+        </Badge>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="flex min-h-48 items-center justify-center rounded-lg border border-canola/25 bg-canola/8 p-4">
+          <div className="flex h-36 w-36 items-center justify-center rounded-full border border-canola/35 bg-background text-center shadow-inner">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Center</p>
+              <p className="font-display text-2xl font-semibold text-foreground">Wheat</p>
+              <p className="text-xs text-muted-foreground">{currentStanceLabel(aggregateRowScore(row) ?? 0)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {rings.map((ring) => (
+            <div key={ring.label} className="rounded-lg border border-border bg-background p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">{ring.label}</p>
+                <p className="text-xs text-muted-foreground">{ring.detail}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ring.items.length ? ring.items.slice(0, 5).map((datum) => {
+                  const width = Math.max(2, Math.min(8, Math.round(Math.abs(datum.weightedScore) / 2)));
+                  return (
+                    <span
+                      key={`${datum.country}-${datum.domain.domain}-${datum.weightedScore}-${datum.sourceLabel}`}
+                      className={cn(
+                        "inline-flex max-w-full items-center gap-2 rounded-full border bg-card px-2.5 py-1 text-xs font-medium",
+                        datum.weightedScore < 0
+                          ? "border-orange-600/25 text-orange-700 dark:text-orange-300"
+                          : "border-prairie/25 text-prairie",
+                      )}
+                    >
+                      <span
+                        className={cn("h-2 rounded-full", datum.weightedScore < 0 ? "bg-orange-600" : "bg-prairie")}
+                        style={{ width: `${width * 8}px` }}
+                        aria-hidden="true"
+                      />
+                      {datum.country} {wheatDomainTitle(datum.domain.domain)} {signedNumber(datum.weightedScore)}
+                    </span>
+                  );
+                }) : (
+                  <span className="text-xs text-muted-foreground">No active lanes in this ring.</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WheatPriceBasketProof({ row }: { row: ThesisComparisonRow }) {
+  const legs = wheatPriceBasketLegs(row);
+  const agreement = wheatPriceBasketAgreement(legs);
+
+  return (
+    <section className="rounded-lg border border-orange-600/25 bg-orange-500/8 p-4 shadow-sm" aria-labelledby="wheat-price-basket-heading">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Price basket proof</p>
+          <h2 id="wheat-price-basket-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Spring Wheat / HRW / SRW confirmation
+          </h2>
+        </div>
+        <Badge variant="outline" className="w-fit border-orange-600/25 bg-background/80 text-orange-700 dark:text-orange-300">
+          {agreement}
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        {legs.map((leg) => {
+          const isBear = leg.change !== null && leg.change < -0.5;
+          const isBull = leg.change !== null && leg.change > 0.5;
+          return (
+            <div key={leg.label} className="rounded-lg border border-border bg-background px-3 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">{leg.label}</p>
+                <Badge variant="outline" className="border-border bg-card text-[10px] text-muted-foreground">
+                  {leg.market}
+                </Badge>
+              </div>
+              <p className={cn("text-2xl font-semibold tabular-nums", isBear ? "text-orange-700 dark:text-orange-300" : isBull ? "text-prairie" : "text-foreground")}>
+                {leg.changeText}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {leg.settlement ? `${leg.settlement}; ` : ""}{leg.period ? wheatPeriodLabel(leg.period) : "no fresh row"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+        This is market confirmation only. A split basket lowers confidence; it does not overrule official supply, demand, and movement rows by itself.
+      </p>
+    </section>
   );
 }
 
@@ -2307,7 +2660,10 @@ function WheatDecisionSurface({
         </div>
       </div>
 
+      <WheatReconciliationJudgeCard row={row} />
+      <WheatRelationshipSpiderweb row={row} />
       <WheatPressureDecisionMatrix row={row} />
+      <WheatPriceBasketProof row={row} />
       <WheatUsdaProgressUpdateCard />
       <WheatWatchLeadsStrip row={row} />
     </section>

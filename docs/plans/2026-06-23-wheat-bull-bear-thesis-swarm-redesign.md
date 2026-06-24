@@ -128,5 +128,6 @@ Operator/audit surfaces stay behind `?audit=1`.
 - Build the Wheat relationship spiderweb: center one Wheat read, place high-weight official/price/demand lanes close, place lower-authority watch/global/local-basis gaps farther out, and use edge color/thickness for bull/bear effect size.
 - Done after this redesign: Wheat weekly-packet headlines now use the deterministic rating scorecard when populated.
 - Done after this redesign in the mapper: the Wheat price lane now uses a Spring Wheat / HRW / SRW basket when multiple Wheat-class futures rows are present.
-- Still needed: expose the three-contract price split visually and add a reconciliation judge that explains which datum decides the read when lanes disagree.
+- Done as first UI pass after this redesign: expose the three-contract price split visually and add a reconciliation judge that explains which datum decides the read when lanes disagree.
+- Still needed: refresh stale source rows, refine the judge language, and make the spiderweb more radial/instant-read instead of only a ring summary.
 - Admit class-safe spring/winter mappings only when source identity, public wording, and tests prove they cannot leak unsupported class claims.
