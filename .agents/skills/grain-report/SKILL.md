@@ -91,7 +91,7 @@ official data rows -> lane score -> price confirmation -> watch leads -> one Whe
 Use `docs/plans/2026-06-23-wheat-metric-relationship-loop.md` as the active handoff. Current loop findings:
 
 - Official rows and price context support a lean bear / balanced-to-bear read until U.S. crop stress is confirmed by price, demand, or a fresher supply shock.
-- Wheat price scoring now uses a three-contract basket across Spring Wheat, HRW, and SRW when the packet carries multiple Wheat-class futures. Basket agreement sets direction; contract disagreement lowers confidence. `/thesis` also shows packet-window trend context for those three legs; this is not a full historical chart. Focused proof: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
+- Wheat price scoring now uses a three-contract basket across Spring Wheat, HRW, and SRW when the packet carries multiple Wheat-class futures. Basket agreement sets direction; contract disagreement lowers confidence. `/thesis` shows packet-window trend context plus a bounded 60-day historical price context from `get_wheat_price_history(60)`. Focused proof: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Wheat weekly-packet headline scores now come from the deterministic rating scorecard when a Wheat scorecard is populated; driver counts remain explanation copy, not the Wheat headline score. Daily overlays remain the only current-day override.
 - `/thesis` now has a reconciliation judge with deciding-datum freshness, counterweight language, and source-specific judge copy; a USDA Wheat source-sweep panel for Crop Progress/WASDE/Export Sales/Quarterly Stocks with decision roles and a condition-to-price relationship chain; a node-and-edge relationship spiderweb; and a Spring Wheat / HRW / SRW price-basket proof strip. These are visual/explanation layers over the existing scorecard, not new score authority.
 - The 2026-06-24 source-freshness loop refreshed the mechanical Wheat spine: CFTC Wheat contracts to 2026-06-16, Grain Monitor to week 45, producer cars to week 47, and thesis packet cache 12/12 with zero source-freshness alerts. Export sales remains at 2026-06-11 until the next USDA weekly release; quarterly stocks stays on its official reporting cadence.
@@ -120,7 +120,7 @@ Closeout guidance for the next Wheat session:
 3. Start from the visible USDA Wheat source-sweep panel, then inventory source rows before changing weights: USDA Crop Progress, WASDE, Export Sales, Quarterly Stocks, CGC flow, Grain Monitor, producer cars, CFTC COT, prices/FX, and Hermes/X pulse artifacts.
 4. Keep source role separate from score effect:
    - USDA/WASDE/stocks/crop progress are high-authority official rows.
-   - Price basket is confirmation, especially when Spring Wheat, HRW, and SRW agree.
+   - Price basket and historical futures context are confirmation, especially when Spring Wheat, HRW, and SRW agree.
    - CFTC is timing/crowding context, not a primary direction creator.
    - Hermes/Grok X pulse is watch-only unless accepted evidence ties back to official or admitted market data.
 5. Reuse the existing lane-agent and reconciliation-judge contract. Do not create a new Wheat agent unless a new source family needs a durable owner.

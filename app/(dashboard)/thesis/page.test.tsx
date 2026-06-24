@@ -6,6 +6,7 @@ import type { ThesisBoardData, ThesisBoardItem } from "@/lib/queries/thesis-boar
 import type { XPulseWatchSummary } from "@/lib/queries/x-scout-runs";
 import type { SourceRunSummary } from "@/lib/queries/source-runs";
 import type { DailyThesisUpdateSummary } from "@/lib/queries/daily-thesis-updates";
+import type { WheatPriceHistoryRow } from "@/lib/queries/wheat-price-history";
 import type { Track54ReadinessSnapshot } from "@/lib/queries/track54-readiness";
 import {
   PUBLIC_ADVICE_FORBIDDEN_TERMS,
@@ -18,6 +19,7 @@ const {
   getXPulseWatchSummaryMock,
   getLatestSourceRunSummariesMock,
   getLatestDailyThesisUpdatesMock,
+  getWheatPriceHistoryMock,
   getLocalTrack54ReadinessSnapshotMock,
   cookieGetMock,
   getProvincialFlowMock,
@@ -27,6 +29,7 @@ const {
   getXPulseWatchSummaryMock: vi.fn<() => Promise<XPulseWatchSummary>>(),
   getLatestSourceRunSummariesMock: vi.fn<() => Promise<SourceRunSummary[]>>(),
   getLatestDailyThesisUpdatesMock: vi.fn<() => Promise<DailyThesisUpdateSummary[]>>(),
+  getWheatPriceHistoryMock: vi.fn<() => Promise<WheatPriceHistoryRow[]>>(),
   getLocalTrack54ReadinessSnapshotMock: vi.fn<() => Promise<Track54ReadinessSnapshot | null>>(),
   cookieGetMock: vi.fn<(name: string) => { value: string } | undefined>(),
   getProvincialFlowMock: vi.fn(),
@@ -65,6 +68,10 @@ vi.mock("@/lib/queries/source-runs", () => ({
 
 vi.mock("@/lib/queries/daily-thesis-updates", () => ({
   getLatestDailyThesisUpdates: getLatestDailyThesisUpdatesMock,
+}));
+
+vi.mock("@/lib/queries/wheat-price-history", () => ({
+  getWheatPriceHistory: getWheatPriceHistoryMock,
 }));
 
 vi.mock("@/lib/queries/track54-readiness", () => ({
@@ -228,6 +235,83 @@ function dailyUpdate(overrides: Partial<DailyThesisUpdateSummary> = {}): DailyTh
     },
     ...overrides,
   };
+}
+
+function wheatPriceHistoryRows(): WheatPriceHistoryRow[] {
+  return [
+    {
+      leg: "Spring Wheat",
+      grain: "Spring Wheat",
+      contract: "MWK26",
+      exchange: "MGEX",
+      priceDate: "2026-05-09",
+      settlementPrice: 6.6975,
+      changePct: 0.2,
+      currency: "USD",
+      unit: "$/bu",
+      source: "barchart",
+    },
+    {
+      leg: "Spring Wheat",
+      grain: "Spring Wheat",
+      contract: "MWK26",
+      exchange: "MGEX",
+      priceDate: "2026-06-24",
+      settlementPrice: 7.11,
+      changePct: -0.594,
+      currency: "USD",
+      unit: "$/bu",
+      source: "barchart",
+    },
+    {
+      leg: "HRW Wheat",
+      grain: "HRW Wheat",
+      contract: "KE",
+      exchange: "KCBT",
+      priceDate: "2026-05-08",
+      settlementPrice: 6.725,
+      changePct: -0.1,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+    {
+      leg: "HRW Wheat",
+      grain: "HRW Wheat",
+      contract: "KE",
+      exchange: "KCBT",
+      priceDate: "2026-06-22",
+      settlementPrice: 6.335,
+      changePct: -1.63,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+    {
+      leg: "SRW Wheat",
+      grain: "Wheat",
+      contract: "ZW",
+      exchange: "CBOT",
+      priceDate: "2026-05-08",
+      settlementPrice: 6.075,
+      changePct: 0.3,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+    {
+      leg: "SRW Wheat",
+      grain: "Wheat",
+      contract: "ZW",
+      exchange: "CBOT",
+      priceDate: "2026-06-22",
+      settlementPrice: 5.975,
+      changePct: -1.362,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+  ];
 }
 
 function boardData(): ThesisBoardData {
@@ -701,6 +785,7 @@ describe("ThesisPage scorecard audit mode", () => {
     getXPulseWatchSummaryMock.mockResolvedValue(xPulseWatch());
     getLatestSourceRunSummariesMock.mockResolvedValue([]);
     getLatestDailyThesisUpdatesMock.mockResolvedValue([]);
+    getWheatPriceHistoryMock.mockResolvedValue(wheatPriceHistoryRows());
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
     cookieGetMock.mockReturnValue(undefined);
     getProvincialFlowMock.mockResolvedValue(null);
@@ -933,6 +1018,10 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Barchart latest-only leg");
     expect(html).toContain("Jun 15, 2026 to Jun 22, 2026");
     expect(html).toContain("Latest close 6.335 USD/bu; latest daily change -1.6%.");
+    expect(html).toContain("Historical price context");
+    expect(html).toContain("60-day price history");
+    expect(html).toContain("May 8, 2026 to Jun 22, 2026");
+    expect(html).toContain("Latest close 5.975 USD/bu; range 5.975 USD/bu-6.075 USD/bu.");
     expect(html).toContain("Bull case");
     expect(html).toContain("Canada export basis stays firm");
     expect(html).toContain("Bear case");

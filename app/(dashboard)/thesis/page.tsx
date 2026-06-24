@@ -65,6 +65,10 @@ import {
   type DailyThesisUpdateSummary,
 } from "@/lib/queries/daily-thesis-updates";
 import {
+  getWheatPriceHistory,
+  type WheatPriceHistoryRow,
+} from "@/lib/queries/wheat-price-history";
+import {
   getLocalTrack54ReadinessSnapshot,
   type Track54ReadinessModeGateSnapshot,
   type Track54ReadinessSnapshot,
@@ -2092,6 +2096,20 @@ type WheatPriceTrendLeg = {
   sourceNote: string;
 };
 
+type WheatHistoricalPriceLeg = {
+  label: WheatPriceBasketLeg["label"];
+  market: WheatPriceBasketLeg["market"];
+  rows: WheatPriceHistoryRow[];
+  latestDate: string | null;
+  earliestDate: string | null;
+  latestSettlement: string;
+  movePct: number | null;
+  rangeLabel: string;
+  rowCount: number;
+  sourceNote: string;
+  path: string | null;
+};
+
 const WHEAT_PRICE_BASKET_MARKETS: Record<WheatPriceBasketLeg["label"], WheatPriceBasketLeg["market"]> = {
   "Spring Wheat": "MGEX",
   "HRW Wheat": "KCBT",
@@ -2224,6 +2242,61 @@ function wheatPriceTrendLegs(row: ThesisComparisonRow): WheatPriceTrendLeg[] {
         : hasBarchart
           ? "Barchart latest-only leg"
           : `${rows.length} packet closes`,
+    };
+  });
+}
+
+function wheatPriceHistoryPath(rows: WheatPriceHistoryRow[]): string | null {
+  if (rows.length < 2) return null;
+  const prices = rows.map((row) => row.settlementPrice);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const range = maxPrice - minPrice || Math.max(0.01, maxPrice * 0.02);
+  const points = rows.map((row, index) => {
+    const x = rows.length === 1 ? 50 : (index / (rows.length - 1)) * 100;
+    const y = 36 - ((row.settlementPrice - minPrice) / range) * 30;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  return `M ${points.join(" L ")}`;
+}
+
+function wheatPriceHistoryLegs(history: WheatPriceHistoryRow[]): WheatHistoricalPriceLeg[] {
+  return (["Spring Wheat", "HRW Wheat", "SRW Wheat"] as const).map((label) => {
+    const rows = history
+      .filter((row) => row.leg === label)
+      .sort((left, right) => String(left.priceDate).localeCompare(String(right.priceDate)));
+    const earliest = rows[0] ?? null;
+    const latest = rows[rows.length - 1] ?? null;
+    const prices = rows.map((row) => row.settlementPrice);
+    const minPrice = prices.length ? Math.min(...prices) : null;
+    const maxPrice = prices.length ? Math.max(...prices) : null;
+    const movePct =
+      earliest && latest && earliest.settlementPrice !== 0 && earliest.priceDate !== latest.priceDate
+        ? ((latest.settlementPrice - earliest.settlementPrice) / earliest.settlementPrice) * 100
+        : null;
+    const sourceSet = new Set(rows.map((row) => row.source).filter(Boolean));
+    const sourceNote =
+      rows.length === 0
+        ? "No history rows"
+        : sourceSet.size > 1
+          ? `${rows.length} closes / mixed sources`
+          : `${rows.length} closes / ${[...sourceSet][0] ?? "price feed"}`;
+
+    return {
+      label,
+      market: WHEAT_PRICE_BASKET_MARKETS[label],
+      rows,
+      latestDate: latest?.priceDate ?? null,
+      earliestDate: earliest?.priceDate ?? null,
+      latestSettlement: wheatPriceDisplay(latest?.settlementPrice ?? null, latest?.currency ?? null, latest?.unit ?? null),
+      movePct,
+      rangeLabel:
+        minPrice !== null && maxPrice !== null && latest
+          ? `${wheatPriceDisplay(minPrice, latest.currency, latest.unit)}-${wheatPriceDisplay(maxPrice, latest.currency, latest.unit)}`
+          : "range unavailable",
+      rowCount: rows.length,
+      sourceNote,
+      path: wheatPriceHistoryPath(rows),
     };
   });
 }
@@ -2718,7 +2791,83 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
   );
 }
 
-function WheatPriceBasketProof({ row }: { row: ThesisComparisonRow }) {
+function WheatHistoricalPriceContext({ history }: { history: WheatPriceHistoryRow[] }) {
+  const legs = wheatPriceHistoryLegs(history);
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-background/80 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historical price context</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Public-safe Wheat futures history from the price feed. This shows whether the recent market tape confirms the official data stack.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
+          60-day price history
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        {legs.map((leg) => {
+          const isBear = leg.movePct !== null && leg.movePct < -0.5;
+          const isBull = leg.movePct !== null && leg.movePct > 0.5;
+          return (
+            <div key={`history-${leg.label}`} className="rounded-md border border-border bg-card px-3 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{leg.label}</p>
+                  <p className="text-[11px] leading-4 text-muted-foreground">{leg.market}</p>
+                </div>
+                <Badge variant="outline" className="max-w-[9rem] truncate border-border bg-background text-[10px] text-muted-foreground">
+                  {leg.sourceNote}
+                </Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[0.75fr_1.25fr] md:grid-cols-1">
+                <div>
+                  <p className={cn("text-xl font-semibold tabular-nums", isBear ? "text-orange-700 dark:text-orange-300" : isBull ? "text-prairie" : "text-foreground")}>
+                    {signedPctText(leg.movePct)}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {leg.earliestDate && leg.latestDate
+                      ? `${wheatPeriodLabel(leg.earliestDate)} to ${wheatPeriodLabel(leg.latestDate)}`
+                      : "History unavailable"}
+                  </p>
+                </div>
+                <svg viewBox="0 0 100 42" role="img" aria-label={`${leg.label} 60-day price history`} className="h-16 w-full overflow-visible">
+                  <line x1="0" x2="100" y1="36" y2="36" className="stroke-border" strokeWidth="1" />
+                  <line x1="0" x2="100" y1="6" y2="6" className="stroke-border/70" strokeWidth="1" />
+                  {leg.path ? (
+                    <path
+                      d={leg.path}
+                      fill="none"
+                      className={cn(isBear ? "stroke-orange-600" : isBull ? "stroke-prairie" : "stroke-foreground")}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <line x1="10" x2="90" y1="22" y2="22" className="stroke-muted-foreground/50" strokeWidth="2" strokeLinecap="round" />
+                  )}
+                </svg>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Latest close {leg.latestSettlement}; range {leg.rangeLabel}.
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WheatPriceBasketProof({
+  row,
+  history,
+}: {
+  row: ThesisComparisonRow;
+  history: WheatPriceHistoryRow[];
+}) {
   const legs = wheatPriceBasketLegs(row);
   const trendLegs = wheatPriceTrendLegs(row);
   const agreement = wheatPriceBasketAgreement(legs);
@@ -2806,8 +2955,9 @@ function WheatPriceBasketProof({ row }: { row: ThesisComparisonRow }) {
           })}
         </div>
       </div>
+      <WheatHistoricalPriceContext history={history} />
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        This is market confirmation only. A split basket or short packet window lowers confidence; it does not overrule official supply, demand, and movement rows by itself.
+        This is market confirmation only. A split basket, short packet window, or weak history lowers confidence; it does not overrule official supply, demand, and movement rows by itself.
       </p>
     </section>
   );
@@ -3241,8 +3391,10 @@ function WheatEvidenceDetails({ row }: { row: ThesisComparisonRow }) {
 
 function WheatDecisionSurface({
   row,
+  priceHistory,
 }: {
   row: ThesisComparisonRow | null;
+  priceHistory: WheatPriceHistoryRow[];
 }) {
   if (!row) {
     return (
@@ -3276,7 +3428,7 @@ function WheatDecisionSurface({
       <WheatUsdaSourceSweep row={row} />
       <WheatRelationshipSpiderweb row={row} />
       <WheatPressureDecisionMatrix row={row} />
-      <WheatPriceBasketProof row={row} />
+      <WheatPriceBasketProof row={row} history={priceHistory} />
       <WheatUsdaProgressUpdateCard />
       <WheatWatchLeadsStrip row={row} />
     </section>
@@ -5737,13 +5889,14 @@ export default async function ThesisPage({
   const auditMode = params?.audit === "1";
   const cookieStore = await cookies();
   const area = areaFromFsa(cookieStore.get(AREA_FSA_COOKIE)?.value);
-  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, provincialFlow, areaBids] =
+  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, provincialFlow, areaBids] =
     await Promise.all([
       getThesisBoardData(),
       getXPulseWatchSummary(),
       getLatestSourceRunSummaries(WEEKLY_DATA_SOURCE_RUN_NAMES),
       getLatestDailyThesisUpdates(4),
       getLocalTrack54ReadinessSnapshot(),
+      getWheatPriceHistory(60),
       area?.provinceName ? getProvincialFlow(area.provinceName) : Promise.resolve(null),
       area ? getAreaBids(area.fsa) : Promise.resolve([]),
     ]);
@@ -5756,7 +5909,7 @@ export default async function ThesisPage({
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-2rem)] space-y-4 overflow-x-hidden pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6 xl:max-w-7xl">
-      <WheatDecisionSurface row={wheatComparisonRow} />
+      <WheatDecisionSurface row={wheatComparisonRow} priceHistory={wheatPriceHistory} />
 
       <MarketUseNotice />
 

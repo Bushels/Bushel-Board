@@ -74,6 +74,10 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca:
 - Terminal Receipts and Terminal Exports do not have `grade=''` aggregate rows. Sum grades in SQL.
 - For Primary, Process producer deliveries, and Producer Cars shipments, filter `grade=''` when the pre-aggregated total is required.
 
+## Price Data Rules
+- `grain_prices` is not broad public-read. Farmer-facing Wheat futures history should use the bounded `get_wheat_price_history(days)` RPC for Spring Wheat, HRW, and SRW visuals instead of exposing the raw table.
+- Price history is confirmation context only; it does not override official supply, demand, movement, or scorecard rows by itself.
+
 ## Definition of Done
 Every completed change must satisfy:
 1. `npm run build` passes.
