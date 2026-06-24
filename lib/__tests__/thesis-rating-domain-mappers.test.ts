@@ -585,6 +585,135 @@ describe("thesis rating domain packet mappers", () => {
     );
   });
 
+  it("maps Wheat futures as a three-contract basket instead of latest row only", () => {
+    const domains = mapCanadaPacketToDomainInputs({
+      grain: "Wheat",
+      freshness: [{ source_name: "grain_prices", freshness_status: "strong" }],
+      prices: [
+        {
+          grain: "Spring Wheat",
+          contract: "MWK26",
+          exchange: "MGEX",
+          source: "barchart",
+          change_pct: -0.594,
+          settlement_price: 7.11,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-24",
+        },
+        {
+          grain: "Wheat",
+          contract: "ZW",
+          exchange: "CBOT",
+          source: "yahoo-finance",
+          change_pct: 1.4,
+          settlement_price: 6.09,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-19",
+        },
+        {
+          grain: "Wheat",
+          contract: "ZW",
+          exchange: "CBOT",
+          source: "yahoo-finance",
+          change_pct: -1.362,
+          settlement_price: 5.975,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+        {
+          grain: "HRW Wheat",
+          contract: "KE",
+          exchange: "KCBT",
+          source: "yahoo-finance",
+          change_pct: -1.63,
+          settlement_price: 6.335,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+      ],
+    });
+
+    const price = domains.find((domain) => domain.domain === "price");
+
+    expect(price).toMatchObject({
+      domain: "price",
+      score: -17,
+      confidence: "medium",
+      freshness_status: "strong",
+      sources: ["grain_prices"],
+    });
+    expect(price?.negative_evidence?.join(" ")).toContain("Fresh Wheat price basket shows futures pressure");
+    expect(price?.negative_evidence?.join(" ")).toContain("Spring Wheat -0.6%");
+    expect(price?.negative_evidence?.join(" ")).toContain("HRW Wheat -1.6%");
+    expect(price?.negative_evidence?.join(" ")).toContain("SRW Wheat -1.4%");
+    expect(price?.negative_evidence?.join(" ")).toContain("Spring Wheat uses a Barchart latest-only scrape");
+    expect(price?.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Spring Wheat futures change",
+          numericValue: -0.594,
+          unit: "pct",
+          period: "2026-06-24",
+        }),
+        expect.objectContaining({
+          label: "HRW Wheat futures change",
+          numericValue: -1.63,
+          unit: "pct",
+          period: "2026-06-22",
+        }),
+        expect.objectContaining({
+          label: "SRW Wheat futures change",
+          numericValue: -1.362,
+          unit: "pct",
+          period: "2026-06-22",
+        }),
+      ]),
+    );
+  });
+
+  it("lowers Wheat price confidence when the futures basket is split", () => {
+    const domains = mapUsPacketToDomainInputs({
+      grain: "Wheat",
+      freshness: [{ source_name: "grain_prices", freshness_status: "strong" }],
+      prices: [
+        {
+          grain: "Wheat",
+          contract: "ZW",
+          exchange: "CBOT",
+          source: "yahoo-finance",
+          change_pct: 0.8,
+          settlement_price: 5.9,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+        {
+          grain: "HRW Wheat",
+          contract: "KE",
+          exchange: "KCBT",
+          source: "yahoo-finance",
+          change_pct: -1.2,
+          settlement_price: 6.3,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+      ],
+    });
+
+    const price = domains.find((domain) => domain.domain === "price");
+
+    expect(price?.score).toBe(0);
+    expect(price?.confidence).toBe("medium");
+    expect(price?.positive_evidence?.join(" ")).toContain("basket has bullish legs");
+    expect(price?.negative_evidence?.join(" ")).toContain("basket has bearish legs");
+    expect(price?.positive_evidence?.join(" ")).toContain("basket is split");
+  });
+
   it("maps admitted US wheat export-sales projection pace over 100% to bullish demand", () => {
     const domains = mapUsPacketToDomainInputs({
       freshness: [{ source_name: "usda_export_sales", freshness_status: "strong" }],

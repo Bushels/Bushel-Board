@@ -91,7 +91,7 @@ official data rows -> lane score -> price confirmation -> watch leads -> one Whe
 Use `docs/plans/2026-06-23-wheat-metric-relationship-loop.md` as the active handoff. Current loop findings:
 
 - Official rows and price context support a lean bear / balanced-to-bear read until U.S. crop stress is confirmed by price, demand, or a fresher supply shock.
-- The current price mapper has a known weakness: "latest price row wins" can let Spring Wheat/MWK26 dominate the Wheat price lane. Next repair is a Wheat price basket across Spring, HRW, and SRW.
+- Wheat price scoring now uses a three-contract basket across Spring Wheat, HRW, and SRW when the packet carries multiple Wheat-class futures. Basket agreement sets direction; contract disagreement lowers confidence. Focused proof: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Positioning is a timing/crowding modifier, not a primary direction creator.
 - Grok/Hermes X pulse is watch-only unless an accepted signal is tied back to official or admitted market data.
 - The farmer-facing board should show one Wheat read; Canada and the U.S. are evidence geography, not separate product lanes.
@@ -107,7 +107,7 @@ Recommended v1 weights for the next scoring repair:
 | Positioning/timing | 10% | Crowding and liquidation context |
 | Watch leads | 0% | Review priority only |
 
-Next visual: relationship spiderweb centered on one Wheat read. Closer nodes carry higher source authority and score weight; outer nodes are lower-impact watch/context lanes.
+Relationship visual status: the first Wheat pressure map model/panel exists on `/thesis`; the next visual pass should make the distance/weight metaphor more obvious, with the Wheat read in the center, high-authority score lanes close, and watch/context lanes farther away.
 
 ## Crop Progress And Wheat Thesis Overlay
 

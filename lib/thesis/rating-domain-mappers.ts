@@ -384,7 +384,13 @@ function mapCanadaLogisticsDomain(packet: JsonRecord): BuildRatingDomainInput | 
 }
 
 function mapPriceDomain(packet: JsonRecord): BuildRatingDomainInput | null {
-  const latestPrice = asArray(packet.prices)[0] ?? {};
+  const prices = asArray(packet.prices);
+  const wheatPriceBasket = latestWheatPriceBasketRows(packet, prices);
+  if (wheatPriceBasket.length > 1) {
+    return mapWheatPriceBasketDomain(packet, wheatPriceBasket);
+  }
+
+  const latestPrice = prices[0] ?? {};
   if (Object.keys(latestPrice).length === 0) return null;
 
   const changePct = numberValue(latestPrice, "change_pct");
@@ -457,6 +463,208 @@ function mapPriceDomain(packet: JsonRecord): BuildRatingDomainInput | null {
     negative_evidence: [
       `Fresh grain-price context shows futures pressure: ${formatPct(changePct)} at ${priceCopy}${dateCopy}.${provisionalCopy}`,
     ],
+  });
+}
+
+type WheatPriceClass = "spring" | "hrw" | "srw";
+
+interface WheatPriceBasketRow {
+  row: JsonRecord;
+  wheatClass: WheatPriceClass;
+}
+
+const WHEAT_PRICE_CLASS_LABELS: Record<WheatPriceClass, string> = {
+  spring: "Spring Wheat",
+  hrw: "HRW Wheat",
+  srw: "SRW Wheat",
+};
+
+function wheatPriceClassForRow(row: JsonRecord): WheatPriceClass | null {
+  const contract = textValue(row, "contract")?.toUpperCase() ?? "";
+  const exchange = textValue(row, "exchange")?.toUpperCase() ?? "";
+  const grain = textValue(row, "grain")?.toLowerCase() ?? "";
+
+  if (contract.startsWith("MW") || exchange.includes("MGEX") || grain.includes("spring wheat")) {
+    return "spring";
+  }
+
+  if (contract.startsWith("KE") || exchange.includes("KCBT") || grain.includes("hrw") || grain.includes("hard red")) {
+    return "hrw";
+  }
+
+  if (contract.startsWith("ZW") || grain === "wheat" || grain.includes("srw") || grain.includes("soft red")) {
+    return "srw";
+  }
+
+  return null;
+}
+
+function comparePriceRowRecency(left: JsonRecord, right: JsonRecord): number {
+  const priceDateCompare = String(textValue(right, "price_date") ?? "").localeCompare(
+    String(textValue(left, "price_date") ?? ""),
+  );
+  if (priceDateCompare !== 0) return priceDateCompare;
+
+  return String(textValue(right, "imported_at") ?? "").localeCompare(String(textValue(left, "imported_at") ?? ""));
+}
+
+function latestWheatPriceBasketRows(packet: JsonRecord, prices: JsonRecord[]): WheatPriceBasketRow[] {
+  const packetGrain = textValue(packet, "grain")?.toLowerCase();
+  const byClass = new Map<WheatPriceClass, JsonRecord>();
+
+  for (const row of prices) {
+    const wheatClass = wheatPriceClassForRow(row);
+    if (!wheatClass) continue;
+    const existing = byClass.get(wheatClass);
+    if (!existing || comparePriceRowRecency(existing, row) > 0) {
+      byClass.set(wheatClass, row);
+    }
+  }
+
+  const rows = (["spring", "hrw", "srw"] as const)
+    .map((wheatClass) => {
+      const row = byClass.get(wheatClass);
+      return row ? { row, wheatClass } : null;
+    })
+    .filter((item): item is WheatPriceBasketRow => item !== null);
+
+  if (packetGrain === "wheat") return rows;
+  return rows.length > 1 ? rows : [];
+}
+
+function isBarchartPriceRow(row: JsonRecord): boolean {
+  return textValue(row, "source")?.toLowerCase() === "barchart";
+}
+
+function lowerConfidence(confidence: BuildRatingDomainInput["confidence"]): BuildRatingDomainInput["confidence"] {
+  if (confidence === "high") return "medium";
+  if (confidence === "medium") return "low";
+  return "low";
+}
+
+function wheatPriceBasketConfidence(
+  freshness: { status: SourceFreshnessStatus; missingFreshnessProof: boolean },
+  rows: readonly WheatPriceBasketRow[],
+  signsAgree: boolean,
+): BuildRatingDomainInput["confidence"] {
+  let confidence = confidenceForFreshness(freshness.status);
+  if (rows.some((item) => isBarchartPriceRow(item.row))) {
+    confidence = lowerConfidence(confidence);
+  }
+  if (!signsAgree) {
+    confidence = lowerConfidence(confidence);
+  }
+  return confidence;
+}
+
+function wheatPriceBasketMetricRows(rows: readonly WheatPriceBasketRow[]): RatingDomainMetric[] {
+  return rows.flatMap(({ row, wheatClass }) => {
+    const label = WHEAT_PRICE_CLASS_LABELS[wheatClass];
+    const price = numberValue(row, "settlement_price");
+    const priceDate = textValue(row, "price_date");
+    const unit = textValue(row, "unit") ?? undefined;
+    return [
+      metric({
+        source: GRAIN_PRICES_SOURCE,
+        label: `${label} futures change`,
+        value: formatSignedPct(numberValue(row, "change_pct") ?? 0),
+        numericValue: numberValue(row, "change_pct"),
+        unit: "pct",
+        period: priceDate,
+      }),
+      metric({
+        source: GRAIN_PRICES_SOURCE,
+        label: `${label} settlement price`,
+        value: formatPrice(price, textValue(row, "currency"), textValue(row, "unit")),
+        numericValue: price,
+        unit,
+        period: priceDate,
+      }),
+    ];
+  });
+}
+
+function mapWheatPriceBasketDomain(
+  packet: JsonRecord,
+  rows: readonly WheatPriceBasketRow[],
+): BuildRatingDomainInput | null {
+  const materialRows = rows.filter(({ row }) => {
+    const changePct = numberValue(row, "change_pct");
+    return changePct !== null && Math.abs(changePct) >= 0.5;
+  });
+  if (materialRows.length === 0) return null;
+
+  const freshness = freshnessForSource(packet, GRAIN_PRICES_SOURCE);
+  const metrics = wheatPriceBasketMetricRows(rows);
+  const signals = materialRows.map(({ row, wheatClass }) => {
+    const changePct = numberValue(row, "change_pct") ?? 0;
+    const scoreMagnitude = isBarchartPriceRow(row) ? 10 : 20;
+    return {
+      wheatClass,
+      changePct,
+      score: changePct >= 0.5 ? scoreMagnitude : -scoreMagnitude,
+    };
+  });
+  const score = Math.round(signals.reduce((total, signal) => total + signal.score, 0) / signals.length);
+  const signsAgree = new Set(signals.map((signal) => Math.sign(signal.score))).size === 1;
+  const confidence = wheatPriceBasketConfidence(freshness, materialRows, signsAgree);
+  const signalCopy = signals
+    .map((signal) => `${WHEAT_PRICE_CLASS_LABELS[signal.wheatClass]} ${formatSignedPct(signal.changePct)}`)
+    .join(", ");
+  const provisionalCopy = materialRows.some(({ row }) => isBarchartPriceRow(row))
+    ? " Spring Wheat uses a Barchart latest-only scrape; volume/open interest unavailable, so treat that leg as provisional."
+    : "";
+  const splitCopy = signsAgree ? "" : " The basket is split, so the price lane should lower confidence rather than overrule official data.";
+
+  if (freshness.status !== "strong") {
+    return directContextDomain({
+      domain: "price",
+      score: 0,
+      source: GRAIN_PRICES_SOURCE,
+      freshness,
+      confidence,
+      metrics,
+      blocked_claims: ["price_context_requires_fresh_grain_prices"],
+    });
+  }
+
+  if (score > 0) {
+    return directContextDomain({
+      domain: "price",
+      score,
+      source: GRAIN_PRICES_SOURCE,
+      freshness,
+      confidence,
+      metrics,
+      positive_evidence: [
+        `Fresh Wheat price basket shows bullish follow-through: ${signalCopy}.${provisionalCopy}${splitCopy}`,
+      ],
+    });
+  }
+
+  if (score < 0) {
+    return directContextDomain({
+      domain: "price",
+      score,
+      source: GRAIN_PRICES_SOURCE,
+      freshness,
+      confidence,
+      metrics,
+      negative_evidence: [
+        `Fresh Wheat price basket shows futures pressure: ${signalCopy}.${provisionalCopy}${splitCopy}`,
+      ],
+    });
+  }
+
+  return directContextDomain({
+    domain: "price",
+    score,
+    source: GRAIN_PRICES_SOURCE,
+    freshness,
+    confidence,
+    metrics,
+    positive_evidence: [`Fresh Wheat price basket has bullish legs: ${signalCopy}.${splitCopy}`],
+    negative_evidence: [`Fresh Wheat price basket has bearish legs: ${signalCopy}.${splitCopy}`],
   });
 }
 

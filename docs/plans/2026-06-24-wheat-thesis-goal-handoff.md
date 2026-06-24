@@ -31,14 +31,17 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
   - KE KC HRW Wheat: 6.335 USD/bu on 2026-06-22, -1.630%
 - Hermes terminal no-write X scout ran for 2026-06-23 with fresh price proof and 0 accepted signals.
 - Vercel preview was deployed and build checks passed before this closeout.
+- First Wheat pressure-map model/panel is wired into `/thesis` from `lib/thesis/wheat-pressure-map.ts`. It traces source nodes, factor nodes, packet contributions, CA/US evidence geography, X Pulse watch proof, and relationship nodes into one Wheat read.
+- Wheat price scoring no longer uses the "latest price row wins" shortcut when multiple Wheat futures classes are present. `lib/thesis/rating-domain-mappers.ts` now builds a Spring Wheat / HRW / SRW basket; agreement sets direction and disagreement lowers confidence. Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
+- Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
 
 ## What Is Not Done
 
 - Full USDA Wheat sweep is not complete.
-- The farmer-facing relationship spiderweb is not built.
+- The first relationship map exists, but the radial "spiderweb" metaphor still needs visual polish: distance from the Wheat read, edge thickness, and impact ranking should be faster to read at a glance.
 - The canonical Wheat judge is not implemented.
 - The visible headline score and deterministic scorecard can still disagree.
-- Wheat price still needs a basket repair across Spring Wheat, HRW, and SRW.
+- Wheat price basket scoring is repaired in the deterministic mapper, but the top visual still needs a clearer three-contract split so farmers can see Spring Wheat, HRW, and SRW agreement/disagreement immediately.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
 - Global origin competition is still watch-only.
@@ -56,13 +59,14 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - CFTC COT
    - grain prices and FX
    - Hermes/X pulse artifacts
-2. Repair Wheat price scoring:
-   - use Spring Wheat, HRW, and SRW as a basket
+2. Verify the repaired Wheat price basket against the live packet and expose the contract split visually:
+   - Spring Wheat / MGEX
+   - HRW Wheat / KCBT
+   - SRW Wheat / CBOT
    - show disagreement as lower confidence
-   - avoid "latest price row wins"
 3. Make the deterministic rating scorecard the headline source of truth.
 4. Add a reconciliation judge that explains the deciding datum when evidence is mixed.
-5. Build the relationship spiderweb:
+5. Polish the relationship spiderweb:
    - center: one Wheat read
    - first ring: high-authority lanes with score weight
    - second ring: movement/logistics and positioning

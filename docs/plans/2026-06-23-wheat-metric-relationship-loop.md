@@ -219,12 +219,19 @@ Low confidence:
 
 ## Next Loop
 
-Start from the price lane repair:
+Completed 2026-06-24: price lane repair.
 
-- Build Wheat price basket: Spring Wheat, HRW, SRW.
-- Show contract split visually.
-- Use basket agreement for score and disagreement for confidence.
-- Then rerun the scorecard to see whether price is still the deciding bearish datum.
+- `lib/thesis/rating-domain-mappers.ts` now maps Wheat price context from a Spring Wheat / HRW / SRW basket when multiple Wheat-class futures rows are present.
+- Basket agreement sets the price direction; mixed contract direction lowers confidence instead of letting one contract overrule the source-backed read.
+- The 2026-06-24 handoff packet rows would score as bearish price context from the basket, not only from newest MWK26.
+- Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
+
+Next loop should start from score reconciliation:
+
+- Verify the repaired price basket against the live packet on `/thesis`.
+- Make the deterministic rating scorecard the headline source of truth.
+- Add a reconciliation judge that explains which datum is deciding when the score is mixed.
+- Improve the Wheat pressure map so distance from the Wheat read and edge thickness visibly communicate impact.
 
 Then start from source freshness:
 
@@ -239,7 +246,7 @@ The next session handoff is `docs/plans/2026-06-24-wheat-thesis-goal-handoff.md`
 Do not restart from UI mockups. Start from the scoring and relationship problem:
 
 - full USDA Wheat metric sweep
-- Wheat price basket across Spring Wheat, HRW, and SRW
+- live verification and visual surfacing of the repaired Wheat price basket across Spring Wheat, HRW, and SRW
 - one canonical Wheat judge for headline score and lane bars
-- relationship spiderweb where distance and edge weight show source authority and score impact
+- relationship spiderweb polish where distance and edge weight show source authority and score impact
 - Hermes/Grok pulse remains watch-only unless tied back to official or admitted market data
