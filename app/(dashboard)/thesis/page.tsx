@@ -1691,6 +1691,15 @@ type WheatVisualLaneRow = WheatVisualLaneConfig & {
   evidence: string;
 };
 
+type WheatSpiderwebPoint = WheatDomainDatum & {
+  edgeWidth: number;
+  index: number;
+  ringDetail: string;
+  ringLabel: string;
+  x: number;
+  y: number;
+};
+
 function wheatVisualLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
   const summaries = pressureLaneSummaries(row);
   const byDomain = new Map(summaries.map((lane) => [lane.domain, lane]));
@@ -1760,6 +1769,77 @@ function wheatPeriodLabel(value: string | null): string {
   if (!value) return "current packet";
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return reportDateLabel(value);
   return value;
+}
+
+function wheatFreshnessProofLabel(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "strong") return "Strong source proof";
+  if (normalized === "expected_lag") return "Expected cadence lag";
+  if (normalized === "stale") return "Older official row";
+  if (normalized === "usable but stale-risk") return "Stale-risk source";
+  if (normalized === "empty") return "Missing source";
+  return status.replaceAll("_", " ");
+}
+
+function wheatDatumFreshnessClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "strong") return "border-prairie/25 bg-prairie/10 text-prairie";
+  if (normalized === "expected_lag" || normalized === "stale") return "border-canola/30 bg-canola/10 text-canola";
+  if (normalized === "empty") return "border-destructive/30 bg-destructive/10 text-destructive";
+  return "border-border bg-background/70 text-muted-foreground";
+}
+
+function wheatJudgeCounterweight(deciding: WheatDomainDatum | null, datums: WheatDomainDatum[]): WheatDomainDatum | null {
+  if (!deciding) return null;
+  return strongestDatum(datums, deciding.weightedScore > 0 ? "bear" : "bull");
+}
+
+function wheatJudgeCounterweightCopy(deciding: WheatDomainDatum | null, counterweight: WheatDomainDatum | null): string {
+  if (!deciding) return "No deciding datum is available yet.";
+  if (!counterweight) return "No opposite-side datum is strong enough to challenge the deciding datum yet.";
+  const gap = Math.abs(deciding.weightedScore) - Math.abs(counterweight.weightedScore);
+  const gapCopy =
+    gap > 0
+      ? `The deciding datum is ${Math.abs(gap)} weighted points stronger.`
+      : gap < 0
+        ? `The counterweight is ${Math.abs(gap)} weighted points stronger, so the net score depends on the full lane stack.`
+        : "The deciding datum and counterweight are equal size, so the full lane stack breaks the tie.";
+  return `${counterweight.country} ${wheatDomainTitle(counterweight.domain.domain)} is the main counterweight at ${signedNumber(counterweight.weightedScore)}. ${gapCopy}`;
+}
+
+function wheatImpactRing(absScore: number): { label: string; detail: string; radius: number } {
+  if (absScore >= 8) {
+    return { label: "Inner ring", detail: "high impact, closest to the read", radius: 58 };
+  }
+  if (absScore >= 3) {
+    return { label: "Middle ring", detail: "meaningful context", radius: 88 };
+  }
+  return { label: "Outer ring", detail: "light pressure or watch context", radius: 118 };
+}
+
+function wheatSpiderwebPoints(datums: WheatDomainDatum[]): WheatSpiderwebPoint[] {
+  const bearAngles = [-170, -140, 140, -110, 110];
+  const bullAngles = [-10, -40, 40, -70, 70];
+  let bearIndex = 0;
+  let bullIndex = 0;
+
+  return datums.slice(0, 10).map((datum, index) => {
+    const absScore = Math.abs(datum.weightedScore);
+    const ring = wheatImpactRing(absScore);
+    const angle = datum.weightedScore < 0
+      ? bearAngles[bearIndex++ % bearAngles.length]
+      : bullAngles[bullIndex++ % bullAngles.length];
+    const radians = (angle * Math.PI) / 180;
+    return {
+      ...datum,
+      edgeWidth: Math.max(1.5, Math.min(6, absScore / 2)),
+      index: index + 1,
+      ringDetail: ring.detail,
+      ringLabel: ring.label,
+      x: 150 + Math.cos(radians) * ring.radius,
+      y: 150 + Math.sin(radians) * ring.radius,
+    };
+  });
 }
 
 type WheatPriceBasketLeg = {
@@ -2093,6 +2173,7 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
   const deciding = strongestDatum(datums, "absolute");
   const strongestBull = strongestDatum(datums, "bull");
   const strongestBear = strongestDatum(datums, "bear");
+  const counterweight = wheatJudgeCounterweight(deciding, datums);
   const score = aggregateRowScore(row) ?? 0;
   const scoreTone = score < 0 ? "bear" : score > 0 ? "bull" : "balanced";
   const scoreCopy =
@@ -2111,7 +2192,7 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
             Why the board lands here
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            The weekly headline is scorecard-backed. The judge looks for the largest weighted datum, then checks whether the opposite side is strong enough to overturn it.
+            The weekly headline is scorecard-backed. The judge starts with the largest weighted source row, then checks whether the refreshed counterweight is strong enough to overturn it.
           </p>
         </div>
         <Badge variant="outline" className={cn("w-fit", score < 0 ? "border-orange-600/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" : score > 0 ? "border-prairie/25 bg-prairie/10 text-prairie" : "border-border bg-background text-muted-foreground")}>
@@ -2126,9 +2207,14 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
               Deciding datum
             </Badge>
             {deciding ? (
-              <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                {deciding.country} / {wheatDomainTitle(deciding.domain.domain)}
-              </Badge>
+              <>
+                <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                  {deciding.country} / {wheatDomainTitle(deciding.domain.domain)}
+                </Badge>
+                <Badge variant="outline" className={cn("w-fit", wheatDatumFreshnessClass(deciding.domain.freshness_status))}>
+                  {wheatFreshnessProofLabel(deciding.domain.freshness_status)}
+                </Badge>
+              </>
             ) : null}
           </div>
           {deciding ? (
@@ -2140,6 +2226,9 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 {deciding.metricLabel && deciding.metricValue ? `${deciding.metricLabel}: ${deciding.metricValue}. ` : ""}
                 Period: {wheatPeriodLabel(deciding.period)}.
+              </p>
+              <p className="mt-2 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">
+                Counterweight check: {wheatJudgeCounterweightCopy(deciding, counterweight)}
               </p>
             </>
           ) : (
@@ -2179,10 +2268,11 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
   const datums = wheatDomainDatums(row)
     .filter((datum) => datum.weightedScore !== 0)
     .sort((left, right) => Math.abs(right.weightedScore) - Math.abs(left.weightedScore));
+  const points = wheatSpiderwebPoints(datums);
   const rings = [
     {
       label: "Inner ring",
-      detail: "closest to the read",
+      detail: "high impact, closest to the read",
       items: datums.filter((datum) => Math.abs(datum.weightedScore) >= 8),
     },
     {
@@ -2205,19 +2295,68 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
           <h2 id="wheat-spiderweb-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
             Distance shows impact on the Wheat read
           </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Closer nodes carry more score weight. Bear pressure sits left, bull support sits right, and thicker edges mean bigger weighted points.
+          </p>
         </div>
         <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
           Edge width = weighted points
         </Badge>
       </div>
-      <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="flex min-h-48 items-center justify-center rounded-lg border border-canola/25 bg-canola/8 p-4">
-          <div className="flex h-36 w-36 items-center justify-center rounded-full border border-canola/35 bg-background text-center shadow-inner">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Center</p>
-              <p className="font-display text-2xl font-semibold text-foreground">Wheat</p>
-              <p className="text-xs text-muted-foreground">{currentStanceLabel(aggregateRowScore(row) ?? 0)}</p>
-            </div>
+      <div className="grid gap-3 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+        <div className="rounded-lg border border-canola/25 bg-canola/8 p-3">
+          <svg viewBox="0 0 300 300" role="img" aria-labelledby="wheat-spiderweb-svg-title" className="h-auto w-full">
+            <title id="wheat-spiderweb-svg-title">Wheat relationship spiderweb impact map</title>
+            <circle cx="150" cy="150" r="118" className="fill-none stroke-border" strokeWidth="1" />
+            <circle cx="150" cy="150" r="88" className="fill-none stroke-border" strokeWidth="1" />
+            <circle cx="150" cy="150" r="58" className="fill-none stroke-canola/50" strokeWidth="1.5" />
+            <line x1="16" y1="150" x2="284" y2="150" className="stroke-border" strokeWidth="1" strokeDasharray="4 5" />
+            <text x="30" y="137" className="fill-orange-700 text-[10px] font-semibold dark:fill-orange-300">
+              Bear
+            </text>
+            <text x="245" y="137" className="fill-prairie text-[10px] font-semibold">
+              Bull
+            </text>
+            {points.map((point) => (
+              <g key={`web-${point.index}-${point.country}-${point.domain.domain}`}>
+                <line
+                  x1="150"
+                  y1="150"
+                  x2={point.x}
+                  y2={point.y}
+                  className={point.weightedScore < 0 ? "stroke-orange-600" : "stroke-prairie"}
+                  strokeLinecap="round"
+                  strokeOpacity="0.72"
+                  strokeWidth={point.edgeWidth}
+                />
+              </g>
+            ))}
+            <circle cx="150" cy="150" r="35" className="fill-background stroke-canola" strokeWidth="1.5" />
+            <text x="150" y="146" textAnchor="middle" className="fill-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+              Wheat
+            </text>
+            <text x="150" y="164" textAnchor="middle" className="fill-foreground text-[12px] font-semibold">
+              {currentStanceLabel(aggregateRowScore(row) ?? 0)}
+            </text>
+            {points.map((point) => (
+              <g key={`node-${point.index}-${point.country}-${point.domain.domain}`}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r="13"
+                  className={point.weightedScore < 0 ? "fill-orange-600 stroke-background" : "fill-prairie stroke-background"}
+                  strokeWidth="2"
+                />
+                <text x={point.x} y={point.y + 4} textAnchor="middle" className="fill-background text-[11px] font-bold">
+                  {point.index}
+                </text>
+              </g>
+            ))}
+          </svg>
+          <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-medium text-muted-foreground">
+            <span>Inner: high impact</span>
+            <span>Middle: context</span>
+            <span>Outer: watch</span>
           </div>
         </div>
         <div className="space-y-2">
@@ -2229,6 +2368,12 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {ring.items.length ? ring.items.slice(0, 5).map((datum) => {
+                  const point = points.find(
+                    (candidate) =>
+                      candidate.country === datum.country &&
+                      candidate.domain.domain === datum.domain.domain &&
+                      candidate.weightedScore === datum.weightedScore,
+                  );
                   const width = Math.max(2, Math.min(8, Math.round(Math.abs(datum.weightedScore) / 2)));
                   return (
                     <span
@@ -2245,6 +2390,7 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
                         style={{ width: `${width * 8}px` }}
                         aria-hidden="true"
                       />
+                      {point ? <span className="tabular-nums">#{point.index}</span> : null}
                       {datum.country} {wheatDomainTitle(datum.domain.domain)} {signedNumber(datum.weightedScore)}
                     </span>
                   );

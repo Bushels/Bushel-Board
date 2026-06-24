@@ -235,6 +235,13 @@ Completed 2026-06-24: reconciliation explanation and visual proof.
 - `/thesis` now shows a `Price basket proof` strip for Spring Wheat/MGEX, HRW/KCBT, and SRW/CBOT agreement/disagreement.
 - Public-copy guardrails now allow Spring Wheat as a futures contract leg while still forbidding separate Spring Wheat/Winter Wheat Bull/Bear lanes or mapping claims.
 
+Completed 2026-06-24: stronger judge and spiderweb visual pass.
+
+- The reconciliation judge now shows the deciding datum's source freshness, states the strongest opposite-side counterweight, and uses farmer-readable freshness copy such as `Older official row` instead of raw statuses.
+- The relationship spiderweb now renders as a true node-and-edge map: Wheat in the center, bear pressure left, bull support right, numbered nodes by weighted impact, inner/middle/outer distance rings, and edge thickness tied to weighted points.
+- Targeted desktop visual proof was captured at `scratch/wheat-spiderweb-section.png`; the standing browser-smoke proof also verifies the spiderweb marker is reachable and unobscured on desktop and mobile.
+- This remains an explanation surface over the deterministic scorecard. It does not add new scoring authority.
+
 Completed 2026-06-24: source freshness loop.
 
 - Official CFTC SODA check showed all three Wheat contracts available for report date 2026-06-16; import wrote 8 rows and 9 COT heartbeat rows.
@@ -243,12 +250,13 @@ Completed 2026-06-24: source freshness loop.
 - Thesis packet cache refreshed 12/12 after the source updates; source freshness watchdog is green with 0 alerts and freshness watch count 15.
 - Export sales dry-run confirmed the latest ALL WHEAT data is still 2026-06-11; this is waiting on the next weekly USDA release, not a parser failure.
 
-Next loop should start from stronger reconciliation proof:
+Next loop should start from source-specific Wheat data depth:
 
-- Verify the repaired price basket against the live packet on `/thesis`.
-- Improve the reconciliation judge language now that the stale rows are refreshed.
-- Improve the Wheat pressure map so distance from the Wheat read and edge thickness visibly communicate impact.
-- Rerun the relationship loop after those official rows update.
+- Complete the full USDA Wheat sweep across Crop Progress, WASDE, Export Sales, and quarterly stocks.
+- Verify the repaired price basket against the live packet on `/thesis`, then add historical contract context so Spring Wheat, HRW, and SRW disagreement is easy to interpret.
+- Teach the reconciliation judge source-specific explanation patterns after the full USDA sweep, especially where crop stress fights balance-sheet or price confirmation.
+- Decide whether spiderweb distance should remain pure weighted-score impact or also incorporate source authority, freshness, and replay accuracy.
+- Rerun the relationship loop after the next official export-sales and stocks rows update.
 
 ## Closeout And Next Goal
 
@@ -259,5 +267,5 @@ Do not restart from UI mockups. Start from the scoring and relationship problem:
 - full USDA Wheat metric sweep
 - live verification and visual surfacing of the repaired Wheat price basket across Spring Wheat, HRW, and SRW
 - one canonical Wheat judge for headline score and lane bars
-- relationship spiderweb polish where distance and edge weight show source authority and score impact
+- relationship-spiderweb v2 where distance can separate source authority, freshness, replay accuracy, and score impact if the next loop proves that improves the read
 - Hermes/Grok pulse remains watch-only unless tied back to official or admitted market data

@@ -810,8 +810,14 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Reconciliation judge");
     expect(html).toContain("Deciding datum");
     expect(html).toContain("+15 weighted points from CGC weekly grain stats");
+    expect(html).toContain("Strong source proof");
+    expect(html).toContain("Counterweight check");
+    expect(html).toContain("US Supply is the main counterweight at -6.");
     expect(html).toContain("Relationship spiderweb");
     expect(html).toContain("Distance shows impact on the Wheat read");
+    expect(html).toContain("Closer nodes carry more score weight.");
+    expect(html).toContain("Bear pressure sits left");
+    expect(html).toContain("Inner: high impact");
     expect(html).toContain("Source (what we watch)");
     expect(html).toContain("Crop Condition / Weather");
     expect(html).toContain("Demand / Exports");

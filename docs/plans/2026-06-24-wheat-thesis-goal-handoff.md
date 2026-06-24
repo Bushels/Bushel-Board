@@ -34,7 +34,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - First Wheat pressure-map model/panel is wired into `/thesis` from `lib/thesis/wheat-pressure-map.ts`. It traces source nodes, factor nodes, packet contributions, CA/US evidence geography, X Pulse watch proof, and relationship nodes into one Wheat read.
 - Wheat price scoring no longer uses the "latest price row wins" shortcut when multiple Wheat futures classes are present. `lib/thesis/rating-domain-mappers.ts` now builds a Spring Wheat / HRW / SRW basket; agreement sets direction and disagreement lowers confidence. Focused proof passed: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
 - Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
-- `/thesis` now has a first reconciliation judge card, relationship-spiderweb ring view, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum and compares it with the strongest bull/bear offsets; the visual layers do not add new scoring authority.
+- `/thesis` now has a farmer-facing reconciliation judge, a node-and-edge relationship spiderweb, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum, shows freshness proof, compares the main counterweight, and keeps the visual layers as explanation over the existing scorecard rather than new scoring authority.
 - Hindsight memory was checked for Wheat/Wheat-loop context and returned no matching memories; checked-in repo docs remain the operating truth.
 - Source freshness loop was completed after the first UI proof:
   - CFTC official SODA feed was checked directly; Wheat contracts were available for report date 2026-06-16.
@@ -47,8 +47,8 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 ## What Is Not Done
 
 - Full USDA Wheat sweep is not complete.
-- The first relationship map and ring-style spiderweb exist, but the radial metaphor still needs visual polish: distance from the Wheat read, edge thickness, and impact ranking should be faster to read at a glance.
-- The canonical Wheat reconciliation judge has a first implementation, but it still needs stronger deciding-datum language now that CFTC/logistics rows are refreshed.
+- The relationship spiderweb now makes side, distance, node rank, and edge thickness visible, but the next scoring pass still needs to prove whether source authority should alter distance separately from weighted score impact.
+- The reconciliation judge now has deciding-datum, freshness, and counterweight language; the next loop should make that language more source-specific after the full USDA Wheat sweep and historical price/export context are added.
 - Wheat price basket scoring is repaired and visible, but the top visual can still be improved with live-packet verification and historical contract context.
 - Positioning still needs to become a timing/crowding modifier instead of a primary direction creator.
 - Local cash/basis remains weak because `posted_prices` is empty and SK cash prices are only provincial-average context.
@@ -72,19 +72,20 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - HRW Wheat / KCBT
    - SRW Wheat / CBOT
    - show disagreement as lower confidence
-3. Improve the reconciliation judge with the refreshed source rows.
+3. Extend the reconciliation judge after the full Wheat source sweep.
    - headline score is already scorecard-backed for Wheat weekly packets
-   - first judge card now exists on `/thesis`
-   - CFTC, Grain Monitor, and producer cars are now refreshed; next loop should make the deciding datum language more source-specific
+   - judge card now shows the deciding datum, freshness proof, and strongest counterweight on `/thesis`
+   - CFTC, Grain Monitor, and producer cars are refreshed; next loop should add source-specific explanations for USDA exports, stocks, WASDE, crop progress, and price confirmation
    - daily overlays should stay visibly separate from weekly scorecard truth
-4. Polish the relationship spiderweb:
+4. Deepen the relationship spiderweb model:
    - center: one Wheat read
    - first ring: high-authority lanes with score weight
    - second ring: movement/logistics and positioning
    - outer ring: watch leads, global context, local-basis gaps
    - edge color: bull/bear/neutral
    - edge thickness: effect size
-   - distance: lower authority or lower score impact
+   - current v1 distance: lower weighted score impact sits farther away
+   - next v2 question: whether source authority, freshness, or replay accuracy should also affect distance
 5. Run visual QA on desktop and mobile, then deploy.
 
 ## No-Write And Retired-Path Boundaries
