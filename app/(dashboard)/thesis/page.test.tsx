@@ -630,7 +630,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Black Sea/EU/Australia");
     expect(html).toContain("Global origins can cap wheat even when local data is supportive.");
     expect(html).toContain("Final read");
-    expect(html).toContain("Country split: CA +20 versus US -20.");
+    expect(html).toContain("CA +20 Bullish; US -20 Bearish.");
     expect(html).toContain("Parked Wheat gaps");
     expect(html).toContain("class-specific Wheat mapping");
     expect(html).not.toContain("Spring Wheat mapping");
@@ -741,19 +741,25 @@ describe("ThesisPage scorecard audit mode", () => {
 
     expect(html).toContain("Wheat Bull/Bear decision surface");
     expect(html).toContain("Current Wheat read");
+    expect(html).toContain("Current stance");
+    expect(html).toContain("Thesis confidence");
     expect(html).toContain("Wheat confidence-scaled stance score 0");
-    expect(html).toContain("CA source geography");
-    expect(html).toContain("US source geography");
-    expect(html).toContain("Canada + US");
+    expect(html).toContain("Source coverage: Canada + US");
+    expect(html).toContain("Source (what we watch)");
+    expect(html).toContain("Crop Condition / Weather");
+    expect(html).toContain("Demand / Exports");
     expect(html).toContain("Bull case");
     expect(html).toContain("Canada export basis stays firm");
     expect(html).toContain("Bear case");
     expect(html).toContain("Crop condition adds supply pressure");
     expect(html).toContain("One Wheat read");
-    expect(html).toContain("Geography is evidence context, not the page structure.");
+    expect(html).toContain("Source geography is evidence context; this screen keeps one Wheat read.");
     expect(html).toContain("Wheat crop progress - week ending 2026-06-21");
     expect(html).toContain("Winter harvested");
-    expect(html).toContain("Condition feeds the weather score; harvest and heading explain crop stage.");
+    expect(html).toContain("Watch leads (what could change the thesis)");
+    expect(html).not.toContain("Country split");
+    expect(html).not.toContain("CA source geography");
+    expect(html).not.toContain("US source geography");
     expect(html).not.toContain("Canada vs USA Wheat Bull/Bear");
   });
 
@@ -1506,8 +1512,9 @@ describe("ThesisPage scorecard audit mode", () => {
   it("keeps visible status badges tied to the active Wheat row", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Country split");
+    expect(html).toContain("Mixed evidence");
     expect(html).toContain("Canada + US");
+    expect(html).not.toContain("Country split");
     expect(html).not.toContain("One-country = V1 has only CA or US modeled");
     expect(html).not.toContain("Mapping needed = no class-safe source yet");
     expect(html).not.toContain("0 mapping gaps");
