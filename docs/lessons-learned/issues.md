@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-23 - CGC CSV fetch can fail when the importer reuses HTML Accept headers
+
+**Symptom:** The CGC weekly importer failed at `stage = source_fetch` with `fetch failed`, leaving `cgc_observations` stale at week 44 while the CGC page had already published week 45. A direct page fetch worked, but the CSV request returned HTTP 406 when the request advertised an HTML-oriented `Accept` header.
+
+**Root cause:** `scripts/import-cgc-weekly-codex.mjs` reused `BROWSER_HEADERS` for both the HTML landing page and the CSV file. CGC's CSV endpoint will return the file when the request accepts `text/csv`, `application/octet-stream`, or `*/*`, but it can reject the mixed page header (`text/html,application/xhtml+xml,...`) as not acceptable for the CSV resource.
+
+**Fix status:** The importer now uses separate `CSV_HEADERS` for the CSV fetch: `Accept: text/csv,application/octet-stream,*/*;q=0.8`. `npm --silent run collect:cgc` then imported CGC week 45 successfully: 4,411 rows, all 16 grains present, validation pass, 16/16 collector heartbeats, and 12/12 thesis packet cache refresh.
+
+**Prevention:** Treat HTML page discovery and CSV fetches as separate HTTP contracts. If CGC fails at source fetch, test the page URL and CSV URL separately with the exact request headers before assuming the site is down.
+
+**Tags:** #cgc #collector #source-fetch #accept-header #freshness
+
+---
+
 ## 2026-06-09 - "official_thesis_input" is not just a label: classifying a bounded lane official silently inflates its domain weight
 
 **Symptom:** While admitting the world veg-oil balance as bounded Canola demand context (Track 55), classifying the new impact factor `official_thesis_input` made `lib/__tests__/grain-impact-domain-weights.test.ts` fail: Canola's normalized supply weight dropped below the lane baseline.

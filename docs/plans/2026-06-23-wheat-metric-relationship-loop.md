@@ -21,6 +21,7 @@ Actions run:
 - Refreshed USD/CAD FX through 2026-06-24.
 - Refreshed grain futures prices and forced thesis packet cache refresh.
 - Cache refresh result: 12/12 packets refreshed, source watermark 2026-06-24T00:19:05Z.
+- Repaired the CGC CSV fetch header, imported CGC week 45, and refreshed thesis packet cache again with source watermark 2026-06-24T00:32:06Z.
 
 Current Wheat price rows in the live packet:
 
@@ -71,12 +72,12 @@ Current demand/movement facts:
 
 | Metric | Value | Bull/bear effect |
 | --- | ---: | --- |
-| Canada current-week Wheat exports | 902.8 kt | Bullish demand pull |
-| Canada current-week producer deliveries | 479.1 kt | Movement context |
-| Canada export/delivery ratio | 188.4% | Bullish disappearance against deliveries |
-| Canada process/delivery ratio | 3.0% | Bearish domestic processing weakness |
-| Canada crop-year producer deliveries | 21,913.1 kt | Context |
-| Canada crop-year exports | 37,618.4 kt | Context, but CGC freshness has a failed latest run |
+| Canada current-week Wheat exports | 319.3 kt | Bullish only relative to deliveries, but much weaker than prior week |
+| Canada current-week producer deliveries | 642.8 kt | Bearish movement pressure versus 479.1 kt prior week |
+| Canada export/delivery ratio | 49.7% | Mild bullish disappearance against deliveries |
+| Canada process/delivery ratio | 2.0% | Bearish domestic processing weakness |
+| Canada crop-year producer deliveries | 22,563.7 kt | Context |
+| Canada crop-year exports | 37,937.7 kt | Context, CGC week 45 is now fresh |
 | Grain Monitor total unloads | 9,389 cars | Logistics context |
 | Grain Monitor vs 4-week unload avg | -7% | Slight logistics drag |
 | Vancouver vessels | 18 | Watch, near pressure threshold |
@@ -86,9 +87,10 @@ Current demand/movement facts:
 
 Finding:
 
-- Canada export disappearance is strong against producer deliveries, but the latest CGC collector failed on 2026-06-19, so current Canadian flow confidence is capped.
+- CGC week 45 is now fresh: 4,411 rows imported for week ending 2026-06-14, all 16 grains present, and collector heartbeats written.
+- Canada export disappearance still reads mildly bullish at 49.7% of deliveries, but the week shifted from the prior extreme export/delivery read to heavier farm deliveries and weaker current-week exports.
 - U.S. export-sales pace cannot be claimed because projection pace is unavailable in the current packet.
-- Movement/logistics support exists, but it should not override stale CGC, CFTC, and Grain Monitor warnings.
+- Movement/logistics support exists, but it should not override stale CFTC, Grain Monitor, and producer-car warnings.
 
 ## Loop 4 - Start From Positioning
 
@@ -147,7 +149,7 @@ Supply/weather
   WASDE/stocks strong bear
 
 Demand/export
-  Canada export pull bull but CGC freshness capped
+  Canada export pull mild bull with fresh CGC week 45
   U.S. export pace blocked
 
 Movement/logistics
@@ -203,12 +205,12 @@ V1 implementation repair:
 High confidence:
 
 - Metric universe is identified.
-- Data access is proven for official packets, price/FX, and Hermes no-write pulse.
+- Data access is proven for official packets, CGC week 45, price/FX, and Hermes no-write pulse.
 - The relationship map is directionally sound.
 
 Medium confidence:
 
-- Current Wheat read. Price is now fresh, but CGC, Grain Monitor, CFTC, and export-sales freshness still cap confidence.
+- Current Wheat read. Price and CGC are now fresh, but Grain Monitor, CFTC, producer cars, and U.S. export-sales freshness still cap confidence.
 
 Low confidence:
 
@@ -226,7 +228,6 @@ Start from the price lane repair:
 
 Then start from source freshness:
 
-- Refresh/repair CGC week 45 if available.
 - Refresh CFTC if a newer report is available.
 - Refresh Grain Monitor and producer cars.
 - Rerun the relationship loop after those official rows update.
