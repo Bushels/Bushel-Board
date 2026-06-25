@@ -69,6 +69,10 @@ import {
   type WheatPriceHistoryRow,
 } from "@/lib/queries/wheat-price-history";
 import {
+  getWheatExportHistory,
+  type WheatExportHistoryRow,
+} from "@/lib/queries/wheat-export-history";
+import {
   getLocalTrack54ReadinessSnapshot,
   type Track54ReadinessModeGateSnapshot,
   type Track54ReadinessSnapshot,
@@ -2301,6 +2305,64 @@ function wheatPriceHistoryLegs(history: WheatPriceHistoryRow[]): WheatHistorical
   });
 }
 
+function wheatNumberSeriesPath(values: number[]): string | null {
+  if (values.length < 2) return null;
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || Math.max(0.01, Math.abs(maxValue) * 0.02);
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+    const y = 36 - ((value - minValue) / range) * 30;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  return `M ${points.join(" L ")}`;
+}
+
+function wheatExportHistoryRows(
+  history: WheatExportHistoryRow[],
+  country: WheatExportHistoryRow["country"],
+): WheatExportHistoryRow[] {
+  return history
+    .filter((row) => row.country === country)
+    .sort((left, right) => String(left.weekEnding).localeCompare(String(right.weekEnding)));
+}
+
+function wheatKtLabel(value: number | null): string {
+  if (value === null) return "not reported";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })} kt`;
+}
+
+function wheatHistoryPctLabel(value: number | null): string {
+  if (value === null) return "n/a";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
+}
+
+function wheatExportFreshnessLabel(status: string | null): string {
+  if (!status) return "freshness unknown";
+  return wheatFreshnessProofLabel(status).toLowerCase();
+}
+
+function wheatExportHistoryPath(rows: WheatExportHistoryRow[], country: WheatExportHistoryRow["country"]): string | null {
+  const values = rows
+    .map((row) => (country === "Canada" ? row.exportDeliveryRatioPct : row.netSalesKt))
+    .filter((value): value is number => value !== null);
+  return wheatNumberSeriesPath(values);
+}
+
+function wheatExportHistoryRead(row: WheatExportHistoryRow | null, country: WheatExportHistoryRow["country"]): { label: string; className: string } {
+  if (!row) return { label: "No history rows", className: "text-muted-foreground" };
+  if (country === "Canada") {
+    const ratio = row.exportDeliveryRatioPct;
+    if (ratio !== null && ratio >= 75) return { label: "Export pull strong", className: "text-prairie" };
+    if (ratio !== null && ratio <= 35) return { label: "Export pull light", className: "text-orange-700 dark:text-orange-300" };
+    return { label: "Export pull mixed", className: "text-foreground" };
+  }
+  const sales = row.netSalesKt;
+  if (sales !== null && sales >= 300) return { label: "Sales support", className: "text-prairie" };
+  if (sales !== null && sales < 0) return { label: "Sales drag", className: "text-orange-700 dark:text-orange-300" };
+  return { label: "Sales mixed", className: "text-foreground" };
+}
+
 function wheatPressureMarkerPosition(score: number): number {
   return Math.max(4, Math.min(96, 50 + Math.max(-35, Math.min(35, score)) * 1.25));
 }
@@ -2861,6 +2923,113 @@ function WheatHistoricalPriceContext({ history }: { history: WheatPriceHistoryRo
   );
 }
 
+function WheatHistoricalExportContext({ history }: { history: WheatExportHistoryRow[] }) {
+  const canadaRows = wheatExportHistoryRows(history, "Canada");
+  const usRows = wheatExportHistoryRows(history, "United States");
+  const cards = [
+    {
+      country: "Canada" as const,
+      title: "Canada CGC export pull",
+      source: "CGC weekly grain stats",
+      rows: canadaRows,
+      chartLabel: "Export/delivery ratio",
+    },
+    {
+      country: "United States" as const,
+      title: "U.S. Export Sales",
+      source: "USDA Export Sales",
+      rows: usRows,
+      chartLabel: "Weekly net sales",
+    },
+  ];
+
+  return (
+    <section className="rounded-lg border border-prairie/25 bg-prairie/5 p-4 shadow-sm" aria-labelledby="wheat-export-history-heading">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historical export context</p>
+          <h2 id="wheat-export-history-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Demand pull beside the price tape
+          </h2>
+        </div>
+        <Badge variant="outline" className="w-fit border-prairie/25 bg-background/80 text-prairie">
+          16-week demand history
+        </Badge>
+      </div>
+      <p className="mb-3 text-xs leading-5 text-muted-foreground">
+        Exports show whether grain is actually disappearing. This is demand confirmation only; it does not overrule official supply, stocks, or price confirmation by itself.
+      </p>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {cards.map((card) => {
+          const latest = card.rows[card.rows.length - 1] ?? null;
+          const read = wheatExportHistoryRead(latest, card.country);
+          const path = wheatExportHistoryPath(card.rows, card.country);
+          const latestDate = latest ? wheatPeriodLabel(latest.weekEnding) : "No latest row";
+          const sourceDate = latest?.sourcePeriodEnd ? wheatPeriodLabel(latest.sourcePeriodEnd) : latestDate;
+          const latestMain =
+            card.country === "Canada"
+              ? wheatHistoryPctLabel(latest?.exportDeliveryRatioPct ?? null)
+              : wheatKtLabel(latest?.netSalesKt ?? null);
+          const latestDetail =
+            card.country === "Canada"
+              ? `${wheatKtLabel(latest?.weeklyExportsKt ?? null)} exports against ${wheatKtLabel(latest?.weeklyProducerDeliveriesKt ?? null)} producer deliveries.`
+              : `${wheatKtLabel(latest?.weeklyExportsKt ?? null)} weekly exports; ${wheatKtLabel(latest?.totalCommitmentsKt ?? null)} total commitments.`;
+          const projectionCopy =
+            card.country === "United States" && latest?.projectionAdmitted
+              ? ` Projection pace ${wheatHistoryPctLabel(latest.exportPacePct)} against ${wheatKtLabel(latest.usdaProjectionKt)} USDA projection.`
+              : card.country === "United States"
+                ? " Projection pace not admitted for this row."
+                : "";
+
+          return (
+            <div key={card.country} className="rounded-lg border border-border bg-background px-3 py-3">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{card.title}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                    {card.source}; season {latest?.seasonLabel ?? "not reported"}.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-border bg-card text-[10px] text-muted-foreground">
+                  {wheatExportFreshnessLabel(latest?.freshnessStatus ?? null)}
+                </Badge>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
+                <div>
+                  <p className={cn("text-2xl font-semibold tabular-nums", read.className)}>{latestMain}</p>
+                  <p className={cn("mt-1 text-xs font-semibold", read.className)}>{read.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Latest row {latestDate}; source through {sourceDate}.
+                  </p>
+                </div>
+                <svg viewBox="0 0 100 42" role="img" aria-label={`${card.title} ${card.chartLabel} history`} className="h-20 w-full overflow-visible">
+                  <line x1="0" x2="100" y1="36" y2="36" className="stroke-border" strokeWidth="1" />
+                  <line x1="0" x2="100" y1="6" y2="6" className="stroke-border/70" strokeWidth="1" />
+                  {path ? (
+                    <path
+                      d={path}
+                      fill="none"
+                      className={card.country === "Canada" ? "stroke-prairie" : "stroke-orange-600"}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <line x1="10" x2="90" y1="22" y2="22" className="stroke-muted-foreground/50" strokeWidth="2" strokeLinecap="round" />
+                  )}
+                </svg>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                {latestDetail}{projectionCopy}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function WheatPriceBasketProof({
   row,
   history,
@@ -3392,9 +3561,11 @@ function WheatEvidenceDetails({ row }: { row: ThesisComparisonRow }) {
 function WheatDecisionSurface({
   row,
   priceHistory,
+  exportHistory,
 }: {
   row: ThesisComparisonRow | null;
   priceHistory: WheatPriceHistoryRow[];
+  exportHistory: WheatExportHistoryRow[];
 }) {
   if (!row) {
     return (
@@ -3429,6 +3600,7 @@ function WheatDecisionSurface({
       <WheatRelationshipSpiderweb row={row} />
       <WheatPressureDecisionMatrix row={row} />
       <WheatPriceBasketProof row={row} history={priceHistory} />
+      <WheatHistoricalExportContext history={exportHistory} />
       <WheatUsdaProgressUpdateCard />
       <WheatWatchLeadsStrip row={row} />
     </section>
@@ -5889,7 +6061,7 @@ export default async function ThesisPage({
   const auditMode = params?.audit === "1";
   const cookieStore = await cookies();
   const area = areaFromFsa(cookieStore.get(AREA_FSA_COOKIE)?.value);
-  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, provincialFlow, areaBids] =
+  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, wheatExportHistory, provincialFlow, areaBids] =
     await Promise.all([
       getThesisBoardData(),
       getXPulseWatchSummary(),
@@ -5897,6 +6069,7 @@ export default async function ThesisPage({
       getLatestDailyThesisUpdates(4),
       getLocalTrack54ReadinessSnapshot(),
       getWheatPriceHistory(60),
+      getWheatExportHistory(16),
       area?.provinceName ? getProvincialFlow(area.provinceName) : Promise.resolve(null),
       area ? getAreaBids(area.fsa) : Promise.resolve([]),
     ]);
@@ -5909,7 +6082,7 @@ export default async function ThesisPage({
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-2rem)] space-y-4 overflow-x-hidden pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6 xl:max-w-7xl">
-      <WheatDecisionSurface row={wheatComparisonRow} priceHistory={wheatPriceHistory} />
+      <WheatDecisionSurface row={wheatComparisonRow} priceHistory={wheatPriceHistory} exportHistory={wheatExportHistory} />
 
       <MarketUseNotice />
 

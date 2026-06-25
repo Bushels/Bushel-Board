@@ -232,7 +232,7 @@ describe("thesis board packet normalization", () => {
           process_deliveries_kt: 12.9,
         },
         exports: {
-          current_week_kt: 319.3,
+          current_week_kt: 193.9,
         },
       },
       supply: {

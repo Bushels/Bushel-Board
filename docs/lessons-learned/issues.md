@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-06-24 - Terminal Disposition export rows are a cross-check, not an additive CGC export component
+
+**Symptom:** The Wheat loop recorded Canada current-week exports as 319.3 kt and export/delivery ratio as 49.7%, making the latest CGC demand row look mildly supportive. Re-auditing the source rows showed the documented CGC export formula produced 193.9 kt and a 30.2% ratio for week 45.
+
+**Root cause:** `get_canada_thesis_packet()` added `Terminal Disposition.Export Destinations` together with `Terminal Exports.Exports`. Terminal Disposition export destinations cross-check terminal exports by port; they should not be added on top of Terminal Exports. The packet therefore double-counted terminal movement while also missing the documented Primary Shipment Distribution export-destination component.
+
+**Fix status:** Live migration `20260625000843_get_wheat_export_history` repaired the Canada thesis packet export CTE to use the canonical three-part formula: Terminal Exports + Primary Shipment Distribution Export Destinations + Producer Cars Shipment Distribution Export. The thesis packet cache was refreshed 12/12, and the cached Wheat packet now shows 193.9 kt current-week exports and 19,663.9 kt crop-year exports. The public `/thesis` board now uses `get_wheat_export_history(weeks)` for bounded Wheat export history.
+
+**Prevention:** Treat Terminal Disposition export rows as validation rows, not additive movement. Any new CGC export SQL should search for `Terminal Disposition` and prove it is used only as a cross-check unless explicitly building a port-disposition view.
+
+**Tags:** #cgc #exports #data-audit #wheat #double-count
+
+---
+
 ## 2026-06-24 - Auditor skills must not reference missing eval-core files
 
 **Symptom:** During closeout, `agent-auditor` and `skill-auditor` both instructed the operator to read `eval-core/framework.md`, `eval-core/rubric.md`, `eval-core/replay-policy.md`, `eval-core/promotion-rules.md`, and `eval-core/report-template.md`, but those files did not exist under either skill folder. The audit workflow could not be followed as written.

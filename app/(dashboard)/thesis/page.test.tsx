@@ -7,6 +7,7 @@ import type { XPulseWatchSummary } from "@/lib/queries/x-scout-runs";
 import type { SourceRunSummary } from "@/lib/queries/source-runs";
 import type { DailyThesisUpdateSummary } from "@/lib/queries/daily-thesis-updates";
 import type { WheatPriceHistoryRow } from "@/lib/queries/wheat-price-history";
+import type { WheatExportHistoryRow } from "@/lib/queries/wheat-export-history";
 import type { Track54ReadinessSnapshot } from "@/lib/queries/track54-readiness";
 import {
   PUBLIC_ADVICE_FORBIDDEN_TERMS,
@@ -20,6 +21,7 @@ const {
   getLatestSourceRunSummariesMock,
   getLatestDailyThesisUpdatesMock,
   getWheatPriceHistoryMock,
+  getWheatExportHistoryMock,
   getLocalTrack54ReadinessSnapshotMock,
   cookieGetMock,
   getProvincialFlowMock,
@@ -30,6 +32,7 @@ const {
   getLatestSourceRunSummariesMock: vi.fn<() => Promise<SourceRunSummary[]>>(),
   getLatestDailyThesisUpdatesMock: vi.fn<() => Promise<DailyThesisUpdateSummary[]>>(),
   getWheatPriceHistoryMock: vi.fn<() => Promise<WheatPriceHistoryRow[]>>(),
+  getWheatExportHistoryMock: vi.fn<() => Promise<WheatExportHistoryRow[]>>(),
   getLocalTrack54ReadinessSnapshotMock: vi.fn<() => Promise<Track54ReadinessSnapshot | null>>(),
   cookieGetMock: vi.fn<(name: string) => { value: string } | undefined>(),
   getProvincialFlowMock: vi.fn(),
@@ -72,6 +75,10 @@ vi.mock("@/lib/queries/daily-thesis-updates", () => ({
 
 vi.mock("@/lib/queries/wheat-price-history", () => ({
   getWheatPriceHistory: getWheatPriceHistoryMock,
+}));
+
+vi.mock("@/lib/queries/wheat-export-history", () => ({
+  getWheatExportHistory: getWheatExportHistoryMock,
 }));
 
 vi.mock("@/lib/queries/track54-readiness", () => ({
@@ -310,6 +317,91 @@ function wheatPriceHistoryRows(): WheatPriceHistoryRow[] {
       currency: "USD",
       unit: "$/bu",
       source: "yahoo-finance",
+    },
+  ];
+}
+
+function wheatExportHistoryRows(): WheatExportHistoryRow[] {
+  return [
+    {
+      country: "Canada",
+      sourceName: "cgc_observations",
+      seasonLabel: "2025-2026",
+      weekEnding: "2026-06-07",
+      weekIndex: 44,
+      weeklyExportsKt: 473.3,
+      cumulativeExportsKt: 19470.0,
+      weeklyProducerDeliveriesKt: 479.1,
+      cumulativeProducerDeliveriesKt: 21920.9,
+      exportDeliveryRatioPct: 98.8,
+      netSalesKt: null,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: null,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "strong",
+      sourcePeriodEnd: "2026-06-14",
+    },
+    {
+      country: "Canada",
+      sourceName: "cgc_observations",
+      seasonLabel: "2025-2026",
+      weekEnding: "2026-06-14",
+      weekIndex: 45,
+      weeklyExportsKt: 193.9,
+      cumulativeExportsKt: 19663.9,
+      weeklyProducerDeliveriesKt: 642.8,
+      cumulativeProducerDeliveriesKt: 22563.7,
+      exportDeliveryRatioPct: 30.2,
+      netSalesKt: null,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: null,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "strong",
+      sourcePeriodEnd: "2026-06-14",
+    },
+    {
+      country: "United States",
+      sourceName: "usda_export_sales",
+      seasonLabel: "2026-2027",
+      weekEnding: "2026-06-04",
+      weekIndex: 23,
+      weeklyExportsKt: 266.073,
+      cumulativeExportsKt: 266.073,
+      weeklyProducerDeliveriesKt: null,
+      cumulativeProducerDeliveriesKt: null,
+      exportDeliveryRatioPct: null,
+      netSalesKt: 666.259,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: 4591.936,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "expected_lag",
+      sourcePeriodEnd: "2026-06-11",
+    },
+    {
+      country: "United States",
+      sourceName: "usda_export_sales",
+      seasonLabel: "2026-2027",
+      weekEnding: "2026-06-11",
+      weekIndex: 24,
+      weeklyExportsKt: 314.327,
+      cumulativeExportsKt: 580.4,
+      weeklyProducerDeliveriesKt: null,
+      cumulativeProducerDeliveriesKt: null,
+      exportDeliveryRatioPct: null,
+      netSalesKt: 400.844,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: 4992.78,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "expected_lag",
+      sourcePeriodEnd: "2026-06-11",
     },
   ];
 }
@@ -786,6 +878,7 @@ describe("ThesisPage scorecard audit mode", () => {
     getLatestSourceRunSummariesMock.mockResolvedValue([]);
     getLatestDailyThesisUpdatesMock.mockResolvedValue([]);
     getWheatPriceHistoryMock.mockResolvedValue(wheatPriceHistoryRows());
+    getWheatExportHistoryMock.mockResolvedValue(wheatExportHistoryRows());
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
     cookieGetMock.mockReturnValue(undefined);
     getProvincialFlowMock.mockResolvedValue(null);
@@ -1022,6 +1115,17 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("60-day price history");
     expect(html).toContain("May 8, 2026 to Jun 22, 2026");
     expect(html).toContain("Latest close 5.975 USD/bu; range 5.975 USD/bu-6.075 USD/bu.");
+    expect(html).toContain("Historical export context");
+    expect(html).toContain("Demand pull beside the price tape");
+    expect(html).toContain("16-week demand history");
+    expect(html).toContain("Canada CGC export pull");
+    expect(html).toContain("Export pull light");
+    expect(html).toContain("193.9 kt exports against 642.8 kt producer deliveries.");
+    expect(html).toContain("U.S. Export Sales");
+    expect(html).toContain("Sales support");
+    expect(html).toContain("400.8 kt");
+    expect(html).toContain("314.3 kt weekly exports; 4,992.8 kt total commitments.");
+    expect(html).toContain("Projection pace not admitted for this row.");
     expect(html).toContain("Bull case");
     expect(html).toContain("Canada export basis stays firm");
     expect(html).toContain("Bear case");

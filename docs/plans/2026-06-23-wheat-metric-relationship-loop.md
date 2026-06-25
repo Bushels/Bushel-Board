@@ -22,14 +22,15 @@ Actions run:
 - Refreshed grain futures prices and forced thesis packet cache refresh.
 - Cache refresh result: 12/12 packets refreshed, source watermark 2026-06-24T00:19:05Z.
 - Repaired the CGC CSV fetch header, imported CGC week 45, and refreshed thesis packet cache again with source watermark 2026-06-24T00:32:06Z.
+- Final closeout refreshed prices and thesis cache 12/12 with source watermark 2026-06-25T00:43:11Z.
 
 Current Wheat price rows in the live packet:
 
 | Contract | Market | Latest date | Settlement | Change | Read |
 | --- | --- | ---: | ---: | ---: | --- |
-| MWK26 | MGEX Spring Wheat | 2026-06-24 | 7.11 USD/bu | -0.594% | Bearish pressure, but Barchart latest-only |
-| ZW | CBOT Wheat | 2026-06-22 | 5.975 USD/bu | -1.362% | Bearish confirmation |
-| KE | KC HRW Wheat | 2026-06-22 | 6.335 USD/bu | -1.630% | Bearish confirmation |
+| MWK26 | MGEX Spring Wheat | 2026-06-25 | 7.11 USD/bu | -0.594% | Bearish pressure, but Barchart latest-only |
+| ZW | CBOT Wheat | 2026-06-23 | 5.8675 USD/bu | -1.799% | Bearish confirmation |
+| KE | KC HRW Wheat | 2026-06-23 | 6.1825 USD/bu | -2.407% | Bearish confirmation |
 
 Finding:
 
@@ -72,12 +73,12 @@ Current demand/movement facts:
 
 | Metric | Value | Bull/bear effect |
 | --- | ---: | --- |
-| Canada current-week Wheat exports | 319.3 kt | Bullish only relative to deliveries, but much weaker than prior week |
+| Canada current-week Wheat exports | 193.9 kt | Weak/neutral demand confirmation after correcting the CGC export formula |
 | Canada current-week producer deliveries | 642.8 kt | Bearish movement pressure versus 479.1 kt prior week |
-| Canada export/delivery ratio | 49.7% | Mild bullish disappearance against deliveries |
+| Canada export/delivery ratio | 30.2% | Light export pull against heavy deliveries |
 | Canada process/delivery ratio | 2.0% | Bearish domestic processing weakness |
 | Canada crop-year producer deliveries | 22,563.7 kt | Context |
-| Canada crop-year exports | 37,937.7 kt | Context, CGC week 45 is now fresh |
+| Canada crop-year exports | 19,663.9 kt | Context, CGC week 45 is now fresh |
 | Grain Monitor total unloads | 8,027 cars | Logistics context |
 | Grain Monitor vs 4-week unload avg | -9% | Slight logistics drag |
 | Vancouver vessels | 21 | Watch, above one-year average of 20 |
@@ -88,7 +89,7 @@ Current demand/movement facts:
 Finding:
 
 - CGC week 45 is now fresh: 4,411 rows imported for week ending 2026-06-14, all 16 grains present, and collector heartbeats written.
-- Canada export disappearance still reads mildly bullish at 49.7% of deliveries, but the week shifted from the prior extreme export/delivery read to heavier farm deliveries and weaker current-week exports.
+- Canada export disappearance no longer reads mildly bullish after the CGC export-formula audit. The latest corrected week is 193.9 kt of exports against 642.8 kt of deliveries, or 30.2%; this is light demand confirmation beside heavy farm deliveries.
 - U.S. export-sales pace cannot be claimed because projection pace is unavailable in the current packet.
 - Movement/logistics support exists, but it should not override the balance sheet and price confirmation. Grain Monitor and producer-car rows are now refreshed; they explain execution pressure rather than decide the headline.
 
@@ -150,7 +151,7 @@ Supply/weather
   WASDE/stocks strong bear
 
 Demand/export
-  Canada export pull mild bull with fresh CGC week 45
+  Canada export pull light/neutral with fresh CGC week 45 after correcting the export formula
   U.S. export pace blocked
 
 Movement/logistics
@@ -271,10 +272,18 @@ Completed 2026-06-24: public-safe historical Wheat futures context.
 - Live anon proof for `get_wheat_price_history(60)` returned 103 rows: 25 Spring Wheat rows from 2026-04-26 to 2026-06-24, 39 HRW rows from 2026-04-27 to 2026-06-22, and 39 SRW rows from 2026-04-27 to 2026-06-22.
 - `/thesis` now shows `Historical price context` under the packet trend block with three compact 60-day sparklines. This remains price confirmation only and adds no score authority.
 
+Completed 2026-06-24: public-safe historical Wheat export context and CGC export audit.
+
+- Migration `20260625000843_get_wheat_export_history` creates bounded RPC `get_wheat_export_history(integer)` for Wheat demand-history visuals, with follow-up migrations `20260625001442`, `20260625001726`, and `20260625001912` tightening performance for the public REST path.
+- The same migration repaired `get_canada_thesis_packet()` so Canada CGC exports use Terminal Exports + Primary Shipment Distribution Export Destinations + Producer Cars Shipment Distribution Export. Terminal Disposition Export Destinations is now treated as a cross-check, not an additive component.
+- Thesis packet cache was refreshed 12/12 after the repair. Cached Canada Wheat exports are now 193.9 kt current week and 19,663.9 kt crop year for week 45.
+- Live anon proof for `get_wheat_export_history(4)` returned 8 bounded rows in the public REST path. Latest Canada row: 193.9 kt exports, 642.8 kt deliveries, 30.2% ratio for 2026-06-14. Latest U.S. row: 400.844 kt net sales, 314.327 kt exports, 4,992.78 kt commitments for 2026-06-11. Raw anon `usda_export_sales` still returns 0 rows.
+- `/thesis` now shows `Historical export context` below the price proof. It remains demand confirmation only and adds no score authority.
+
 Next loop should start from source-specific Wheat data depth:
 
 - Use the enhanced USDA Wheat source-sweep panel as the visible source inventory, then verify Crop Progress, WASDE, Export Sales, and quarterly stocks against live packets and historical context.
-- Verify the repaired price basket and 60-day futures context against the live packet on `/thesis`, then add historical export context so demand confirmation is as easy to interpret as price confirmation.
+- Verify the repaired price basket, 60-day futures context, and bounded export-history context against the live packet on `/thesis`, then replay whether the corrected light Canada export pull should lower demand-lane confidence.
 - Refine the reconciliation judge's source-specific explanation patterns after the visible USDA sweep is verified, especially where crop stress fights balance-sheet or price confirmation.
 - Decide whether spiderweb distance should remain pure weighted-score impact or also incorporate source authority, freshness, and replay accuracy.
 - Rerun the relationship loop after the next official export-sales and stocks rows update.

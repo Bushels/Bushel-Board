@@ -78,6 +78,10 @@ CGC weekly grain statistics CSV from grainscanada.gc.ca:
 - `grain_prices` is not broad public-read. Farmer-facing Wheat futures history should use the bounded `get_wheat_price_history(days)` RPC for Spring Wheat, HRW, and SRW visuals instead of exposing the raw table.
 - Price history is confirmation context only; it does not override official supply, demand, movement, or scorecard rows by itself.
 
+## Export Data Rules
+- CGC exports mean Terminal Exports plus Primary Shipment Distribution `Export Destinations` plus Producer Cars `Shipment Distribution` where region is `Export`. Do not add Terminal Disposition `Export Destinations`; it is a terminal cross-check and double-counts port movement when added to Terminal Exports.
+- Farmer-facing Wheat demand history should use the bounded `get_wheat_export_history(weeks)` RPC instead of raw `usda_export_sales` reads. It is demand confirmation only and does not override official supply, balance-sheet, price, or scorecard rows by itself.
+
 ## Definition of Done
 Every completed change must satisfy:
 1. `npm run build` passes.
