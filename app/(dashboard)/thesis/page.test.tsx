@@ -1058,7 +1058,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Current Wheat read");
     expect(html).toContain("Current stance");
     expect(html).toContain("Thesis confidence");
-    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain("Source coverage: Canada + US");
     expect(html).toContain("Reconciliation judge");
     expect(html).toContain("Deciding datum");
@@ -1647,7 +1647,7 @@ describe("ThesisPage scorecard audit mode", () => {
 
     const html = await renderThesisPage("1");
 
-    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain("CA +19 Lean bull");
     expect(html).toContain("Score source: Daily overlay Jun 1 (review-gated)");
     expect(html).toContain("Review-gated movement rows overlaid on visible scores");
@@ -1898,10 +1898,10 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("0 mapping gaps");
   });
 
-  it("scales the Wheat stance meter by confidence", async () => {
+  it("keeps the Wheat pressure rail centered while retaining confidence-scaled audit proof", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain('data-confidence-scaled-position="50.00%"');
   });
 

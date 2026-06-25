@@ -1518,6 +1518,11 @@ function confidenceScaledPosition(score: number, confidence: number): number {
   return Math.max(0, Math.min(100, 50 + (target - 50) * scale));
 }
 
+function wheatConfidenceDisplay(confidence: number): string {
+  if (confidence <= 0) return "Low confidence";
+  return `${confidence}% confidence`;
+}
+
 function wheatCoverageLabel(row: ThesisComparisonRow): string {
   if (row.canada && row.us) return "Canada + US";
   if (row.canada) return "Canada only";
@@ -2149,6 +2154,32 @@ function signedPctText(value: number | null): string {
   return `${prefix}${value.toFixed(1)}%`;
 }
 
+function MarketBearIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} fill="none" aria-hidden="true">
+      <path
+        d="M5 17.8c0-4.7 3.7-8.2 8.8-8.2h5.3c3.9 0 6.9 2.6 6.9 6.1v1.5c0 1.5-.9 2.7-2.2 3.2l-1.7.6-.8 4.1h-3.1l-.5-3.2h-8l-.8 3.2H5.8l.9-4.8A5 5 0 0 1 5 17.8Z"
+        fill="currentColor"
+      />
+      <path d="M21.8 10.2 25 7.8l.8 4.1M9.7 10.6 7.4 7.8l-.9 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="23.7" cy="15.1" r="0.9" fill="#f5f3ee" />
+    </svg>
+  );
+}
+
+function MarketBullIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} fill="none" aria-hidden="true">
+      <path
+        d="M7 18.5c0-3.9 3.2-6.8 7.4-6.8h5.2c4.2 0 7.4 2.9 7.4 6.8 0 3.2-2.2 5.6-5.5 6.3l-.6 2.7h-3.1l-.5-2.4h-7.1l-.6 2.4H6.5l.8-3.5A6.6 6.6 0 0 1 7 18.5Z"
+        fill="currentColor"
+      />
+      <path d="M10.2 12.4C8.2 10.4 7.1 8.2 7 5.8c2.9.6 5.1 1.9 6.5 3.9M21.8 12.4c2-2 3.1-4.2 3.2-6.6-2.9.6-5.1 1.9-6.5 3.9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="22.5" cy="17.4" r="0.8" fill="#f5f3ee" />
+    </svg>
+  );
+}
+
 function wheatPriceBasketLegs(row: ThesisComparisonRow): WheatPriceBasketLeg[] {
   const byLabel = new Map<WheatPriceBasketLeg["label"], WheatPriceBasketLeg>();
   const priceDomains = rowItems(row).flatMap((item) =>
@@ -2456,8 +2487,8 @@ function WheatStanceMeter({
   score: number;
   confidence: number;
 }) {
+  const pressurePosition = wheatPressureMarkerPosition(score);
   const confidenceScaledStancePosition = confidenceScaledPosition(score, confidence);
-  const visualPosition = Math.max(0, Math.min(100, confidence));
   const segments = [
     "bg-orange-700",
     "bg-orange-600",
@@ -2471,37 +2502,48 @@ function WheatStanceMeter({
   ];
 
   return (
-    <div className="min-w-0 max-w-full pt-7">
-      <div
-        className="relative grid h-3.5 w-full max-w-full grid-cols-9 gap-1"
-        aria-label={`Wheat confidence-scaled stance score ${score}`}
-      >
-        {segments.map((className, index) => (
-          <span key={index} className={cn("h-full rounded-sm", className)} aria-hidden="true" />
-        ))}
-        <span className="absolute left-1/2 top-0 h-full w-px bg-background/90" aria-hidden="true" />
-        <span
-          className="absolute -top-7 -translate-x-1/2 rounded-md bg-orange-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm"
-          style={{ left: `${visualPosition}%` }}
-          aria-hidden="true"
+    <div className="grid min-w-0 max-w-full grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 pt-6">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-600/35 bg-orange-500/10 text-orange-700 shadow-sm dark:text-orange-300">
+        <MarketBearIcon className="h-7 w-7" />
+      </span>
+      <div className="min-w-0">
+        <div
+          className="relative grid h-3.5 w-full max-w-full grid-cols-9 gap-1"
+          aria-label={`Wheat bull bear pressure score ${score}`}
         >
-          {confidence}%
-        </span>
-        <span
-          className={cn(
-            "absolute top-1/2 h-7 w-1 -translate-y-1/2 rounded-full border border-background shadow-sm",
-            score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-700" : "bg-foreground",
-          )}
-          data-confidence-scaled-position={`${confidenceScaledStancePosition.toFixed(2)}%`}
-          style={{ left: `calc(${visualPosition}% - 0.125rem)` }}
-          aria-hidden="true"
-        />
+          {segments.map((className, index) => (
+            <span key={index} className={cn("h-full rounded-sm", className)} aria-hidden="true" />
+          ))}
+          <span className="absolute left-1/2 top-0 h-full w-px bg-background/90" aria-hidden="true" />
+          <span
+            className={cn(
+              "absolute -top-7 -translate-x-1/2 rounded-md px-2.5 py-1 text-sm font-semibold text-white shadow-sm",
+              score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-600" : "bg-foreground",
+            )}
+            style={{ left: `${pressurePosition}%` }}
+            aria-hidden="true"
+          >
+            {Math.round(pressurePosition)}%
+          </span>
+          <span
+            className={cn(
+              "absolute top-1/2 h-7 w-1 -translate-y-1/2 rounded-full border border-background shadow-sm",
+              score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-700" : "bg-foreground",
+            )}
+            data-confidence-scaled-position={`${confidenceScaledStancePosition.toFixed(2)}%`}
+            style={{ left: `calc(${pressurePosition}% - 0.125rem)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <div className="mt-3 flex w-full justify-between text-xs font-medium text-muted-foreground">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
       </div>
-      <div className="mt-3 flex w-full justify-between text-xs font-medium text-muted-foreground">
-        <span>0%</span>
-        <span>50%</span>
-        <span>100%</span>
-      </div>
+      <span className="flex h-11 w-11 items-center justify-center rounded-full border border-prairie/35 bg-prairie/10 text-prairie shadow-sm">
+        <MarketBullIcon className="h-7 w-7" />
+      </span>
     </div>
   );
 }
@@ -2524,24 +2566,21 @@ function WheatDecisionBoard({
   const StanceIcon = isBull ? TrendingUp : isBear ? TrendingDown : Info;
 
   return (
-    <div className="relative min-w-0 max-w-full overflow-hidden rounded-xl border border-canola/30 bg-background/92 p-3 shadow-sm sm:p-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-center">
-        <div className="min-w-0 border-border/80 lg:border-r lg:pr-6">
+    <div className="relative min-w-0 max-w-full overflow-hidden rounded-xl border border-canola/35 bg-background p-4 shadow-[0_18px_55px_-42px_rgba(42,38,30,0.9)] sm:p-6">
+      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 text-canola opacity-[0.055]" aria-hidden="true" />
+      <div className="relative grid gap-5 lg:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.28fr)] lg:items-center">
+        <div className="min-w-0 border-border/80 lg:border-r lg:pr-7">
           <div className="mb-3 flex min-w-0 max-w-full flex-wrap items-center gap-2">
+            <Badge variant="outline" className="max-w-full border-canola/35 bg-canola/10 text-canola">
+              Wheat Bull/Bear
+            </Badge>
             <Badge variant="outline" className={cn("max-w-full", comparisonClass(row.status))}>
               {wheatStatusDisplayLabel(row)}
-            </Badge>
-            <Badge variant="outline" className={cn("max-w-full", actionCueClass(row.status))}>
-              {action.label}
-            </Badge>
-            <Badge variant="outline" className="max-w-full border-border bg-background/80 text-muted-foreground">
-              Sources: {wheatCoverageLabel(row)}
-              <span className="sr-only">Source coverage: {wheatCoverageLabel(row)}</span>
             </Badge>
           </div>
           <h1
             id="wheat-decision-heading"
-            className="font-display text-4xl font-semibold leading-none text-foreground sm:text-5xl md:text-6xl"
+            className="font-display text-5xl font-semibold leading-none text-foreground sm:text-6xl md:text-7xl"
           >
             <span aria-hidden="true">Wheat</span>
             <span className="sr-only">Wheat Bull/Bear decision surface</span>
@@ -2570,7 +2609,7 @@ function WheatDecisionBoard({
               </span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Board score {signedNumber(safeScore)} at {safeConfidence}% confidence.
+              Board score {signedNumber(safeScore)}. {wheatConfidenceDisplay(safeConfidence)}.
             </p>
           </div>
         </div>
@@ -2579,7 +2618,7 @@ function WheatDecisionBoard({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
-                Thesis confidence
+                Thesis confidence / pressure
               </p>
               <Info className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </div>
@@ -2592,6 +2631,15 @@ function WheatDecisionBoard({
             </div>
           </div>
           <WheatStanceMeter score={safeScore} confidence={safeConfidence} />
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className={cn("border-border bg-background/80", actionCueClass(row.status))}>
+              {action.label}
+            </Badge>
+            <Badge variant="outline" className="border-border bg-background/80 text-muted-foreground">
+              {wheatConfidenceDisplay(safeConfidence)}
+            </Badge>
+            <span>Source coverage: {wheatCoverageLabel(row)}</span>
+          </div>
         </div>
       </div>
 
@@ -3583,26 +3631,20 @@ function WheatDecisionSurface({
 
   return (
     <section className="min-w-0 max-w-full space-y-3" aria-labelledby="wheat-decision-heading">
-      <div className="relative min-w-0 max-w-full overflow-hidden rounded-2xl border border-canola/30 bg-gradient-to-br from-canola/10 via-background to-prairie/8 p-3 shadow-[0_24px_70px_-48px_rgba(42,38,30,0.8)] sm:p-4">
-        <WheatIcon className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 text-canola opacity-[0.06]" aria-hidden="true" />
-        <div className="relative">
-          <WheatDecisionBoard
-            row={row}
-            score={score}
-            confidence={confidence}
-            action={action}
-          />
-        </div>
-      </div>
-
-      <WheatReconciliationJudgeCard row={row} />
-      <WheatUsdaSourceSweep row={row} />
-      <WheatRelationshipSpiderweb row={row} />
+      <WheatDecisionBoard
+        row={row}
+        score={score}
+        confidence={confidence}
+        action={action}
+      />
       <WheatPressureDecisionMatrix row={row} />
-      <WheatPriceBasketProof row={row} history={priceHistory} />
-      <WheatHistoricalExportContext history={exportHistory} />
       <WheatUsdaProgressUpdateCard />
       <WheatWatchLeadsStrip row={row} />
+      <WheatReconciliationJudgeCard row={row} />
+      <WheatRelationshipSpiderweb row={row} />
+      <WheatUsdaSourceSweep row={row} />
+      <WheatPriceBasketProof row={row} history={priceHistory} />
+      <WheatHistoricalExportContext history={exportHistory} />
     </section>
   );
 }
