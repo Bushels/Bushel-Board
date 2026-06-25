@@ -2190,22 +2190,37 @@ function MarketBullIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
       <path
-        d="M17.5 17.4C10.1 16.2 5.6 11.6 4.9 4.7c7.8 1 13.2 4.8 15.5 11M30.5 17.4c7.4-1.2 11.9-5.8 12.6-12.7-7.8 1-13.2 4.8-15.5 11"
-        stroke="currentColor"
-        strokeWidth="4.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10.8 22.4c0-8.1 5.9-13.4 13.2-13.4s13.2 5.3 13.2 13.4c0 7.7-5.3 17.2-13.2 17.2S10.8 30.1 10.8 22.4Z"
+        d="M18.5 18.3C10.9 16.5 5.6 11.8 3.2 4.6c8.8.1 15.8 4.5 19.2 12.1M29.5 18.3c7.6-1.8 12.9-6.5 15.3-13.7-8.8.1-15.8 4.5-19.2 12.1"
         fill="currentColor"
       />
-      <path d="M15.5 21.6c2.2-1.4 4.5-.9 5.8.8M26.7 22.4c1.3-1.7 3.6-2.2 5.8-.8" stroke="#f5f3ee" strokeWidth="2.6" strokeLinecap="round" />
+      <path
+        d="M15.3 18.1C11 14.9 8.3 10.9 7.1 6.2M32.7 18.1c4.3-3.2 7-7.2 8.2-11.9"
+        stroke="#f5f3ee"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+      <path
+        d="M10.2 23.4c0-8.9 6.2-14.5 13.8-14.5s13.8 5.6 13.8 14.5c0 8.2-5.4 16.5-13.8 16.5S10.2 31.6 10.2 23.4Z"
+        fill="currentColor"
+      />
+      <path
+        d="M16.3 22.9c2.4-2.3 5-2.3 6.4-.2M25.3 22.7c1.4-2.1 4-2.1 6.4.2"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M16.3 22.9c2.4-2.3 5-2.3 6.4-.2M25.3 22.7c1.4-2.1 4-2.1 6.4.2"
+        stroke="#f5f3ee"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
       <ellipse cx="24" cy="31.3" rx="8.5" ry="6.5" fill="#f5f3ee" opacity="0.92" />
       <circle cx="20.5" cy="30.8" r="1.5" fill="currentColor" />
       <circle cx="27.5" cy="30.8" r="1.5" fill="currentColor" />
       <path d="M20.7 35.1c2 1.8 4.6 1.8 6.6 0" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M24 37.2c0 2.3-3.7 2.3-3.7 0 0-1.8 2-2.8 3.7-1M24 37.2c0 2.3 3.7 2.3 3.7 0 0-1.8-2-2.8-3.7-1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M24 36.5c0 2.5-4.1 2.5-4.1 0 0-1.8 2.2-2.8 4.1-1M24 36.5c0 2.5 4.1 2.5 4.1 0 0-1.8-2.2-2.8-4.1-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
