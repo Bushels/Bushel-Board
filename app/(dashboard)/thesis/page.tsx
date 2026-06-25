@@ -2170,13 +2170,18 @@ function signedPctText(value: number | null): string {
 function MarketBearIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
-      <circle cx="17.1" cy="13.2" r="3.1" fill="currentColor" />
-      <circle cx="30.2" cy="13.2" r="3.1" fill="currentColor" />
-      <path d="M10 26c0-7.8 6.2-13.4 14.4-13.4h5.4c5.1 0 8.9 3.5 8.9 8.2v3.4c0 3.6-2.5 6.4-6.3 7.3l-1.1 5.4h-5.8l-.7-4.7H17l-1 4.7h-5.7l1.2-6.4A9.5 9.5 0 0 1 10 26Z" fill="currentColor" />
-      <path d="M11.4 18.7c-2.7-.4-4.9 1.4-5.6 4.1 2.6.8 4.9.1 6.6-1.8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M36.3 20.8h4.9M39.8 18.4l2.8-2M39.8 23.3l2.8 2" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx="32.9" cy="20.4" r="1.2" fill="#f5f3ee" />
-      <path d="M25.8 24.5c1.4 1.7 3.7 1.9 5.2.2" stroke="#f5f3ee" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="14.5" cy="14.5" r="7.1" fill="currentColor" />
+      <circle cx="33.5" cy="14.5" r="7.1" fill="currentColor" />
+      <path
+        d="M8.8 27.1c0-10 6.8-16.9 15.2-16.9s15.2 6.9 15.2 16.9c0 8.8-6.1 14.7-15.2 14.7S8.8 35.9 8.8 27.1Z"
+        fill="currentColor"
+      />
+      <ellipse cx="24" cy="30.6" rx="9.4" ry="7.2" fill="#f5f3ee" opacity="0.92" />
+      <circle cx="18.5" cy="24" r="2" fill="#f5f3ee" />
+      <circle cx="29.5" cy="24" r="2" fill="#f5f3ee" />
+      <path d="M20.4 31.1c2.2 2 5 2 7.2 0" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M24 28.6v3" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+      <path d="M21.2 28.1c1.4-1.1 4.2-1.1 5.6 0-1.1 1.8-4.5 1.8-5.6 0Z" fill="currentColor" />
     </svg>
   );
 }
@@ -2184,11 +2189,23 @@ function MarketBearIcon({ className }: { className?: string }) {
 function MarketBullIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
-      <path d="M9.4 27.4c0-7.1 5.8-12.1 13.7-12.1h6.2c6.7 0 11.4 4.4 11.4 10.4 0 4.8-3 8.4-7.8 9.6l-.9 5.1h-5.8l-.7-4.4h-9.1l-.9 4.4H9.8l1.1-6.2a11.7 11.7 0 0 1-1.5-6.8Z" fill="currentColor" />
-      <path d="M17.1 17.1C12.4 14.4 10 10.5 9.8 5.8c5.3.8 9 3.4 11.1 7.8M31.1 17.1c4.7-2.7 7.1-6.6 7.3-11.3-5.3.8-9 3.4-11.1 7.8" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M33.6 23.4h5.9M36.6 20.6l3.2-2.4M36.6 26.2l3.2 2.4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-      <circle cx="31.4" cy="23.3" r="1.2" fill="#f5f3ee" />
-      <path d="M24 27.2c1.7 1.2 4.1 1.2 5.9 0" stroke="#f5f3ee" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M17.5 17.4C10.1 16.2 5.6 11.6 4.9 4.7c7.8 1 13.2 4.8 15.5 11M30.5 17.4c7.4-1.2 11.9-5.8 12.6-12.7-7.8 1-13.2 4.8-15.5 11"
+        stroke="currentColor"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.8 22.4c0-8.1 5.9-13.4 13.2-13.4s13.2 5.3 13.2 13.4c0 7.7-5.3 17.2-13.2 17.2S10.8 30.1 10.8 22.4Z"
+        fill="currentColor"
+      />
+      <path d="M15.5 21.6c2.2-1.4 4.5-.9 5.8.8M26.7 22.4c1.3-1.7 3.6-2.2 5.8-.8" stroke="#f5f3ee" strokeWidth="2.6" strokeLinecap="round" />
+      <ellipse cx="24" cy="31.3" rx="8.5" ry="6.5" fill="#f5f3ee" opacity="0.92" />
+      <circle cx="20.5" cy="30.8" r="1.5" fill="currentColor" />
+      <circle cx="27.5" cy="30.8" r="1.5" fill="currentColor" />
+      <path d="M20.7 35.1c2 1.8 4.6 1.8 6.6 0" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M24 37.2c0 2.3-3.7 2.3-3.7 0 0-1.8 2-2.8 3.7-1M24 37.2c0 2.3 3.7 2.3 3.7 0 0-1.8-2-2.8-3.7-1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
