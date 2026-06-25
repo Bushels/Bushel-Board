@@ -2439,6 +2439,46 @@ function wheatReadOutcomeLabel(lane: WheatVisualLaneRow): string {
   return "Neutral";
 }
 
+function wheatDriverCompactTitle(lane: WheatVisualLaneRow): string {
+  if (lane.id === "weather") return "Crop / Weather";
+  if (lane.id === "movement") return "Movement";
+  if (lane.id === "positioning") return "Funds";
+  return lane.title;
+}
+
+function wheatDriverToneClass(score: number): string {
+  if (score < -3) return "border-orange-600/25 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+  if (score > 3) return "border-prairie/25 bg-prairie/10 text-prairie";
+  return "border-border bg-background/80 text-muted-foreground";
+}
+
+function wheatDriverFillClass(score: number): string {
+  if (score < -3) return "bg-orange-600";
+  if (score > 3) return "bg-prairie";
+  return "bg-muted-foreground/40";
+}
+
+function wheatDriverFillStyle(score: number): React.CSSProperties {
+  const width = Math.min(50, Math.abs(score) * 2.5);
+  return {
+    left: `${score < 0 ? 50 - width : 50}%`,
+    width: `${width}%`,
+  };
+}
+
+function wheatPriorityLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
+  return [...wheatVisualLaneRows(row)]
+    .filter((lane) => lane.id !== "watch")
+    .sort((left, right) => {
+      const scoreDelta = Math.abs(right.score) - Math.abs(left.score);
+      if (scoreDelta !== 0) return scoreDelta;
+      if (left.impact && !right.impact) return -1;
+      if (!left.impact && right.impact) return 1;
+      return left.title.localeCompare(right.title);
+    })
+    .slice(0, 3);
+}
+
 function wheatStanceToneClass(score: number): string {
   if (score < 0) return "text-orange-700 dark:text-orange-300";
   if (score > 0) return "text-prairie";
@@ -2502,9 +2542,9 @@ function WheatStanceMeter({
   ];
 
   return (
-    <div className="grid min-w-0 max-w-full grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 pt-6">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-600/35 bg-orange-500/10 text-orange-700 shadow-sm dark:text-orange-300">
-        <MarketBearIcon className="h-7 w-7" />
+    <div className="grid min-w-0 max-w-full grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2 pt-5 sm:grid-cols-[44px_minmax(0,1fr)_44px] sm:gap-3 sm:pt-6">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-600/35 bg-orange-500/10 text-orange-700 shadow-sm dark:text-orange-300 sm:h-11 sm:w-11">
+        <MarketBearIcon className="h-6 w-6 sm:h-7 sm:w-7" />
       </span>
       <div className="min-w-0">
         <div
@@ -2517,7 +2557,7 @@ function WheatStanceMeter({
           <span className="absolute left-1/2 top-0 h-full w-px bg-background/90" aria-hidden="true" />
           <span
             className={cn(
-              "absolute -top-7 -translate-x-1/2 rounded-md px-2.5 py-1 text-sm font-semibold text-white shadow-sm",
+              "absolute -top-6 -translate-x-1/2 rounded-md px-2 py-0.5 text-xs font-semibold text-white shadow-sm sm:-top-7 sm:px-2.5 sm:py-1 sm:text-sm",
               score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-600" : "bg-foreground",
             )}
             style={{ left: `${pressurePosition}%` }}
@@ -2541,9 +2581,60 @@ function WheatStanceMeter({
           <span>100%</span>
         </div>
       </div>
-      <span className="flex h-11 w-11 items-center justify-center rounded-full border border-prairie/35 bg-prairie/10 text-prairie shadow-sm">
-        <MarketBullIcon className="h-7 w-7" />
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-prairie/35 bg-prairie/10 text-prairie shadow-sm sm:h-11 sm:w-11">
+        <MarketBullIcon className="h-6 w-6 sm:h-7 sm:w-7" />
       </span>
+    </div>
+  );
+}
+
+function WheatTopDriversStrip({ row }: { row: ThesisComparisonRow }) {
+  const drivers = wheatPriorityLaneRows(row);
+
+  return (
+    <div className="min-w-0" aria-labelledby="wheat-top-drivers-heading">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p id="wheat-top-drivers-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Top pressure drivers
+        </p>
+        <p className="hidden text-[11px] font-medium text-muted-foreground sm:block">Proof rows below</p>
+      </div>
+      <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
+        {drivers.map((lane) => {
+          const Icon = lane.icon;
+          const SignalIcon = lane.score < -3 ? TrendingDown : lane.score > 3 ? TrendingUp : Info;
+          return (
+            <div
+              key={lane.id}
+              className={cn(
+                "min-w-[10.75rem] snap-start rounded-lg border px-3 py-2 shadow-sm sm:min-w-0",
+                wheatDriverToneClass(lane.score),
+              )}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-current/20 bg-background/70">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-5 text-foreground">{wheatDriverCompactTitle(lane)}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold">
+                    <SignalIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>{wheatReadOutcomeLabel(lane)}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                <span className="absolute left-1/2 top-0 h-full w-px bg-background" />
+                <span
+                  className={cn("absolute top-0 h-full rounded-full", wheatDriverFillClass(lane.score))}
+                  style={wheatDriverFillStyle(lane.score)}
+                />
+              </div>
+              <p className="mt-2 line-clamp-1 text-[11px] leading-4 text-muted-foreground">{lane.evidence}</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2566,11 +2657,11 @@ function WheatDecisionBoard({
   const StanceIcon = isBull ? TrendingUp : isBear ? TrendingDown : Info;
 
   return (
-    <div className="relative min-w-0 max-w-full overflow-hidden rounded-xl border border-canola/35 bg-background p-4 shadow-[0_18px_55px_-42px_rgba(42,38,30,0.9)] sm:p-6">
-      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 text-canola opacity-[0.055]" aria-hidden="true" />
-      <div className="relative grid gap-5 lg:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.28fr)] lg:items-center">
+    <div className="relative min-w-0 max-w-full overflow-hidden rounded-lg border border-canola/35 bg-background p-3 shadow-[0_18px_55px_-42px_rgba(42,38,30,0.9)] sm:rounded-xl sm:p-6">
+      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 hidden h-36 w-36 text-canola opacity-[0.055] sm:block" aria-hidden="true" />
+      <div className="relative grid gap-4 lg:grid-cols-[minmax(230px,0.68fr)_minmax(0,1.32fr)] lg:items-center">
         <div className="min-w-0 border-border/80 lg:border-r lg:pr-7">
-          <div className="mb-3 flex min-w-0 max-w-full flex-wrap items-center gap-2">
+          <div className="mb-2 flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:mb-3">
             <Badge variant="outline" className="max-w-full border-canola/35 bg-canola/10 text-canola">
               Wheat Bull/Bear
             </Badge>
@@ -2580,12 +2671,12 @@ function WheatDecisionBoard({
           </div>
           <h1
             id="wheat-decision-heading"
-            className="font-display text-5xl font-semibold leading-none text-foreground sm:text-6xl md:text-7xl"
+            className="font-display text-4xl font-semibold leading-none text-foreground sm:text-6xl md:text-7xl"
           >
             <span aria-hidden="true">Wheat</span>
             <span className="sr-only">Wheat Bull/Bear decision surface</span>
           </h1>
-          <div className="mt-5">
+          <div className="mt-4 sm:mt-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Current stance
             </p>
@@ -2615,7 +2706,7 @@ function WheatDecisionBoard({
         </div>
 
         <div className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
                 Thesis confidence / pressure
@@ -2643,18 +2734,19 @@ function WheatDecisionBoard({
         </div>
       </div>
 
-      <div className="mt-4 border-t border-border/80 pt-3">
-        <div className="flex min-w-0 flex-col gap-3 rounded-lg bg-canola/8 p-3 sm:flex-row sm:items-center">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-canola/25 bg-canola/12 text-canola">
+      <div className="mt-3 grid gap-3 border-t border-border/80 pt-3 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-center">
+        <div className="flex min-w-0 gap-3 rounded-lg bg-canola/8 p-3">
+          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-canola/25 bg-canola/12 text-canola sm:flex">
             <Flag className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <p className="break-words text-sm font-medium leading-6 text-foreground">{wheatTopReadSentence(safeScore)}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
               {action.detail} Source context and local movement sit below the visual read.
             </p>
           </div>
         </div>
+        <WheatTopDriversStrip row={row} />
       </div>
     </div>
   );

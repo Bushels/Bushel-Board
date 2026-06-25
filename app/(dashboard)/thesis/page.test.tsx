@@ -1060,6 +1060,8 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Thesis confidence");
     expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain("Source coverage: Canada + US");
+    expect(html).toContain("Top pressure drivers");
+    expect(html).toContain("Proof rows below");
     expect(html).toContain("Reconciliation judge");
     expect(html).toContain("Deciding datum");
     expect(html).toContain("+15 weighted points from CGC weekly grain stats");
