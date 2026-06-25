@@ -1060,6 +1060,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Thesis confidence");
     expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain("Source coverage: Canada + US");
+    expect(html).toContain("High conviction: fresh sources are lined up");
     expect(html).toContain("Top pressure drivers");
     expect(html).toContain("Proof rows below");
     expect(html).toContain("Reconciliation judge");
@@ -1102,6 +1103,9 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Source (what we watch)");
     expect(html).toContain("Crop Condition / Weather");
     expect(html).toContain("Demand / Exports");
+    expect(html).toContain("<details");
+    expect(html).toContain("What this means");
+    expect(html).toContain("Score effect");
     expect(html).toContain("Price basket proof");
     expect(html).toContain("Spring Wheat / HRW / SRW confirmation");
     expect(html).toContain("All reported contracts bearish");

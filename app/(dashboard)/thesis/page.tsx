@@ -1523,6 +1523,19 @@ function wheatConfidenceDisplay(confidence: number): string {
   return `${confidence}% confidence`;
 }
 
+function wheatConfidenceExplanation(confidence: number): string {
+  if (confidence <= 15) {
+    return "Low conviction: the board has a lean, but fresh sources do not agree strongly enough to give it much weight.";
+  }
+  if (confidence <= 45) {
+    return "Moderate-low conviction: the board has a directional read, but source agreement is still mixed.";
+  }
+  if (confidence <= 70) {
+    return "Medium conviction: the read has usable source agreement, but it still needs confirmation.";
+  }
+  return "High conviction: fresh sources are lined up enough for the read to carry more weight.";
+}
+
 function wheatCoverageLabel(row: ThesisComparisonRow): string {
   if (row.canada && row.us) return "Canada + US";
   if (row.canada) return "Canada only";
@@ -2156,26 +2169,26 @@ function signedPctText(value: number | null): string {
 
 function MarketBearIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={className} fill="none" aria-hidden="true">
-      <path
-        d="M5 17.8c0-4.7 3.7-8.2 8.8-8.2h5.3c3.9 0 6.9 2.6 6.9 6.1v1.5c0 1.5-.9 2.7-2.2 3.2l-1.7.6-.8 4.1h-3.1l-.5-3.2h-8l-.8 3.2H5.8l.9-4.8A5 5 0 0 1 5 17.8Z"
-        fill="currentColor"
-      />
-      <path d="M21.8 10.2 25 7.8l.8 4.1M9.7 10.6 7.4 7.8l-.9 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="23.7" cy="15.1" r="0.9" fill="#f5f3ee" />
+    <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
+      <circle cx="17.1" cy="13.2" r="3.1" fill="currentColor" />
+      <circle cx="30.2" cy="13.2" r="3.1" fill="currentColor" />
+      <path d="M10 26c0-7.8 6.2-13.4 14.4-13.4h5.4c5.1 0 8.9 3.5 8.9 8.2v3.4c0 3.6-2.5 6.4-6.3 7.3l-1.1 5.4h-5.8l-.7-4.7H17l-1 4.7h-5.7l1.2-6.4A9.5 9.5 0 0 1 10 26Z" fill="currentColor" />
+      <path d="M11.4 18.7c-2.7-.4-4.9 1.4-5.6 4.1 2.6.8 4.9.1 6.6-1.8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M36.3 20.8h4.9M39.8 18.4l2.8-2M39.8 23.3l2.8 2" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="32.9" cy="20.4" r="1.2" fill="#f5f3ee" />
+      <path d="M25.8 24.5c1.4 1.7 3.7 1.9 5.2.2" stroke="#f5f3ee" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
 
 function MarketBullIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={className} fill="none" aria-hidden="true">
-      <path
-        d="M7 18.5c0-3.9 3.2-6.8 7.4-6.8h5.2c4.2 0 7.4 2.9 7.4 6.8 0 3.2-2.2 5.6-5.5 6.3l-.6 2.7h-3.1l-.5-2.4h-7.1l-.6 2.4H6.5l.8-3.5A6.6 6.6 0 0 1 7 18.5Z"
-        fill="currentColor"
-      />
-      <path d="M10.2 12.4C8.2 10.4 7.1 8.2 7 5.8c2.9.6 5.1 1.9 6.5 3.9M21.8 12.4c2-2 3.1-4.2 3.2-6.6-2.9.6-5.1 1.9-6.5 3.9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="22.5" cy="17.4" r="0.8" fill="#f5f3ee" />
+    <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
+      <path d="M9.4 27.4c0-7.1 5.8-12.1 13.7-12.1h6.2c6.7 0 11.4 4.4 11.4 10.4 0 4.8-3 8.4-7.8 9.6l-.9 5.1h-5.8l-.7-4.4h-9.1l-.9 4.4H9.8l1.1-6.2a11.7 11.7 0 0 1-1.5-6.8Z" fill="currentColor" />
+      <path d="M17.1 17.1C12.4 14.4 10 10.5 9.8 5.8c5.3.8 9 3.4 11.1 7.8M31.1 17.1c4.7-2.7 7.1-6.6 7.3-11.3-5.3.8-9 3.4-11.1 7.8" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M33.6 23.4h5.9M36.6 20.6l3.2-2.4M36.6 26.2l3.2 2.4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+      <circle cx="31.4" cy="23.3" r="1.2" fill="#f5f3ee" />
+      <path d="M24 27.2c1.7 1.2 4.1 1.2 5.9 0" stroke="#f5f3ee" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -2731,6 +2744,9 @@ function WheatDecisionBoard({
             </Badge>
             <span>Source coverage: {wheatCoverageLabel(row)}</span>
           </div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {wheatConfidenceExplanation(safeConfidence)}
+          </p>
         </div>
       </div>
 
@@ -3458,8 +3474,8 @@ function WheatVisualPressureMeter({ score }: { score: number }) {
   ];
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden">
-      <div className="relative grid h-3 grid-cols-9 gap-1" aria-label={`Wheat pressure score ${score}`}>
+    <span className="block min-w-0 max-w-full overflow-hidden">
+      <span className="relative grid h-3 grid-cols-9 gap-1" aria-label={`Wheat pressure score ${score}`}>
         {segments.map((className, index) => (
           <span key={index} className={cn("h-full rounded-sm", className)} aria-hidden="true" />
         ))}
@@ -3468,12 +3484,44 @@ function WheatVisualPressureMeter({ score }: { score: number }) {
           style={{ left: `calc(${position}% - 0.125rem)` }}
           aria-hidden="true"
         />
-      </div>
-      <p className={cn("mt-2 text-xs font-semibold", wheatPressureReadClass(score))}>
+      </span>
+      <span className={cn("mt-2 block text-xs font-semibold", wheatPressureReadClass(score))}>
         {wheatPressureReadLabel(score)}
-      </p>
-    </div>
+      </span>
+    </span>
   );
+}
+
+function wheatLaneExpansionCopy(lane: WheatVisualLaneRow): string {
+  if (lane.id === "weather") {
+    return "Crop condition and weather are early supply clues. They matter most when poor condition, harvest delays, or moisture stress are confirmed by later balance-sheet, export, or price data.";
+  }
+  if (lane.id === "supply") {
+    return "Supply rows anchor the bear side when stocks, carryout, or production leave enough grain available. Tightening stocks or a production shock would move this lane toward bull support.";
+  }
+  if (lane.id === "demand") {
+    return "Demand rows test whether buyers are absorbing Wheat fast enough. Strong export sales or shipment pace can offset supply pressure, but demand does not overrule fresh supply risk by itself.";
+  }
+  if (lane.id === "movement") {
+    return "Movement rows show whether grain is actually flowing through country elevators, rail, terminals, and ports. Slow flow can weaken demand proof even when sales look supportive.";
+  }
+  if (lane.id === "price") {
+    return "Price and currency are confirmation. If futures and basis agree with the official data, confidence rises; if price fights the data, the board should stay cautious.";
+  }
+  if (lane.id === "positioning") {
+    return "Positioning is timing and crowding context. It can warn about short-covering or liquidation risk, but fundamentals still decide the main direction.";
+  }
+  return "Watch leads tell the desk what to inspect next. They do not move the Wheat read unless tied back to an admitted official or market source.";
+}
+
+function wheatLaneScoreCopy(lane: WheatVisualLaneRow): string {
+  const direction =
+    lane.score < -3
+      ? "bearish pressure"
+      : lane.score > 3
+        ? "bullish support"
+        : "near neutral pressure";
+  return `${signedNumber(lane.score)} points of ${direction}.`;
 }
 
 function WheatPressureDecisionMatrix({ row }: { row: ThesisComparisonRow }) {
@@ -3491,52 +3539,70 @@ function WheatPressureDecisionMatrix({ row }: { row: ThesisComparisonRow }) {
           const Icon = lane.icon;
           const ReadIcon = lane.score < -3 ? TrendingDown : lane.score > 3 ? TrendingUp : Info;
           return (
-            <div
+            <details
               key={lane.id}
-              className="grid min-w-0 gap-3 px-4 py-3 md:grid-cols-[1.2fr_1fr_0.8fr] md:items-center md:px-5"
+              className="group"
             >
-              <div className="flex min-w-0 max-w-full gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-canola/20 bg-background text-prairie">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
+              <summary className="grid min-w-0 cursor-pointer list-none gap-3 px-4 py-3 transition-colors hover:bg-canola/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canola/45 md:grid-cols-[1.2fr_1fr_0.8fr] md:items-center md:px-5 [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 max-w-full gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-canola/20 bg-background text-prairie">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="break-words font-semibold text-foreground">{lane.title}</span>
+                      {lane.impact ? (
+                        <Badge variant="outline" className="border-orange-600/25 bg-orange-500/10 text-[10px] text-orange-700 dark:text-orange-300">
+                          {lane.impact}
+                        </Badge>
+                      ) : null}
+                    </span>
+                    <span className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{lane.evidence}</span>
+                    <span className="mt-1 line-clamp-1 break-words text-[11px] leading-4 text-muted-foreground">
+                      {lane.sources.length ? lane.sources.map(sourceDisplayName).join(" + ") : lane.detail}
+                    </span>
+                  </span>
                 </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="break-words font-semibold text-foreground">{lane.title}</p>
-                    {lane.impact ? (
-                      <Badge variant="outline" className="border-orange-600/25 bg-orange-500/10 text-[10px] text-orange-700 dark:text-orange-300">
-                        {lane.impact}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{lane.evidence}</p>
-                  <p className="mt-1 line-clamp-1 break-words text-[11px] leading-4 text-muted-foreground">
-                    {lane.sources.length ? lane.sources.map(sourceDisplayName).join(" + ") : lane.detail}
+                <span className="min-w-0">
+                  <WheatVisualPressureMeter score={lane.score} />
+                </span>
+                <span className="flex min-w-0 items-center justify-between gap-3 border-t border-border pt-2 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <ReadIcon
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        lane.score < -3
+                          ? "text-orange-700 dark:text-orange-300"
+                          : lane.score > 3
+                            ? "text-prairie"
+                            : "text-muted-foreground",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className={cn("text-sm font-semibold leading-5", wheatPressureReadClass(lane.score))}>
+                      {wheatReadOutcomeLabel(lane)}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t border-border/70 bg-card/55 px-4 py-3 text-sm leading-6 md:grid-cols-[1.2fr_1fr_0.8fr] md:px-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What this means</p>
+                  <p className="mt-1 text-foreground">{wheatLaneExpansionCopy(lane)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Score effect</p>
+                  <p className={cn("mt-1 font-semibold", wheatPressureReadClass(lane.score))}>{wheatLaneScoreCopy(lane)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sources</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {lane.sources.length ? lane.sources.map(sourceDisplayName).join(", ") : lane.detail}
                   </p>
                 </div>
               </div>
-              <div className="min-w-0">
-                <WheatVisualPressureMeter score={lane.score} />
-              </div>
-              <div className="flex min-w-0 items-center justify-between gap-3 border-t border-border pt-2 md:border-l md:border-t-0 md:pl-5 md:pt-0">
-                <div className="flex min-w-0 items-center gap-3">
-                  <ReadIcon
-                    className={cn(
-                      "h-4 w-4 shrink-0",
-                      lane.score < -3
-                        ? "text-orange-700 dark:text-orange-300"
-                        : lane.score > 3
-                          ? "text-prairie"
-                          : "text-muted-foreground",
-                    )}
-                    aria-hidden="true"
-                  />
-                  <p className={cn("text-sm font-semibold leading-5", wheatPressureReadClass(lane.score))}>
-                    {wheatReadOutcomeLabel(lane)}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </div>
-            </div>
+            </details>
           );
         })}
       </div>
