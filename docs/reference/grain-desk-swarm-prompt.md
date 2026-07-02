@@ -2,8 +2,9 @@
 
 > **Purpose:** This is the Friday evening Claude Desktop Routine prompt for the CAD grain desk. It IS the desk chief.
 > Saved here for version control — the actual Routine reads this prompt.
-> **Trigger:** Claude Desktop Routine / Schedule `grain-desk-weekly` — NOT Vercel cron, NOT Grok, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
-> **Schedule:** Friday 6:47 PM ET (`47 18 * * 5`)
+> **Trigger:** Scheduled task `grain-desk-weekly` (Claude scheduled-task runner / Desktop Routine) — NOT Vercel cron, NOT Grok, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
+> **Schedule:** Friday 6:47 PM MT (`47 18 * * 5`, machine-local time)
+> **Data plane:** ALL Supabase reads and writes go through the headless service-role desk CLI — `npm run desk:cad -- <command>` (`scripts/desk/desk-cli.ts`) — invoked via the Bash tool from the repo root `C:\Users\kyle\Agriculture\bushel-board-app`. Supabase MCP is NOT available in this runner (returns -32600) and must not be assumed anywhere in the swarm. Commands: `preflight | resolve | read | knowledge | write | fail | postcheck` (see `--help`). Never interpolate free text (tweet content, error dumps) into inline `--args`/`--details` JSON — write a scratch file or use `--details -` (stdin) instead; broken shell quoting around untrusted text is an injection path.
 > **Model:** Opus-class only (`claude-opus-4-8` or a newer Opus-generation flagship) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class model so a routine model refresh cannot silently kill the Friday desk.
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and
 > author farmer-facing prose. If this task fires under any other model, abort in Phase 0.
@@ -19,33 +20,23 @@ Before dispatching any agents, verify your model and establish the current data 
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as Sonnet, Haiku, or any other non-Opus-class model, write a failure row and abort immediately:
+Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as Sonnet, Haiku, or any other non-Opus-class model, log the failure via the desk CLI and abort immediately:
 
-```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES (
-  (SELECT crop_year FROM cgc_observations ORDER BY imported_at DESC LIMIT 1),
-  (SELECT MAX(grain_week) FROM cgc_observations),
-  'failed',
-  'cron',
-  '{"reason": "Chief dispatched under wrong model — Opus-class required", "required_model": "opus-class", "routine": "grain-desk-weekly"}'::jsonb
-);
+```powershell
+npm run desk:cad -- fail --reason "wrong_model_not_opus" --details '{"required_model": "opus-class"}'
 ```
 
-> **`triggered_by` CHECK trap:** `pipeline_runs.triggered_by` only allows `manual | cron | retry`. Scheduled routine runs MUST use `'cron'` and carry the routine name inside `failure_details`/JSON instead. Inserting `'grain-desk-weekly'` violates the CHECK, the failure row never lands, and the run dies with zero trace.
+> The CLI resolves crop_year/grain_week itself and writes the `pipeline_runs` failure row schema-safely (`triggered_by='cron'` — the CHECK only allows `manual | cron | retry` — with the routine name inside `failure_details`). Never hand-roll this insert.
 
 Do not proceed with the swarm under any non-Opus model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
 
-**Step 0.1:** Query Supabase MCP to find the current grain week and crop year:
+**Step 0.1:** Resolve the current grain week, crop year, and upstream freshness in one call (Bash, from the repo root):
 
-```sql
-SELECT MAX(grain_week) as current_week, crop_year
-FROM cgc_observations
-WHERE crop_year = (SELECT MAX(crop_year) FROM cgc_observations)
-GROUP BY crop_year;
+```powershell
+npm run desk:cad -- preflight
 ```
 
-Record `current_week` and `crop_year`. All agents will use these values.
+`preflight` resolves `current_week` + `crop_year` from `cgc_observations`, evaluates the Step 0.3 freshness SLAs, and prints a JSON context object. **If it exits non-zero, ABORT the swarm immediately** — it has already written the `pipeline_runs` failure row itself. Record `current_week` (`context.grain_week`) and `crop_year` from the output. All agents will use these values.
 
 **Step 0.2:** Define the grain list (all 16 CGC grains — use these EXACT names; any other spelling silently misses Supabase lookups):
 
@@ -60,17 +51,7 @@ Lentils, Mustard Seed, Oats, Peas, Rye, Soybeans, Sunflower, Wheat
 
 **Step 0.3 — Data freshness guardrail (FAIL-LOUD):**
 
-Check freshness of the three upstream data sources the swarm depends on. If ANY is stale beyond its SLA, abort the swarm and write a failure row. Silent stale runs are worse than no run.
-
-```sql
-SELECT
-  (SELECT MAX(imported_at) FROM cgc_imports) AS cgc_last_import,
-  (SELECT MAX(imported_at) FROM cftc_cot_positions) AS cot_last_import,
-  (SELECT MAX(price_date) FROM grain_prices) AS price_last_settlement,
-  EXTRACT(EPOCH FROM (NOW() - (SELECT MAX(imported_at) FROM cgc_imports)))/86400 AS cgc_age_days,
-  EXTRACT(EPOCH FROM (NOW() - (SELECT MAX(imported_at) FROM cftc_cot_positions)))/86400 AS cot_age_days,
-  (NOW()::date - (SELECT MAX(price_date) FROM grain_prices)) AS price_age_days;
-```
+The three upstream freshness SLAs below are evaluated automatically by `preflight` (Step 0.1; logic in `scripts/desk/freshness.ts` with tests in `lib/__tests__/desk-freshness.test.ts`). If ANY is stale beyond its SLA, preflight writes the failure row and exits 1 — abort the swarm. Silent stale runs are worse than no run.
 
 **SLAs — abort if breached:**
 
@@ -80,22 +61,9 @@ SELECT
 | CFTC COT (`cftc_cot_positions.imported_at`) | ≤ 8 days | Weekly COT release + 24h buffer |
 | Grain prices (`grain_prices.price_date`) | ≤ 4 calendar days | Accounts for weekends/holidays |
 
-If breached, write a failure row and stop:
+If breached, preflight has already written the `pipeline_runs` failure row (`reason: stale_upstream_data`, per-source ages, `breached_slas`) — do NOT write a second one; just stop and report which SLAs breached.
 
-```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'cron',
-  jsonb_build_object(
-    'routine', 'grain-desk-weekly',
-    'reason', 'stale_upstream_data',
-    'cgc_age_days', $3,
-    'cot_age_days', $4,
-    'price_age_days', $5,
-    'breached_slas', $6  -- array of source names
-  ));
-```
-
-If all three are within SLA, record the timestamps in the `metadata.data_freshness` object that is written with every grain's `market_analysis` row.
+If all three are within SLA, carry the per-source ages from the preflight JSON into the `llm_metadata.data_freshness` object that is written with every grain's `market_analysis` row.
 
 **Step 0.3.5 - Accepted X signal bundle (UNTRUSTED EVIDENCE):**
 
@@ -156,7 +124,10 @@ Each scout receives the same prompt structure:
 Analyze the following grains for crop year {crop_year}, data week {current_week}:
 {grain_list}
 
-Use the Supabase MCP (project: ibgsloyjxdopkvwqcqwh) to query all data sources listed in your agent definition. Return your findings as a JSON array with one object per grain.
+All DB access goes through the desk data CLI via the Bash tool, from the repo root (Supabase MCP is unavailable in this runner):
+- RPC read: npm run desk:cad -- read --rpc <fn> --args '{"p_grain":"Canola","p_crop_year":"{crop_year}"}'
+- Table/view read: npm run desk:cad -- read --table <name> [--select cols] [--eq col=val] [--order col.desc] [--limit N]
+Query all data sources listed in your agent definition. Return your findings as a JSON array with one object per grain.
 
 Important: Report data freshness for every source. Flag any data more than 1 week behind the current grain week.
 ```
@@ -225,7 +196,7 @@ Here are the compiled scout briefs for {current_week} grains in crop year {crop_
 
 Analyze each grain through your specialist lens. Return a JSON array with your stance_score, confidence, thesis, and recommendation per grain. Apply all Viking knowledge and debate rules specified in your agent definition.
 
-Use Supabase MCP (project: ibgsloyjxdopkvwqcqwh) to query get_knowledge_context for L2 book passages where relevant.
+Query Viking L2 book passages where relevant via the desk CLI (Bash, repo root): npm run desk:cad -- knowledge --query "<1-3 keywords>" --grain <Grain> --topics <a,b> --limit <n>.
 ```
 
 Spawn as:
@@ -271,11 +242,11 @@ Run the debate resolution protocol:
    - Rule 5: Never publish contradictions. You MUST resolve to a single direction.
    - Rule 12-14: Cash price is truth. If one analyst ignores the price action disconnect, their thesis is weakened.
 
-3. **Query L2 knowledge:** For divergent grains, call `get_knowledge_context` with:
-   - `p_query`: **1–3 tokenized keywords only, not a sentence.** The RPC uses `websearch_to_tsquery` AND semantics, so long prose queries silently return zero real hits and the framework meta-doc wins the priority tiebreaker. Use keywords like `"basis crush"`, `"managed money timing"`, `"terminal congestion"`, `"carry storage"`. Do NOT pass `"corn managed money single week vs trend timing"` — that will return garbage.
-   - `p_grain`: specific grain name (e.g. `'Canola'`) to filter to grain-specific chunks + untagged general chunks
-   - `p_topics`: a focused subset (1–3) of: `basis`, `hedging`, `futures`, `options`, `risk_management`, `storage`, `spreads`, `seasonality`, `exports`, `logistics`, `trade_policy`, `farmer_marketing`, `deliveries`, `crush`, `stocks`. Do NOT pass all topics — it weakens the boost.
-   - `p_limit`: 3–5 (max 12 enforced server-side)
+3. **Query L2 knowledge:** For divergent grains, query via `npm run desk:cad -- knowledge` (e.g. `npm run desk:cad -- knowledge --query "basis crush" --grain Canola --topics basis,crush --limit 5`) with:
+   - `--query`: **1–3 tokenized keywords only, not a sentence.** The RPC uses `websearch_to_tsquery` AND semantics, so long prose queries silently return zero real hits and the framework meta-doc wins the priority tiebreaker. Use keywords like `"basis crush"`, `"managed money timing"`, `"terminal congestion"`, `"carry storage"`. Do NOT pass `"corn managed money single week vs trend timing"` — that will return garbage.
+   - `--grain`: specific grain name (e.g. `Canola`) to filter to grain-specific chunks + untagged general chunks
+   - `--topics`: a focused comma-separated subset (1–3) of: `basis`, `hedging`, `futures`, `options`, `risk_management`, `storage`, `spreads`, `seasonality`, `exports`, `logistics`, `trade_policy`, `farmer_marketing`, `deliveries`, `crush`, `stocks`. Do NOT pass all topics — it weakens the boost.
+   - `--limit`: 3–5 (max 12 enforced server-side)
    - **Validation:** if all returned rows have `title = 'grain market intelligence framework v2'` and `rank < 0.5`, your query returned zero real Viking hits — retry with different keywords before citing L2 in your resolution.
 
 4. **Produce resolved score with reasoning:**
@@ -373,11 +344,8 @@ Before writing results, run a suspicion check on every grain. You are the chief 
 
 1. Re-query Viking L2 with the specific disagreement or anomaly. **Query keywords, not sentences** — follow the Phase 4.3 query rules above. For example, if the anomaly is "managed money one-week swing vs multi-week trend", pass `p_query = 'managed money trend'` with `p_topics = ARRAY['futures','risk_management']`. Never pass the full anomaly description as prose.
 2. Cross-check the last 4 weeks of `score_trajectory` for this grain:
-   ```sql
-   SELECT grain_week, stance_score, recommendation, scan_type, model_source
-   FROM score_trajectory
-   WHERE grain = $1 AND crop_year = $2
-   ORDER BY grain_week DESC LIMIT 4;
+   ```powershell
+   npm run desk:cad -- read --table score_trajectory --select grain_week,stance_score,recommendation,scan_type,model_source --eq grain={grain} --eq crop_year={crop_year} --order grain_week.desc --limit 4
    ```
 3. Name the specific piece of data that resolves (or deepens) the anomaly — in plain English
 4. Apply a confidence penalty of **-15** to the final `confidence_score`
@@ -452,7 +420,7 @@ Sizing rules (apply WITHIN the tier cap):
     "Managed money reducing longs (-8% OI)",
     "Vessel queue 18 (below avg — no congestion excuse)"
   ],
-  "historical_context": "Current week deliveries 12% below 5yr average. Stocks at lowest level since 2022-23 at this point in the crop year.",
+  "historical_context": { "deliveries_vs_5yr_avg_pct": -12, "seasonal_observation": "Stocks at lowest level since 2022-23 at this point in the crop year." },
   "model_used": "claude-agent-desk-v1-opus",
   "llm_metadata": {
     "scout_count": 6,
@@ -529,62 +497,58 @@ Before executing the UPSERT, hold all 16 proposed rows in memory and self-audit 
 
 If `batch_distribution` is skewed (≥13 in one direction), `batch_bias_justification` MUST be a plain-English reason (e.g. "USDA WASDE cut ending stocks across 5 commodities Friday, justifying broad bullish tilt"). Never leave it null when skewed.
 
-If any check fails and you cannot fix it, write a partial-failure row to `pipeline_runs` and abort the write:
+If any check fails and you cannot fix it, log the failure via the desk CLI and abort the write:
 
-```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'cron',
-  jsonb_build_object('routine', 'grain-desk-weekly', 'reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
+```powershell
+npm run desk:cad -- fail --reason "meta_review_failed" --details '{"checks_failed": ["..."], "affected_grains": ["..."]}'
 ```
 
-**Step 5.2:** Upsert to market_analysis via Supabase MCP.
+**Step 5.2:** Publish the batch via the desk CLI write envelope (replaces the old Steps 5.2–5.4 raw SQL, which required Supabase MCP and contained live schema bugs — e.g. a `pipeline_runs (source, metadata)` insert against columns that don't exist).
 
-> **Column-name trap:** the JSONB column on `market_analysis` is **`llm_metadata`** (NOT `metadata`). Verify against migration `20260312120000_market_analysis_table.sql` before editing this SQL.
->
-> **Track 46 persistence:** the chief's output includes `tier, compression_index, compression_class, rule_citations, active_thesis_killers, boundary_flag, basis_vetoed`. These are **not** top-level columns on `market_analysis` — they are columns on `unified_rankings` (see migration `20260419130000`). Nest them inside `llm_metadata.track_46 = { ... }` so (a) this UPSERT succeeds, and (b) the downstream Unifier phase can read them back out to build the weekly `unified_rankings` row.
+Assemble ONE JSON envelope containing all 16 rows and save it to `scratch/desk-cad-week{current_week}.json`:
 
-> **Bull/Bear reasoning write-contract:** `bull_reasoning` and `bear_reasoning` are JSONB `[{fact, reasoning}, ...]` arrays added in migration `20260415_add_bull_bear_reasoning.sql`. The overview MarketStance chart and the grain detail BullBearCards both call `coerceBullets()` in `lib/queries/market-stance.ts` — if these columns are empty the UI falls back to parsing `bull_case`/`bear_case` prose and the chief's structured output is lost. The UPSERT column list below MUST include both.
-
-```sql
-INSERT INTO market_analysis (grain, crop_year, grain_week, stance_score, confidence_score,
-  data_confidence, initial_thesis, bull_case, bear_case, bull_reasoning, bear_reasoning,
-  final_assessment, key_signals, historical_context, model_used, llm_metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16)
-ON CONFLICT (grain, crop_year, grain_week)
-DO UPDATE SET stance_score = EXCLUDED.stance_score, confidence_score = EXCLUDED.confidence_score,
-  data_confidence = EXCLUDED.data_confidence, initial_thesis = EXCLUDED.initial_thesis,
-  bull_case = EXCLUDED.bull_case, bear_case = EXCLUDED.bear_case,
-  bull_reasoning = EXCLUDED.bull_reasoning, bear_reasoning = EXCLUDED.bear_reasoning,
-  final_assessment = EXCLUDED.final_assessment, key_signals = EXCLUDED.key_signals,
-  historical_context = EXCLUDED.historical_context, model_used = EXCLUDED.model_used,
-  llm_metadata = EXCLUDED.llm_metadata, generated_at = now();
+```json
+{
+  "side": "cad",
+  "crop_year": "2025-2026",
+  "grain_week": 35,
+  "rows": [ { "...": "one object per grain — exactly the Step 5.1 shape, plus the trajectory anchor fields below" } ]
+}
 ```
 
-**Step 5.3:** Insert score_trajectory rows.
+Each row carries the Step 5.1 fields PLUS the `score_trajectory` anchor fields:
 
-> **Column-name trap:** the writer column on `score_trajectory` is **`model_source`** (NOT `model_used` — that's on `market_analysis`). The NOT NULL columns that must be populated on every row: `grain, crop_year, grain_week, scan_type, stance_score, recommendation, data_freshness, model_source`. Use the helper `buildWeeklyTrajectoryRow()` in `lib/trajectory-mapping.ts` as the source of truth for row shape — do not hand-roll.
+- `conviction_pct` — 0–100 int; the trajectory conviction (usually mirrors `confidence_score`)
+- `trigger` — one-line "why this stance changed" text
+- `evidence` — **STRING** (`score_trajectory.evidence` is a text column; structured evidence belongs in `llm_metadata`)
+- `data_freshness` — **OBJECT** (jsonb NOT NULL on `score_trajectory`; name the specific week/date per source, never "recent")
 
-```sql
-INSERT INTO score_trajectory (
-  grain, crop_year, grain_week, scan_type, stance_score,
-  conviction_pct, near_term, medium_term, recommendation,
-  trigger, evidence, data_freshness, model_source
-)
-VALUES
-  ('Canola',   '2025-2026', 35, 'weekly_debate', 15,
-   65, 'HOLD 2 WEEKS', 'PRICE_20PCT_IF_BASIS_NARROWS', 'HOLD 2 WEEKS',
-   'crush floor + export question', $1::jsonb, $2::jsonb, 'claude-agent-desk-v1-opus'),
-  -- repeat for the remaining 15 grains using the same 13-column shape
-  ;
+Contract notes the validator enforces for you (zod, `scripts/desk/schemas.ts` — a malformed row fails BEFORE any write):
+
+- `historical_context` is a JSONB **object** (see the Step 5.1 example), never a prose string.
+- The JSONB column on `market_analysis` is **`llm_metadata`** (NOT `metadata`).
+- **Track 46 persistence:** `stance_tier, compression_index, compression_class, rule_citations, active_thesis_killers, boundary_flag, basis_vetoed` are NOT top-level columns on `market_analysis` — nest them inside `llm_metadata.track_46 = { ... }` so the downstream Unifier phase can read them back.
+- **Bull/Bear reasoning write-contract:** `bull_reasoning`/`bear_reasoning` are JSONB `[{fact, reasoning}, ...]` arrays. The overview MarketStance chart and grain-detail BullBearCards call `coerceBullets()` in `lib/queries/market-stance.ts` — if these are empty the UI falls back to parsing prose and the chief's structured output is lost. Populate both on every row.
+- `score_trajectory` rows are built by `buildWeeklyTrajectoryRow()` (`lib/trajectory-mapping.ts`) — `recommendation`/`near_term`/`medium_term` are derived CHECK-constraint-valid from `stance_score`, `scan_type='weekly_debate'`, `model_source='claude-agent-desk-v1-opus'` (the trajectory writer column is `model_source`, not `model_used`). Do not hand-roll.
+
+Dry-run first (validates every row and prints the built DB rows — zero writes):
+
+```powershell
+npm run desk:cad -- write --input scratch/desk-cad-week{current_week}.json
 ```
 
-One row per grain, `scan_type = 'weekly_debate'`, `model_source = 'claude-agent-desk-v1-opus'`. `evidence` and `data_freshness` are JSONB; `trigger` is the one-line "why this stance changed" text; `recommendation` mirrors `final_assessment` or its short-form equivalent.
+Review the dry-run summary (expect 16 analysis rows + 16 trajectory rows). Then persist:
 
-**Step 5.4:** Log pipeline run:
+```powershell
+npm run desk:cad -- write --input scratch/desk-cad-week{current_week}.json --write
+```
 
-```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, source, metadata)
-VALUES ($1, $2, 'completed', 'claude-agent-desk', $3);
+The write performs, idempotently on re-run: (1) `market_analysis` UPSERT on `(grain, crop_year, grain_week)`; (2) `score_trajectory` DELETE+INSERT of this week's `scan_type='weekly_debate'` rows; (3) `pipeline_runs` completed row (`triggered_by='cron'`, routine name in JSON).
+
+Real writes are approval-gated (Track 54 human-approval discipline): the runner needs `DESK_WRITE_APPROVAL` in `.env.local` (or `--approve "<phrase>"`). **If write exits with code 3 (approval missing), log it and abort:**
+
+```powershell
+npm run desk:cad -- fail --reason "write_not_approved" --details '{"note": "DESK_WRITE_APPROVAL missing in runner env"}'
 ```
 
 ## Phase 6: Trigger Downstream
@@ -595,11 +559,13 @@ VALUES ($1, $2, 'completed', 'claude-agent-desk', $3);
 If personalized summaries are required, hand off to the Claude/Codex summary
 writer once that routine exists.
 
-**Step 6.2:** Trigger site health validation:
+**Step 6.2:** Post-run verification (Bash):
 
-```sql
-SELECT enqueue_internal_function('validate-site-health', '{"source": "grain-desk-swarm"}'::jsonb);
+```powershell
+npm run desk:postcheck
 ```
+
+Runs `check:desk-freshness` (should now report FRESH for the CAD desk) and force-refreshes `thesis_packet_cache` so `/thesis` serves the new stance immediately. If postcheck exits non-zero, report it loudly in the run summary — never swallow it.
 
 ## Phase 7: Cleanup and Report
 
@@ -626,5 +592,5 @@ TeamDelete()
 | All scouts fail for a grain | Skip that grain. Retain previous week's score. |
 | External search unavailable (macro-scout) | Proceed without external search, flag in metadata |
 | L2 knowledge query empty | Proceed with L0+L1 only |
-| Supabase MCP unavailable | Abort swarm, report error |
+| Desk CLI fails (missing `.env.local`/service key, preflight exit 1, or write exit 3) | Abort swarm; log via `npm run desk:cad -- fail` if possible, report error |
 | Divergence unresolvable | Use risk-analyst score (conservative), confidence = 40% |

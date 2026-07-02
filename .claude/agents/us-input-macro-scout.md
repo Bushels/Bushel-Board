@@ -29,9 +29,9 @@ Weekly pull of energy, fertilizer-feedstock, and input-cost price series with ge
 
 Claude's built-in `web_search_20250305` tool. Prefer official exchanges, trade publications (DTN, Fertecon, Green Markets), and government sources (EIA, USDA ERS).
 
-### 2. Supabase MCP — for price correlation checks
+### 2. Desk data CLI — for price correlation checks (service-role, read-only)
 
-Query `grain_prices` to confirm price-action is consistent with the input-cost story. Crude oil at $90+ AND soybean oil rallying is a consistent story; crude at $90 with flat bean oil is not.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Read `grain_prices` (`npm run desk:us -- read --table grain_prices --eq grain=<grain> --order price_date.desc --limit 10`) to confirm price-action is consistent with the input-cost story. Crude oil at $90+ AND soybean oil rallying is a consistent story; crude at $90 with flat bean oil is not.
 
 ## Query Budget Per Run
 

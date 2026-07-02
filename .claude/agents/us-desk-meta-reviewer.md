@@ -26,38 +26,29 @@ Three passes, in order:
 
 ## Inputs
 
-Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for:
+All DB reads go through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout. The metadata column on `us_market_analysis` is `llm_metadata` — there is no `metadata` column.
 
-**Current week's us_market_analysis rows:**
-```sql
-SELECT market_name, market_year, stance_score, confidence_score, data_confidence,
-       initial_thesis, bull_case, bear_case, final_assessment, key_signals,
-       metadata, generated_at
-FROM us_market_analysis
-WHERE market_year = (SELECT MAX(market_year) FROM us_market_analysis)
-  AND generated_at >= (CURRENT_DATE - INTERVAL '3 days')
-ORDER BY market_name;
+**Current week's us_market_analysis rows** (resolve the latest market_year first, then pull the batch):
+```bash
+# 1. latest market_year with desk output
+npm run desk:us -- read --table us_market_analysis --select market_year,generated_at --order generated_at.desc --limit 1
+# 2. this week's rows for that market_year (generated within the last 3 days)
+npm run desk:us -- read --table us_market_analysis --select market_name,market_year,stance_score,confidence_score,data_confidence,initial_thesis,bull_case,bear_case,final_assessment,key_signals,llm_metadata,generated_at --eq market_year=<year> --gte generated_at=<ISO date 3 days ago> --order market_name.asc
 ```
 
 **Two-weeks-prior review (for accuracy scorecard backfill):**
-```sql
-SELECT id, reviewed_market_year, review_week_ending,
-       bias_assessment, flagged_markets
-FROM us_desk_performance_reviews
-WHERE review_date = (CURRENT_DATE - INTERVAL '14 days')::date
-LIMIT 1;
+```bash
+npm run desk:us -- read --table us_desk_performance_reviews --select id,reviewed_market_year,review_week_ending,bias_assessment,flagged_markets --eq review_date=<date 14 days ago, YYYY-MM-DD> --limit 1
 ```
+> `us_desk_performance_reviews` is readable via the desk CLI (added to the read allow-list 2026-07-02). Only the WRITE of this week's review remains interactive — see the HEADLESS GAP note under Write Review.
 
-**Actual outcomes (for scorecard):** pull `us_score_trajectory`, `grain_prices` (for CBOT contracts), and `usda_export_sales` for the markets flagged two weeks ago to check what actually happened.
+**Actual outcomes (for scorecard):** pull `us_score_trajectory`, `grain_prices` (for CBOT contracts), and `usda_export_sales` via CLI table reads (e.g. `npm run desk:us -- read --table us_score_trajectory --eq crop_year=<crop_year> --eq market_name=<market> --order recorded_at.desc --limit 10`) for the markets flagged two weeks ago to check what actually happened.
 
 **Pipeline run metadata:**
-```sql
-SELECT market_year, status, source, metadata, triggered_by, created_at
-FROM pipeline_runs
-WHERE source = 'claude-agent-us-desk'
-ORDER BY created_at DESC
-LIMIT 3;
+```bash
+npm run desk:us -- read --table pipeline_runs --order started_at.desc --limit 3
 ```
+> `pipeline_runs` is readable via the desk CLI (added to the read allow-list 2026-07-02). The table has no `source`/`metadata`/`created_at` columns — order by `started_at`; US desk runs are identified by `failure_details.routine = 'us-desk-weekly'` and `triggered_by`.
 
 ## Audit Framework
 
@@ -157,6 +148,8 @@ Same standard as CAD meta-reviewer: concrete, actionable, names the agent/rule/t
 - "Add more data sources"
 
 ## Write Review
+
+> **⚠️ HEADLESS GAP:** this write path still assumes Supabase MCP and will fail in the scheduled-task runner (-32600). Run the Saturday review interactively (Claude Desktop with working MCP) until a review-writer CLI lands.
 
 Upsert to `us_desk_performance_reviews`:
 

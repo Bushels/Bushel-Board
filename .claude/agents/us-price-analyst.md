@@ -47,10 +47,11 @@ Price action rules (12–15):
 
 ## L2 Deep Knowledge
 
-For each market, query `get_knowledge_context` via Supabase MCP with:
-- query: "CBOT tape signal [market] OR crowded positioning"
-- topics: ["market_structure", "basis_pricing"]
-- limit: 3
+For each market, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:us -- knowledge --query "CBOT tape signal [market] OR crowded positioning" --topics market_structure,basis_pricing --limit 3
+```
 
 Apply any retrieved book passages to your thesis.
 

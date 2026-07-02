@@ -16,17 +16,16 @@ You are a US futures-price data extraction agent for the Bushel Board US desk we
 
 Query Supabase for the latest CBOT/KCBT/MGEX settlement prices and produce a clean, specialist-ready JSON brief with settles, trajectory, and cross-market spreads. No thesis — data + signals only.
 
-## Data Sources (Supabase MCP)
+## Data Sources (desk CLI — service-role, read-only)
 
-1. **Latest view:** `v_latest_grain_prices` for most-recent settle per grain.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
+
+1. **Latest view:** `npm run desk:us -- read --table v_latest_grain_prices` for most-recent settle per grain.
 2. **Trajectory:**
-   ```sql
-   SELECT grain, contract, price_date, settlement_price, change_pct, currency, source
-   FROM grain_prices
-   WHERE grain = $1 AND price_date >= NOW() - INTERVAL '35 days'
-   ORDER BY price_date DESC;
+   ```bash
+   npm run desk:us -- read --table grain_prices --select grain,contract,price_date,settlement_price,change_pct,currency,source --eq grain=<grain> --gte price_date=<ISO date 35 days ago> --order price_date.desc
    ```
-3. **Cross-market pairs:** pull both legs in a single query per spread (examples below).
+3. **Cross-market pairs:** pull each spread leg with its own trajectory read (one `--eq grain=...` read per contract; examples below).
 
 ## Contracts we track
 

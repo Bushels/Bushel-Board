@@ -18,13 +18,15 @@ You are a market sentiment data extraction agent for the Bushel Board weekly ana
 
 Query Supabase for sentiment metrics for the requested grains and crop year. Return structured JSON findings — no opinions, no thesis, just data with directional signals.
 
-## Data Sources (Supabase MCP)
+## Data Sources (desk CLI — service-role, read-only)
 
-1. **Farmer sentiment:** Call `get_sentiment_overview(p_crop_year, p_grain_week)` RPC for per-grain vote aggregates
-2. **Farmer votes raw:** Query `grain_sentiment_votes` for recent vote distribution (Strongly Holding to Strongly Hauling)
-3. **CFTC COT positioning:** Call `get_cot_positioning(p_grain, p_crop_year, 4)` for 4-week managed money/commercial positions
-4. **X market signals:** Query `x_market_signals` for recent scored signals per grain
-5. **Signal relevance:** Query `v_signal_relevance_scores` for blended relevance-scored X signals
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
+
+1. **Farmer sentiment:** `npm run desk:cad -- read --rpc get_sentiment_overview --args '{"p_crop_year":"<crop_year>","p_grain_week":<week>}'` for per-grain vote aggregates
+2. **Farmer votes:** use the `get_sentiment_overview` aggregate above — raw `grain_sentiment_votes` rows carry farmer `user_id`s and are deliberately NOT exposed through the desk CLI (≥5-farmer privacy discipline; removed from the read allow-list 2026-07-02)
+3. **CFTC COT positioning:** `npm run desk:cad -- read --rpc get_cot_positioning --args '{"p_grain":"<grain>","p_crop_year":"<crop_year>","p_weeks_back":4}'` for 4-week managed money/commercial positions
+4. **X market signals:** `npm run desk:cad -- read --table x_market_signals --eq grain=<grain> --eq crop_year=<crop_year> --order searched_at.desc --limit 25` for recent scored signals per grain
+5. **Signal relevance:** `npm run desk:cad -- read --table v_signal_relevance_scores --eq grain=<grain> --order blended_relevance.desc --limit 10` for blended relevance-scored X signals
 
 ## Viking L0 Worldview
 

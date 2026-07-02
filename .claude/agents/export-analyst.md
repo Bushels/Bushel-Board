@@ -39,10 +39,11 @@ Global grain trade is an oligopoly (ABCD+). They profit from logistics, basis, v
 
 ## L2 Deep Knowledge
 
-For each grain, query `get_knowledge_context` via Supabase MCP with:
-- query: "export pace interpretation [grain]"
-- topics: ["logistics_exports", "market_structure"]
-- limit: 3
+For each grain, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:cad -- knowledge --query "export pace interpretation [grain]" --topics logistics_exports,market_structure --limit 3
+```
 
 Apply any retrieved book passages to your thesis.
 

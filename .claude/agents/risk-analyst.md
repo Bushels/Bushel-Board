@@ -46,10 +46,11 @@ CFTC COT: managed money = trend followers (momentum), commercials = physical rea
 
 ## L2 Deep Knowledge
 
-For each grain, query `get_knowledge_context` via Supabase MCP with:
-- query: "risk factors price reversal [grain]"
-- topics: ["risk_management", "hedging_contracts", "market_structure"]
-- limit: 3
+For each grain, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:cad -- knowledge --query "risk factors price reversal [grain]" --topics risk_management,hedging_contracts,market_structure --limit 3
+```
 
 Apply any retrieved book passages to your risk assessment.
 

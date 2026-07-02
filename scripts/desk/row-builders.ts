@@ -104,6 +104,16 @@ export function buildUsTrajectoryRow(row: UsRow, ctx: UsContext): Record<string,
   };
 }
 
+/**
+ * Floor for the US weekly-anchor delete: us_score_trajectory has no week column,
+ * so the idempotent delete must be bounded to this run's week via recorded_at —
+ * otherwise a re-run wipes every prior Friday anchor in the marketing year
+ * (H-1, 2026-07-02 security audit).
+ */
+export function usTrajectoryDeleteBound(weekEnding: string): string {
+  return `${weekEnding}T00:00:00Z`;
+}
+
 export type PipelineRunStatus = "running" | "completed" | "partial" | "failed";
 
 export interface PipelineRunInput {

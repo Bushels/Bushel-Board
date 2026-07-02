@@ -63,7 +63,7 @@ export const usRowSchema = z.object({
 
 export const cadWriteEnvelope = z.object({
   side: z.literal("cad"),
-  crop_year: z.string().min(1),
+  crop_year: z.string().regex(/^\d{4}-\d{4}$/, "crop_year must be long format YYYY-YYYY"),
   grain_week: z.number().int().min(1).max(53),
   grains_requested: z.array(z.string()).optional(),
   rows: z.array(cadRowSchema).min(1),
@@ -71,9 +71,9 @@ export const cadWriteEnvelope = z.object({
 
 export const usWriteEnvelope = z.object({
   side: z.literal("us"),
-  crop_year: z.string().min(1),
-  market_year: z.number().int(),
-  week_ending: z.string().min(1),
+  crop_year: z.string().regex(/^\d{4}-\d{4}$/, "crop_year must be long format YYYY-YYYY"),
+  market_year: z.number().int().min(2020).max(2035),
+  week_ending: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "week_ending must be YYYY-MM-DD"),
   grains_requested: z.array(z.string()).optional(),
   rows: z.array(usRowSchema).min(1),
 });

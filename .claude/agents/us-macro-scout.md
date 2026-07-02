@@ -27,9 +27,9 @@ Claude's built-in `web_search_20250305` tool is available on Sonnet 4.6 and Opus
 
 Call `supabase/functions/x-api-search` (internal Edge Function, `x-bushel-internal-secret` header) to search X/Twitter for farming-relevant posts. See `docs/plans/2026-04-18-x-api-v2-wire-in-design.md` for the tool contract. Mode: `"background"`.
 
-### 3. Supabase MCP — for signal validation
+### 3. Desk data CLI — for signal validation (service-role, read-only)
 
-If you find a tariff/trade claim in search, check `usda_wasde_estimates` or `usda_export_sales` to see if the numerical story is consistent. Don't cite news that contradicts our own USDA data without flagging the contradiction.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). If you find a tariff/trade claim in search, check WASDE (`npm run desk:us -- read --table usda_wasde_mapped --eq market_name=<market> --order report_month.desc --limit 6`) or export sales (`npm run desk:us -- read --table usda_export_sales --eq "commodity=<COMMODITY>" --order week_ending.desc --limit 8`) to see if the numerical story is consistent. (The deprecated `usda_wasde_estimates` table is empty and not readable through the CLI — use `usda_wasde_mapped`.) Don't cite news that contradicts our own USDA data without flagging the contradiction.
 
 ## Query Budget Per Run (flat — all 4 markets MAJOR)
 

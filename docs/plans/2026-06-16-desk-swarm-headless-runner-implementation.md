@@ -81,6 +81,16 @@ All write SQL in the prompts is replaced by `desk-cli` calls, so these vanish at
 - EDIT `docs/reference/grain-desk-swarm-prompt.md` + `us-desk-swarm-prompt.md`: Phase 0/3/5 → CLI; fix bugs.
 - EDIT `package.json`, `CLAUDE.md`, `docs/lessons-learned/issues.md`, `docs/plans/STATUS.md`.
 
+## Security posture (2026-07-02 audit — findings fixed same-day)
+
+security-auditor pass on the finished runner: no Critical findings; write path confirmed limited to `market_analysis` / `us_market_analysis` / `score_trajectory` / `us_score_trajectory` / `pipeline_runs` (plus postcheck's deterministic `thesis_packet_cache`/`source_runs` rebuild). Fixed from the findings: **H-1** US trajectory delete now bounded by `recorded_at >= week_ending` (it was scoped only by market-year — a re-run would have wiped every prior Friday anchor); **M-1** embedded selects (`(`) rejected in table reads (PostgREST embedding could reach non-allow-listed relations, e.g. `signal_feedback`); **M-2** write envelopes must match the current resolved week/market-year unless `--allow-historical`, plus long-format `crop_year` / ISO `week_ending` regexes and `market_year` bounds; **M-3** `fail --status` restricted to `failed|partial` (no ops-ledger `completed` forgery); **L-1** `fail --details -` stdin variant (never interpolate free text into inline JSON); **L-2** `grain_sentiment_votes` removed from the read allow-list (use the `get_sentiment_overview` aggregate). Regression tests: `lib/__tests__/desk-write-guards.test.ts`.
+
+**Accepted residual risks (explicit):**
+1. **H-2 environment-level escalation:** any Bash-capable agent in the runner can read `.env.local` and hit Supabase directly with the service key, bypassing the CLI entirely. The CLI is a mistake-prevention boundary, not an auth boundary. Accepted on this single-user dev box; optional hardening: restrict the scheduled runner's Bash permission allowlist to `npm run desk:*` / `npm run friday-x-signal-bundle`, or provision the key per-process instead of via file.
+2. The `DESK_WRITE_APPROVAL` phrase is discoverable (printed by `--help`; present in `.env.local` once enabled). It prevents accidental writes, not malicious ones — the real write control is the zod schema + fixed row-builders.
+3. Ungated `pipeline_runs` failure logging is floodable by design (fail-loud beats silent; the table is service-role-only and non-farmer-facing).
+4. Live-only RPCs `get_supply_disposition_context` / `get_us_export_context` have no local migrations (known drift). Assumed read-only as project-authored `get_*` functions; verify `provolatile`/`prosecdef` at the next migration-history reconciliation.
+
 ## Verification (Gate 3/6 — before anything is enabled)
 - `npm run typecheck`, `npm run test`, `npm run build` pass.
 - Live **dry-run** (no production writes): `desk:cad preflight`, a few `desk:cad read …`, `desk:cad knowledge …`, and `desk:cad write --input fixture.json` (dry-run) + same for `--side us`.

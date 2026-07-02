@@ -16,13 +16,15 @@ You are a grain logistics data extraction agent for the Bushel Board weekly anal
 
 Query Supabase for logistics metrics for the requested grains and crop year. Return structured JSON findings — no opinions, no thesis, just data with directional signals.
 
-## Data Sources (Supabase MCP)
+## Data Sources (desk CLI — service-role, read-only)
 
-1. **Terminal flow per grain:** Call `get_weekly_terminal_flow(p_grain, p_crop_year)` for receipts vs exports with net flow
-2. **Aggregate terminal flow:** Call `get_aggregate_terminal_flow(p_crop_year)` for system-wide weekly flow
-3. **Grain Monitor:** Query `grain_monitor_snapshots` for the latest grain_week — see schema below
-4. **Producer cars:** Query `producer_car_allocations` for forward rail commitments by grain/province/destination
-5. **Logistics snapshot:** Call `get_logistics_snapshot(p_crop_year, p_grain_week)` for combined Grain Monitor + Producer Car JSON
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
+
+1. **Terminal flow per grain:** `npm run desk:cad -- read --rpc get_weekly_terminal_flow --args '{"p_grain":"<grain>","p_crop_year":"<crop_year>"}'` for receipts vs exports with net flow
+2. **Aggregate terminal flow:** `npm run desk:cad -- read --rpc get_aggregate_terminal_flow --args '{"p_crop_year":"<crop_year>"}'` for system-wide weekly flow
+3. **Grain Monitor:** `npm run desk:cad -- read --table grain_monitor_snapshots ...` for the latest grain_week — see schema and query pattern below
+4. **Producer cars:** `npm run desk:cad -- read --table producer_car_allocations --eq crop_year=<crop_year> --eq grain=<grain> --order grain_week.desc --limit 8` for forward rail commitments by grain/province/destination
+5. **Logistics snapshot:** `npm run desk:cad -- read --rpc get_logistics_snapshot --args '{"p_crop_year":"<crop_year>","p_grain_week":<week>}'` for combined Grain Monitor + Producer Car JSON
 
 ### grain_monitor_snapshots Schema (key columns)
 
@@ -40,11 +42,9 @@ System-wide logistics (NOT per-grain — one row per week for the entire system)
 - `source_notes` — provenance including report date and PDF filename
 
 Query pattern:
-```sql
-SELECT * FROM grain_monitor_snapshots
-WHERE crop_year = '{crop_year}'
-ORDER BY grain_week DESC LIMIT 2;
--- Two rows gives you current + prior week for WoW comparison
+```bash
+npm run desk:cad -- read --table grain_monitor_snapshots --eq crop_year=<crop_year> --order grain_week.desc --limit 2
+# Two rows gives you current + prior week for WoW comparison
 ```
 
 ## Viking L0 Worldview

@@ -25,37 +25,29 @@ Three passes, in order:
 
 ## Inputs
 
-Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for:
+All DB reads go through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout. The metadata column on `market_analysis` is `llm_metadata` — there is no `metadata` column.
 
-**Current week's market_analysis rows:**
-```sql
-SELECT grain, grain_week, stance_score, confidence_score, data_confidence,
-       initial_thesis, bull_case, bear_case, final_assessment, key_signals,
-       metadata, generated_at
-FROM market_analysis
-WHERE grain_week = (SELECT MAX(grain_week) FROM market_analysis)
-  AND crop_year = (SELECT MAX(crop_year) FROM market_analysis)
-ORDER BY grain;
+**Current week's market_analysis rows** (resolve the latest week first, then pull the batch):
+```bash
+# 1. latest grain_week + crop_year with desk output
+npm run desk:cad -- read --table market_analysis --select grain_week,crop_year --order generated_at.desc --limit 1
+# 2. the 16 rows for that week
+npm run desk:cad -- read --table market_analysis --select grain,grain_week,stance_score,confidence_score,data_confidence,initial_thesis,bull_case,bear_case,final_assessment,key_signals,llm_metadata,generated_at --eq grain_week=<week> --eq crop_year=<crop_year> --order grain.asc
 ```
 
 **Two-weeks-prior review (for accuracy scorecard backfill):**
-```sql
-SELECT id, reviewed_grain_week, reviewed_crop_year, bias_assessment, flagged_grains
-FROM desk_performance_reviews
-WHERE review_date = (CURRENT_DATE - INTERVAL '14 days')::date
-LIMIT 1;
+```bash
+npm run desk:cad -- read --table desk_performance_reviews --select id,reviewed_grain_week,reviewed_crop_year,bias_assessment,flagged_grains --eq review_date=<date 14 days ago, YYYY-MM-DD> --limit 1
 ```
+> `desk_performance_reviews` is readable via the desk CLI (added to the read allow-list 2026-07-02). Only the WRITE of this week's review remains interactive — see the HEADLESS GAP note under Write Review.
 
-**Actual outcomes (for scorecard):** pull `score_trajectory`, `cgc_observations`, and `grain_prices` for the grains flagged two weeks ago to check what actually happened.
+**Actual outcomes (for scorecard):** pull `score_trajectory`, `cgc_observations`, and `grain_prices` via CLI table reads (e.g. `npm run desk:cad -- read --table score_trajectory --eq crop_year=<crop_year> --eq grain=<grain> --order grain_week.desc --limit 10`) for the grains flagged two weeks ago to check what actually happened.
 
 **Pipeline run metadata:**
-```sql
-SELECT grain_week, status, source, metadata, triggered_by, created_at
-FROM pipeline_runs
-WHERE source = 'claude-agent-desk'
-ORDER BY created_at DESC
-LIMIT 3;
+```bash
+npm run desk:cad -- read --table pipeline_runs --order started_at.desc --limit 3
 ```
+> `pipeline_runs` is readable via the desk CLI (added to the read allow-list 2026-07-02). The table has no `source`/`metadata`/`created_at` columns — order by `started_at`; desk runs are identified by `failure_details.routine = 'grain-desk-weekly'` and `triggered_by`.
 
 ## Audit Framework
 
@@ -129,6 +121,8 @@ Every recommendation must name:
 3. What failure mode it addresses
 
 ## Write Review
+
+> **⚠️ HEADLESS GAP:** this write path still assumes Supabase MCP and will fail in the scheduled-task runner (-32600). Run the Saturday review interactively (Claude Desktop with working MCP) until a review-writer CLI lands.
 
 Upsert to `desk_performance_reviews`:
 

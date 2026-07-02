@@ -43,10 +43,11 @@ CFTC disaggregated COT is the public tape for US ag markets. Managed money is tr
 
 ## L2 Deep Knowledge
 
-For each market, query `get_knowledge_context` via Supabase MCP with:
-- query: "US export pace interpretation [market]"
-- topics: ["logistics_exports", "market_structure"]
-- limit: 3
+For each market, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:us -- knowledge --query "US export pace interpretation [market]" --topics logistics_exports,market_structure --limit 3
+```
 
 Apply any retrieved book passages to your thesis.
 

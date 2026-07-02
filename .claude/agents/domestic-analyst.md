@@ -43,10 +43,11 @@ Canola: oil content pricing, crush plant proximity narrows basis. Barley: feed v
 
 ## L2 Deep Knowledge
 
-For each grain, query `get_knowledge_context` via Supabase MCP with:
-- query: "domestic demand basis storage decision [grain]"
-- topics: ["basis_pricing", "storage_carry", "grain_specifics"]
-- limit: 3
+For each grain, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:cad -- knowledge --query "domestic demand basis storage decision [grain]" --topics basis_pricing,storage_carry,grain_specifics --limit 3
+```
 
 Apply any retrieved book passages to your thesis.
 

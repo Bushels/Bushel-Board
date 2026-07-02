@@ -57,6 +57,17 @@ export const TRIGGERED_BY = "cron" as const;
 export const DESK_WRITE_APPROVAL_PHRASE =
   "I approve enabling the desk swarm headless writer after reviewing the dry-run." as const;
 
+/** pipeline_runs statuses the ungated `fail` command may write. 'completed' is reserved for the gated write path (M-3, 2026-07-02 audit). */
+export const FAIL_STATUSES = ["failed", "partial"] as const;
+export type FailStatus = (typeof FAIL_STATUSES)[number];
+
+export function assertFailStatus(value: string): FailStatus {
+  if ((FAIL_STATUSES as readonly string[]).includes(value)) return value as FailStatus;
+  throw new Error(
+    `fail --status must be one of ${FAIL_STATUSES.join("|")} (got: ${value}); 'completed' rows are only written by the gated write command`,
+  );
+}
+
 export function isDeskSide(value: string): value is DeskSide {
   return value === "cad" || value === "us";
 }

@@ -15,14 +15,16 @@ You are a grain supply data extraction agent for the Bushel Board weekly analysi
 
 Query Supabase for supply-side metrics for the requested grains and crop year. Return structured JSON findings — no opinions, no thesis, just data with directional signals.
 
-## Data Sources (Supabase MCP)
+## Data Sources (desk CLI — service-role, read-only)
 
-1. **Producer deliveries:** Query `v_country_producer_deliveries` for current week and crop year totals
-2. **YoY comparison:** Query `v_grain_yoy_comparison` for delivery pace vs prior year
-3. **Pipeline velocity:** Call `get_pipeline_velocity(p_grain, p_crop_year)` RPC per grain
-4. **Stocks:** Extract visible commercial stocks and WoW change from `v_grain_yoy_comparison`
-5. **Historical average:** Call `get_historical_average(p_grain, 'Deliveries', 'Primary', p_grain_week, 5)` for 5-year context
-6. **AAFC balance sheet:** Call `get_supply_disposition_context(p_grain, p_crop_year)` RPC for full supply/disposition (carry_in, production, imports, exports, food_industrial, feed_waste, seed, carry_out, stocks_to_use_pct), plus revision vs prior AAFC snapshot (`carry_out_revision_kt`) and YoY production delta (`production_yoy_pct`). Returns `is_approximate` + `source_age_days` so you know whether to trust the estimate.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
+
+1. **Producer deliveries:** `npm run desk:cad -- read --table v_country_producer_deliveries --eq grain=<grain> --eq crop_year=<crop_year>` for current week and crop year totals
+2. **YoY comparison:** `npm run desk:cad -- read --table v_grain_yoy_comparison --eq grain=<grain>` for delivery pace vs prior year
+3. **Pipeline velocity:** `npm run desk:cad -- read --rpc get_pipeline_velocity --args '{"p_grain":"<grain>","p_crop_year":"<crop_year>"}'` per grain
+4. **Stocks:** Extract visible commercial stocks and WoW change from the `v_grain_yoy_comparison` read above
+5. **Historical average:** `npm run desk:cad -- read --rpc get_historical_average --args '{"p_grain":"<grain>","p_metric":"Deliveries","p_worksheet":"Primary","p_grain_week":<week>,"p_years_back":5}'` for 5-year context
+6. **AAFC balance sheet:** `npm run desk:cad -- read --rpc get_supply_disposition_context --args '{"p_grain":"<grain>","p_crop_year":"<crop_year>"}'` for full supply/disposition (carry_in, production, imports, exports, food_industrial, feed_waste, seed, carry_out, stocks_to_use_pct), plus revision vs prior AAFC snapshot (`carry_out_revision_kt`) and YoY production delta (`production_yoy_pct`). Returns `is_approximate` + `source_age_days` so you know whether to trust the estimate.
 
 ## Viking L0 Worldview
 
@@ -84,4 +86,4 @@ Return a JSON array, one object per grain:
 
 ## Data Freshness
 
-Always check `MAX(grain_week)` from `cgc_observations` and report the data week. If data is more than 1 week behind calendar, flag it.
+Always check the latest grain week (`npm run desk:cad -- resolve`, or `npm run desk:cad -- read --table cgc_observations --select grain_week --order grain_week.desc --limit 1`) and report the data week. If data is more than 1 week behind calendar, flag it.
