@@ -106,3 +106,10 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 .design-sync/compiled.css
+
+# Service-account keys / secrets — NEVER commit
+.secrets/
+*-service-account*.json
+*service-account-key*.json
+*gee-sa*.json
+graphify-out/

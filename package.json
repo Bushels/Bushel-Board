@@ -56,6 +56,7 @@
     "desk:us": "tsx scripts/desk/desk-cli.ts --side us",
     "desk:postcheck": "tsx scripts/desk/desk-cli.ts postcheck",
     "gee:flood-watch": "python scripts/gee/flood_excess_moisture_watch.py",
+    "collect:gee-crop-stress": "tsx -- scripts/run-collector-with-thesis-cache-refresh.ts --name collect-gee-crop-stress node scripts/gee/collect-all-belts.mjs",
     "grok:x-scout": "tsx scripts/run-grok-x-scout.ts",
     "grok:x-scout:review-week": "tsx scripts/review-grok-x-scout-artifact-week.ts",
     "grok:x-scout:promotion-brief": "tsx scripts/build-grok-x-scout-promotion-brief.ts",

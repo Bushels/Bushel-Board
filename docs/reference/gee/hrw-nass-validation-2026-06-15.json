@@ -1,0 +1,95 @@
+{
+  "ok": true,
+  "project": "monette-494717",
+  "crop_belt": "US_HRW",
+  "cdl_year": 2024,
+  "n_weeks": 10,
+  "pearson_stress_vs_ge": 0.9285576127422949,
+  "verdict_ge": "STRONG positive \u2014 stress_index tracks NASS; candidate to graduate to scoring",
+  "pearson_stress_vs_condition_index": 0.9757487714115841,
+  "verdict_ci": "STRONG positive \u2014 stress_index tracks NASS; candidate to graduate to scoring",
+  "interpretation": "positive r = stress_index moves WITH ratings (more negative stress when G/E lower) = signal is valid.",
+  "table": [
+    {
+      "week_ending": "2026-04-05",
+      "ge_pct": 35.0,
+      "condition_index": 2.98,
+      "stress_index": -0.072,
+      "ndvi_z": 0.1708291666833343,
+      "sm_z": -0.5270295830858619
+    },
+    {
+      "week_ending": "2026-04-12",
+      "ge_pct": 34.0,
+      "condition_index": 2.95,
+      "stress_index": -0.167,
+      "ndvi_z": -0.019474906492824275,
+      "sm_z": -0.5967110873755347
+    },
+    {
+      "week_ending": "2026-04-19",
+      "ge_pct": 30.0,
+      "condition_index": 2.9,
+      "stress_index": -0.162,
+      "ndvi_z": -0.019474906492824275,
+      "sm_z": -0.5793176849906045
+    },
+    {
+      "week_ending": "2026-04-26",
+      "ge_pct": 30.0,
+      "condition_index": 2.87,
+      "stress_index": -0.25,
+      "ndvi_z": -0.2676605185209731,
+      "sm_z": -0.5361122679205599
+    },
+    {
+      "week_ending": "2026-05-03",
+      "ge_pct": 31.0,
+      "condition_index": 2.86,
+      "stress_index": -0.268,
+      "ndvi_z": -0.26766051852097367,
+      "sm_z": -0.603869463979163
+    },
+    {
+      "week_ending": "2026-05-10",
+      "ge_pct": 28.0,
+      "condition_index": 2.77,
+      "stress_index": -0.471,
+      "ndvi_z": -0.6437447340196301,
+      "sm_z": -0.8012271164951793
+    },
+    {
+      "week_ending": "2026-05-17",
+      "ge_pct": 27.0,
+      "condition_index": 2.71,
+      "stress_index": -0.533,
+      "ndvi_z": -0.6437447340196305,
+      "sm_z": -1.0318298811520954
+    },
+    {
+      "week_ending": "2026-05-24",
+      "ge_pct": 26.0,
+      "condition_index": 2.68,
+      "stress_index": -0.6,
+      "ndvi_z": -0.643744734019629,
+      "sm_z": -1.2839170300950375
+    },
+    {
+      "week_ending": "2026-05-31",
+      "ge_pct": 26.0,
+      "condition_index": 2.69,
+      "stress_index": -0.749,
+      "ndvi_z": -0.8962853351687494,
+      "sm_z": -1.4638842186294025
+    },
+    {
+      "week_ending": "2026-06-07",
+      "ge_pct": 25.0,
+      "condition_index": 2.63,
+      "stress_index": -0.74,
+      "ndvi_z": -0.8962853351687498,
+      "sm_z": -1.431466581279787
+    }
+  ],
+  "note": "Proxy caveat: NASS is US TOTAL winter wheat; stress_index is the HRW belt (~70% of US winter wheat). WATCH-ONLY until r is strong across a fuller season."
+}

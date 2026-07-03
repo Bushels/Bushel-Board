@@ -1729,3 +1729,11 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 **Fix:** Stop scanning month columns when encountering "YTD AVG" or "YTD" labels, which marks the boundary between real data and variance/comparison columns.
 
 **Tags:** #import #grain-monitor #excel #parsing-bug
+
+## 2026-06-11 - Grain Monitor Week 43: OCT bullet drops unreported ports
+
+**Symptom:** collect-grain-monitor failed with 'Could not parse OCT metrics from page 1 summary bullets' on GMPGOCWeek202543.pdf.
+
+**Root cause:** The Week 43 report omitted Prince Rupert from the OCT summary bullet ('At the time of publishing, Prince Rupert had not yet reported Week 43 OCT'). The regex required all three ports (Vancouver, Prince Rupert, Thunder Bay) in fixed order.
+
+**Fix (Tier 2 mechanical, charter-compliant):** scripts/grain-monitor/parsers.ts now matches the total/previous OCT sentence first, then extracts per-port percentages individually; missing ports persist as NULL and are reported in missing_fields. Vitest seatbelt (12 tests) passed before re-import. Week 43 upserted with out_of_car_time_prince_rupert_pct = NULL.
