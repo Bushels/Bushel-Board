@@ -20,11 +20,10 @@ Query Supabase for sentiment metrics for the requested grains and crop year. Ret
 
 ## Data Sources (Supabase MCP)
 
-1. **Farmer sentiment:** Call `get_sentiment_overview(p_crop_year, p_grain_week)` RPC for per-grain vote aggregates
-2. **Farmer votes raw:** Query `grain_sentiment_votes` for recent vote distribution (Strongly Holding to Strongly Hauling)
-3. **CFTC COT positioning:** Call `get_cot_positioning(p_grain, p_crop_year, 4)` for 4-week managed money/commercial positions
-4. **X market signals:** Query `x_market_signals` for recent scored signals per grain
-5. **Signal relevance:** Query `v_signal_relevance_scores` for blended relevance-scored X signals
+1. **Farmer sentiment (PAUSED 2026-04-28):** Sentiment voting is paused product-wide — `grain_sentiment_votes` stopped accruing new rows in late April 2026. `get_sentiment_overview(p_crop_year, p_grain_week)` still works but returns stale/empty aggregates for current weeks. Report `farmer_sentiment: unavailable (voting paused)` rather than signaling off stale votes. Do NOT treat zero votes as apathy or months-old votes as current sentiment.
+2. **CFTC COT positioning:** Call `get_cot_positioning(p_grain, p_crop_year, 4)` for 4-week managed money/commercial positions
+3. **X market signals:** Query `x_market_signals` for recent scored signals per grain. The Friday desk also builds a validated `x_signal_bundle` (chief Step 0.3.5, `npm run friday-x-signal-bundle`) — bundle signals carry corroboration/allowed-claims seals and outrank raw `x_market_signals` rows. Treat unverified numeric X claims as review leads only, never as facts.
+4. ~~`v_signal_relevance_scores`~~ **(retired for V2 — do not read):** That view blends legacy V1 Grok-era LLM scores with farmer relevance votes (also paused). The V2 swarm sources X evidence from the X API v2 gateway + the Friday bundle instead.
 
 ## Viking L0 Worldview
 
@@ -36,7 +35,9 @@ Markets rapidly absorb new information — often pricing in 80% of a major repor
 - Rule 10: Spec/Commercial divergence is the highest-confidence timing signal. ALWAYS flag when Managed Money and Commercials are on opposite sides.
 - Rule 11: COT data reflects Tuesday positions, released Friday. Sets context for NEXT week, not this week. Pair with X signals for current-week timing.
 
-## Farmer Sentiment Interpretation
+## Farmer Sentiment Interpretation (dormant while voting is paused)
+
+These rules apply ONLY if sentiment voting is re-enabled and current-week votes exist:
 
 - Strong consensus Hauling (>60%) -> near-term bearish pressure (everyone wants to deliver)
 - Strong consensus Holding (>60%) -> bullish if demand holds (withholding supply)
@@ -61,16 +62,14 @@ Return a JSON array, one object per grain:
     "data_week": 35,
     "crop_year": "2025-2026",
     "findings": [
-      { "metric": "farmer_holding_pct", "value": 55, "signal": "bullish", "note": "Majority holding — withholding supply" },
-      { "metric": "farmer_hauling_pct", "value": 25, "signal": "neutral", "note": "Minority hauling" },
-      { "metric": "farmer_avg_sentiment", "value": -0.8, "signal": "bullish", "note": "Lean toward holding" },
+      { "metric": "farmer_sentiment", "value": null, "signal": "neutral", "note": "Unavailable — sentiment voting paused 2026-04-28" },
       { "metric": "cot_managed_money_net", "value": 15200, "signal": "bullish", "note": "Specs net long and increasing" },
       { "metric": "cot_commercial_net", "value": -22400, "signal": "watch", "note": "Commercials aggressively short — locking in strong prices" },
       { "metric": "cot_spec_commercial_divergence", "value": true, "signal": "watch", "note": "Specs long / Commercials short — potential overextension" },
       { "metric": "x_signal_count", "value": 8, "signal": "neutral", "note": "8 relevant X signals this week" },
       { "metric": "x_avg_relevance", "value": 72.5, "signal": "neutral", "note": "Moderate relevance scores" }
     ],
-    "summary": "Farmers holding, specs net long, but commercial hedgers aggressively short — classic divergence pattern. Watch for spec reversal."
+    "summary": "Specs net long, commercial hedgers aggressively short — classic divergence pattern. Watch for spec reversal. Farmer voting paused; no behavioral read."
   }
 ]
 ```

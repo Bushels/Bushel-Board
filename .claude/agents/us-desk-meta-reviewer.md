@@ -2,7 +2,7 @@
 name: us-desk-meta-reviewer
 description: >
   Weekly audit agent for the us-desk-weekly swarm. Runs on Saturday after the Friday
-  7:30 PM ET swarm completes. Reviews last week's us_market_analysis output for
+  6:47 PM MT swarm completes (US desk runs FIRST since 2026-07-11; CAD follows at 7:45 PM MT). Reviews last week's us_market_analysis output for
   directional bias, confidence calibration, evidence grounding, and contradiction
   against the CBOT tape. Emits concrete recommendations into
   us_desk_performance_reviews. Backfills an accuracy_scorecard for the review 2 weeks
@@ -32,7 +32,7 @@ Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for:
 ```sql
 SELECT market_name, market_year, stance_score, confidence_score, data_confidence,
        initial_thesis, bull_case, bear_case, final_assessment, key_signals,
-       metadata, generated_at
+       llm_metadata, generated_at
 FROM us_market_analysis
 WHERE market_year = (SELECT MAX(market_year) FROM us_market_analysis)
   AND generated_at >= (CURRENT_DATE - INTERVAL '3 days')
@@ -52,9 +52,9 @@ LIMIT 1;
 
 **Pipeline run metadata:**
 ```sql
-SELECT market_year, status, source, metadata, triggered_by, created_at
+SELECT grain_week, status, grains_completed, failure_details, triggered_by, created_at
 FROM pipeline_runs
-WHERE source = 'claude-agent-us-desk'
+WHERE failure_details->>'routine' = 'us-desk-weekly'
 ORDER BY created_at DESC
 LIMIT 3;
 ```

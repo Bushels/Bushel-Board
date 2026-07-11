@@ -33,21 +33,23 @@ You receive the same structured JSON briefs as the other specialists from 6 scou
 
 Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for the raw price tables:
 
-1. **Recent futures settles:**
+1. **Recent futures settles** (column names verified against migration `20260318120000` — the view has NO `settlement_date`/`settle_price_cad`/`pct_change_*` columns):
    ```sql
-   SELECT grain, settlement_date, contract_month, settle_price_cad, pct_change_1w, pct_change_4w
+   SELECT grain, contract, exchange, price_date, settlement_price, change_amount, change_pct, currency, unit
    FROM v_latest_grain_prices
    WHERE grain = $1;
    ```
+   `change_pct` is the 1-DAY change. Compute 1-week / 4-week changes yourself from the trajectory query below.
 
 2. **4-week price trajectory:**
    ```sql
-   SELECT settlement_date, settle_price_cad
+   SELECT price_date, settlement_price
    FROM grain_prices
    WHERE grain = $1
-     AND settlement_date >= NOW() - INTERVAL '28 days'
-   ORDER BY settlement_date DESC;
+     AND price_date >= NOW() - INTERVAL '28 days'
+   ORDER BY price_date DESC;
    ```
+   Weekly change = latest settle vs settle 5 trading days back; 4-week = vs the oldest row returned.
 
 3. **Current local elevator/crusher bids by area:**
    ```sql
@@ -129,6 +131,14 @@ Return a JSON array, one object per grain:
   }
 ]
 ```
+
+## Wheat = FLAGSHIP (2026-07-11)
+
+Wheat is the flagship farmer-facing read (/thesis is Wheat-first). For Wheat specifically:
+
+- Treat the `us_desk_cross_read` object in the compiled brief as required context — R-CA-WHT-01 makes CWRS a price-taker on global wheat, and the US desk holds the directional read. Cite it (agree or disagree, with evidence).
+- Go one level deeper than other grains: 4-6 evidence items, class-mix awareness (CWRS/CWAD/CPS/winter from the wheat-class lens), and the SK cash tape (`sk_cash_prices`) as the Rule 12 cash truth.
+- If your Wheat stance disagrees with the US desk read by more than 30 pts, say why explicitly — the chief will investigate the divergence in Phase 4.5.
 
 ## Mandatory Output Rules
 

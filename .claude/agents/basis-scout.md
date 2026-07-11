@@ -22,6 +22,7 @@ Query Supabase for price and basis metrics for the requested grains and crop yea
 3. **Posted prices:** Query `posted_prices` WHERE `expires_at > now()` for active elevator/crusher bids
 4. **Area prices:** Call `get_area_prices(p_fsa_code, p_grain, p_business_type)` for regional bid data
 5. **Price view:** Query `v_latest_grain_prices` for most recent settlement per grain
+6. **SK provincial cash prices (added 2026-07-11):** Query `sk_cash_prices` for the latest weekly Saskatchewan average cash price per crop and the 4-week trend (`SELECT crop, series_name, price_date, value, unit FROM sk_cash_prices WHERE crop = 'wheat' ORDER BY price_date DESC LIMIT 5` — crop keys are lowercase: wheat, canola, barley, oats, etc.). This is the admitted cash-tape proxy (source: SK Dashboard, imported by `collect:sk-prices`). **It matters most for Wheat**: CWRS has no Yahoo futures feed, so without `sk_cash_prices` the wheat cash tape is invisible to Rule 12 ("cash price is the farmer's truth"). Compute cash WoW change and, where a usable futures proxy exists (CBOT W / HRW), an approximate provincial basis — label it `basis_proxy`, NOT local basis. `posted_prices` remains the local-bid lane.
 
 ## Viking L0 Worldview
 
@@ -45,7 +46,7 @@ Basis is your price signal. Track local basis religiously — it forecasts your 
 
 - Always filter by `crop_year` in long format "2025-2026"
 - `grain_prices` stores normalized prices (cents converted to dollars)
-- Canola and Spring Wheat are NOT available on Yahoo Finance — flag if no futures price exists
+- Canola (ICE) and MGEX Spring Wheat are not on Yahoo Finance but ARE imported via the Barchart scrape fallback in `scripts/import-grain-prices.ts` — check `v_latest_grain_prices` before declaring a grain futures-less, and flag stale `price_date` instead
 - PostgREST returns `numeric` columns as strings — wrap in Number() when computing basis
 
 ## Output Format
@@ -77,4 +78,4 @@ For grains without direct futures contracts (peas, lentils, flaxseed, most speci
 
 ## Data Freshness
 
-Report the latest `traded_at` date from `grain_prices` and `posted_at` from `posted_prices`. Flag if prices are stale (>2 trading days old).
+Report the latest `price_date` from `grain_prices`, `price_date` from `sk_cash_prices`, and `posted_at` from `posted_prices`. Flag if prices are stale (>2 trading days old).

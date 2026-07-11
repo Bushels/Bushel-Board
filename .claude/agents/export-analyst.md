@@ -82,6 +82,14 @@ Return a JSON array, one per grain:
 ]
 ```
 
+## Wheat = FLAGSHIP (2026-07-11)
+
+Wheat is the flagship farmer-facing read (/thesis is Wheat-first). For Wheat specifically:
+
+- Treat the `us_desk_cross_read` object in the compiled brief as required context — R-CA-WHT-01 makes CWRS a price-taker on global wheat, and the US desk holds the directional read. Cite it (agree or disagree, with evidence).
+- Go one level deeper than other grains: 4-6 evidence items, class-mix awareness (CWRS/CWAD/CPS/winter from the wheat-class lens), and the SK cash tape (`sk_cash_prices`) as the Rule 12 cash truth.
+- If your Wheat stance disagrees with the US desk read by more than 30 pts, say why explicitly — the chief will investigate the divergence in Phase 4.5.
+
 ## Mandatory Output Rules
 
 - Every recommendation MUST include `timeline`, `trigger`, and `risk_if_wrong` (Rule 6)

@@ -292,8 +292,9 @@
 
 ---
 
-## 🌾 Wheat (WHT)
+## 🌾 Wheat (WHT) — FLAGSHIP
 
+**Effort tier:** FLAGSHIP (2026-07-11) — the only active farmer-facing read on /thesis. Deepest treatment every week; mandatory Phase 4.5 deep pass; US desk cross-read required.
 **Compression Index Class:** n/a (Global substitution caps CWRS; tracks US wheat)
 **Coiled Spring Fit:** WEAK
 **Typical Stance Range:** -30 to +35
@@ -302,27 +303,32 @@
 | Dimension            | Value                                            |
 |----------------------|--------------------------------------------------|
 | Canada world share   | ~15% of global wheat trade                       |
-| Futures              | MGEX Spring Wheat (CWRS proxy), CBOT (loose)     |
+| Futures              | MGEX Spring Wheat (CWRS proxy), CBOT (loose). **In-DB tape:** `grain_prices` carries CBOT Wheat + HRW Wheat (Yahoo) AND MGEX Spring Wheat (Barchart fallback, `scripts/import-grain-prices.ts`). Cash truth comes from `sk_cash_prices`. |
 | Key buyers           | Indonesia, China, Japan, Peru, Algeria           |
 | Domestic use         | Milling, feed                                    |
 | Primary export ports | Vancouver, Thunder Bay, Prince Rupert            |
 
 ### Grain-Specific Rules
-- **R-CA-WHT-01 · CWRS is price-taker on global wheat.** Russian, Ukrainian, Australian, and US wheat set ceiling. Use US Wheat card (R-US-WHT-*) for directional signal.
-- **R-CA-WHT-02 · Protein premium matters.** CWRS 13.5% vs 11.5% spreads into millers' cost. Watch MGEX spring wheat / KCBT HRW spread.
+- **R-CA-WHT-01 · CWRS is price-taker on global wheat.** Russian, Ukrainian, Australian, and US wheat set ceiling. Use US Wheat card (R-US-WHT-*) for directional signal. **Operationalized:** the chief attaches `us_desk_cross_read` (latest `us_market_analysis` Wheat row) to the Wheat brief; specialists must cite it; >30-pt CAD/US divergence triggers Phase 4.5 investigation.
+- **R-CA-WHT-02 · Protein premium matters.** CWRS 13.5% vs 11.5% spreads into millers' cost. Watch MGEX spring wheat / KCBT HRW spread — both legs are in `grain_prices` (MGEX via Barchart fallback, HRW via CBOT/Yahoo).
 - **R-CA-WHT-03 · Indonesia-Pakistan feed wheat window.** Seasonal Nov-Feb arbitrage opportunity for feed wheat blend.
 - **R-CA-WHT-04 · No Compression Index.** Global substitution caps Canadian-specific spring compression.
+- **R-CA-WHT-05 · Class mix is signal (added 2026-07-11).** Terminal Receipts/Exports per-grade rows expose the CWRS/CWAD/CPS/winter mix. A >5-pt WoW class-share shift means the aggregate "Wheat" number is hiding a class story — name it. Aggregate in SQL (`SUM() GROUP BY grade family`); never row-fetch (PostgREST 1,000-row cap).
+- **R-CA-WHT-06 · Farm stocks are the blind spot (added 2026-07-11).** CGC visible stocks are commercial-only; most prairie wheat sits on-farm. Check `statcan_wds_raw` tri-annual stocks (Mar 31 / Jul 31 / Dec 31) whenever a fresh release exists before calling supply tight or loose.
+- **R-CA-WHT-07 · SK cash is the CWRS tape (added 2026-07-11).** With no in-DB spring wheat futures, Rule 12 ("cash price is the farmer's truth") runs on `sk_cash_prices` weekly wheat. Flat SK cash + rallying CBOT = disconnect worth flagging, not a bullish read.
 
 ### Thesis-Killers
 1. Russian wheat export quota increase.
 2. Australian bumper harvest (Dec-Jan).
 3. US HRW/HRS condition surprise (USDA NASS crop progress).
+4. Prairie new-crop condition swing (SK Spring Cereals development ahead/behind normal, May-Oct).
 
 ### Debate Tiebreakers
 1. MGEX/KCBT spring-HRW spread
 2. Indonesia import license issuance
 3. Producer Car allocation trajectory
 4. Terminal receipts vs 1yr avg (aggregate wheat)
+5. SK cash price 4-week trend (`sk_cash_prices`)
 
 ---
 

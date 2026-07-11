@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-11 - The outage fix's fail-loud rows still could not land: every pipeline_runs INSERT in both desk prompts violated NOT NULL constraints
+
+**Symptom:** Wheat-desk audit re-checked the 2026-06-09 outage repair against migration `20260418100300_parallel_pipeline.sql` and found ALL 8 `pipeline_runs` INSERTs across both swarm prompts (4 CAD + 4 US) still could not execute: every one omitted `grains_requested text[] NOT NULL` (no default), all four US inserts passed `NULL` into NOT NULL `crop_year`/`grain_week`, one US insert had 6 VALUES for a 5-column list, and the CAD Step 5.4 success insert still used the nonexistent `source`/`metadata` columns the June fix had removed only from the US prompt.
+
+**Root cause:** The June 9 repair fixed the constraint violations it had *observed* (the `triggered_by` CHECK) but never replayed each INSERT against the actual table definition. A "fail-loud" logging path that has never successfully written a row is untested monitoring — it fails exactly when needed, and its silence reads as "no run happened."
+
+**Fix (this branch):** All 8 INSERTs rewritten schema-legal (full grain/market arrays, real columns, crop-year-filtered `MAX(grain_week)` subqueries safe across the Aug 1 rollover). CAD prompt now opens a `status='running'` ledger row in Phase 0.5 (`RETURNING id`) and UPDATEs it on completion/failure, so a chief that dies mid-run leaves a permanently-`running` tombstone. Wheat (FLAGSHIP) writes first in Step 5.2. Both meta-reviewers' SQL fixed (`market_analysis.metadata` → `llm_metadata`; `pipeline_runs.source` → `failure_details->>'routine'`). Freshness guardrail now degrades on stale COT/prices instead of aborting the whole desk (only stale CGC aborts). Proposed Saturday `desk-output-watchdog` running `npm run check:desk-freshness` documented in `collector-task-configs.md`.
+
+**Prevention:** (1) Every SQL statement embedded in a prompt doc or agent def must be validated against the migration that defines the table — treat prompt-SQL as production code in review. (2) After writing a fail-loud path, force-fire it once (insert a synthetic failure row) and confirm the row lands; an unexercised failure logger is a liability, not a safety net. (3) When a repair claims "fixed," grep for the same defect class in EVERY sibling file (the US prompt was fixed; the CAD success path and both meta-reviewers were not).
+
+**Tags:** #friday-desk #pipeline-runs #not-null #silent-failure #fail-loud #wheat-desk
+
+---
+
 ## 2026-06-09 - "official_thesis_input" is not just a label: classifying a bounded lane official silently inflates its domain weight
 
 **Symptom:** While admitting the world veg-oil balance as bounded Canola demand context (Track 55), classifying the new impact factor `official_thesis_input` made `lib/__tests__/grain-impact-domain-weights.test.ts` fail: Canola's normalized supply weight dropped below the lane baseline.

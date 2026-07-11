@@ -24,6 +24,7 @@
 | `collect-wasde-archive` | `0 13 13 * *` (UTC: `0 19 13 * *`) | 13th of month | 1:00 PM | 3:00 PM | esmis.nal.usda.gov (.xls archive) | `usda_wasde_raw` (revision history) |
 | `source-freshness-watchdog-tue` | `20 13 * * 2` | Tue | 1:20 PM | 3:20 PM | Hermes read-only watchdog | `source_runs` / `thesis_packet_cache` checks |
 | `source-freshness-watchdog-mon-wed-fri` | `45 16 * * 1,3-5` | Mon/Wed/Thu/Fri | 4:45 PM | 6:45 PM | Hermes read-only watchdog | `source_runs` / `thesis_packet_cache` checks |
+| `desk-output-watchdog` **(PROPOSED 2026-07-11 — not yet registered)** | `0 9 * * 6` | Sat | 9:00 AM | 11:00 AM | `npm run check:desk-freshness` | `market_analysis` / `us_market_analysis` recency |
 
 ## Weekly Timeline (MT local, ET parenthesised)
 
@@ -43,8 +44,15 @@ FRI  3:30 PM MT (5:30 PM ET) — Alberta retry / full-Prairie crop-progress chec
 13th 1:00 PM MT (3:00 PM ET)  — USDA WASDE archive .xls (monthly, day after typical PSD release)
 TUE  1:20 PM MT (3:20 PM ET) — source-freshness watchdog after Manitoba collector
 MON/WED/THU/FRI 4:45 PM MT (6:45 PM ET) — source-freshness watchdog after daily mechanical collectors
-FRI  6:47 PM MT (8:47 PM ET)  — grain-desk-weekly SWARM (reads all collected data)
+FRI  us-desk-weekly SWARM first, then grain-desk-weekly SWARM ~1h later (ORDER SWAPPED 2026-07-11:
+     the CAD FLAGSHIP Wheat read consumes the US desk Wheat stance as us_desk_cross_read, so the US
+     desk must write first. See both swarm prompt headers for exact times; re-register both Routines.)
+SAT  9:00 AM MT (11:00 AM ET) — desk-output-watchdog (PROPOSED): npm run check:desk-freshness
 ```
+
+### Desk Output Watchdog Rationale (added 2026-07-11)
+
+The April–June 2026 outage proved source-side watchdogs are not enough: every collector kept running while the Friday **desks** silently stopped writing for 6 weeks (`market_analysis` parked at week 36). The source watchdogs watch inputs; nothing watched the output. The proposed `desk-output-watchdog` closes the loop: Saturday morning it runs `npm run check:desk-freshness` (exit 1 when `market_analysis`/`us_market_analysis` is older than 9 days) and must NOTIFY THE OPERATOR on failure — a watchdog that only writes a log row recreates the silent-death mode. Register it as a Claude Desktop Routine alongside the Saturday meta-reviewer runs.
 
 ### CGC Timing Rationale
 
