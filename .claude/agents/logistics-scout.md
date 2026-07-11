@@ -23,6 +23,7 @@ Query Supabase for logistics metrics for the requested grains and crop year. Ret
 3. **Grain Monitor:** Query `grain_monitor_snapshots` for the latest grain_week — see schema below
 4. **Producer cars:** Query `producer_car_allocations` for forward rail commitments by grain/province/destination
 5. **Logistics snapshot:** Call `get_logistics_snapshot(p_crop_year, p_grain_week)` for combined Grain Monitor + Producer Car JSON
+6. **Wheat class flow (Wheat only, added 2026-07-11):** For Wheat, also return the terminal-flow class mix — aggregate Terminal Receipts/Exports per-grade rows into class families (CWRS/CWAD/CPS/Winter/Other) **in SQL** (`SUM(ktonnes) GROUP BY` grade family — never row-fetch; Terminal Receipts has ~3,648 rows/grain vs the 1,000-row PostgREST cap). The chief's FLAGSHIP wheat treatment consumes this as the class lens (R-CA-WHT-05); a >5-pt WoW class-share shift is a named signal.
 
 ### grain_monitor_snapshots Schema (key columns)
 

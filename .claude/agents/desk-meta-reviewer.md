@@ -2,7 +2,7 @@
 name: desk-meta-reviewer
 description: >
   Weekly audit agent for the grain-desk-weekly swarm. Runs on Saturday after the Friday
-  6:47 PM ET swarm completes. Reviews last week's market_analysis output for directional
+  evening swarm completes (CAD desk fires 7:45 PM MT, after the US desk — order swapped 2026-07-11). Reviews last week's market_analysis output for directional
   bias, confidence calibration, evidence grounding, and contradiction against the price
   tape. Emits concrete recommendations into desk_performance_reviews. Backfills an
   accuracy_scorecard for the review 2 weeks prior once outcomes are observable.
@@ -29,13 +29,22 @@ Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for:
 
 **Current week's market_analysis rows:**
 ```sql
-SELECT grain, grain_week, stance_score, confidence_score, data_confidence,
-       initial_thesis, bull_case, bear_case, final_assessment, key_signals,
-       metadata, generated_at
-FROM market_analysis
-WHERE grain_week = (SELECT MAX(grain_week) FROM market_analysis)
-  AND crop_year = (SELECT MAX(crop_year) FROM market_analysis)
-ORDER BY grain;
+-- Anchor on recency, NOT MAX(grain_week): MAX(crop_year)+MAX(grain_week) returns zero rows
+-- right after crop-year rollover (new year's week 1 < old year's week 52) and can pin to ghost rows.
+WITH latest AS (
+  SELECT crop_year, grain_week FROM market_analysis ORDER BY generated_at DESC LIMIT 1
+)
+SELECT m.grain, m.grain_week, m.stance_score, m.confidence_score, m.data_confidence,
+       m.initial_thesis, m.bull_case, m.bear_case, m.final_assessment, m.key_signals,
+       m.llm_metadata, m.generated_at
+FROM market_analysis m JOIN latest l USING (crop_year, grain_week)
+ORDER BY m.grain;
+```
+
+**Missed-run detection (mandatory, added 2026-07-11):** before auditing content, compare the latest `generated_at` above against NOW() and the current CGC week (`SELECT MAX(grain_week) FROM cgc_observations WHERE crop_year = (SELECT MAX(crop_year) FROM cgc_observations)`). If the latest desk row is older than 8 days OR more than 1 grain week behind CGC, the Friday desk MISSED its run — write a `critical` recommendation titled "desk did not run" as your first output and skip the bias audit (auditing stale rows as if current is how the April–June outage stayed invisible).
+
+```sql
+-- (audit queries continue below)
 ```
 
 **Two-weeks-prior review (for accuracy scorecard backfill):**
@@ -50,14 +59,25 @@ LIMIT 1;
 
 **Pipeline run metadata:**
 ```sql
-SELECT grain_week, status, source, metadata, triggered_by, created_at
+SELECT grain_week, status, grains_completed, failure_details, triggered_by, created_at
 FROM pipeline_runs
-WHERE source = 'claude-agent-desk'
+WHERE failure_details->>'routine' = 'grain-desk-weekly'
 ORDER BY created_at DESC
 LIMIT 3;
 ```
 
 ## Audit Framework
+
+### Pass 0 — Wheat FLAGSHIP audit (mandatory first, added 2026-07-11)
+
+Wheat is the only active farmer-facing read on /thesis — audit it before the batch passes:
+
+1. `effort_tier` is `"FLAGSHIP"` and Phase 4.5 ran (`investigation_notes.trigger` present, `"flagship_mandatory"` acceptable).
+2. `llm_metadata` carries a `us_desk_cross_read` reference (or an explicit `us_cross_read: unavailable` with the −5 confidence applied). If the CAD and US wheat stances diverge > 30 pts, the divergence must be explained — flag if not.
+3. `bull_reasoning`/`bear_reasoning` have ≥ 4 items per side (or documented asymmetry) and at least one wheat-class (CWRS/CWAD/CPS/winter mix) or SK-cash-tape citation.
+4. In the Pass-2 accuracy scorecard, break out a dedicated `wheat_accuracy` line — the desk's overall accuracy can look fine while the one read farmers actually see is wrong.
+
+A Wheat-row failure here is a `critical` recommendation even if the other 15 grains are clean.
 
 ### Pass 1 — Bias & Calibration (mandatory)
 

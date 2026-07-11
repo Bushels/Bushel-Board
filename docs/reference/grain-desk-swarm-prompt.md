@@ -3,8 +3,8 @@
 > **Purpose:** This is the Friday evening Claude Desktop Routine prompt for the CAD grain desk. It IS the desk chief.
 > Saved here for version control — the actual Routine reads this prompt.
 > **Trigger:** Claude Desktop Routine / Schedule `grain-desk-weekly` — NOT Vercel cron, NOT Grok, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
-> **Schedule:** Friday 6:47 PM ET (`47 18 * * 5`)
-> **Model:** Opus-class only (`claude-opus-4-8` or a newer Opus-generation flagship) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class model so a routine model refresh cannot silently kill the Friday desk.
+> **Schedule:** Friday 7:45 PM scheduler-local MT / 9:45 PM ET (`45 19 * * 5` — Claude Desktop Routine crons fire in America/Edmonton local time per `collector-task-configs.md`) — **CHANGED 2026-07-11: the CAD desk now runs AFTER the US desk** (US at 6:47 PM MT). Rationale: /thesis is Wheat-first and R-CA-WHT-01 makes the US desk's Wheat read the directional anchor for CWRS — running CAD first meant the flagship wheat read consumed a week-old US stance. All Friday inputs (USDA export sales Thu AM, CFTC COT Fri ~3:30 PM ET) are settled before either desk. **Operator action: re-register both `grain-desk-weekly` and `us-desk-weekly` Claude Desktop Routines with the swapped times.**
+> **Model:** Opus-class **or higher** (`claude-opus-4-8`, a newer Opus-generation flagship, or an above-Opus frontier tier such as Anthropic's Mythos-class / Claude 5 family) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check, and do not abort on models ABOVE Opus class: the gate is a floor, not an allowlist (clarified 2026-07-11 — the old "Opus-class only" wording would have aborted the desk under a Claude-5-family model).
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and
 > author farmer-facing prose. If this task fires under any other model, abort in Phase 0.
 > **Claude-only by policy:** No xAI / Grok LLM anywhere in the V2 loop. External search is Anthropic native `web_search_20250305` plus the X API v2 gateway Edge Function. A Codex-validated X signal bundle may include posts discovered by the quarantined Grok scout, but those posts are untrusted evidence inputs only; Grok never writes, ranks, or authors the desk thesis.
@@ -19,22 +19,25 @@ Before dispatching any agents, verify your model and establish the current data 
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as Sonnet, Haiku, or any other non-Opus-class model, write a failure row and abort immediately:
+Confirm you are running at or above Opus class (`claude-opus-4-8`, a newer Opus-generation flagship, or an above-Opus tier such as a Claude-5-family / Mythos-class model). The check is a FLOOR: abort only if you are running BELOW Opus class (Sonnet, Haiku, or any lighter tier) — never abort for being above it. On a below-floor model, write a failure row and abort immediately:
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
+INSERT INTO pipeline_runs (crop_year, grain_week, status, grains_requested, triggered_by, failure_details)
 VALUES (
-  (SELECT crop_year FROM cgc_observations ORDER BY imported_at DESC LIMIT 1),
-  (SELECT MAX(grain_week) FROM cgc_observations),
+  (SELECT MAX(crop_year) FROM cgc_observations),
+  (SELECT MAX(grain_week) FROM cgc_observations WHERE crop_year = (SELECT MAX(crop_year) FROM cgc_observations)),
   'failed',
+  ARRAY['Amber Durum','Barley','Beans','Canaryseed','Canola','Chick Peas','Corn','Flaxseed','Lentils','Mustard Seed','Oats','Peas','Rye','Soybeans','Sunflower','Wheat'],
   'cron',
   '{"reason": "Chief dispatched under wrong model — Opus-class required", "required_model": "opus-class", "routine": "grain-desk-weekly"}'::jsonb
 );
 ```
 
 > **`triggered_by` CHECK trap:** `pipeline_runs.triggered_by` only allows `manual | cron | retry`. Scheduled routine runs MUST use `'cron'` and carry the routine name inside `failure_details`/JSON instead. Inserting `'grain-desk-weekly'` violates the CHECK, the failure row never lands, and the run dies with zero trace.
+>
+> **`grains_requested` NOT NULL trap (found 2026-07-11):** `pipeline_runs.grains_requested text[]` is NOT NULL with **no default** (migration `20260418100300_parallel_pipeline.sql`). EVERY insert into this table — failure rows included — must supply the array or the insert itself dies with a NOT NULL violation and the run leaves zero trace, which is exactly the silent-death mode the fail-loud rows exist to prevent. Use the full 16-grain array (or the actual subset being run).
 
-Do not proceed with the swarm under any non-Opus model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
+Do not proceed with the swarm under any below-Opus-class model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
 
 **Step 0.1:** Query Supabase MCP to find the current grain week and crop year:
 
@@ -49,9 +52,13 @@ Record `current_week` and `crop_year`. All agents will use these values.
 
 **Step 0.2:** Define the grain list (all 16 CGC grains — use these EXACT names; any other spelling silently misses Supabase lookups):
 
+Process in TIER order — Wheat (FLAGSHIP) first, so scout extraction, chief resolution, and the write batch all hit the flagship before any budget/context is spent elsewhere:
+
 ```
-Amber Durum, Barley, Beans, Canaryseed, Canola, Chick Peas, Corn, Flaxseed,
-Lentils, Mustard Seed, Oats, Peas, Rye, Soybeans, Sunflower, Wheat
+Wheat,
+Canola, Barley, Oats, Corn,
+Soybeans, Peas, Lentils, Amber Durum, Flaxseed,
+Rye, Mustard Seed, Sunflower, Canaryseed, Chick Peas, Beans
 ```
 
 > **Do NOT use:** "Sunflower Seed(s)" (use "Sunflower"), "Canary Seed" (use "Canaryseed"),
@@ -60,7 +67,7 @@ Lentils, Mustard Seed, Oats, Peas, Rye, Soybeans, Sunflower, Wheat
 
 **Step 0.3 — Data freshness guardrail (FAIL-LOUD):**
 
-Check freshness of the three upstream data sources the swarm depends on. If ANY is stale beyond its SLA, abort the swarm and write a failure row. Silent stale runs are worse than no run.
+Check freshness of the three upstream data sources the swarm depends on. Only a stale CGC import ABORTS the run; COT and price breaches DEGRADE per the table below — never abort on them. Stale runs must never be silent: every breach is recorded (failure row on abort, `status='partial'` row + `llm_metadata.degraded_sources` on degrade).
 
 ```sql
 SELECT
@@ -69,22 +76,31 @@ SELECT
   (SELECT MAX(price_date) FROM grain_prices) AS price_last_settlement,
   EXTRACT(EPOCH FROM (NOW() - (SELECT MAX(imported_at) FROM cgc_imports)))/86400 AS cgc_age_days,
   EXTRACT(EPOCH FROM (NOW() - (SELECT MAX(imported_at) FROM cftc_cot_positions)))/86400 AS cot_age_days,
-  (NOW()::date - (SELECT MAX(price_date) FROM grain_prices)) AS price_age_days;
+  (NOW()::date - (SELECT MAX(price_date) FROM grain_prices)) AS price_age_days,
+  (SELECT MAX(price_date) FROM sk_cash_prices) AS sk_cash_last,
+  (NOW()::date - (SELECT MAX(price_date) FROM sk_cash_prices)) AS sk_cash_age_days;
 ```
 
-**SLAs — abort if breached:**
+**SLAs — abort vs degrade (changed 2026-07-11):**
 
-| Source | SLA | Why |
-|--------|-----|-----|
-| CGC (`cgc_imports.imported_at`) | ≤ 8 days | Weekly CGC release cadence + 24h buffer |
-| CFTC COT (`cftc_cot_positions.imported_at`) | ≤ 8 days | Weekly COT release + 24h buffer |
-| Grain prices (`grain_prices.price_date`) | ≤ 4 calendar days | Accounts for weekends/holidays |
+The April–June outage taught us that a full-desk abort on a stale *ancillary* source is worse than a degraded run: farmers got NO wheat read for 6 weeks because *prices* were stale. Only the desk's core input aborts the run now.
 
-If breached, write a failure row and stop:
+| Source | SLA | Breach behavior |
+|--------|-----|-----------------|
+| CGC (`cgc_imports.imported_at`) | ≤ 8 days | **ABORT** — the desk cannot read grain flow without CGC. Write failure row and stop. |
+| CFTC COT (`cftc_cot_positions.imported_at`) | ≤ 8 days | **DEGRADE** — proceed; sentiment-scout marks COT unavailable; Rules 9–11 inactive this week; cap all confidence at 60; record in `llm_metadata.degraded_sources`. |
+| Grain prices (`grain_prices.price_date`) | ≤ 4 calendar days | **DEGRADE** — proceed; price-analyst runs in low-confidence mode (Rule 15 stale-price flag); cap all confidence at 55; stance changes vs last week limited to ±15 without price confirmation; record in `llm_metadata.degraded_sources`. |
+| SK cash prices (`sk_cash_prices.price_date`) | ≤ 9 days | **DEGRADE (Wheat-scoped)** — proceed; the CWRS cash tape (R-CA-WHT-07 / Rule 12) is unavailable; cap Wheat confidence at 60; record in `llm_metadata.degraded_sources`. Note: `collect:sk-prices` has NO registered Routine row in `collector-task-configs.md` — if this breaches repeatedly, the collector was never scheduled (operator action). |
+
+On any DEGRADE, still fail loud in observability: write a `pipeline_runs` row with `status='partial'` and the breached SLAs in `failure_details` **at the end of the run** (in Step 5.4, use `'partial'` instead of `'completed'`).
+
+If CGC is breached, write a failure row and stop:
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'cron',
+INSERT INTO pipeline_runs (crop_year, grain_week, status, grains_requested, triggered_by, failure_details)
+VALUES ($1, $2, 'failed',
+  ARRAY['Amber Durum','Barley','Beans','Canaryseed','Canola','Chick Peas','Corn','Flaxseed','Lentils','Mustard Seed','Oats','Peas','Rye','Soybeans','Sunflower','Wheat'],
+  'cron',
   jsonb_build_object(
     'routine', 'grain-desk-weekly',
     'reason', 'stale_upstream_data',
@@ -95,7 +111,7 @@ VALUES ($1, $2, 'failed', 'cron',
   ));
 ```
 
-If all three are within SLA, record the timestamps in the `metadata.data_freshness` object that is written with every grain's `market_analysis` row.
+Whether clean or degraded, record the source timestamps (and any `degraded_sources` entries) in the `metadata.data_freshness` object that is written with every grain's `market_analysis` row.
 
 **Step 0.3.5 - Accepted X signal bundle (UNTRUSTED EVIDENCE):**
 
@@ -115,30 +131,76 @@ Read `friday_x_signal_bundle_v1` into the compiled brief as `x_signal_bundle`. U
 
 Attach accepted signals to the target grain's compiled brief under `x_signal_bundle.signals`. Record the top signal ids used or rejected in `llm_metadata.x_signal_bundle_audit`.
 
-**Step 0.4 - Grain effort tiers (MAJOR / MID / MINOR):**
+**Step 0.4 - Grain effort tiers (FLAGSHIP / MAJOR / MID / MINOR) — Wheat-first (2026-07-11):**
 
 Scouts always extract data for all 16 grains in parallel — tiering does NOT skip any grain. What tiering controls is how much chief-level attention each grain gets in Phases 4, 4.5, and 5. A MINOR grain with clean signals gets a short stance note; a MAJOR grain always gets full specialist debate plus full anomaly investigation budget.
 
+> **Why Wheat is now its own tier:** the farmer-facing product became a Wheat-first decision surface (`/thesis` renders Wheat as the only active farmer read — `lib/thesis/active-grain-display.ts`). The desk still covers all 16 grains (grain detail pages, My Farm, advisor context, and the later re-enable all consume `market_analysis` rows), but the single most important output of the Friday run is the Wheat read.
+
 | Tier | Grains | Rationale |
 |------|--------|-----------|
-| **MAJOR** | Wheat, Canola, Barley, Oats, Corn | Core prairie volume + Corn as US-farmer acquisition hook |
+| **FLAGSHIP** | Wheat | The active farmer-facing read on /thesis — deepest treatment, always |
+| **MAJOR** | Canola, Barley, Oats, Corn | Core prairie volume + Corn as US-farmer acquisition hook |
 | **MID** | Soybeans, Peas, Lentils, Amber Durum, Flaxseed | Significant export/contract markets, farmer-relevant |
 | **MINOR** | Rye, Mustard Seed, Sunflower, Canaryseed, Chick Peas, Beans | Thin markets, limited data coverage |
 
 Tier-dependent budgets:
 
-| Dimension | MAJOR | MID | MINOR |
-|-----------|-------|-----|-------|
-| Viking L2 chunks per query (`p_limit`) | 5 | 3 | 2 |
-| L2 queries per grain if divergent | up to 3 | up to 2 | 1 |
-| Phase 4.5 triggers active | all 6 | 4 (skip stale-thesis + overconfident-thin-data) | 2 (divergence + sudden swing only) |
-| `bull_reasoning` / `bear_reasoning` items per side | 3–5 | 2–4 | 1–3 |
-| `final_assessment` length | 3–4 sentences | 2–3 sentences | 1–2 sentences |
-| Min confidence floor when data thin | 40 | 35 | 25 |
+| Dimension | FLAGSHIP | MAJOR | MID | MINOR |
+|-----------|----------|-------|-----|-------|
+| Viking L2 chunks per query (`p_limit`) | 6 | 5 | 3 | 2 |
+| L2 queries per grain if divergent | up to 4 | up to 3 | up to 2 | 1 |
+| Phase 4.5 | **mandatory deep pass every week** (see below) | all 6 triggers | 4 (skip stale-thesis + overconfident-thin-data) | 2 (divergence + sudden swing only) |
+| `bull_reasoning` / `bear_reasoning` items per side | 4–6 | 3–5 | 2–4 | 1–3 |
+| `final_assessment` length | 4–6 sentences | 3–4 sentences | 2–3 sentences | 1–2 sentences |
+| Min confidence floor when data thin | 45 | 40 | 35 | 25 |
 
-Record the applied tier in `metadata.effort_tier` for every `market_analysis` row so we can audit later: `"effort_tier": "MAJOR"`.
+**FLAGSHIP extras (Wheat only):**
 
-**This is a budget, not a ceiling.** If a MINOR grain genuinely surfaces a big divergence, Opus may escalate its treatment to MID or MAJOR — but must record `metadata.tier_escalation_reason` in plain English explaining why.
+1. **US desk cross-read (operationalizes R-CA-WHT-01).** CWRS is a price-taker on global wheat, and the US desk maintains the authoritative directional read. Pull the latest rows for all four US-anchored markets in one query:
+   ```sql
+   SELECT DISTINCT ON (market_name) market_name, stance_score, confidence_score, final_assessment, generated_at
+   FROM us_market_analysis
+   WHERE market_name IN ('Wheat','Corn','Soybeans','Oats')
+   ORDER BY market_name, generated_at DESC;
+   ```
+   Wheat's row is MANDATORY in the FLAGSHIP brief (rules below). Corn/Soybeans/Oats rows attach to those grains' briefs as `us_desk_cross_read` context — the CAD desk should not spend an hour re-deriving a direction the US desk resolved 60 minutes earlier; CAD-specific drivers (basis, logistics, CGC flow) are where those grains' CAD stances may legitimately diverge.
+   The US desk now runs ~1h before this desk (schedule swapped 2026-07-11), so a SAME-DAY row should exist. If `generated_at` is within 24h, attach it to Wheat's compiled brief as `us_desk_cross_read` (specialists must reference it) and cite it in Phase 4 resolution. If only an older row (≤ 9 days) exists, still attach it but set `us_cross_read_stale: true` — the US desk missed its Friday run, which is itself a signal worth flagging. If missing/older than 9 days, note `us_cross_read: unavailable` in `llm_metadata` and lower Wheat confidence by 5.
+2. **Wheat-class lens.** Terminal Receipts/Exports carry per-grade rows (CWRS/CWAD/CPSR/winter classes). The **logistics-scout extracts this** (its `wheat_class_flow` block) — two weeks in one query so the WoW share shift is computable. The chief consumes `wheat_class_mix` from the compiled brief; only run the SQL directly as a fallback if the scout omitted it:
+   ```sql
+   SELECT grain_week, CASE
+       WHEN grade ILIKE '%CWRS%' THEN 'CWRS'
+       WHEN grade ILIKE '%CWAD%' OR grade ILIKE '%durum%' THEN 'CWAD'
+       WHEN grade ILIKE '%CPSR%' OR grade ILIKE '%CPS%' THEN 'CPS'
+       WHEN grade ILIKE '%CWRW%' OR grade ILIKE '%winter%' THEN 'Winter'
+       ELSE 'Other' END AS class_family,
+     SUM(ktonnes) AS kt
+   FROM cgc_observations
+   WHERE grain = 'Wheat' AND crop_year = $1 AND grain_week IN ($2 - 1, $2)
+     AND worksheet = 'Terminal Receipts' AND metric = 'Receipts' AND period = 'Crop Year'
+   GROUP BY 1, 2 ORDER BY grain_week, kt DESC;
+   ```
+   Aggregate **in SQL** (never row-fetch — PostgREST truncates at 1,000 rows). Report the class mix and any WoW class-share shift > 5 pts in `key_signals`. This is also groundwork for un-parking the Spring/Winter Wheat thesis rows (class-safe source mapping).
+3. **Cash tape + new-crop context.** basis-scout supplies `sk_cash_prices` wheat cash WoW (Rule 12 for a grain with no Yahoo futures); supply-scout supplies StatsCan farm stocks + SK Spring Cereals development timing (May–Oct). The Wheat `final_assessment` must speak to BOTH old-crop flow and new-crop condition during the growing season.
+
+Record the applied tier in `metadata.effort_tier` for every `market_analysis` row so we can audit later: `"effort_tier": "FLAGSHIP"` for Wheat, `"MAJOR"` etc. for the rest.
+
+**This is a budget, not a ceiling.** If a MINOR grain genuinely surfaces a big divergence, Opus may escalate its treatment to MID or MAJOR — but must record `metadata.tier_escalation_reason` in plain English explaining why. Wheat can never be demoted below FLAGSHIP.
+
+**Step 0.5 — Open the run ledger (added 2026-07-11):**
+
+Before dispatching any scouts, insert the run row so a chief that dies mid-run still leaves a trace (a permanently-`running` row is the tombstone the Saturday meta-reviewer looks for):
+
+```sql
+INSERT INTO pipeline_runs (crop_year, grain_week, status, grains_requested, triggered_by, failure_details)
+VALUES ($1, $2, 'running',
+  ARRAY['Amber Durum','Barley','Beans','Canaryseed','Canola','Chick Peas','Corn','Flaxseed','Lentils','Mustard Seed','Oats','Peas','Rye','Soybeans','Sunflower','Wheat'],
+  'cron',
+  jsonb_build_object('routine', 'grain-desk-weekly'))
+RETURNING id;
+```
+
+Record the returned `id` as `run_id`. Steps 5.4 and the failure paths from here on UPDATE this row instead of inserting a new one.
 
 ## Phase 1: Scout Dispatch (6 agents in parallel)
 
@@ -215,7 +277,15 @@ Each specialist prompt MUST include these three rule contexts, concatenated in t
 
 **Thesis-killer tracking:** Every specialist MUST scan its target grain's "Thesis-Killers" list and explicitly flag whether any is currently active. Output field: `active_thesis_killers[]`.
 
-**Step 3.1:** Spawn 4 specialist agents, each receiving ALL compiled scout briefs:
+**Step 3.1 — Two-wave dispatch (changed 2026-07-11):** the old single-batch shape (all 16 grains + both rulebooks in one specialist context) made the "ACTIVE GRAIN CARD" emphasis incoherent — there was no single active grain — and diluted specialist attention exactly where the thesis is formed.
+
+**Wave A (FLAGSHIP — Wheat only):** spawn all 4 specialists scoped to Wheat alone. Prompt = global rules + the Wheat card as a coherent ACTIVE GRAIN CARD + Wheat's compiled brief (including `us_desk_cross_read` and `wheat_class_mix`). This is where the depth budget goes.
+
+**Wave B (the other 15 grains):** spawn the same 4 specialist types batched over the remaining grains (country rulebook carries every card; no single active-card emphasis).
+
+Wave A and Wave B can run concurrently; resolve Wheat (Phase 4) as soon as Wave A returns — do not gate the flagship read on Wave B stragglers.
+
+Each specialist receives its scoped compiled scout briefs:
 
 Each specialist receives:
 ```
@@ -358,7 +428,7 @@ You have access to ALL Viking knowledge for resolution:
 
 Before writing results, run a suspicion check on every grain. You are the chief — you must notice when something looks odd or conflicting and investigate further. A quiet weighted-average is not enough when the underlying signals disagree or have drifted.
 
-**Enter deep-investigation mode for a grain if ANY of these triggers fire:**
+**Wheat (FLAGSHIP) runs the deep pass EVERY week** — no trigger needed. The flagship read never ships on a quiet weighted-average. For all other grains, enter deep-investigation mode if ANY of these triggers fire:
 
 | Trigger | Threshold |
 |---------|-----------|
@@ -368,6 +438,9 @@ Before writing results, run a suspicion check on every grain. You are the chief 
 | Stale thesis | 3+ consecutive weeks of same stance ±5 pts in `score_trajectory` |
 | Overconfident thin data | `data_confidence='low'` but final `|stance_score| > 40` |
 | Sudden swing | this week's stance differs by > 25 pts from last week without a named catalyst |
+| **Cross-desk wheat divergence (Wheat only)** | CAD Wheat resolved stance differs from the US desk Wheat stance (`us_desk_cross_read`) by > 30 pts — investigate and explain the divergence (Canadian-specific driver? basis? logistics?) in `investigation_notes` |
+
+> **FLAGSHIP note:** when the Wheat deep pass finds no anomaly, do NOT apply the -15 confidence penalty — the penalty applies only when a trigger actually fired. Record `investigation_notes.trigger = "flagship_mandatory"` and what was checked.
 
 **In deep-investigation mode, you MUST:**
 
@@ -476,6 +549,8 @@ Sizing rules (apply WITHIN the tier cap):
 }
 ```
 
+> **FLAGSHIP handoff (added 2026-07-11):** the Wheat row must additionally carry `llm_metadata.wheat_cockpit` — a cockpit-safe block the /thesis Wheat-first surface can render without parsing desk prose: `{ "what_changed": "<1 sentence — the single most decision-relevant change this week>", "watch_next": "<1 sentence — what Thursday's CGC release must show to confirm/kill the stance>", "class_mix_note": "<1 sentence or null — only when the class lens found a >5-pt shift>" }`. Keep each under 140 chars; farmers read these raw.
+>
 > **Why `track_46` lives inside `llm_metadata`:** the seven Track 46 debate-quality fields are columns on `unified_rankings` (see migration `20260419130000`), not on `market_analysis`. Storing them under `llm_metadata.track_46` keeps the chief's output persisted AND preserves the hand-off for the Unifier phase (Saturday) to read them back and build each week's `unified_rankings` row without re-running the chief.
 >
 > **Key rename:** `tier` → `stance_tier`. The word "tier" is overloaded elsewhere in this prompt (`effort_tier` = MAJOR/MID/MINOR attention budget). Rename to `stance_tier` to disambiguate.
@@ -499,11 +574,11 @@ Before executing the UPSERT, hold all 16 proposed rows in memory and self-audit 
 1. **Directional sanity** — Count bullish (stance > 10), neutral (|stance| ≤ 10), bearish (stance < -10) grains. Target distribution for a normal week: 3–6 bullish, 3–6 neutral, 3–6 bearish. If the batch is ≥13/16 in any single direction, you have a calibration problem unless there is a clear macro reason (you must name it in `metadata.batch_bias_justification`).
 2. **Confidence sanity** — Count high-confidence rows (confidence_score ≥ 70). If 0/16 are high-confidence, the swarm is being too timid — re-examine grains with clean signals. If >12/16 are high-confidence, you're overclaiming — apply caution.
 3. **Evidence grounding** — For every row, every `bull_reasoning` and `bear_reasoning` item must reference a specific scout finding, debate rule, or L2 chunk. Flag any item that reads as a platitude and rewrite or delete it.
-4. **Tier compliance** — Every MINOR-tier row must have ≤3 items per side; every MAJOR-tier row must have ≥3 items per side (unless asymmetry is explicitly justified). Reject rows that violate their tier cap without `tier_escalation_reason`.
+4. **Tier compliance** — Every MINOR-tier row must have ≤3 items per side; every MAJOR-tier row must have ≥3 items per side; the FLAGSHIP (Wheat) row must have ≥4 items per side AND cite the `us_desk_cross_read` (or its explicit unavailability) — all unless asymmetry is explicitly justified. Reject rows that violate their tier cap without `tier_escalation_reason`.
 5. **Contradiction check** — Scan each row: does `final_assessment` contradict `stance_score`? Does `bull_case` prose contradict bearish stance? Rule 5 applies.
 6. **Trajectory sanity** — For any grain with |Δ stance vs last week| > 25 with `phase_4_5_executed: false`, Phase 4.5 was skipped — stop and re-run anomaly investigation for that grain.
 7. **Data freshness labelling** — Every row's `metadata.data_freshness` must name the specific week/date for each source, not "recent" or "current".
-8. **Tier recording** — Every row must have `metadata.effort_tier` set to `"MAJOR"`, `"MID"`, or `"MINOR"`.
+8. **Tier recording** — Every row must have `metadata.effort_tier` set to `"FLAGSHIP"` (Wheat only), `"MAJOR"`, `"MID"`, or `"MINOR"`.
 9. **Rule citation coverage:** Every grain row has at least ONE grain-specific rule ID in `rule_citations[]`. FAIL if any row cites only global rules.
 10. **Thesis-killer scan:** Every grain row has `active_thesis_killers[]` populated (can be empty array, but must be present).
 11. **Tier boundary check:** Any row with `boundary_flag: true` is reviewed manually for tier classification risk.
@@ -529,15 +604,16 @@ Before executing the UPSERT, hold all 16 proposed rows in memory and self-audit 
 
 If `batch_distribution` is skewed (≥13 in one direction), `batch_bias_justification` MUST be a plain-English reason (e.g. "USDA WASDE cut ending stocks across 5 commodities Friday, justifying broad bullish tilt"). Never leave it null when skewed.
 
-If any check fails and you cannot fix it, write a partial-failure row to `pipeline_runs` and abort the write:
+If any check fails and you cannot fix it, close the run ledger as failed and abort the write:
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, triggered_by, failure_details)
-VALUES ($1, $2, 'failed', 'cron',
-  jsonb_build_object('routine', 'grain-desk-weekly', 'reason', 'meta_review_failed', 'checks_failed', $3, 'affected_grains', $4));
+UPDATE pipeline_runs
+SET status = 'failed', completed_at = now(),
+    failure_details = failure_details || jsonb_build_object('reason', 'meta_review_failed', 'checks_failed', $1, 'affected_grains', $2)
+WHERE id = $run_id;
 ```
 
-**Step 5.2:** Upsert to market_analysis via Supabase MCP.
+**Step 5.2:** Upsert to market_analysis via Supabase MCP. **Write order: FLAGSHIP first** — Wheat's row lands before the other 15, so even a mid-write chief death leaves the farmer-facing read current. After each grain's upsert succeeds, append it to the ledger: `UPDATE pipeline_runs SET grains_completed = grains_completed || ARRAY[$grain] WHERE id = $run_id;`
 
 > **Column-name trap:** the JSONB column on `market_analysis` is **`llm_metadata`** (NOT `metadata`). Verify against migration `20260312120000_market_analysis_table.sql` before editing this SQL.
 >
@@ -580,11 +656,16 @@ VALUES
 
 One row per grain, `scan_type = 'weekly_debate'`, `model_source = 'claude-agent-desk-v1-opus'`. `evidence` and `data_freshness` are JSONB; `trigger` is the one-line "why this stance changed" text; `recommendation` mirrors `final_assessment` or its short-form equivalent.
 
-**Step 5.4:** Log pipeline run:
+**Step 5.4:** Close the run ledger (the row opened in Step 0.5):
+
+> **Column trap (fixed 2026-07-11):** `pipeline_runs` has NO `source` or `metadata` columns — the pre-outage insert here silently failed every Friday. The real columns are `grains_requested` / `grains_completed` / `grains_failed` / `triggered_by` / `failure_details` / `completed_at` / `duration_ms` (migration `20260418100300`). Identify the desk run via `failure_details->>'routine'` even on success rows.
 
 ```sql
-INSERT INTO pipeline_runs (crop_year, grain_week, status, source, metadata)
-VALUES ($1, $2, 'completed', 'claude-agent-desk', $3);
+UPDATE pipeline_runs
+SET status = $1,            -- 'completed', or 'partial' when any source was DEGRADED (Step 0.3) or any grain failed
+    completed_at = now(),
+    failure_details = failure_details || jsonb_build_object('run_summary', $2::jsonb)
+WHERE id = $run_id;
 ```
 
 ## Phase 6: Trigger Downstream
@@ -623,7 +704,9 @@ TeamDelete()
 | Scout fails for one grain | Mark unavailable, proceed with 5 scouts for that grain |
 | Scout fails entirely | Proceed with 5 scouts for all grains, note reduced coverage |
 | Specialist fails | Resolve with 2 specialists, note reduced confidence |
-| All scouts fail for a grain | Skip that grain. Retain previous week's score. |
+| All scouts fail for a grain (non-FLAGSHIP) | Skip that grain. Retain previous week's score — do NOT write a fresh `weekly_debate` trajectory row for it. |
+| All scouts fail for WHEAT (FLAGSHIP) | Never skip silently. Retry the failed scouts once for Wheat only; if still failing, close the ledger `status='partial'` with `grains_failed=['Wheat']` and `failure_details.reason='flagship_scout_failure'` so the Saturday watchdog pages the operator. |
+| X signal bundle build fails (Step 0.3.5) | Proceed without X evidence; note `x_signal_bundle: unavailable` in `llm_metadata`; sentiment findings fall back to COT only. |
 | External search unavailable (macro-scout) | Proceed without external search, flag in metadata |
 | L2 knowledge query empty | Proceed with L0+L1 only |
 | Supabase MCP unavailable | Abort swarm, report error |
