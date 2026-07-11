@@ -6,6 +6,8 @@ import type { ThesisBoardData, ThesisBoardItem } from "@/lib/queries/thesis-boar
 import type { XPulseWatchSummary } from "@/lib/queries/x-scout-runs";
 import type { SourceRunSummary } from "@/lib/queries/source-runs";
 import type { DailyThesisUpdateSummary } from "@/lib/queries/daily-thesis-updates";
+import type { WheatPriceHistoryRow } from "@/lib/queries/wheat-price-history";
+import type { WheatExportHistoryRow } from "@/lib/queries/wheat-export-history";
 import type { Track54ReadinessSnapshot } from "@/lib/queries/track54-readiness";
 import {
   PUBLIC_ADVICE_FORBIDDEN_TERMS,
@@ -18,6 +20,8 @@ const {
   getXPulseWatchSummaryMock,
   getLatestSourceRunSummariesMock,
   getLatestDailyThesisUpdatesMock,
+  getWheatPriceHistoryMock,
+  getWheatExportHistoryMock,
   getLocalTrack54ReadinessSnapshotMock,
   cookieGetMock,
   getProvincialFlowMock,
@@ -27,6 +31,8 @@ const {
   getXPulseWatchSummaryMock: vi.fn<() => Promise<XPulseWatchSummary>>(),
   getLatestSourceRunSummariesMock: vi.fn<() => Promise<SourceRunSummary[]>>(),
   getLatestDailyThesisUpdatesMock: vi.fn<() => Promise<DailyThesisUpdateSummary[]>>(),
+  getWheatPriceHistoryMock: vi.fn<() => Promise<WheatPriceHistoryRow[]>>(),
+  getWheatExportHistoryMock: vi.fn<() => Promise<WheatExportHistoryRow[]>>(),
   getLocalTrack54ReadinessSnapshotMock: vi.fn<() => Promise<Track54ReadinessSnapshot | null>>(),
   cookieGetMock: vi.fn<(name: string) => { value: string } | undefined>(),
   getProvincialFlowMock: vi.fn(),
@@ -65,6 +71,14 @@ vi.mock("@/lib/queries/source-runs", () => ({
 
 vi.mock("@/lib/queries/daily-thesis-updates", () => ({
   getLatestDailyThesisUpdates: getLatestDailyThesisUpdatesMock,
+}));
+
+vi.mock("@/lib/queries/wheat-price-history", () => ({
+  getWheatPriceHistory: getWheatPriceHistoryMock,
+}));
+
+vi.mock("@/lib/queries/wheat-export-history", () => ({
+  getWheatExportHistory: getWheatExportHistoryMock,
 }));
 
 vi.mock("@/lib/queries/track54-readiness", () => ({
@@ -230,6 +244,168 @@ function dailyUpdate(overrides: Partial<DailyThesisUpdateSummary> = {}): DailyTh
   };
 }
 
+function wheatPriceHistoryRows(): WheatPriceHistoryRow[] {
+  return [
+    {
+      leg: "Spring Wheat",
+      grain: "Spring Wheat",
+      contract: "MWK26",
+      exchange: "MGEX",
+      priceDate: "2026-05-09",
+      settlementPrice: 6.6975,
+      changePct: 0.2,
+      currency: "USD",
+      unit: "$/bu",
+      source: "barchart",
+    },
+    {
+      leg: "Spring Wheat",
+      grain: "Spring Wheat",
+      contract: "MWK26",
+      exchange: "MGEX",
+      priceDate: "2026-06-24",
+      settlementPrice: 7.11,
+      changePct: -0.594,
+      currency: "USD",
+      unit: "$/bu",
+      source: "barchart",
+    },
+    {
+      leg: "HRW Wheat",
+      grain: "HRW Wheat",
+      contract: "KE",
+      exchange: "KCBT",
+      priceDate: "2026-05-08",
+      settlementPrice: 6.725,
+      changePct: -0.1,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+    {
+      leg: "HRW Wheat",
+      grain: "HRW Wheat",
+      contract: "KE",
+      exchange: "KCBT",
+      priceDate: "2026-06-22",
+      settlementPrice: 6.335,
+      changePct: -1.63,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+    {
+      leg: "SRW Wheat",
+      grain: "Wheat",
+      contract: "ZW",
+      exchange: "CBOT",
+      priceDate: "2026-05-08",
+      settlementPrice: 6.075,
+      changePct: 0.3,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+    {
+      leg: "SRW Wheat",
+      grain: "Wheat",
+      contract: "ZW",
+      exchange: "CBOT",
+      priceDate: "2026-06-22",
+      settlementPrice: 5.975,
+      changePct: -1.362,
+      currency: "USD",
+      unit: "$/bu",
+      source: "yahoo-finance",
+    },
+  ];
+}
+
+function wheatExportHistoryRows(): WheatExportHistoryRow[] {
+  return [
+    {
+      country: "Canada",
+      sourceName: "cgc_observations",
+      seasonLabel: "2025-2026",
+      weekEnding: "2026-06-07",
+      weekIndex: 44,
+      weeklyExportsKt: 473.3,
+      cumulativeExportsKt: 19470.0,
+      weeklyProducerDeliveriesKt: 479.1,
+      cumulativeProducerDeliveriesKt: 21920.9,
+      exportDeliveryRatioPct: 98.8,
+      netSalesKt: null,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: null,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "strong",
+      sourcePeriodEnd: "2026-06-14",
+    },
+    {
+      country: "Canada",
+      sourceName: "cgc_observations",
+      seasonLabel: "2025-2026",
+      weekEnding: "2026-06-14",
+      weekIndex: 45,
+      weeklyExportsKt: 193.9,
+      cumulativeExportsKt: 19663.9,
+      weeklyProducerDeliveriesKt: 642.8,
+      cumulativeProducerDeliveriesKt: 22563.7,
+      exportDeliveryRatioPct: 30.2,
+      netSalesKt: null,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: null,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "strong",
+      sourcePeriodEnd: "2026-06-14",
+    },
+    {
+      country: "United States",
+      sourceName: "usda_export_sales",
+      seasonLabel: "2026-2027",
+      weekEnding: "2026-06-04",
+      weekIndex: 23,
+      weeklyExportsKt: 266.073,
+      cumulativeExportsKt: 266.073,
+      weeklyProducerDeliveriesKt: null,
+      cumulativeProducerDeliveriesKt: null,
+      exportDeliveryRatioPct: null,
+      netSalesKt: 666.259,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: 4591.936,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "expected_lag",
+      sourcePeriodEnd: "2026-06-11",
+    },
+    {
+      country: "United States",
+      sourceName: "usda_export_sales",
+      seasonLabel: "2026-2027",
+      weekEnding: "2026-06-11",
+      weekIndex: 24,
+      weeklyExportsKt: 314.327,
+      cumulativeExportsKt: 580.4,
+      weeklyProducerDeliveriesKt: null,
+      cumulativeProducerDeliveriesKt: null,
+      exportDeliveryRatioPct: null,
+      netSalesKt: 400.844,
+      outstandingSalesKt: null,
+      totalCommitmentsKt: 4992.78,
+      exportPacePct: null,
+      usdaProjectionKt: null,
+      projectionAdmitted: false,
+      freshnessStatus: "expected_lag",
+      sourcePeriodEnd: "2026-06-11",
+    },
+  ];
+}
+
 function boardData(): ThesisBoardData {
   const canola = item();
   const canadaWheat = item({
@@ -281,6 +457,68 @@ function boardData(): ThesisBoardData {
           negative_evidence: [],
           blocked_claims: [],
         },
+        {
+          domain: "price",
+          score: -17,
+          weight: 0.15,
+          weighted_score: -2.55,
+          confidence: "medium",
+          freshness_status: "strong",
+          sources: ["grain_prices"],
+          metrics: [
+            {
+              source: "grain_prices",
+              label: "Spring Wheat futures change",
+              value: "-0.6%",
+              numericValue: -0.594,
+              unit: "pct",
+              period: "2026-06-24",
+            },
+            {
+              source: "grain_prices",
+              label: "Spring Wheat settlement price",
+              value: "7.11 USD/bu",
+              numericValue: 7.11,
+              unit: "$/bu",
+              period: "2026-06-24",
+            },
+            {
+              source: "grain_prices",
+              label: "HRW Wheat futures change",
+              value: "-1.6%",
+              numericValue: -1.63,
+              unit: "pct",
+              period: "2026-06-22",
+            },
+            {
+              source: "grain_prices",
+              label: "HRW Wheat settlement price",
+              value: "6.335 USD/bu",
+              numericValue: 6.335,
+              unit: "$/bu",
+              period: "2026-06-22",
+            },
+            {
+              source: "grain_prices",
+              label: "SRW Wheat futures change",
+              value: "-1.4%",
+              numericValue: -1.362,
+              unit: "pct",
+              period: "2026-06-22",
+            },
+            {
+              source: "grain_prices",
+              label: "SRW Wheat settlement price",
+              value: "5.975 USD/bu",
+              numericValue: 5.975,
+              unit: "$/bu",
+              period: "2026-06-22",
+            },
+          ],
+          positive_evidence: [],
+          negative_evidence: ["Fresh Wheat price basket shows futures pressure: Spring Wheat -0.6%, HRW Wheat -1.6%, SRW Wheat -1.4%."],
+          blocked_claims: [],
+        },
       ],
       contradictions: [],
       quality_adjustments: [],
@@ -288,6 +526,74 @@ function boardData(): ThesisBoardData {
       llm_allowed_claims: ["CGC wheat exports are firm against producer deliveries."],
       llm_blocked_claims: [],
     },
+    priceRows: [
+      {
+        grain: "Spring Wheat",
+        contract: "MWK26",
+        exchange: "MGEX",
+        priceDate: "2026-06-24",
+        settlementPrice: 7.11,
+        changePct: -0.594,
+        currency: "USD",
+        unit: "$/bu",
+        source: "barchart",
+      },
+      {
+        grain: "Spring Wheat",
+        contract: "MWK26",
+        exchange: "MGEX",
+        priceDate: "2026-06-13",
+        settlementPrice: 7.11,
+        changePct: -0.594,
+        currency: "USD",
+        unit: "$/bu",
+        source: "barchart",
+      },
+      {
+        grain: "HRW Wheat",
+        contract: "KE",
+        exchange: "KCBT",
+        priceDate: "2026-06-22",
+        settlementPrice: 6.335,
+        changePct: -1.63,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+      {
+        grain: "HRW Wheat",
+        contract: "KE",
+        exchange: "KCBT",
+        priceDate: "2026-06-15",
+        settlementPrice: 6.4,
+        changePct: 0.867,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+      {
+        grain: "Wheat",
+        contract: "ZW",
+        exchange: "CBOT",
+        priceDate: "2026-06-22",
+        settlementPrice: 5.975,
+        changePct: -1.362,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+      {
+        grain: "Wheat",
+        contract: "ZW",
+        exchange: "CBOT",
+        priceDate: "2026-06-15",
+        settlementPrice: 5.8975,
+        changePct: 0.898,
+        currency: "USD",
+        unit: "$/bu",
+        source: "yahoo-finance",
+      },
+    ],
   });
   const usWheat = item({
     id: "us-wheat",
@@ -300,6 +606,13 @@ function boardData(): ThesisBoardData {
     stanceScore: -20,
     stanceLabel: "Bearish",
     confidenceScore: 80,
+    freshness: [
+      freshnessRow("usda_crop_progress", "strong", "2026-06-21"),
+      freshnessRow("usda_wasde_mapped", "strong", "2026-06-01"),
+      freshnessRow("usda_wasde_raw", "strong", "2026-06-01"),
+      freshnessRow("usda_export_sales", "strong", "2026-06-11"),
+      freshnessRow("usda_quarterly_stocks", "strong", "2026-03-01"),
+    ],
     ratingScorecard: {
       grain: "Wheat",
       lane: "us",
@@ -564,6 +877,8 @@ describe("ThesisPage scorecard audit mode", () => {
     getXPulseWatchSummaryMock.mockResolvedValue(xPulseWatch());
     getLatestSourceRunSummariesMock.mockResolvedValue([]);
     getLatestDailyThesisUpdatesMock.mockResolvedValue([]);
+    getWheatPriceHistoryMock.mockResolvedValue(wheatPriceHistoryRows());
+    getWheatExportHistoryMock.mockResolvedValue(wheatExportHistoryRows());
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
     cookieGetMock.mockReturnValue(undefined);
     getProvincialFlowMock.mockResolvedValue(null);
@@ -630,7 +945,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Black Sea/EU/Australia");
     expect(html).toContain("Global origins can cap wheat even when local data is supportive.");
     expect(html).toContain("Final read");
-    expect(html).toContain("Country split: CA +20 versus US -20.");
+    expect(html).toContain("CA +20 Bullish; US -20 Bearish.");
     expect(html).toContain("Parked Wheat gaps");
     expect(html).toContain("class-specific Wheat mapping");
     expect(html).not.toContain("Spring Wheat mapping");
@@ -736,22 +1051,100 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("write-mode routines stay disabled");
   });
 
-  it("surfaces the Wheat split-market evidence before supporting detail", async () => {
+  it("surfaces one Wheat decision read before supporting detail", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Canada vs USA Wheat Bull/Bear");
-    expect(html).toContain("Canada Wheat Bull/Bear");
-    expect(html).toContain("USA Wheat Bull/Bear");
-    expect(html).toContain("Wheat stance meter");
-    expect(html).toContain("Canada + US");
-    expect(html).toContain("Top bull evidence");
-    expect(html).toContain(
-      "CA Canada export basis stays firm: Canada wheat flow is firmer than the US wheat packet. (+20 stance / CGC weekly grain stats).",
-    );
-    expect(html).toContain("Top bear evidence");
-    expect(html).toContain(
-      "US Crop condition adds supply pressure: Good crop ratings are keeping supply pressure in the US packet. (76% good/excellent / USDA Crop Progress).",
-    );
+    expect(html).toContain("Wheat Bull/Bear decision surface");
+    expect(html).toContain("Current Wheat read");
+    expect(html).toContain("Current stance");
+    expect(html).toContain("Thesis confidence");
+    expect(html).toContain("Wheat bull bear pressure score 0");
+    expect(html).toContain("Source coverage: Canada + US");
+    expect(html).toContain("High conviction: fresh sources are lined up");
+    expect(html).toContain("Top pressure drivers");
+    expect(html).toContain("Proof rows below");
+    expect(html).toContain("Reconciliation judge");
+    expect(html).toContain("Deciding datum");
+    expect(html).toContain("+15 weighted points from CGC weekly grain stats");
+    expect(html).toContain("Strong source proof");
+    expect(html).toContain("Counterweight check");
+    expect(html).toContain("US Supply is the main counterweight at -6.");
+    expect(html).toContain("Source-specific read");
+    expect(html).toContain("CGC flow proves Canadian movement");
+    expect(html).toContain("USDA Wheat sweep");
+    expect(html).toContain("Official U.S. rows behind the Wheat read");
+    expect(html).toContain("Official source rows only");
+    expect(html).toContain("USDA relationship read");
+    expect(html).toContain("Condition signal");
+    expect(html).toContain("Balance anchor");
+    expect(html).toContain("Demand confirmation");
+    expect(html).toContain("Inventory check");
+    expect(html).toContain("Price confirmation");
+    expect(html).toContain("Read the row chain left to right before changing the Wheat stance.");
+    expect(html).toContain("Crop Progress");
+    expect(html).toContain("WASDE balance");
+    expect(html).toContain("Export Sales");
+    expect(html).toContain("Quarterly Stocks");
+    expect(html).toContain("Decision role");
+    expect(html).toContain("First supply clue");
+    expect(html).toContain("Balance-sheet anchor");
+    expect(html).toContain("Bear pressure");
+    expect(html).toContain("Cadence-limited");
+    expect(html).toContain("No score move in this packet");
+    expect(html).toContain("Cadence-limited demand proof");
+    expect(html).toContain("Good/excellent: 76.0%");
+    expect(html).toContain("Latest row: Jun 21, 2026");
+    expect(html).toContain("Latest row: Jun 11, 2026");
+    expect(html).toContain("Relationship spiderweb");
+    expect(html).toContain("Distance shows impact on the Wheat read");
+    expect(html).toContain("Closer nodes carry more score weight.");
+    expect(html).toContain("Bear pressure sits left");
+    expect(html).toContain("Inner: high impact");
+    expect(html).toContain("Source (what we watch)");
+    expect(html).toContain("Crop Condition / Weather");
+    expect(html).toContain("Demand / Exports");
+    expect(html).toContain("<details");
+    expect(html).toContain("What this means");
+    expect(html).toContain("Score effect");
+    expect(html).toContain("Price basket proof");
+    expect(html).toContain("Spring Wheat / HRW / SRW confirmation");
+    expect(html).toContain("All reported contracts bearish");
+    expect(html).toContain("MGEX");
+    expect(html).toContain("KCBT");
+    expect(html).toContain("CBOT");
+    expect(html).toContain("Packet trend context");
+    expect(html).toContain("Packet window, not full chart");
+    expect(html).toContain("Barchart latest-only leg");
+    expect(html).toContain("Jun 15, 2026 to Jun 22, 2026");
+    expect(html).toContain("Latest close 6.335 USD/bu; latest daily change -1.6%.");
+    expect(html).toContain("Historical price context");
+    expect(html).toContain("60-day price history");
+    expect(html).toContain("May 8, 2026 to Jun 22, 2026");
+    expect(html).toContain("Latest close 5.975 USD/bu; range 5.975 USD/bu-6.075 USD/bu.");
+    expect(html).toContain("Historical export context");
+    expect(html).toContain("Demand pull beside the price tape");
+    expect(html).toContain("16-week demand history");
+    expect(html).toContain("Canada CGC export pull");
+    expect(html).toContain("Export pull light");
+    expect(html).toContain("193.9 kt exports against 642.8 kt producer deliveries.");
+    expect(html).toContain("U.S. Export Sales");
+    expect(html).toContain("Sales support");
+    expect(html).toContain("400.8 kt");
+    expect(html).toContain("314.3 kt weekly exports; 4,992.8 kt total commitments.");
+    expect(html).toContain("Projection pace not admitted for this row.");
+    expect(html).toContain("Bull case");
+    expect(html).toContain("Canada export basis stays firm");
+    expect(html).toContain("Bear case");
+    expect(html).toContain("Crop condition adds supply pressure");
+    expect(html).toContain("One Wheat read");
+    expect(html).toContain("Source geography is evidence context; this screen keeps one Wheat read.");
+    expect(html).toContain("Wheat crop progress - week ending 2026-06-21");
+    expect(html).toContain("Winter harvested");
+    expect(html).toContain("Watch leads (what could change the thesis)");
+    expect(html).not.toContain("Country split");
+    expect(html).not.toContain("CA source geography");
+    expect(html).not.toContain("US source geography");
+    expect(html).not.toContain("Canada vs USA Wheat Bull/Bear");
   });
 
   it("does not substitute a non-wheat one-country row into the active farmer display", async () => {
@@ -809,7 +1202,7 @@ describe("ThesisPage scorecard audit mode", () => {
   it("leads with the farmer read and keeps operator telemetry off the normal board", async () => {
     const html = await renderThesisPage();
 
-    expect(html.indexOf("Canada vs USA Wheat Bull/Bear")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
     expect(html.indexOf("Your area")).toBeLessThan(html.indexOf("Official source rows are clean for this board"));
     expect(html.indexOf("Official source rows are clean for this board")).toBeLessThan(
       html.indexOf("Current snapshot"),
@@ -833,7 +1226,7 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Your area");
     expect(html).toContain("Enter your postal code");
     expect(html).toContain("Saved on this device only");
-    expect(html.indexOf("Canada vs USA Wheat Bull/Bear")).toBeLessThan(html.indexOf("Your area"));
+    expect(html.indexOf("Wheat Bull/Bear decision surface")).toBeLessThan(html.indexOf("Your area"));
   });
 
   it("localizes the board with provincial flow and honest empty bids when an area is saved", async () => {
@@ -1260,8 +1653,7 @@ describe("ThesisPage scorecard audit mode", () => {
 
     const html = await renderThesisPage("1");
 
-    expect(html).toContain("Wheat stance meter");
-    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain("CA +19 Lean bull");
     expect(html).toContain("Score source: Daily overlay Jun 1 (review-gated)");
     expect(html).toContain("Review-gated movement rows overlaid on visible scores");
@@ -1295,10 +1687,10 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("CAD Wheat: review-gated daily overlay");
     expect(html).toContain("Weekly packet rows");
     expect(html).toContain("CAD Canola: weekly packet score");
-    expect(html).toContain("US Wheat: weekly packet score");
+    expect(html).toContain("US Wheat: deterministic scorecard");
     expect(html).toContain("Score source: Daily overlay Jun 1 (review-gated)");
     expect(html).toContain("Score source: Daily overlay");
-    expect(html).toContain("Score source: Weekly packet");
+    expect(html).toContain("Score source: Deterministic scorecard");
   });
 
   it("explains weekly data pulls and what each source signifies", async () => {
@@ -1496,7 +1888,7 @@ describe("ThesisPage scorecard audit mode", () => {
   it("keeps the Wheat current read as the priority row", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Current read");
+    expect(html).toContain("Current Wheat read");
     expect(html).toContain("Canada and US disagree; read both lead drivers before relying on this row.");
     expect(html).not.toContain("Open first: Wheat (Open first)");
   });
@@ -1504,17 +1896,18 @@ describe("ThesisPage scorecard audit mode", () => {
   it("keeps visible status badges tied to the active Wheat row", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Country split");
+    expect(html).toContain("Mixed evidence");
     expect(html).toContain("Canada + US");
+    expect(html).not.toContain("Country split");
     expect(html).not.toContain("One-country = V1 has only CA or US modeled");
     expect(html).not.toContain("Mapping needed = no class-safe source yet");
     expect(html).not.toContain("0 mapping gaps");
   });
 
-  it("scales the Wheat stance meter by confidence", async () => {
+  it("keeps the Wheat pressure rail centered while retaining confidence-scaled audit proof", async () => {
     const html = await renderThesisPage();
 
-    expect(html).toContain("Wheat confidence-scaled stance score 0");
+    expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain('data-confidence-scaled-position="50.00%"');
   });
 

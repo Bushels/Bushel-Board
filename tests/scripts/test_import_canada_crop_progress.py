@@ -146,6 +146,44 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertTrue(all(row["canonical_grain"] is None for row in development_rows))
         self.assertTrue(all(row["document_url"] == "https://example.test/report.pdf" for row in development_rows))
 
+    def test_saskatchewan_parser_accepts_seeding_is_complete_headline_wording(self):
+        table_text = """
+        Provincial        South East        South West        East Central        West Central        North East        North West
+        Spring Wheat      99%               97%               100%              98%                 100%              99%               100%              99%
+        """
+        report_text = """
+        For the Period June 9 to June 15, 2026
+        Report number 7, June 18, 2026
+        Seeding is 97 per cent complete, up from 93 per cent last week. This is slightly below the five- and ten-year average of 99 per cent.
+        Cropland topsoil moisture is:
+        • 15 per cent surplus;
+        • 74 per cent adequate;
+        • 10 per cent short; and
+        • One per cent very short.
+        Crop development varies due to localized weather.
+        Follow the 2026 Crop Report on X at @SKAgriculture.
+        """
+
+        def fake_pdf_to_text(url, *, layout):
+            if url == "https://example.test/table.pdf":
+                return table_text, url
+            return report_text, url
+
+        with (
+            patch.object(
+                canada,
+                "latest_saskatchewan_links",
+                return_value=("https://example.test/report.pdf", "https://example.test/table.pdf"),
+            ),
+            patch.object(canada, "pdf_to_text", side_effect=fake_pdf_to_text),
+        ):
+            rows, _document_url = canada.parse_saskatchewan()
+
+        all_crops = next(row for row in rows if row["crop_name"] == "All Crops")
+        self.assertEqual(all_crops["value_pct"], 97.0)
+        self.assertEqual(all_crops["five_year_avg_pct"], 99.0)
+        self.assertEqual(all_crops["report_date"], "2026-06-15")
+
     def test_alberta_discovery_records_resource_metadata(self):
         payload = {
             "result": {
@@ -246,6 +284,51 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         provincial_pasture = next(row for row in pasture_rows if row["region_code"] == "PROV")
         self.assertAlmostEqual(provincial_pasture["value_pct"], 48.8)
         self.assertAlmostEqual(provincial_pasture["five_year_avg_pct"], 54.5)
+
+    def test_alberta_parser_accepts_condition_table_after_seeding_phase(self):
+        pdf_text = """
+        Crop conditions as of June 16, 2026
+        ©2026 Government of Alberta | June 19, 2026
+        Table 1: Regional Crop Condition Ratings as of June 16, 2026
+                                                Per Cent Rated Good-to-Excellent Conditions
+                                      South     Central   N East   N West   Peace   Alberta
+        Spring Wheat *                82.9%     85.5%     63.3%    46.4%    71.4%   72.4%
+        Canola *                      77.3%     69.8%     57.5%    26.9%    61.7%   59.8%
+        Major Crops (*), June 16      81.5%     81.0%     60.0%    38.3%    66.4%   68.3%
+        All Crops, June 16            80.4%     81.3%     60.0%    38.7%    66.3%   69.6%
+        5-year All Crops (2021-25) Avg 61.4%    63.9%     70.5%    60.9%    65.0%   64.5%
+        Source: AGI/AFSC Crop Reporting Survey
+        Table 2: Alberta Surface Soil Moisture Ratings as of June 16, 2026
+                              Poor     Fair     Good     Excellent     Excessive
+        North West            0.0%     0.0%     25.0%    49.7%         25.3%
+        Alberta               0.4%     12.2%    50.8%    29.0%          7.6%
+        5-year (2021-25) Avg  16.5%    26.8%    41.7%    13.9%          1.1%
+        Source: AGI/AFSC Crop Reporting Survey
+        Table 3: Pasture Growth Conditions as of June 16, 2026
+                              Poor     Fair     Good     Excellent
+        Alberta               3.6%     26.1%    60.9%      9.4%
+        5-year (2021-25) Avg  16.4%    31.4%    47.8%      4.5%
+        Source: AGI/AFSC Crop Reporting Survey
+        """
+
+        with patch.object(canada, "pdf_to_text", return_value=(pdf_text, "https://example.test/ab.pdf")):
+            rows, document_url = canada.parse_alberta("https://example.test/ab.pdf")
+
+        self.assertEqual(document_url, "https://example.test/ab.pdf")
+        condition_rows = [row for row in rows if row["metric"] == "condition_good_excellent_pct"]
+        self.assertEqual(len(condition_rows), 24)
+        provincial_all_crops = next(
+            row for row in condition_rows if row["crop_name"] == "All Crops" and row["region_code"] == "PROV"
+        )
+        self.assertEqual(provincial_all_crops["value_pct"], 69.6)
+        self.assertEqual(provincial_all_crops["five_year_avg_pct"], 64.5)
+        nw_canola = next(
+            row for row in condition_rows if row["crop_name"] == "Canola" and row["region_code"] == "NW"
+        )
+        self.assertEqual(nw_canola["value_pct"], 26.9)
+        moisture_rows = [row for row in rows if row["metric"] == "soil_moisture_adequate_surplus_pct"]
+        provincial_soil = next(row for row in moisture_rows if row["region_code"] == "PROV")
+        self.assertAlmostEqual(provincial_soil["value_pct"], 87.4)
 
     def test_collect_records_discovery_evidence_per_province(self):
         fake_row = {

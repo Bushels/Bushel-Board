@@ -21,8 +21,20 @@ export function DesktopNavLinks() {
       <Link href="/thesis" className={navLinkClasses(pathname.startsWith("/thesis"))}>
         Thesis
       </Link>
+      <Link
+        href="/data"
+        className={navLinkClasses(pathname === "/data" || pathname.startsWith("/data/"))}
+      >
+        Wheat Data
+      </Link>
+      <Link
+        href="/environmental"
+        className={navLinkClasses(pathname.startsWith("/environmental"))}
+      >
+        Environmental
+      </Link>
       <Link href="/data-universe" className={navLinkClasses(pathname.startsWith("/data-universe"))}>
-        Data Map
+        Data Flow
       </Link>
       <Link
         href="/source-spine"

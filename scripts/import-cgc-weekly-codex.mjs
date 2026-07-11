@@ -58,6 +58,12 @@ const BROWSER_HEADERS = {
   "Accept-Language": "en-US,en;q=0.9",
 };
 
+const CSV_HEADERS = {
+  "User-Agent": BROWSER_HEADERS["User-Agent"],
+  Accept: "text/csv,application/octet-stream,*/*;q=0.8",
+  "Accept-Language": BROWSER_HEADERS["Accept-Language"],
+};
+
 function help() {
   console.log(`Usage: node scripts/import-cgc-weekly-codex.mjs [options]
 
@@ -237,7 +243,7 @@ async function fetchCgcCsv() {
 
   const csvStart = Date.now();
   const csvRes = await fetch(csvUrl, {
-    headers: { ...BROWSER_HEADERS, Referer: CGC_WEEKLY_PAGE_URL },
+    headers: { ...CSV_HEADERS, Referer: CGC_WEEKLY_PAGE_URL },
     cache: "no-store",
   });
   if (!csvRes.ok) {

@@ -26,6 +26,46 @@
 
 **Tags:** #friday-desk #pipeline-runs #not-null #silent-failure #fail-loud #wheat-desk
 
+## 2026-06-24 - Terminal Disposition export rows are a cross-check, not an additive CGC export component
+
+**Symptom:** The Wheat loop recorded Canada current-week exports as 319.3 kt and export/delivery ratio as 49.7%, making the latest CGC demand row look mildly supportive. Re-auditing the source rows showed the documented CGC export formula produced 193.9 kt and a 30.2% ratio for week 45.
+
+**Root cause:** `get_canada_thesis_packet()` added `Terminal Disposition.Export Destinations` together with `Terminal Exports.Exports`. Terminal Disposition export destinations cross-check terminal exports by port; they should not be added on top of Terminal Exports. The packet therefore double-counted terminal movement while also missing the documented Primary Shipment Distribution export-destination component.
+
+**Fix status:** Live migration `20260625000843_get_wheat_export_history` repaired the Canada thesis packet export CTE to use the canonical three-part formula: Terminal Exports + Primary Shipment Distribution Export Destinations + Producer Cars Shipment Distribution Export. The thesis packet cache was refreshed 12/12, and the cached Wheat packet now shows 193.9 kt current-week exports and 19,663.9 kt crop-year exports. The public `/thesis` board now uses `get_wheat_export_history(weeks)` for bounded Wheat export history.
+
+**Prevention:** Treat Terminal Disposition export rows as validation rows, not additive movement. Any new CGC export SQL should search for `Terminal Disposition` and prove it is used only as a cross-check unless explicitly building a port-disposition view.
+
+**Tags:** #cgc #exports #data-audit #wheat #double-count
+
+---
+
+## 2026-06-24 - Auditor skills must not reference missing eval-core files
+
+**Symptom:** During closeout, `agent-auditor` and `skill-auditor` both instructed the operator to read `eval-core/framework.md`, `eval-core/rubric.md`, `eval-core/replay-policy.md`, `eval-core/promotion-rules.md`, and `eval-core/report-template.md`, but those files did not exist under either skill folder. The audit workflow could not be followed as written.
+
+**Root cause:** The skills had been copied with references to a shared evaluator core, but the shared core was never included in the project skill package and the relative paths were not adjusted.
+
+**Fix status:** Added `.agents/skills/_eval-core/` with the shared framework, rubric, replay policy, promotion rules, report template, and `scripts/score_audit.py`. Updated both auditor skills to reference `../_eval-core/...`.
+
+**Prevention:** When adding a skill that references reusable evaluation docs or scripts, run a static existence check for every referenced file before committing the skill. A skill that cannot read its own required references should be treated as broken, even if the prompt text looks correct.
+
+**Tags:** #skills #agents #audit #closeout
+
+---
+
+## 2026-06-23 - CGC CSV fetch can fail when the importer reuses HTML Accept headers
+
+**Symptom:** The CGC weekly importer failed at `stage = source_fetch` with `fetch failed`, leaving `cgc_observations` stale at week 44 while the CGC page had already published week 45. A direct page fetch worked, but the CSV request returned HTTP 406 when the request advertised an HTML-oriented `Accept` header.
+
+**Root cause:** `scripts/import-cgc-weekly-codex.mjs` reused `BROWSER_HEADERS` for both the HTML landing page and the CSV file. CGC's CSV endpoint will return the file when the request accepts `text/csv`, `application/octet-stream`, or `*/*`, but it can reject the mixed page header (`text/html,application/xhtml+xml,...`) as not acceptable for the CSV resource.
+
+**Fix status:** The importer now uses separate `CSV_HEADERS` for the CSV fetch: `Accept: text/csv,application/octet-stream,*/*;q=0.8`. `npm --silent run collect:cgc` then imported CGC week 45 successfully: 4,411 rows, all 16 grains present, validation pass, 16/16 collector heartbeats, and 12/12 thesis packet cache refresh.
+
+**Prevention:** Treat HTML page discovery and CSV fetches as separate HTTP contracts. If CGC fails at source fetch, test the page URL and CSV URL separately with the exact request headers before assuming the site is down.
+
+**Tags:** #cgc #collector #source-fetch #accept-header #freshness
+
 ---
 
 ## 2026-06-09 - "official_thesis_input" is not just a label: classifying a bounded lane official silently inflates its domain weight

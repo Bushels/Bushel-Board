@@ -17,11 +17,13 @@ Audit an existing agent after real usage. Focus on orchestration, context contro
 
 ## Read These First
 
-- `eval-core/framework.md`
-- `eval-core/rubric.md`
-- `eval-core/replay-policy.md`
-- `eval-core/promotion-rules.md`
-- `eval-core/report-template.md`
+These files live in the shared project evaluator folder, relative to this skill:
+
+- `../_eval-core/framework.md`
+- `../_eval-core/rubric.md`
+- `../_eval-core/replay-policy.md`
+- `../_eval-core/promotion-rules.md`
+- `../_eval-core/report-template.md`
 
 ## Inputs To Gather
 
@@ -47,12 +49,12 @@ Extract the agent's expected behavior from:
 
 ### 2. Score the observed run
 
-Use the agent rubric from `eval-core/rubric.md`.
+Use the agent rubric from the shared evaluator core.
 
 If you want a deterministic total, run:
 
 ```bash
-python eval-core/scripts/score_audit.py --mode agent --evidence-level observed --scores-json '{"task_success":4,"instruction_compliance":4,"orchestration_quality":3,"context_management":3,"escalation_judgment":4,"safety":5,"efficiency":3}' --pretty
+python ../_eval-core/scripts/score_audit.py --mode agent --evidence-level observed --scores-json '{"task_success":4,"instruction_compliance":4,"orchestration_quality":3,"context_management":3,"escalation_judgment":4,"safety":5,"efficiency":3}' --pretty
 ```
 
 ### 3. Patch one control surface at a time
@@ -78,7 +80,7 @@ Replay the whole task only when the patch changes broad orchestration or safety 
 
 ### 5. Decide promotion status
 
-Use the disposition rules in `eval-core/promotion-rules.md`.
+Use the disposition rules in the shared evaluator core.
 
 If replay has not happened yet, keep the candidate on the branch and mark the result `hold`.
 

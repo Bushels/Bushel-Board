@@ -130,18 +130,26 @@ const VIEWPORTS: Record<ViewportConfig["name"], ViewportConfig> = {
 
 const ROUTES: RouteSmokeConfig[] = [
   {
-    // Wheat-first country split (2026-06-16): normal /thesis leads with the Canada/USA
-    // Wheat Bull/Bear read and keeps only farmer-facing surfaces. Operator telemetry
-    // markers are FORBIDDEN here and must render in audit mode instead.
+    // Wheat-first board (2026-06-24): normal /thesis leads with one Wheat
+    // Bull/Bear read and keeps only farmer-facing surfaces. Operator telemetry
+    // markers are forbidden here and must render in audit mode instead.
     path: "/thesis",
     markers: [
-      "Canada vs USA Wheat Bull/Bear",
-      "Canada Wheat Bull/Bear",
-      "USA Wheat Bull/Bear",
-      "Wheat stance meter",
-      "Sources to Wheat Bull/Bear board",
-      "Pressure-lane breakdown",
+      "Current stance",
+      "Thesis confidence",
+      "Reconciliation judge",
+      "Relationship spiderweb",
+      "Source (what we watch)",
+      "Price basket proof",
+      "Packet trend context",
+      "Historical price context",
+      "Historical export context",
+      "USDA relationship read",
+      "Decision role",
+      "Wheat Crop Progress",
       "What feeds this read",
+      "Watch leads (what could change the thesis)",
+      "Read the evidence",
       "Your area",
       "Source health",
       "Board update mode",
@@ -149,7 +157,6 @@ const ROUTES: RouteSmokeConfig[] = [
       "Wheat Pressure Map",
       "Source data lanes",
       "Wheat factor nodes",
-      "All graph links",
       "Packet contributions",
       "Current packet contribution",
     ],
@@ -172,8 +179,17 @@ const ROUTES: RouteSmokeConfig[] = [
   {
     path: "/thesis?audit=1",
     markers: [
+      "Current stance",
+      "Thesis confidence",
+      "Reconciliation judge",
+      "Relationship spiderweb",
       "Source health",
-      "Canada vs USA Wheat Bull/Bear",
+      "Price basket proof",
+      "Packet trend context",
+      "Historical price context",
+      "Historical export context",
+      "USDA relationship read",
+      "Decision role",
       "Your area",
       "Board update mode",
       "Daily Update Status",

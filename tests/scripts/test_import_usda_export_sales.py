@@ -36,6 +36,13 @@ class ImportUsdaExportSalesTests(unittest.TestCase):
             },
         )
 
+    def test_choose_commodities_accepts_wheat_alias(self):
+        selected = import_usda_export_sales.choose_commodities(["Wheat"])
+
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0]["commodity"], "ALL WHEAT")
+        self.assertEqual(selected[0]["cgc_grain"], "Wheat")
+
     def test_projection_admission_works_for_non_wheat_after_code_fix(self):
         record = {
             "commodity_code": 401,

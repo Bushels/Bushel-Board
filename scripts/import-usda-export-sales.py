@@ -84,6 +84,10 @@ COMMODITIES = [
     {"commodity_code": 701, "commodity": "SORGHUM", "cgc_grain": "Sorghum", "mapping_type": "reference"},
 ]
 
+COMMODITY_FILTER_ALIASES = {
+    "wheat": "all wheat",
+}
+
 
 class ImporterError(Exception):
     pass
@@ -133,7 +137,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--commodity",
         action="append",
-        help="Limit import to specific commodity names from the COMMODITIES list (repeatable).",
+        help="Limit import to specific commodity names from the COMMODITIES list, with aliases like Wheat -> ALL WHEAT (repeatable).",
     )
     parser.add_argument(
         "--dry-run",
@@ -307,7 +311,10 @@ def apply_wasde_export_projection(
 def choose_commodities(filters: list[str] | None) -> list[dict[str, Any]]:
     if not filters:
         return COMMODITIES
-    wanted = {item.strip().lower() for item in filters}
+    wanted = {
+        COMMODITY_FILTER_ALIASES.get(item.strip().lower(), item.strip().lower())
+        for item in filters
+    }
     selected = [c for c in COMMODITIES if c["commodity"].lower() in wanted]
     if not selected:
         raise ImporterError(

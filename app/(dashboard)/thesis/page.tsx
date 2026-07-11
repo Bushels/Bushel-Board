@@ -1,20 +1,26 @@
 import Link from "next/link";
-import { Fragment } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowRight,
+  BadgeDollarSign,
   BarChart3,
+  Binoculars,
   CalendarDays,
   CheckCircle2,
+  ChevronRight,
   Clock3,
+  CloudSun,
   DatabaseZap,
   Flag,
+  Globe2,
+  Info,
   Radar,
-  Scale,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
+  TrainFront,
+  Warehouse,
   Wheat as WheatIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -40,11 +46,10 @@ import {
   type ThesisBoardData,
   type ThesisFreshnessRow,
   type ThesisBoardItem,
-  type ThesisLane,
-  type ThesisCountryCode,
-  type ThesisComparisonPoint,
   type ThesisComparisonRow,
+  type ThesisCountryCode,
   type ThesisDriver,
+  type ThesisPriceRow,
 } from "@/lib/queries/thesis-board";
 import {
   getXPulseWatchSummary,
@@ -59,6 +64,14 @@ import {
   getLatestDailyThesisUpdates,
   type DailyThesisUpdateSummary,
 } from "@/lib/queries/daily-thesis-updates";
+import {
+  getWheatPriceHistory,
+  type WheatPriceHistoryRow,
+} from "@/lib/queries/wheat-price-history";
+import {
+  getWheatExportHistory,
+  type WheatExportHistoryRow,
+} from "@/lib/queries/wheat-export-history";
 import {
   getLocalTrack54ReadinessSnapshot,
   type Track54ReadinessModeGateSnapshot,
@@ -134,14 +147,6 @@ function stanceClass(score: number): string {
   if (score > 0) return "text-prairie";
   if (score < 0) return "text-amber-700 dark:text-amber-300";
   return "text-muted-foreground";
-}
-
-function directionalIndicatorLabel(score: number): string {
-  if (score >= 20) return "Bull tilt";
-  if (score > 0) return "Lean bull";
-  if (score <= -20) return "Bear tilt";
-  if (score < 0) return "Lean bear";
-  return "Balanced";
 }
 
 function graphBoardReadSource(items: ThesisBoardItem[]): GrainImpactGraphBoardRead["scoreSource"] {
@@ -1459,12 +1464,22 @@ function applyDailyTrajectoryOverlay(
   };
 }
 
-function dailyOverlayItemLabel(item: ThesisBoardItem, state: "review-gated daily overlay" | "weekly packet score"): string {
+function dailyOverlayItemLabel(item: ThesisBoardItem, state: string): string {
   return `${dailyUpdateSideLabel(dailyUpdateItemSide(item))} ${item.name}: ${state}`;
 }
 
+function weeklyScoreStateLabel(item: ThesisBoardItem): string {
+  return item.name === "Wheat" && item.ratingScorecard.domains.length > 0
+    ? "deterministic scorecard"
+    : "weekly packet score";
+}
+
 function scoreSourceLabel(item: ThesisBoardItem): string {
-  if (item.scoreSource?.kind !== "daily_overlay") return "Weekly packet";
+  if (item.scoreSource?.kind !== "daily_overlay") {
+    return item.name === "Wheat" && item.ratingScorecard.domains.length > 0
+      ? "Deterministic scorecard"
+      : "Weekly packet";
+  }
   const dateKey = localDateKeyFromTimestamp(item.scoreSource.recordedAt);
   return dateKey
     ? `Daily overlay ${dateLabelFromKey(dateKey)} (review-gated)`
@@ -1503,11 +1518,38 @@ function confidenceScaledPosition(score: number, confidence: number): number {
   return Math.max(0, Math.min(100, 50 + (target - 50) * scale));
 }
 
+function wheatConfidenceDisplay(confidence: number): string {
+  if (confidence <= 0) return "Low confidence";
+  return `${confidence}% confidence`;
+}
+
+function wheatConfidenceExplanation(confidence: number): string {
+  if (confidence <= 15) {
+    return "Low conviction: the board has a lean, but fresh sources do not agree strongly enough to give it much weight.";
+  }
+  if (confidence <= 45) {
+    return "Moderate-low conviction: the board has a directional read, but source agreement is still mixed.";
+  }
+  if (confidence <= 70) {
+    return "Medium conviction: the read has usable source agreement, but it still needs confirmation.";
+  }
+  return "High conviction: fresh sources are lined up enough for the read to carry more weight.";
+}
+
 function wheatCoverageLabel(row: ThesisComparisonRow): string {
   if (row.canada && row.us) return "Canada + US";
   if (row.canada) return "Canada only";
   if (row.us) return "US only";
   return "No active packet";
+}
+
+function wheatStatusDisplayLabel(row: ThesisComparisonRow): string {
+  if (row.status === "mixed") return "Mixed evidence";
+  return row.statusLabel;
+}
+
+function wheatExplanationDisplay(row: ThesisComparisonRow): string {
+  return row.explanation.replace(/^Country split:/, "Mixed evidence:");
 }
 
 const WHEAT_PRESSURE_LANE_IDS = [
@@ -1529,6 +1571,43 @@ const WHEAT_PRESSURE_LANE_LABELS: Record<(typeof WHEAT_PRESSURE_LANE_IDS)[number
   positioning: "Positioning",
   weather: "Weather",
 };
+
+const LATEST_USDA_WHEAT_PROGRESS_UPDATE = {
+  releasedAt: "2026-06-22",
+  weekEnding: "2026-06-21",
+  sourceName: "USDA Crop Progress",
+  sourceUrl: "https://esmis.nal.usda.gov/sites/default/release-files/795947/prog2526.txt",
+  lane: "Supply/weather pressure",
+  scoreRole: "Condition feeds the weather score; harvest and heading explain crop stage.",
+  read:
+    "The winter crop condition remains poor while harvest is moving fast. The spring crop is normal on heading and close to last year on condition.",
+  metrics: [
+    {
+      label: "Winter harvested",
+      value: "40%",
+      detail: "25% last week; 18% last year; 24% 5-year average",
+      tone: "bear" as const,
+    },
+    {
+      label: "Winter good/excellent",
+      value: "26%",
+      detail: "27% last week; 49% last year",
+      tone: "bull" as const,
+    },
+    {
+      label: "Spring good/excellent",
+      value: "54%",
+      detail: "55% last week; 54% last year",
+      tone: "balanced" as const,
+    },
+    {
+      label: "Spring headed",
+      value: "16%",
+      detail: "6% last week; 15% last year; 16% 5-year average",
+      tone: "balanced" as const,
+    },
+  ],
+} as const;
 
 function pressureLaneSummaries(row: ThesisComparisonRow) {
   return WHEAT_PRESSURE_LANE_IDS.map((domain) => {
@@ -1552,7 +1631,924 @@ function pressureLaneSummaries(row: ThesisComparisonRow) {
       sources,
       evidence,
     };
+  }).sort((left, right) => Math.abs(right.score) - Math.abs(left.score));
+}
+
+type WheatVisualLaneDomain = (typeof WHEAT_PRESSURE_LANE_IDS)[number];
+
+type WheatVisualLaneConfig = {
+  id: "weather" | "supply" | "demand" | "movement" | "price" | "positioning" | "watch";
+  title: string;
+  detail: string;
+  domains: WheatVisualLaneDomain[];
+  icon: LucideIcon;
+  impact?: "High impact";
+};
+
+const WHEAT_VISUAL_LANES: WheatVisualLaneConfig[] = [
+  {
+    id: "weather",
+    title: "Crop Condition / Weather",
+    detail: "Condition, harvest pace, heading, and short-term weather risk.",
+    domains: ["weather"],
+    icon: CloudSun,
+    impact: "High impact",
+  },
+  {
+    id: "supply",
+    title: "Supply",
+    detail: "Stocks, carryout, production, and balance-sheet pressure.",
+    domains: ["supply"],
+    icon: Warehouse,
+  },
+  {
+    id: "demand",
+    title: "Demand / Exports",
+    detail: "Export pull, domestic use, tenders, and delivery-to-export flow.",
+    domains: ["demand"],
+    icon: Globe2,
+  },
+  {
+    id: "movement",
+    title: "Movement / Logistics",
+    detail: "Producer deliveries, terminal receipts, rail flow, and export access.",
+    domains: ["movement", "logistics"],
+    icon: TrainFront,
+  },
+  {
+    id: "price",
+    title: "Price / FX",
+    detail: "Futures, basis, currency, and relative value versus recent trade.",
+    domains: ["price"],
+    icon: BadgeDollarSign,
+  },
+  {
+    id: "positioning",
+    title: "Positioning",
+    detail: "Fund stance, short-cover risk, and crowded-trade pressure.",
+    domains: ["positioning"],
+    icon: BarChart3,
+  },
+  {
+    id: "watch",
+    title: "Watch Leads",
+    detail: "Accepted leads that tell the desk what to inspect next.",
+    domains: [],
+    icon: Binoculars,
+  },
+];
+
+type WheatScorecardDomain = ThesisBoardItem["ratingScorecard"]["domains"][number];
+
+type WheatDomainDatum = {
+  item: ThesisBoardItem;
+  country: ThesisCountryCode;
+  domain: WheatScorecardDomain;
+  weightedScore: number;
+  evidence: string;
+  sourceLabel: string;
+  metricLabel: string | null;
+  metricValue: string | null;
+  period: string | null;
+};
+
+type WheatVisualLaneRow = WheatVisualLaneConfig & {
+  score: number;
+  sources: string[];
+  evidence: string;
+};
+
+type WheatSpiderwebPoint = WheatDomainDatum & {
+  edgeWidth: number;
+  index: number;
+  ringDetail: string;
+  ringLabel: string;
+  x: number;
+  y: number;
+};
+
+type WheatUsdaSweepConfig = {
+  id: "crop-progress" | "wasde" | "export-sales" | "quarterly-stocks";
+  title: string;
+  sourceLabel: string;
+  sourceNames: string[];
+  role: string;
+  decisionRole: string;
+  cadence: string;
+  emptyEvidence: string;
+};
+
+type WheatUsdaSweepItem = WheatUsdaSweepConfig & {
+  datum: WheatDomainDatum | null;
+  freshness: ThesisFreshnessRow | null;
+  relationLabel: string;
+  relationClass: string;
+  sourceStatus: string;
+  period: string | null;
+  metricLabel: string;
+  effectLabel: string;
+  decisionDetail: string;
+  evidence: string;
+};
+
+const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
+  {
+    id: "crop-progress",
+    title: "Crop Progress",
+    sourceLabel: "USDA Crop Progress",
+    sourceNames: ["usda_crop_progress"],
+    role: "Condition, harvest, and heading pressure",
+    decisionRole: "Condition signal",
+    cadence: "Weekly in season",
+    emptyEvidence: LATEST_USDA_WHEAT_PROGRESS_UPDATE.read,
+  },
+  {
+    id: "wasde",
+    title: "WASDE balance",
+    sourceLabel: "USDA WASDE",
+    sourceNames: ["usda_wasde_mapped", "usda_wasde_raw"],
+    role: "Production, exports, ending stocks, and stocks/use",
+    decisionRole: "Balance anchor",
+    cadence: "Monthly",
+    emptyEvidence: "No active WASDE score row is attached to the current Wheat packet.",
+  },
+  {
+    id: "export-sales",
+    title: "Export Sales",
+    sourceLabel: "USDA Export Sales",
+    sourceNames: ["usda_export_sales"],
+    role: "Weekly demand execution versus USDA target",
+    decisionRole: "Demand confirmation",
+    cadence: "Weekly with publication lag",
+    emptyEvidence: "Cadence-limited demand proof. Keep watching whether sales confirm or challenge the WASDE export target.",
+  },
+  {
+    id: "quarterly-stocks",
+    title: "Quarterly Stocks",
+    sourceLabel: "USDA Quarterly Grain Stocks",
+    sourceNames: ["usda_quarterly_stocks"],
+    role: "Inventory cushion and surprise versus balance-sheet context",
+    decisionRole: "Inventory check",
+    cadence: "Quarterly",
+    emptyEvidence: "Quarterly inventory proof stays cadence-bound until USDA publishes the next stocks row.",
+  },
+];
+
+const WHEAT_USDA_RELATIONSHIP_STEPS = [
+  {
+    label: "Condition signal",
+    detail: "Crop Progress shows whether weather is creating yield stress before the balance sheet catches up.",
+  },
+  {
+    label: "Balance anchor",
+    detail: "WASDE turns acres, yield, exports, and ending stocks into the baseline supply cushion.",
+  },
+  {
+    label: "Demand confirmation",
+    detail: "Export Sales tests whether buyers are pulling enough Wheat to hit the WASDE export target.",
+  },
+  {
+    label: "Inventory check",
+    detail: "Quarterly Stocks checks the actual grain cushion and can confirm or challenge WASDE.",
+  },
+  {
+    label: "Price confirmation",
+    detail: "The Spring Wheat / HRW / SRW basket shows whether futures are trading the official story.",
+  },
+];
+
+function wheatVisualLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
+  const summaries = pressureLaneSummaries(row);
+  const byDomain = new Map(summaries.map((lane) => [lane.domain, lane]));
+
+  return WHEAT_VISUAL_LANES.map((config) => {
+    const activeLanes = config.domains.map((domain) => byDomain.get(domain)).filter(Boolean);
+    const score =
+      config.id === "watch"
+        ? 0
+        : Math.round(activeLanes.reduce((sum, lane) => sum + (lane?.score ?? 0), 0));
+    const sources = Array.from(new Set(activeLanes.flatMap((lane) => lane?.sources ?? []))).slice(0, 3);
+    const evidence =
+      config.id === "weather"
+        ? LATEST_USDA_WHEAT_PROGRESS_UPDATE.read
+        : activeLanes.find((lane) => lane?.evidence)?.evidence ??
+          (config.id === "watch"
+            ? "Watch-only leads can change what the desk inspects next, but they do not move the read by themselves."
+            : "No active packet evidence in this lane yet.");
+
+    return {
+      ...config,
+      score,
+      sources,
+      evidence,
+    };
   });
+}
+
+function wheatDomainTitle(domain: WheatScorecardDomain["domain"]): string {
+  return WHEAT_PRESSURE_LANE_LABELS[domain as keyof typeof WHEAT_PRESSURE_LANE_LABELS] ?? domain.replaceAll("_", " ");
+}
+
+function wheatDomainDatums(row: ThesisComparisonRow): WheatDomainDatum[] {
+  return rowItems(row).flatMap((item) =>
+    item.ratingScorecard.domains.map((domain) => {
+      const weightedScore = Math.round(domain.weighted_score);
+      const evidence =
+        weightedScore >= 0
+          ? domain.positive_evidence[0] ?? domain.negative_evidence[0] ?? "No evidence line is attached yet."
+          : domain.negative_evidence[0] ?? domain.positive_evidence[0] ?? "No evidence line is attached yet.";
+      const metric = domain.metrics?.[0] ?? null;
+      return {
+        item,
+        country: item.lane === "canada" ? "CA" : "US",
+        domain,
+        weightedScore,
+        evidence,
+        sourceLabel: domain.sources.length ? domain.sources.map(sourceDisplayName).join(" + ") : "Scorecard lane",
+        metricLabel: metric?.label ?? null,
+        metricValue: metric?.value ?? null,
+        period: metric?.period ?? item.packetGeneratedAt ?? item.ratingScorecard.period_anchor,
+      };
+    }),
+  );
+}
+
+function wheatDatumMatchesSource(datum: WheatDomainDatum, sourceNames: string[]): boolean {
+  return (
+    datum.domain.sources.some((source) => sourceNames.includes(source)) ||
+    (datum.domain.metrics ?? []).some((metric) => sourceNames.includes(metric.source))
+  );
+}
+
+function wheatMetricTextForSource(datum: WheatDomainDatum | null, sourceNames: string[]): string {
+  if (!datum) return "No score move in this packet";
+  const metric =
+    (datum.domain.metrics ?? []).find((candidate) => sourceNames.includes(candidate.source)) ??
+    datum.domain.metrics?.[0] ??
+    null;
+  if (metric) return `${metric.label}: ${metric.value}`;
+  if (datum.metricLabel && datum.metricValue) return `${datum.metricLabel}: ${datum.metricValue}`;
+  if (Math.round(datum.weightedScore) === 0) return "No score move in this packet";
+  return "Scorecard metric not itemized";
+}
+
+function wheatFreshnessForSources(item: ThesisBoardItem | null, sourceNames: string[]): ThesisFreshnessRow | null {
+  if (!item) return null;
+  return item.freshness.find((row) => sourceNames.includes(row.sourceName)) ?? null;
+}
+
+function wheatUsdaRelationLabel(datum: WheatDomainDatum | null, strongest: WheatDomainDatum | null): string {
+  if (!datum) return "Cadence-limited";
+  if (
+    strongest &&
+    datum.country === strongest.country &&
+    datum.domain.domain === strongest.domain.domain &&
+    Math.round(datum.weightedScore) === Math.round(strongest.weightedScore)
+  ) {
+    return "Deciding row";
+  }
+  if (datum.weightedScore < -3) return "Bear pressure";
+  if (datum.weightedScore > 3) return "Bull support";
+  return "Context row";
+}
+
+function wheatUsdaRelationClass(label: string): string {
+  if (label === "Deciding row") return "border-canola/35 bg-canola/10 text-canola";
+  if (label === "Bear pressure") return "border-orange-600/25 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+  if (label === "Bull support") return "border-prairie/25 bg-prairie/10 text-prairie";
+  if (label === "Cadence-limited") return "border-border bg-background/80 text-muted-foreground";
+  return "border-border bg-card text-muted-foreground";
+}
+
+function wheatUsdaDecisionDetail(config: WheatUsdaSweepConfig, relationLabel: string): string {
+  if (config.id === "crop-progress") {
+    return "First supply clue: crop stress can raise bull risk, but it needs WASDE, stocks, exports, or price to confirm that the system is actually tightening.";
+  }
+  if (config.id === "wasde") {
+    return "Balance-sheet anchor: WASDE decides whether crop stress is large enough to change stocks/use, export targets, and ending stocks.";
+  }
+  if (config.id === "export-sales") {
+    return relationLabel === "Cadence-limited"
+      ? "Demand test: this row stays watch context until the next official sales release proves whether buyers are keeping pace with the WASDE export target."
+      : "Demand test: export sales confirm or challenge the WASDE export target before demand can overturn the supply read.";
+  }
+  return "Inventory test: quarterly stocks check the actual cushion. A surprise can challenge WASDE, but between releases this stays cadence-bound context.";
+}
+
+function wheatUsdaSweepItems(row: ThesisComparisonRow): WheatUsdaSweepItem[] {
+  const datums = wheatDomainDatums(row);
+  const strongest = strongestDatum(datums, "absolute");
+
+  return WHEAT_USDA_SWEEP_CONFIGS.map((config) => {
+    const datum = datums.find((candidate) => wheatDatumMatchesSource(candidate, config.sourceNames)) ?? null;
+    const freshness = wheatFreshnessForSources(row.us, config.sourceNames);
+    const sourceStatus = freshness?.freshnessStatus ?? datum?.domain.freshness_status ?? "empty";
+    const period = freshness?.latestPeriodEnd ?? freshness?.latestPeriod ?? datum?.period ?? null;
+    let relationLabel = wheatUsdaRelationLabel(datum, strongest);
+    if (
+      relationLabel === "Deciding row" &&
+      config.id === "quarterly-stocks" &&
+      datum?.domain.sources.includes("usda_wasde_mapped")
+    ) {
+      relationLabel = datum.weightedScore < 0 ? "Bear pressure" : datum.weightedScore > 0 ? "Bull support" : "Context row";
+    }
+    if (config.id === "export-sales" && Math.round(datum?.weightedScore ?? 0) === 0) {
+      relationLabel = "Cadence-limited";
+    }
+    const evidence =
+      datum?.evidence && datum.evidence !== "No evidence line is attached yet." ? datum.evidence : config.emptyEvidence;
+    return {
+      ...config,
+      datum,
+      freshness,
+      relationLabel,
+      relationClass: wheatUsdaRelationClass(relationLabel),
+      sourceStatus,
+      period,
+      metricLabel: wheatMetricTextForSource(datum, config.sourceNames),
+      effectLabel: datum ? `${signedNumber(Math.round(datum.weightedScore))} weighted points` : "Watch only right now",
+      decisionDetail: wheatUsdaDecisionDetail(config, relationLabel),
+      evidence,
+    };
+  });
+}
+
+function strongestDatum(datums: WheatDomainDatum[], direction: "bull" | "bear" | "absolute"): WheatDomainDatum | null {
+  const filtered = datums.filter((datum) => {
+    if (direction === "bull") return datum.weightedScore > 0;
+    if (direction === "bear") return datum.weightedScore < 0;
+    return datum.weightedScore !== 0;
+  });
+  return filtered.sort((left, right) => Math.abs(right.weightedScore) - Math.abs(left.weightedScore))[0] ?? null;
+}
+
+function wheatPeriodLabel(value: string | null): string {
+  if (!value) return "current packet";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return reportDateLabel(value);
+  return value;
+}
+
+function wheatFreshnessProofLabel(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "strong") return "Strong source proof";
+  if (normalized === "expected_lag") return "Expected cadence lag";
+  if (normalized === "stale") return "Older official row";
+  if (normalized === "usable but stale-risk") return "Stale-risk source";
+  if (normalized === "empty") return "Missing source";
+  return status.replaceAll("_", " ");
+}
+
+function wheatDatumFreshnessClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "strong") return "border-prairie/25 bg-prairie/10 text-prairie";
+  if (normalized === "expected_lag" || normalized === "stale") return "border-canola/30 bg-canola/10 text-canola";
+  if (normalized === "empty") return "border-destructive/30 bg-destructive/10 text-destructive";
+  return "border-border bg-background/70 text-muted-foreground";
+}
+
+function wheatJudgeCounterweight(deciding: WheatDomainDatum | null, datums: WheatDomainDatum[]): WheatDomainDatum | null {
+  if (!deciding) return null;
+  return strongestDatum(datums, deciding.weightedScore > 0 ? "bear" : "bull");
+}
+
+function wheatJudgeCounterweightCopy(deciding: WheatDomainDatum | null, counterweight: WheatDomainDatum | null): string {
+  if (!deciding) return "No deciding datum is available yet.";
+  if (!counterweight) return "No opposite-side datum is strong enough to challenge the deciding datum yet.";
+  const gap = Math.abs(deciding.weightedScore) - Math.abs(counterweight.weightedScore);
+  const gapCopy =
+    gap > 0
+      ? `The deciding datum is ${Math.abs(gap)} weighted points stronger.`
+      : gap < 0
+        ? `The counterweight is ${Math.abs(gap)} weighted points stronger, so the net score depends on the full lane stack.`
+        : "The deciding datum and counterweight are equal size, so the full lane stack breaks the tie.";
+  return `${counterweight.country} ${wheatDomainTitle(counterweight.domain.domain)} is the main counterweight at ${signedNumber(counterweight.weightedScore)}. ${gapCopy}`;
+}
+
+function wheatDatumSourceFamily(datum: WheatDomainDatum | null): "crop-progress" | "wasde" | "export-sales" | "quarterly-stocks" | "cgc" | "price" | "cftc" | "other" {
+  if (!datum) return "other";
+  if (wheatDatumMatchesSource(datum, ["usda_crop_progress"])) return "crop-progress";
+  if (wheatDatumMatchesSource(datum, ["usda_wasde_mapped", "usda_wasde_raw"])) return "wasde";
+  if (wheatDatumMatchesSource(datum, ["usda_export_sales"])) return "export-sales";
+  if (wheatDatumMatchesSource(datum, ["usda_quarterly_stocks"])) return "quarterly-stocks";
+  if (wheatDatumMatchesSource(datum, ["cgc_observations"])) return "cgc";
+  if (datum.domain.domain === "price") return "price";
+  if (datum.domain.domain === "positioning") return "cftc";
+  return "other";
+}
+
+function wheatSourceSpecificJudgeCopy(deciding: WheatDomainDatum | null, counterweight: WheatDomainDatum | null): string {
+  const decidingFamily = wheatDatumSourceFamily(deciding);
+  const counterFamily = wheatDatumSourceFamily(counterweight);
+
+  if (decidingFamily === "crop-progress" && (counterFamily === "wasde" || counterFamily === "quarterly-stocks")) {
+    return "Crop stress is a real supply risk, but the judge checks WASDE and stocks before letting condition data become the full Wheat read.";
+  }
+  if ((decidingFamily === "wasde" || decidingFamily === "quarterly-stocks") && counterFamily === "crop-progress") {
+    return "The balance sheet is heavier right now; poor crop condition becomes decisive only when exports, stocks, or the price basket confirm a tighter cushion.";
+  }
+  if (decidingFamily === "export-sales") {
+    return "Export Sales are demand confirmation. They can strengthen a bull case only when they prove buyers are keeping pace with the WASDE target.";
+  }
+  if (decidingFamily === "price") {
+    return "Price is confirmation. The Spring Wheat, HRW, and SRW basket shows whether the trade accepts or rejects the official data stack.";
+  }
+  if (decidingFamily === "cgc") {
+    return "CGC flow proves Canadian movement, but USDA supply rows, U.S. exports, and the Wheat price basket still decide whether that pull changes the whole read.";
+  }
+  if (counterFamily === "crop-progress" || counterFamily === "wasde" || counterFamily === "quarterly-stocks" || counterFamily === "export-sales") {
+    return "USDA rows are the official U.S. counterweight: condition, balance sheet, exports, and stocks must line up before the board upgrades conviction.";
+  }
+  return "The judge keeps source role separate from effect size: official rows set the evidence stack, price confirms it, and watch leads stay outside the score.";
+}
+
+function wheatImpactRing(absScore: number): { label: string; detail: string; radius: number } {
+  if (absScore >= 8) {
+    return { label: "Inner ring", detail: "high impact, closest to the read", radius: 58 };
+  }
+  if (absScore >= 3) {
+    return { label: "Middle ring", detail: "meaningful context", radius: 88 };
+  }
+  return { label: "Outer ring", detail: "light pressure or watch context", radius: 118 };
+}
+
+function wheatSpiderwebPoints(datums: WheatDomainDatum[]): WheatSpiderwebPoint[] {
+  const bearAngles = [-170, -140, 140, -110, 110];
+  const bullAngles = [-10, -40, 40, -70, 70];
+  let bearIndex = 0;
+  let bullIndex = 0;
+
+  return datums.slice(0, 10).map((datum, index) => {
+    const absScore = Math.abs(datum.weightedScore);
+    const ring = wheatImpactRing(absScore);
+    const angle = datum.weightedScore < 0
+      ? bearAngles[bearIndex++ % bearAngles.length]
+      : bullAngles[bullIndex++ % bullAngles.length];
+    const radians = (angle * Math.PI) / 180;
+    return {
+      ...datum,
+      edgeWidth: Math.max(1.5, Math.min(6, absScore / 2)),
+      index: index + 1,
+      ringDetail: ring.detail,
+      ringLabel: ring.label,
+      x: 150 + Math.cos(radians) * ring.radius,
+      y: 150 + Math.sin(radians) * ring.radius,
+    };
+  });
+}
+
+type WheatPriceBasketLeg = {
+  label: "Spring Wheat" | "HRW Wheat" | "SRW Wheat";
+  market: "MGEX" | "KCBT" | "CBOT";
+  change: number | null;
+  changeText: string;
+  settlement: string | null;
+  period: string | null;
+};
+
+type WheatPriceTrendLeg = {
+  label: WheatPriceBasketLeg["label"];
+  market: WheatPriceBasketLeg["market"];
+  latestDate: string | null;
+  earliestDate: string | null;
+  latestSettlement: string;
+  earliestSettlement: string;
+  latestChangeText: string;
+  windowMovePct: number | null;
+  rowCount: number;
+  sourceNote: string;
+};
+
+type WheatHistoricalPriceLeg = {
+  label: WheatPriceBasketLeg["label"];
+  market: WheatPriceBasketLeg["market"];
+  rows: WheatPriceHistoryRow[];
+  latestDate: string | null;
+  earliestDate: string | null;
+  latestSettlement: string;
+  movePct: number | null;
+  rangeLabel: string;
+  rowCount: number;
+  sourceNote: string;
+  path: string | null;
+};
+
+const WHEAT_PRICE_BASKET_MARKETS: Record<WheatPriceBasketLeg["label"], WheatPriceBasketLeg["market"]> = {
+  "Spring Wheat": "MGEX",
+  "HRW Wheat": "KCBT",
+  "SRW Wheat": "CBOT",
+};
+
+function wheatPriceLegLabel(label: string): WheatPriceBasketLeg["label"] | null {
+  if (label.startsWith("Spring Wheat ")) return "Spring Wheat";
+  if (label.startsWith("HRW Wheat ")) return "HRW Wheat";
+  if (label.startsWith("SRW Wheat ")) return "SRW Wheat";
+  return null;
+}
+
+function wheatPriceLegLabelForRow(row: ThesisPriceRow): WheatPriceBasketLeg["label"] | null {
+  const contract = row.contract?.toUpperCase() ?? "";
+  const exchange = row.exchange?.toUpperCase() ?? "";
+  const grain = row.grain?.toLowerCase() ?? "";
+  if (contract.startsWith("MW") || exchange.includes("MGEX") || grain.includes("spring wheat")) return "Spring Wheat";
+  if (contract.startsWith("KE") || exchange.includes("KCBT") || grain.includes("hrw") || grain.includes("hard red")) return "HRW Wheat";
+  if (contract.startsWith("ZW") || grain === "wheat" || grain.includes("srw") || grain.includes("soft red")) return "SRW Wheat";
+  return null;
+}
+
+function wheatPriceDisplay(value: number | null, currency: string | null, unit: string | null): string {
+  if (value === null) return "not reported";
+  const suffix = currency ? ` ${currency}${unit ? unit.replace(/^\$/, "") : ""}` : unit ? ` ${unit}` : "";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 3 })}${suffix}`;
+}
+
+function signedPctText(value: number | null): string {
+  if (value === null) return "n/a";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)}%`;
+}
+
+function MarketBearIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
+      <circle cx="14.5" cy="14.5" r="7.1" fill="currentColor" />
+      <circle cx="33.5" cy="14.5" r="7.1" fill="currentColor" />
+      <path
+        d="M8.8 27.1c0-10 6.8-16.9 15.2-16.9s15.2 6.9 15.2 16.9c0 8.8-6.1 14.7-15.2 14.7S8.8 35.9 8.8 27.1Z"
+        fill="currentColor"
+      />
+      <ellipse cx="24" cy="30.6" rx="9.4" ry="7.2" fill="#f5f3ee" opacity="0.92" />
+      <circle cx="18.5" cy="24" r="2" fill="#f5f3ee" />
+      <circle cx="29.5" cy="24" r="2" fill="#f5f3ee" />
+      <path d="M20.4 31.1c2.2 2 5 2 7.2 0" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M24 28.6v3" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+      <path d="M21.2 28.1c1.4-1.1 4.2-1.1 5.6 0-1.1 1.8-4.5 1.8-5.6 0Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function MarketBullIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} fill="none" aria-hidden="true">
+      <path
+        d="M18.5 18.3C10.9 16.5 5.6 11.8 3.2 4.6c8.8.1 15.8 4.5 19.2 12.1M29.5 18.3c7.6-1.8 12.9-6.5 15.3-13.7-8.8.1-15.8 4.5-19.2 12.1"
+        fill="currentColor"
+      />
+      <path
+        d="M15.3 18.1C11 14.9 8.3 10.9 7.1 6.2M32.7 18.1c4.3-3.2 7-7.2 8.2-11.9"
+        stroke="#f5f3ee"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+      <path
+        d="M10.2 23.4c0-8.9 6.2-14.5 13.8-14.5s13.8 5.6 13.8 14.5c0 8.2-5.4 16.5-13.8 16.5S10.2 31.6 10.2 23.4Z"
+        fill="currentColor"
+      />
+      <path
+        d="M16.3 22.9c2.4-2.3 5-2.3 6.4-.2M25.3 22.7c1.4-2.1 4-2.1 6.4.2"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M16.3 22.9c2.4-2.3 5-2.3 6.4-.2M25.3 22.7c1.4-2.1 4-2.1 6.4.2"
+        stroke="#f5f3ee"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <ellipse cx="24" cy="31.3" rx="8.5" ry="6.5" fill="#f5f3ee" opacity="0.92" />
+      <circle cx="20.5" cy="30.8" r="1.5" fill="currentColor" />
+      <circle cx="27.5" cy="30.8" r="1.5" fill="currentColor" />
+      <path d="M20.7 35.1c2 1.8 4.6 1.8 6.6 0" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M24 36.5c0 2.5-4.1 2.5-4.1 0 0-1.8 2.2-2.8 4.1-1M24 36.5c0 2.5 4.1 2.5 4.1 0 0-1.8-2.2-2.8-4.1-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function wheatPriceBasketLegs(row: ThesisComparisonRow): WheatPriceBasketLeg[] {
+  const byLabel = new Map<WheatPriceBasketLeg["label"], WheatPriceBasketLeg>();
+  const priceDomains = rowItems(row).flatMap((item) =>
+    item.ratingScorecard.domains.filter((domain) => domain.domain === "price"),
+  );
+
+  for (const domain of priceDomains) {
+    for (const metric of domain.metrics ?? []) {
+      const label = wheatPriceLegLabel(metric.label);
+      if (!label) continue;
+      const existing = byLabel.get(label) ?? {
+        label,
+        market: WHEAT_PRICE_BASKET_MARKETS[label],
+        change: null,
+        changeText: "not reported",
+        settlement: null,
+        period: metric.period ?? null,
+      };
+
+      if (metric.label.endsWith("futures change")) {
+        existing.change = typeof metric.numericValue === "number" ? metric.numericValue : existing.change;
+        existing.changeText = metric.value;
+        existing.period = metric.period ?? existing.period;
+      } else if (metric.label.endsWith("settlement price")) {
+        existing.settlement = metric.value;
+        existing.period = metric.period ?? existing.period;
+      }
+
+      byLabel.set(label, existing);
+    }
+  }
+
+  return (["Spring Wheat", "HRW Wheat", "SRW Wheat"] as const).map((label) =>
+    byLabel.get(label) ?? {
+      label,
+      market: WHEAT_PRICE_BASKET_MARKETS[label],
+      change: null,
+      changeText: "missing",
+      settlement: null,
+      period: null,
+    },
+  );
+}
+
+function wheatPriceBasketAgreement(legs: WheatPriceBasketLeg[]): string {
+  const reported = legs.filter((leg) => leg.change !== null);
+  if (reported.length === 0) return "Price basket unavailable";
+  const bearCount = reported.filter((leg) => (leg.change ?? 0) < -0.5).length;
+  const bullCount = reported.filter((leg) => (leg.change ?? 0) > 0.5).length;
+  if (bearCount === reported.length) return "All reported contracts bearish";
+  if (bullCount === reported.length) return "All reported contracts bullish";
+  if (bearCount > 0 && bullCount > 0) return "Split price basket";
+  return "Price basket mixed/neutral";
+}
+
+function wheatPriceTrendLegs(row: ThesisComparisonRow): WheatPriceTrendLeg[] {
+  const dedupedRows = new Map<string, ThesisPriceRow>();
+
+  for (const item of rowItems(row)) {
+    for (const priceRow of item.priceRows ?? []) {
+      const label = wheatPriceLegLabelForRow(priceRow);
+      if (!label || !priceRow.priceDate || priceRow.settlementPrice === null) continue;
+      const key = `${label}:${priceRow.priceDate}:${priceRow.settlementPrice}:${priceRow.contract ?? ""}`;
+      dedupedRows.set(key, priceRow);
+    }
+  }
+
+  return (["Spring Wheat", "HRW Wheat", "SRW Wheat"] as const).map((label) => {
+    const rows = [...dedupedRows.values()]
+      .filter((priceRow) => wheatPriceLegLabelForRow(priceRow) === label)
+      .sort((left, right) => String(right.priceDate ?? "").localeCompare(String(left.priceDate ?? "")));
+    const latest = rows[0] ?? null;
+    const earliest = rows[rows.length - 1] ?? null;
+    const latestSettlement = latest?.settlementPrice ?? null;
+    const earliestSettlement = earliest?.settlementPrice ?? null;
+    const windowMovePct =
+      latestSettlement !== null && earliestSettlement !== null && earliestSettlement !== 0 && latest?.priceDate !== earliest?.priceDate
+        ? ((latestSettlement - earliestSettlement) / earliestSettlement) * 100
+        : null;
+    const sourceSet = new Set(rows.map((priceRow) => priceRow.source).filter(Boolean));
+    const hasBarchart = [...sourceSet].some((source) => source?.toLowerCase() === "barchart");
+
+    return {
+      label,
+      market: WHEAT_PRICE_BASKET_MARKETS[label],
+      latestDate: latest?.priceDate ?? null,
+      earliestDate: earliest?.priceDate ?? null,
+      latestSettlement: wheatPriceDisplay(latestSettlement, latest?.currency ?? null, latest?.unit ?? null),
+      earliestSettlement: wheatPriceDisplay(earliestSettlement, earliest?.currency ?? null, earliest?.unit ?? null),
+      latestChangeText: signedPctText(latest?.changePct ?? null),
+      windowMovePct,
+      rowCount: rows.length,
+      sourceNote: rows.length === 0
+        ? "No packet rows"
+        : hasBarchart
+          ? "Barchart latest-only leg"
+          : `${rows.length} packet closes`,
+    };
+  });
+}
+
+function wheatPriceHistoryPath(rows: WheatPriceHistoryRow[]): string | null {
+  if (rows.length < 2) return null;
+  const prices = rows.map((row) => row.settlementPrice);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const range = maxPrice - minPrice || Math.max(0.01, maxPrice * 0.02);
+  const points = rows.map((row, index) => {
+    const x = rows.length === 1 ? 50 : (index / (rows.length - 1)) * 100;
+    const y = 36 - ((row.settlementPrice - minPrice) / range) * 30;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  return `M ${points.join(" L ")}`;
+}
+
+function wheatPriceHistoryLegs(history: WheatPriceHistoryRow[]): WheatHistoricalPriceLeg[] {
+  return (["Spring Wheat", "HRW Wheat", "SRW Wheat"] as const).map((label) => {
+    const rows = history
+      .filter((row) => row.leg === label)
+      .sort((left, right) => String(left.priceDate).localeCompare(String(right.priceDate)));
+    const earliest = rows[0] ?? null;
+    const latest = rows[rows.length - 1] ?? null;
+    const prices = rows.map((row) => row.settlementPrice);
+    const minPrice = prices.length ? Math.min(...prices) : null;
+    const maxPrice = prices.length ? Math.max(...prices) : null;
+    const movePct =
+      earliest && latest && earliest.settlementPrice !== 0 && earliest.priceDate !== latest.priceDate
+        ? ((latest.settlementPrice - earliest.settlementPrice) / earliest.settlementPrice) * 100
+        : null;
+    const sourceSet = new Set(rows.map((row) => row.source).filter(Boolean));
+    const sourceNote =
+      rows.length === 0
+        ? "No history rows"
+        : sourceSet.size > 1
+          ? `${rows.length} closes / mixed sources`
+          : `${rows.length} closes / ${[...sourceSet][0] ?? "price feed"}`;
+
+    return {
+      label,
+      market: WHEAT_PRICE_BASKET_MARKETS[label],
+      rows,
+      latestDate: latest?.priceDate ?? null,
+      earliestDate: earliest?.priceDate ?? null,
+      latestSettlement: wheatPriceDisplay(latest?.settlementPrice ?? null, latest?.currency ?? null, latest?.unit ?? null),
+      movePct,
+      rangeLabel:
+        minPrice !== null && maxPrice !== null && latest
+          ? `${wheatPriceDisplay(minPrice, latest.currency, latest.unit)}-${wheatPriceDisplay(maxPrice, latest.currency, latest.unit)}`
+          : "range unavailable",
+      rowCount: rows.length,
+      sourceNote,
+      path: wheatPriceHistoryPath(rows),
+    };
+  });
+}
+
+function wheatNumberSeriesPath(values: number[]): string | null {
+  if (values.length < 2) return null;
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || Math.max(0.01, Math.abs(maxValue) * 0.02);
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+    const y = 36 - ((value - minValue) / range) * 30;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  return `M ${points.join(" L ")}`;
+}
+
+function wheatExportHistoryRows(
+  history: WheatExportHistoryRow[],
+  country: WheatExportHistoryRow["country"],
+): WheatExportHistoryRow[] {
+  return history
+    .filter((row) => row.country === country)
+    .sort((left, right) => String(left.weekEnding).localeCompare(String(right.weekEnding)));
+}
+
+function wheatKtLabel(value: number | null): string {
+  if (value === null) return "not reported";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })} kt`;
+}
+
+function wheatHistoryPctLabel(value: number | null): string {
+  if (value === null) return "n/a";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
+}
+
+function wheatExportFreshnessLabel(status: string | null): string {
+  if (!status) return "freshness unknown";
+  return wheatFreshnessProofLabel(status).toLowerCase();
+}
+
+function wheatExportHistoryPath(rows: WheatExportHistoryRow[], country: WheatExportHistoryRow["country"]): string | null {
+  const values = rows
+    .map((row) => (country === "Canada" ? row.exportDeliveryRatioPct : row.netSalesKt))
+    .filter((value): value is number => value !== null);
+  return wheatNumberSeriesPath(values);
+}
+
+function wheatExportHistoryRead(row: WheatExportHistoryRow | null, country: WheatExportHistoryRow["country"]): { label: string; className: string } {
+  if (!row) return { label: "No history rows", className: "text-muted-foreground" };
+  if (country === "Canada") {
+    const ratio = row.exportDeliveryRatioPct;
+    if (ratio !== null && ratio >= 75) return { label: "Export pull strong", className: "text-prairie" };
+    if (ratio !== null && ratio <= 35) return { label: "Export pull light", className: "text-orange-700 dark:text-orange-300" };
+    return { label: "Export pull mixed", className: "text-foreground" };
+  }
+  const sales = row.netSalesKt;
+  if (sales !== null && sales >= 300) return { label: "Sales support", className: "text-prairie" };
+  if (sales !== null && sales < 0) return { label: "Sales drag", className: "text-orange-700 dark:text-orange-300" };
+  return { label: "Sales mixed", className: "text-foreground" };
+}
+
+function wheatPressureMarkerPosition(score: number): number {
+  return Math.max(4, Math.min(96, 50 + Math.max(-35, Math.min(35, score)) * 1.25));
+}
+
+function wheatPressureReadLabel(score: number): string {
+  if (score <= -15) return "Bearish";
+  if (score < -3) return "Slightly bearish";
+  if (score >= 15) return "Bullish";
+  if (score > 3) return "Slightly bullish";
+  return "Neutral";
+}
+
+function wheatPressureReadClass(score: number): string {
+  if (score < -3) return "text-orange-700 dark:text-orange-300";
+  if (score > 3) return "text-prairie";
+  return "text-muted-foreground";
+}
+
+function wheatReadOutcomeLabel(lane: WheatVisualLaneRow): string {
+  if (lane.id === "watch") return "Key to watch";
+  if (lane.id === "weather" || lane.id === "supply") {
+    if (lane.score < -3) return "Supply pressure";
+    if (lane.score > 3) return "Supply risk";
+    return "Mixed supply signal";
+  }
+  if (lane.id === "demand") {
+    if (lane.score > 3) return "Demand support";
+    if (lane.score < -3) return "Demand headwind";
+    return "Demand neutral";
+  }
+  if (lane.id === "price") {
+    if (lane.score < -3) return "Price headwind";
+    if (lane.score > 3) return "Price support";
+    return "Price neutral";
+  }
+  if (lane.id === "positioning") {
+    if (lane.score < -3) return "Positioning headwind";
+    if (lane.score > 3) return "Short-cover watch";
+    return "Positioning neutral";
+  }
+  if (lane.score < -3) return "Movement pressure";
+  if (lane.score > 3) return "Flow support";
+  return "Neutral";
+}
+
+function wheatDriverCompactTitle(lane: WheatVisualLaneRow): string {
+  if (lane.id === "weather") return "Crop / Weather";
+  if (lane.id === "movement") return "Movement";
+  if (lane.id === "positioning") return "Funds";
+  return lane.title;
+}
+
+function wheatDriverToneClass(score: number): string {
+  if (score < -3) return "border-orange-600/25 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+  if (score > 3) return "border-prairie/25 bg-prairie/10 text-prairie";
+  return "border-border bg-background/80 text-muted-foreground";
+}
+
+function wheatDriverFillClass(score: number): string {
+  if (score < -3) return "bg-orange-600";
+  if (score > 3) return "bg-prairie";
+  return "bg-muted-foreground/40";
+}
+
+function wheatDriverFillStyle(score: number): React.CSSProperties {
+  const width = Math.min(50, Math.abs(score) * 2.5);
+  return {
+    left: `${score < 0 ? 50 - width : 50}%`,
+    width: `${width}%`,
+  };
+}
+
+function wheatPriorityLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
+  return [...wheatVisualLaneRows(row)]
+    .filter((lane) => lane.id !== "watch")
+    .sort((left, right) => {
+      const scoreDelta = Math.abs(right.score) - Math.abs(left.score);
+      if (scoreDelta !== 0) return scoreDelta;
+      if (left.impact && !right.impact) return -1;
+      if (!left.impact && right.impact) return 1;
+      return left.title.localeCompare(right.title);
+    })
+    .slice(0, 3);
+}
+
+function wheatStanceToneClass(score: number): string {
+  if (score < 0) return "text-orange-700 dark:text-orange-300";
+  if (score > 0) return "text-prairie";
+  return "text-foreground";
+}
+
+function wheatTopReadSentence(score: number): string {
+  if (score < 0) {
+    return "Supply and crop pressure is outweighing demand support in the current Wheat read.";
+  }
+  if (score > 0) {
+    return "Demand and flow support is outweighing supply pressure in the current Wheat read.";
+  }
+  return "Bull and bear pressure are balanced; the next official source move matters most.";
+}
+
+function reportDateLabel(value: string): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 function MarketUseNotice() {
@@ -1569,468 +2565,1245 @@ function MarketUseNotice() {
   );
 }
 
-function DataFlowStep({
-  label,
-  detail,
-  tone,
+function WheatStanceMeter({
+  score,
+  confidence,
 }: {
-  label: string;
-  detail: string;
-  tone: "official" | "price" | "watch" | "read";
+  score: number;
+  confidence: number;
 }) {
-  const toneClass =
-    tone === "official"
-      ? "border-prairie/25 bg-prairie/10 text-prairie"
-      : tone === "price"
-        ? "border-canola/35 bg-canola/10 text-canola"
-        : tone === "watch"
-          ? "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300"
-          : "border-border bg-background text-foreground";
+  const pressurePosition = wheatPressureMarkerPosition(score);
+  const confidenceScaledStancePosition = confidenceScaledPosition(score, confidence);
+  const segments = [
+    "bg-orange-700",
+    "bg-orange-600",
+    "bg-orange-500",
+    "bg-canola/80",
+    "bg-muted",
+    "bg-muted",
+    "bg-prairie/45",
+    "bg-prairie/65",
+    "bg-prairie",
+  ];
 
   return (
-    <div className={cn("min-w-0 rounded-lg border p-3", toneClass)}>
-      <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+    <div className="grid min-w-0 max-w-full grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2 pt-5 sm:grid-cols-[44px_minmax(0,1fr)_44px] sm:gap-3 sm:pt-6">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-600/35 bg-orange-500/10 text-orange-700 shadow-sm dark:text-orange-300 sm:h-11 sm:w-11">
+        <MarketBearIcon className="h-6 w-6 sm:h-7 sm:w-7" />
+      </span>
+      <div className="min-w-0">
+        <div
+          className="relative grid h-3.5 w-full max-w-full grid-cols-9 gap-1"
+          aria-label={`Wheat bull bear pressure score ${score}`}
+        >
+          {segments.map((className, index) => (
+            <span key={index} className={cn("h-full rounded-sm", className)} aria-hidden="true" />
+          ))}
+          <span className="absolute left-1/2 top-0 h-full w-px bg-background/90" aria-hidden="true" />
+          <span
+            className={cn(
+              "absolute -top-6 -translate-x-1/2 rounded-md px-2 py-0.5 text-xs font-semibold text-white shadow-sm sm:-top-7 sm:px-2.5 sm:py-1 sm:text-sm",
+              score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-600" : "bg-foreground",
+            )}
+            style={{ left: `${pressurePosition}%` }}
+            aria-hidden="true"
+          >
+            {Math.round(pressurePosition)}%
+          </span>
+          <span
+            className={cn(
+              "absolute top-1/2 h-7 w-1 -translate-y-1/2 rounded-full border border-background shadow-sm",
+              score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-700" : "bg-foreground",
+            )}
+            data-confidence-scaled-position={`${confidenceScaledStancePosition.toFixed(2)}%`}
+            style={{ left: `calc(${pressurePosition}% - 0.125rem)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <div className="mt-3 flex w-full justify-between text-xs font-medium text-muted-foreground">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </div>
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-prairie/35 bg-prairie/10 text-prairie shadow-sm sm:h-11 sm:w-11">
+        <MarketBullIcon className="h-6 w-6 sm:h-7 sm:w-7" />
+      </span>
     </div>
   );
 }
 
-function WheatDataFlowStrip() {
-  const steps = [
+function WheatTopDriversStrip({ row }: { row: ThesisComparisonRow }) {
+  const drivers = wheatPriorityLaneRows(row);
+
+  return (
+    <div className="min-w-0" aria-labelledby="wheat-top-drivers-heading">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p id="wheat-top-drivers-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Top pressure drivers
+        </p>
+        <p className="hidden text-[11px] font-medium text-muted-foreground sm:block">Proof rows below</p>
+      </div>
+      <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
+        {drivers.map((lane) => {
+          const Icon = lane.icon;
+          const SignalIcon = lane.score < -3 ? TrendingDown : lane.score > 3 ? TrendingUp : Info;
+          return (
+            <div
+              key={lane.id}
+              className={cn(
+                "min-w-[10.75rem] snap-start rounded-lg border px-3 py-2 shadow-sm sm:min-w-0",
+                wheatDriverToneClass(lane.score),
+              )}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-current/20 bg-background/70">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-5 text-foreground">{wheatDriverCompactTitle(lane)}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold">
+                    <SignalIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>{wheatReadOutcomeLabel(lane)}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                <span className="absolute left-1/2 top-0 h-full w-px bg-background" />
+                <span
+                  className={cn("absolute top-0 h-full rounded-full", wheatDriverFillClass(lane.score))}
+                  style={wheatDriverFillStyle(lane.score)}
+                />
+              </div>
+              <p className="mt-2 line-clamp-1 text-[11px] leading-4 text-muted-foreground">{lane.evidence}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WheatDecisionBoard({
+  row,
+  score,
+  confidence,
+  action,
+}: {
+  row: ThesisComparisonRow;
+  score: number | null;
+  confidence: number | null;
+  action: ReturnType<typeof rowActionCue>;
+}) {
+  const safeScore = score ?? 0;
+  const safeConfidence = confidence ?? 0;
+  const isBear = safeScore < 0;
+  const isBull = safeScore > 0;
+  const StanceIcon = isBull ? TrendingUp : isBear ? TrendingDown : Info;
+
+  return (
+    <div className="relative min-w-0 max-w-full overflow-hidden rounded-lg border border-canola/35 bg-background p-3 shadow-[0_18px_55px_-42px_rgba(42,38,30,0.9)] sm:rounded-xl sm:p-6">
+      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 hidden h-36 w-36 text-canola opacity-[0.055] sm:block" aria-hidden="true" />
+      <div className="relative grid gap-4 lg:grid-cols-[minmax(230px,0.68fr)_minmax(0,1.32fr)] lg:items-center">
+        <div className="min-w-0 border-border/80 lg:border-r lg:pr-7">
+          <div className="mb-2 flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:mb-3">
+            <Badge variant="outline" className="max-w-full border-canola/35 bg-canola/10 text-canola">
+              Wheat Bull/Bear
+            </Badge>
+            <Badge variant="outline" className={cn("max-w-full", comparisonClass(row.status))}>
+              {wheatStatusDisplayLabel(row)}
+            </Badge>
+          </div>
+          <h1
+            id="wheat-decision-heading"
+            className="font-display text-4xl font-semibold leading-none text-foreground sm:text-6xl md:text-7xl"
+          >
+            <span aria-hidden="true">Wheat</span>
+            <span className="sr-only">Wheat Bull/Bear decision surface</span>
+          </h1>
+          <div className="mt-4 sm:mt-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Current stance
+            </p>
+            <span className="sr-only">Current Wheat read</span>
+            <div className="mt-2 flex flex-wrap items-center gap-2.5">
+              <p className={cn("text-2xl font-semibold leading-none sm:text-3xl", wheatStanceToneClass(safeScore))}>
+                {currentStanceLabel(safeScore)}
+              </p>
+              <span
+                className={cn(
+                  "inline-flex h-11 w-11 items-center justify-center rounded-full border bg-background",
+                  isBull
+                    ? "border-prairie/40 text-prairie"
+                    : isBear
+                      ? "border-orange-600/35 text-orange-700 dark:text-orange-300"
+                      : "border-border text-muted-foreground",
+                )}
+                aria-hidden="true"
+              >
+                <StanceIcon className="h-6 w-6" />
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Board score {signedNumber(safeScore)}. {wheatConfidenceDisplay(safeConfidence)}.
+            </p>
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
+                Thesis confidence / pressure
+              </p>
+              <Info className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+              <TrendingDown className="h-4 w-4 text-orange-700 dark:text-orange-300" aria-hidden="true" />
+              <span>Bear pressure</span>
+              <span className="text-border">/</span>
+              <TrendingUp className="h-4 w-4 text-prairie" aria-hidden="true" />
+              <span>Bull pressure</span>
+            </div>
+          </div>
+          <WheatStanceMeter score={safeScore} confidence={safeConfidence} />
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className={cn("border-border bg-background/80", actionCueClass(row.status))}>
+              {action.label}
+            </Badge>
+            <Badge variant="outline" className="border-border bg-background/80 text-muted-foreground">
+              {wheatConfidenceDisplay(safeConfidence)}
+            </Badge>
+            <span>Source coverage: {wheatCoverageLabel(row)}</span>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {wheatConfidenceExplanation(safeConfidence)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 border-t border-border/80 pt-3 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-center">
+        <div className="flex min-w-0 gap-3 rounded-lg bg-canola/8 p-3">
+          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-canola/25 bg-canola/12 text-canola sm:flex">
+            <Flag className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="break-words text-sm font-medium leading-6 text-foreground">{wheatTopReadSentence(safeScore)}</p>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+              {action.detail} Source context and local movement sit below the visual read.
+            </p>
+          </div>
+        </div>
+        <WheatTopDriversStrip row={row} />
+      </div>
+    </div>
+  );
+}
+
+function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
+  const datums = wheatDomainDatums(row);
+  const deciding = strongestDatum(datums, "absolute");
+  const strongestBull = strongestDatum(datums, "bull");
+  const strongestBear = strongestDatum(datums, "bear");
+  const counterweight = wheatJudgeCounterweight(deciding, datums);
+  const score = aggregateRowScore(row) ?? 0;
+  const scoreTone = score < 0 ? "bear" : score > 0 ? "bull" : "balanced";
+  const scoreCopy =
+    scoreTone === "bear"
+      ? "bearish pressure is still heavier than support"
+      : scoreTone === "bull"
+        ? "bullish support is still heavier than pressure"
+        : "bull and bear pressure are balanced";
+
+  return (
+    <section className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm" aria-labelledby="wheat-reconciliation-heading">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reconciliation judge</p>
+          <h2 id="wheat-reconciliation-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Why the board lands here
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            The weekly headline is scorecard-backed. The judge starts with the largest weighted source row, then checks whether the refreshed counterweight is strong enough to overturn it.
+          </p>
+        </div>
+        <Badge variant="outline" className={cn("w-fit", score < 0 ? "border-orange-600/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" : score > 0 ? "border-prairie/25 bg-prairie/10 text-prairie" : "border-border bg-background text-muted-foreground")}>
+          {signedNumber(Math.round(score))} / {currentStanceLabel(score)}
+        </Badge>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="border-canola/30 bg-canola/10 text-canola">
+              Deciding datum
+            </Badge>
+            {deciding ? (
+              <>
+                <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                  {deciding.country} / {wheatDomainTitle(deciding.domain.domain)}
+                </Badge>
+                <Badge variant="outline" className={cn("w-fit", wheatDatumFreshnessClass(deciding.domain.freshness_status))}>
+                  {wheatFreshnessProofLabel(deciding.domain.freshness_status)}
+                </Badge>
+              </>
+            ) : null}
+          </div>
+          {deciding ? (
+            <>
+              <p className="text-base font-semibold leading-6 text-foreground">
+                {signedNumber(deciding.weightedScore)} weighted points from {deciding.sourceLabel}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{deciding.evidence}</p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                {deciding.metricLabel && deciding.metricValue ? `${deciding.metricLabel}: ${deciding.metricValue}. ` : ""}
+                Period: {wheatPeriodLabel(deciding.period)}.
+              </p>
+              <p className="mt-2 rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">
+                Counterweight check: {wheatJudgeCounterweightCopy(deciding, counterweight)}
+              </p>
+              <p className="mt-2 rounded-md border border-canola/20 bg-canola/8 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                Source-specific read: {wheatSourceSpecificJudgeCopy(deciding, counterweight)}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm leading-6 text-muted-foreground">No scorecard datum is available yet.</p>
+          )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+          <div className="rounded-lg border border-prairie/20 bg-prairie/8 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-prairie">Best bull offset</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {strongestBull ? `${strongestBull.country} ${wheatDomainTitle(strongestBull.domain.domain)} ${signedNumber(strongestBull.weightedScore)}` : "No bull offset"}
+            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              {strongestBull?.evidence ?? "The current scorecard has no positive weighted datum."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-orange-600/20 bg-orange-500/8 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">Best bear offset</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {strongestBear ? `${strongestBear.country} ${wheatDomainTitle(strongestBear.domain.domain)} ${signedNumber(strongestBear.weightedScore)}` : "No bear offset"}
+            </p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              {strongestBear?.evidence ?? "The current scorecard has no negative weighted datum."}
+            </p>
+          </div>
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        Current judge read: {scoreCopy}. Canada and the U.S. stay as evidence geography; this is still one Wheat read.
+      </p>
+    </section>
+  );
+}
+
+function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
+  const datums = wheatDomainDatums(row)
+    .filter((datum) => datum.weightedScore !== 0)
+    .sort((left, right) => Math.abs(right.weightedScore) - Math.abs(left.weightedScore));
+  const points = wheatSpiderwebPoints(datums);
+  const rings = [
     {
-      label: "Official inputs",
-      detail: "CGC, USDA, CFTC, crop reports, logistics, and supply tables.",
-      tone: "official" as const,
+      label: "Inner ring",
+      detail: "high impact, closest to the read",
+      items: datums.filter((datum) => Math.abs(datum.weightedScore) >= 8),
     },
     {
-      label: "Pressure lanes",
-      detail: "Supply, demand, movement, logistics, price, positioning, and weather.",
-      tone: "official" as const,
+      label: "Middle ring",
+      detail: "meaningful context",
+      items: datums.filter((datum) => Math.abs(datum.weightedScore) < 8 && Math.abs(datum.weightedScore) >= 3),
     },
     {
-      label: "Wheat read",
-      detail: "Canada and US packet evidence is confidence-weighted into one visible read.",
-      tone: "read" as const,
-    },
-    {
-      label: "Watch leads",
-      detail: "X/social evidence flags what to inspect; it cannot move the read alone.",
-      tone: "watch" as const,
+      label: "Outer ring",
+      detail: "watch or light pressure",
+      items: datums.filter((datum) => Math.abs(datum.weightedScore) < 3),
     },
   ];
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 p-4">
+    <section className="rounded-lg border border-border bg-card p-4 shadow-sm" aria-labelledby="wheat-spiderweb-heading">
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-foreground">Sources to Wheat Bull/Bear board</p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            Official evidence can move the read. Watch-only leads only tell the desk what to inspect next.
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relationship spiderweb</p>
+          <h2 id="wheat-spiderweb-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Distance shows impact on the Wheat read
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Closer nodes carry more score weight. Bear pressure sits left, bull support sits right, and thicker edges mean bigger weighted points.
           </p>
         </div>
-        <Badge variant="outline" className="w-fit border-canola/35 bg-canola/10 text-canola">
-          Data flow
+        <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
+          Edge width = weighted points
         </Badge>
       </div>
-      <div className="grid gap-2 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-stretch">
-        {steps.map((step, index) => (
-          <Fragment key={step.label}>
-            <DataFlowStep {...step} />
-            {index < steps.length - 1 ? (
-              <div className="hidden items-center justify-center text-muted-foreground md:flex" aria-hidden="true">
-                <ArrowRight className="h-4 w-4" />
+      <div className="grid gap-3 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+        <div className="rounded-lg border border-canola/25 bg-canola/8 p-3">
+          <svg viewBox="0 0 300 300" role="img" aria-labelledby="wheat-spiderweb-svg-title" className="h-auto w-full">
+            <title id="wheat-spiderweb-svg-title">Wheat relationship spiderweb impact map</title>
+            <circle cx="150" cy="150" r="118" className="fill-none stroke-border" strokeWidth="1" />
+            <circle cx="150" cy="150" r="88" className="fill-none stroke-border" strokeWidth="1" />
+            <circle cx="150" cy="150" r="58" className="fill-none stroke-canola/50" strokeWidth="1.5" />
+            <line x1="16" y1="150" x2="284" y2="150" className="stroke-border" strokeWidth="1" strokeDasharray="4 5" />
+            <text x="30" y="137" className="fill-orange-700 text-[10px] font-semibold dark:fill-orange-300">
+              Bear
+            </text>
+            <text x="245" y="137" className="fill-prairie text-[10px] font-semibold">
+              Bull
+            </text>
+            {points.map((point) => (
+              <g key={`web-${point.index}-${point.country}-${point.domain.domain}`}>
+                <line
+                  x1="150"
+                  y1="150"
+                  x2={point.x}
+                  y2={point.y}
+                  className={point.weightedScore < 0 ? "stroke-orange-600" : "stroke-prairie"}
+                  strokeLinecap="round"
+                  strokeOpacity="0.72"
+                  strokeWidth={point.edgeWidth}
+                />
+              </g>
+            ))}
+            <circle cx="150" cy="150" r="35" className="fill-background stroke-canola" strokeWidth="1.5" />
+            <text x="150" y="146" textAnchor="middle" className="fill-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+              Wheat
+            </text>
+            <text x="150" y="164" textAnchor="middle" className="fill-foreground text-[12px] font-semibold">
+              {currentStanceLabel(aggregateRowScore(row) ?? 0)}
+            </text>
+            {points.map((point) => (
+              <g key={`node-${point.index}-${point.country}-${point.domain.domain}`}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r="13"
+                  className={point.weightedScore < 0 ? "fill-orange-600 stroke-background" : "fill-prairie stroke-background"}
+                  strokeWidth="2"
+                />
+                <text x={point.x} y={point.y + 4} textAnchor="middle" className="fill-background text-[11px] font-bold">
+                  {point.index}
+                </text>
+              </g>
+            ))}
+          </svg>
+          <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-medium text-muted-foreground">
+            <span>Inner: high impact</span>
+            <span>Middle: context</span>
+            <span>Outer: watch</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {rings.map((ring) => (
+            <div key={ring.label} className="rounded-lg border border-border bg-background p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">{ring.label}</p>
+                <p className="text-xs text-muted-foreground">{ring.detail}</p>
               </div>
-            ) : null}
-          </Fragment>
-        ))}
+              <div className="flex flex-wrap gap-2">
+                {ring.items.length ? ring.items.slice(0, 5).map((datum) => {
+                  const point = points.find(
+                    (candidate) =>
+                      candidate.country === datum.country &&
+                      candidate.domain.domain === datum.domain.domain &&
+                      candidate.weightedScore === datum.weightedScore,
+                  );
+                  const width = Math.max(2, Math.min(8, Math.round(Math.abs(datum.weightedScore) / 2)));
+                  return (
+                    <span
+                      key={`${datum.country}-${datum.domain.domain}-${datum.weightedScore}-${datum.sourceLabel}`}
+                      className={cn(
+                        "inline-flex max-w-full items-center gap-2 rounded-full border bg-card px-2.5 py-1 text-xs font-medium",
+                        datum.weightedScore < 0
+                          ? "border-orange-600/25 text-orange-700 dark:text-orange-300"
+                          : "border-prairie/25 text-prairie",
+                      )}
+                    >
+                      <span
+                        className={cn("h-2 rounded-full", datum.weightedScore < 0 ? "bg-orange-600" : "bg-prairie")}
+                        style={{ width: `${width * 8}px` }}
+                        aria-hidden="true"
+                      />
+                      {point ? <span className="tabular-nums">#{point.index}</span> : null}
+                      {datum.country} {wheatDomainTitle(datum.domain.domain)} {signedNumber(datum.weightedScore)}
+                    </span>
+                  );
+                }) : (
+                  <span className="text-xs text-muted-foreground">No active lanes in this ring.</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-type WheatLocalContextSummary = {
-  label: string;
-  detail: string;
-};
-
-function countryDisplayName(lane: ThesisLane): string {
-  return lane === "canada" ? "Canada" : "USA";
-}
-
-function countryCodeLabel(lane: ThesisLane): ThesisCountryCode {
-  return lane === "canada" ? "CA" : "US";
-}
-
-function countryReadTitle(lane: ThesisLane): string {
-  return `${countryDisplayName(lane)} Wheat Bull/Bear`;
-}
-
-function countryCardClass(score: number): string {
-  if (score > 0) return "border-prairie/30 bg-gradient-to-br from-prairie/18 via-prairie/8 to-background";
-  if (score < 0) return "border-amber-600/30 bg-gradient-to-br from-amber-500/18 via-amber-500/8 to-background";
-  return "border-border bg-gradient-to-br from-muted/40 via-background to-background";
-}
-
-function countryBadgeClass(score: number): string {
-  if (score > 0) return "border-prairie/25 bg-prairie/10 text-prairie";
-  if (score < 0) return "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300";
-  return "border-border bg-background/70 text-muted-foreground";
-}
-
-function comparisonPointSummary(point: ThesisComparisonPoint | null, fallback: string): string {
-  if (!point) return fallback;
-  return `${point.country} ${point.title}: ${point.body} (${point.metricLabel} / ${sourceDisplayName(point.sourceName)}).`;
-}
-
-function CountryStanceRail({ item }: { item: ThesisBoardItem }) {
-  const position = confidenceScaledPosition(item.stanceScore, item.confidenceScore);
+function WheatHistoricalPriceContext({ history }: { history: WheatPriceHistoryRow[] }) {
+  const legs = wheatPriceHistoryLegs(history);
 
   return (
-    <div>
-      <div
-        className="relative h-3 rounded-full bg-muted"
-        aria-label={`${countryDisplayName(item.lane)} Wheat confidence-scaled stance score ${item.stanceScore}`}
-      >
-        <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
-        <span
-          className={cn(
-            "absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-2 border-background shadow-sm",
-            item.stanceScore > 0 ? "bg-prairie" : item.stanceScore < 0 ? "bg-amber-600" : "bg-muted-foreground",
-          )}
-          data-confidence-scaled-position={`${position.toFixed(2)}%`}
-          style={{ left: `calc(${position}% - 0.75rem)` }}
-          aria-hidden="true"
-        />
-      </div>
-      <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
-        <span>Bear</span>
-        <span>Balanced</span>
-        <span>Bull</span>
-      </div>
-    </div>
-  );
-}
-
-function EvidencePointCard({
-  point,
-  tone,
-}: {
-  point: ThesisComparisonPoint | null;
-  tone: "bull" | "bear";
-}) {
-  const Icon = tone === "bull" ? TrendingUp : TrendingDown;
-  const title = tone === "bull" ? "Top bull evidence" : "Top bear evidence";
-  const fallback =
-    tone === "bull"
-      ? "No bullish Wheat driver in the current packets."
-      : "No bearish Wheat driver in the current packets.";
-  const toneClass =
-    tone === "bull"
-      ? "border-prairie/20 bg-prairie/8 text-prairie"
-      : "border-amber-600/20 bg-amber-500/8 text-amber-700 dark:text-amber-300";
-
-  return (
-    <div className={cn("rounded-lg border p-3", toneClass)}>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-          {title}
-        </div>
-        {point ? (
-          <Badge variant="outline" className="border-border bg-background/70 text-[10px] text-muted-foreground">
-            {point.country}
-          </Badge>
-        ) : null}
-      </div>
-      <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-        {comparisonPointSummary(point, fallback)}
-      </p>
-    </div>
-  );
-}
-
-function WheatLeadEvidencePanel({ row }: { row: ThesisComparisonRow }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      <EvidencePointCard point={row.strongestBullPoints[0] ?? null} tone="bull" />
-      <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
-    </div>
-  );
-}
-
-function WheatCountryDecisionCard({
-  item,
-  lane,
-}: {
-  item: ThesisBoardItem | null;
-  lane: ThesisLane;
-}) {
-  if (!item) {
-    return (
-      <div className="rounded-xl border border-dashed border-border bg-background/70 p-4">
-        <Badge variant="outline" className="mb-3 border-border bg-background/70 text-muted-foreground">
-          {countryDisplayName(lane)}
-        </Badge>
-        <h3 className="font-display text-xl font-semibold">{countryReadTitle(lane)}</h3>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          No {countryDisplayName(lane)} Wheat packet is active in this board read.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <article className={cn("relative flex min-h-[275px] flex-col justify-between overflow-hidden rounded-2xl border p-5 shadow-sm", countryCardClass(item.stanceScore))}>
-      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 text-foreground opacity-[0.06]" aria-hidden="true" />
-      <div className="relative flex items-start justify-between gap-3">
-        <div>
-          <Badge variant="outline" className={countryBadgeClass(item.stanceScore)}>
-            {countryCodeLabel(item.lane)} packet
-          </Badge>
-          <h3 className="mt-2 font-display text-lg font-semibold text-foreground">
-            {countryReadTitle(item.lane)}
-          </h3>
-        </div>
-        <div className="text-right">
-          <p className={cn("text-5xl font-semibold tabular-nums", stanceClass(item.stanceScore))}>
-            {signedNumber(item.stanceScore)}
-          </p>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">score</p>
-        </div>
-      </div>
-
-      <div className="relative my-5">
-        <p className="mb-3 text-2xl font-semibold text-foreground">
-          {directionalIndicatorLabel(item.stanceScore)}
-        </p>
-        <CountryStanceRail item={item} />
-      </div>
-
-      <div className="relative flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-          {item.confidenceScore}% confidence
-        </Badge>
-        <ScoreSourceBadge item={item} />
-        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-          {item.sourceCount} sources
-        </Badge>
-      </div>
-    </article>
-  );
-}
-
-function WheatCountrySplitGraphic({
-  row,
-  score,
-  confidence,
-}: {
-  row: ThesisComparisonRow;
-  score: number | null;
-  confidence: number | null;
-}) {
-  const canadaScore = row.canada?.stanceScore ?? null;
-  const usScore = row.us?.stanceScore ?? null;
-  const safeScore = score ?? 0;
-  const safeConfidence = confidence ?? 0;
-  const combinedPosition = confidenceScaledPosition(safeScore, safeConfidence);
-  const splitDelta = canadaScore !== null && usScore !== null ? usScore - canadaScore : null;
-
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-wheat-900/20 bg-foreground p-4 text-background shadow-lg dark:border-white/10 dark:bg-wheat-50 dark:text-wheat-900">
-      <div className="absolute inset-x-4 top-4 h-px bg-gradient-to-r from-transparent via-canola/60 to-transparent motion-safe:animate-pulse" aria-hidden="true" />
-      <WheatIcon className="pointer-events-none absolute -bottom-10 -right-8 h-36 w-36 text-canola opacity-10" aria-hidden="true" />
-      <div className="relative flex flex-col items-center text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-canola/40 bg-canola/15 text-canola shadow-sm">
-          <WheatIcon className="h-6 w-6" aria-hidden="true" />
-        </div>
-        <Badge variant="outline" className="mt-3 border-canola/40 bg-canola/15 text-canola">
-          Combined Wheat read
-        </Badge>
-        <p className="mt-3 font-display text-2xl font-semibold">
-          {directionalIndicatorLabel(safeScore)}
-        </p>
-        <p className={cn("text-6xl font-semibold tabular-nums", stanceClass(safeScore))}>
-          {signedNumber(safeScore)}
-        </p>
-        <p className="text-xs tabular-nums opacity-75">{safeConfidence}% combined confidence</p>
-      </div>
-
-      <div className="relative mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="rounded-xl border border-background/20 bg-background/10 p-2 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">Canada</p>
-          <p className={cn("mt-1 text-2xl font-semibold tabular-nums", stanceClass(canadaScore ?? 0))}>
-            {canadaScore === null ? "n/a" : signedNumber(canadaScore)}
-          </p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-background/25 bg-background/10 opacity-80">
-          <Scale className="h-4 w-4" aria-hidden="true" />
-        </div>
-        <div className="rounded-xl border border-background/20 bg-background/10 p-2 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">USA</p>
-          <p className={cn("mt-1 text-2xl font-semibold tabular-nums", stanceClass(usScore ?? 0))}>
-            {usScore === null ? "n/a" : signedNumber(usScore)}
-          </p>
-        </div>
-      </div>
-
-      <div className="relative mt-5">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-70">
-          Wheat stance meter
-        </p>
-        <div className="relative h-3 rounded-full bg-background/15" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
-          <span className="absolute left-1/2 top-0 h-full w-px bg-background/40" aria-hidden="true" />
-          <span
-            className="absolute top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
-            data-confidence-scaled-position={`${combinedPosition.toFixed(2)}%`}
-            style={{ left: `calc(${combinedPosition}% - 0.875rem)` }}
-            aria-hidden="true"
-          />
-        </div>
-        <div className="mt-2 flex justify-between text-[11px] font-medium opacity-70">
-          <span>Bear</span>
-          <span>Balanced</span>
-          <span>Bull</span>
-        </div>
-      </div>
-
-      <p className="relative mt-4 text-xs leading-5 opacity-75">
-        {splitDelta === null
-          ? "One country packet is missing, so the combined read is partial."
-          : `USA is ${signedNumber(splitDelta)} points versus Canada; the combined read stays confidence-weighted.`}
-      </p>
-    </div>
-  );
-}
-
-function WheatMobileDecisionSnapshot({
-  row,
-  score,
-  confidence,
-  localContext,
-}: {
-  row: ThesisComparisonRow;
-  score: number | null;
-  confidence: number | null;
-  localContext: WheatLocalContextSummary;
-}) {
-  const safeScore = score ?? 0;
-  const safeConfidence = confidence ?? 0;
-  const combinedPosition = confidenceScaledPosition(safeScore, safeConfidence);
-
-  return (
-    <div className="space-y-2 px-4 pb-4 sm:hidden">
-      <div className="grid grid-cols-2 gap-2">
-        {[row.canada, row.us].map((item, index) => (
-          <div key={item?.id ?? index} className={cn("rounded-lg border p-3", countryCardClass(item?.stanceScore ?? 0))}>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {item ? countryReadTitle(item.lane) : index === 0 ? "Canada Wheat Bull/Bear" : "USA Wheat Bull/Bear"}
-            </p>
-            <p className={cn("mt-1 text-3xl font-semibold tabular-nums", stanceClass(item?.stanceScore ?? 0))}>
-              {item ? signedNumber(item.stanceScore) : "n/a"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {item ? `${directionalIndicatorLabel(item.stanceScore)} / ${item.confidenceScore}%` : "Packet missing"}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-2">
-        <EvidencePointCard point={row.strongestBullPoints[0] ?? null} tone="bull" />
-        <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
-      </div>
-
-      <div className="relative overflow-hidden rounded-2xl border border-wheat-900/20 bg-foreground p-4 text-background shadow-sm dark:border-white/10 dark:bg-wheat-50 dark:text-wheat-900">
-        <WheatIcon className="pointer-events-none absolute -bottom-8 -right-6 h-28 w-28 text-canola opacity-10" aria-hidden="true" />
-        <div className="relative flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-canola">Combined Wheat read</p>
-            <p className="mt-1 text-sm font-semibold">{directionalIndicatorLabel(safeScore)}</p>
-          </div>
-          <p className={cn("text-4xl font-semibold tabular-nums", stanceClass(safeScore))}>
-            {signedNumber(safeScore)}
-          </p>
-        </div>
-        <p className="relative mt-3 text-[11px] font-semibold uppercase tracking-wide opacity-70">
-          Wheat stance meter
-        </p>
-        <div className="relative mt-2 h-3 rounded-full bg-background/15" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
-          <span className="absolute left-1/2 top-0 h-full w-px bg-background/40" aria-hidden="true" />
-          <span
-            className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
-            data-confidence-scaled-position={`${combinedPosition.toFixed(2)}%`}
-            style={{ left: `calc(${combinedPosition}% - 0.75rem)` }}
-            aria-hidden="true"
-          />
-        </div>
-        <p className="relative mt-2 text-[11px] leading-4 opacity-75">
-          {safeConfidence}% confidence from Canada + USA packets.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg border border-canola/25 bg-canola/10 p-3">
-          <p className="text-xs font-semibold text-canola">Data flow</p>
-          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-            Official inputs -&gt; pressure lanes -&gt; Wheat read.
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-background/80 p-3">
-          <p className="text-xs font-semibold text-foreground">Your area</p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
-            {localContext.detail}
-          </p>
-        </div>
-      </div>
-      <p className="text-[11px] leading-4 text-muted-foreground">{localContext.label}</p>
-    </div>
-  );
-}
-
-function WheatPressureLaneBreakdown({ row }: { row: ThesisComparisonRow }) {
-  const lanes = pressureLaneSummaries(row);
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="mt-3 rounded-lg border border-border bg-background/80 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-foreground">Pressure-lane breakdown</p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            Lane scores come from the same Canada/US packet scorecards that drive the visible Wheat read.
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historical price context</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Public-safe Wheat futures history from the price feed. This shows whether the recent market tape confirms the official data stack.
           </p>
         </div>
-        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+        <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
+          60-day price history
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        {legs.map((leg) => {
+          const isBear = leg.movePct !== null && leg.movePct < -0.5;
+          const isBull = leg.movePct !== null && leg.movePct > 0.5;
+          return (
+            <div key={`history-${leg.label}`} className="rounded-md border border-border bg-card px-3 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{leg.label}</p>
+                  <p className="text-[11px] leading-4 text-muted-foreground">{leg.market}</p>
+                </div>
+                <Badge variant="outline" className="max-w-[9rem] truncate border-border bg-background text-[10px] text-muted-foreground">
+                  {leg.sourceNote}
+                </Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[0.75fr_1.25fr] md:grid-cols-1">
+                <div>
+                  <p className={cn("text-xl font-semibold tabular-nums", isBear ? "text-orange-700 dark:text-orange-300" : isBull ? "text-prairie" : "text-foreground")}>
+                    {signedPctText(leg.movePct)}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {leg.earliestDate && leg.latestDate
+                      ? `${wheatPeriodLabel(leg.earliestDate)} to ${wheatPeriodLabel(leg.latestDate)}`
+                      : "History unavailable"}
+                  </p>
+                </div>
+                <svg viewBox="0 0 100 42" role="img" aria-label={`${leg.label} 60-day price history`} className="h-16 w-full overflow-visible">
+                  <line x1="0" x2="100" y1="36" y2="36" className="stroke-border" strokeWidth="1" />
+                  <line x1="0" x2="100" y1="6" y2="6" className="stroke-border/70" strokeWidth="1" />
+                  {leg.path ? (
+                    <path
+                      d={leg.path}
+                      fill="none"
+                      className={cn(isBear ? "stroke-orange-600" : isBull ? "stroke-prairie" : "stroke-foreground")}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <line x1="10" x2="90" y1="22" y2="22" className="stroke-muted-foreground/50" strokeWidth="2" strokeLinecap="round" />
+                  )}
+                </svg>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Latest close {leg.latestSettlement}; range {leg.rangeLabel}.
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WheatHistoricalExportContext({ history }: { history: WheatExportHistoryRow[] }) {
+  const canadaRows = wheatExportHistoryRows(history, "Canada");
+  const usRows = wheatExportHistoryRows(history, "United States");
+  const cards = [
+    {
+      country: "Canada" as const,
+      title: "Canada CGC export pull",
+      source: "CGC weekly grain stats",
+      rows: canadaRows,
+      chartLabel: "Export/delivery ratio",
+    },
+    {
+      country: "United States" as const,
+      title: "U.S. Export Sales",
+      source: "USDA Export Sales",
+      rows: usRows,
+      chartLabel: "Weekly net sales",
+    },
+  ];
+
+  return (
+    <section className="rounded-lg border border-prairie/25 bg-prairie/5 p-4 shadow-sm" aria-labelledby="wheat-export-history-heading">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historical export context</p>
+          <h2 id="wheat-export-history-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Demand pull beside the price tape
+          </h2>
+        </div>
+        <Badge variant="outline" className="w-fit border-prairie/25 bg-background/80 text-prairie">
+          16-week demand history
+        </Badge>
+      </div>
+      <p className="mb-3 text-xs leading-5 text-muted-foreground">
+        Exports show whether grain is actually disappearing. This is demand confirmation only; it does not overrule official supply, stocks, or price confirmation by itself.
+      </p>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {cards.map((card) => {
+          const latest = card.rows[card.rows.length - 1] ?? null;
+          const read = wheatExportHistoryRead(latest, card.country);
+          const path = wheatExportHistoryPath(card.rows, card.country);
+          const latestDate = latest ? wheatPeriodLabel(latest.weekEnding) : "No latest row";
+          const sourceDate = latest?.sourcePeriodEnd ? wheatPeriodLabel(latest.sourcePeriodEnd) : latestDate;
+          const latestMain =
+            card.country === "Canada"
+              ? wheatHistoryPctLabel(latest?.exportDeliveryRatioPct ?? null)
+              : wheatKtLabel(latest?.netSalesKt ?? null);
+          const latestDetail =
+            card.country === "Canada"
+              ? `${wheatKtLabel(latest?.weeklyExportsKt ?? null)} exports against ${wheatKtLabel(latest?.weeklyProducerDeliveriesKt ?? null)} producer deliveries.`
+              : `${wheatKtLabel(latest?.weeklyExportsKt ?? null)} weekly exports; ${wheatKtLabel(latest?.totalCommitmentsKt ?? null)} total commitments.`;
+          const projectionCopy =
+            card.country === "United States" && latest?.projectionAdmitted
+              ? ` Projection pace ${wheatHistoryPctLabel(latest.exportPacePct)} against ${wheatKtLabel(latest.usdaProjectionKt)} USDA projection.`
+              : card.country === "United States"
+                ? " Projection pace not admitted for this row."
+                : "";
+
+          return (
+            <div key={card.country} className="rounded-lg border border-border bg-background px-3 py-3">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{card.title}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                    {card.source}; season {latest?.seasonLabel ?? "not reported"}.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-border bg-card text-[10px] text-muted-foreground">
+                  {wheatExportFreshnessLabel(latest?.freshnessStatus ?? null)}
+                </Badge>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
+                <div>
+                  <p className={cn("text-2xl font-semibold tabular-nums", read.className)}>{latestMain}</p>
+                  <p className={cn("mt-1 text-xs font-semibold", read.className)}>{read.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Latest row {latestDate}; source through {sourceDate}.
+                  </p>
+                </div>
+                <svg viewBox="0 0 100 42" role="img" aria-label={`${card.title} ${card.chartLabel} history`} className="h-20 w-full overflow-visible">
+                  <line x1="0" x2="100" y1="36" y2="36" className="stroke-border" strokeWidth="1" />
+                  <line x1="0" x2="100" y1="6" y2="6" className="stroke-border/70" strokeWidth="1" />
+                  {path ? (
+                    <path
+                      d={path}
+                      fill="none"
+                      className={card.country === "Canada" ? "stroke-prairie" : "stroke-orange-600"}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <line x1="10" x2="90" y1="22" y2="22" className="stroke-muted-foreground/50" strokeWidth="2" strokeLinecap="round" />
+                  )}
+                </svg>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                {latestDetail}{projectionCopy}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function WheatPriceBasketProof({
+  row,
+  history,
+}: {
+  row: ThesisComparisonRow;
+  history: WheatPriceHistoryRow[];
+}) {
+  const legs = wheatPriceBasketLegs(row);
+  const trendLegs = wheatPriceTrendLegs(row);
+  const agreement = wheatPriceBasketAgreement(legs);
+
+  return (
+    <section className="rounded-lg border border-orange-600/25 bg-orange-500/8 p-4 shadow-sm" aria-labelledby="wheat-price-basket-heading">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Price basket proof</p>
+          <h2 id="wheat-price-basket-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Spring Wheat / HRW / SRW confirmation
+          </h2>
+        </div>
+        <Badge variant="outline" className="w-fit border-orange-600/25 bg-background/80 text-orange-700 dark:text-orange-300">
+          {agreement}
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        {legs.map((leg) => {
+          const isBear = leg.change !== null && leg.change < -0.5;
+          const isBull = leg.change !== null && leg.change > 0.5;
+          return (
+            <div key={leg.label} className="rounded-lg border border-border bg-background px-3 py-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">{leg.label}</p>
+                <Badge variant="outline" className="border-border bg-card text-[10px] text-muted-foreground">
+                  {leg.market}
+                </Badge>
+              </div>
+              <p className={cn("text-2xl font-semibold tabular-nums", isBear ? "text-orange-700 dark:text-orange-300" : isBull ? "text-prairie" : "text-foreground")}>
+                {leg.changeText}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {leg.settlement ? `${leg.settlement}; ` : ""}{leg.period ? wheatPeriodLabel(leg.period) : "no fresh row"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 rounded-lg border border-border bg-background/80 p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Packet trend context</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Short settlement window from the current packet; use it to judge whether the latest price move confirms the official source stack.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
+            Packet window, not full chart
+          </Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          {trendLegs.map((leg) => {
+            const isBear = leg.windowMovePct !== null && leg.windowMovePct < -0.5;
+            const isBull = leg.windowMovePct !== null && leg.windowMovePct > 0.5;
+            const width = leg.windowMovePct === null ? 3 : Math.max(5, Math.min(48, Math.abs(leg.windowMovePct) * 8));
+            const left = isBear ? 50 - width : isBull ? 50 : 48.5;
+            return (
+              <div key={`trend-${leg.label}`} className="rounded-md border border-border bg-card px-3 py-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">{leg.label}</p>
+                  <Badge variant="outline" className="border-border bg-background text-[10px] text-muted-foreground">
+                    {leg.sourceNote}
+                  </Badge>
+                </div>
+                <p className={cn("text-xl font-semibold tabular-nums", isBear ? "text-orange-700 dark:text-orange-300" : isBull ? "text-prairie" : "text-foreground")}>
+                  {signedPctText(leg.windowMovePct)}
+                </p>
+                <div className="relative mt-2 h-2 rounded-full bg-muted">
+                  <span className="absolute left-1/2 top-0 h-2 w-px bg-background" aria-hidden="true" />
+                  <span
+                    className={cn("absolute top-0 h-2 rounded-full", isBear ? "bg-orange-600" : isBull ? "bg-prairie" : "bg-foreground")}
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {leg.earliestDate && leg.latestDate
+                    ? `${wheatPeriodLabel(leg.earliestDate)} to ${wheatPeriodLabel(leg.latestDate)}. `
+                    : ""}
+                  Latest close {leg.latestSettlement}; latest daily change {leg.latestChangeText}.
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <WheatHistoricalPriceContext history={history} />
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+        This is market confirmation only. A split basket, short packet window, or weak history lowers confidence; it does not overrule official supply, demand, and movement rows by itself.
+      </p>
+    </section>
+  );
+}
+
+function WheatUsdaSourceSweep({ row }: { row: ThesisComparisonRow }) {
+  const items = wheatUsdaSweepItems(row);
+
+  return (
+    <section className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm" aria-labelledby="wheat-usda-sweep-heading">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">USDA Wheat sweep</p>
+          <h2 id="wheat-usda-sweep-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
+            Official U.S. rows behind the Wheat read
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            These rows explain the U.S. side of the scorecard. Crop stress can support price, but WASDE, stocks, exports, and price confirmation decide whether it changes the full Wheat read.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-canola/30 bg-canola/10 text-canola">
+          Official source rows only
+        </Badge>
+      </div>
+
+      <div className="mb-4 rounded-lg border border-border bg-card p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">USDA relationship read</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Read the row chain left to right before changing the Wheat stance.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
+            Condition to price confirmation
+          </Badge>
+        </div>
+        <div className="grid gap-2 md:grid-cols-5">
+          {WHEAT_USDA_RELATIONSHIP_STEPS.map((step, index) => (
+            <div key={step.label} className="relative rounded-md border border-border bg-background p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-canola/30 bg-canola/10 text-[11px] font-semibold text-canola">
+                  {index + 1}
+                </span>
+                <p className="text-xs font-semibold uppercase tracking-wide text-foreground">{step.label}</p>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">{step.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-4">
+        {items.map((item) => {
+          const score = item.datum ? Math.round(item.datum.weightedScore) : 0;
+          const scorePosition = wheatPressureMarkerPosition(score);
+          return (
+            <article key={item.id} className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-3">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className={cn("w-fit", item.relationClass)}>
+                  {item.relationLabel}
+                </Badge>
+                <Badge variant="outline" className={cn("w-fit", wheatDatumFreshnessClass(item.sourceStatus))}>
+                  {wheatFreshnessProofLabel(item.sourceStatus)}
+                </Badge>
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">{item.sourceLabel}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.role}</p>
+              </div>
+
+              <div className="mt-3 rounded-md border border-canola/20 bg-canola/8 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-canola">Decision role</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{item.decisionRole}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.decisionDetail}</p>
+              </div>
+
+              <div className="mt-3 rounded-md border border-border bg-background/80 px-3 py-2">
+                <p className={cn("text-lg font-semibold tabular-nums", wheatPressureReadClass(score))}>
+                  {item.effectLabel}
+                </p>
+                <div className="relative mt-2 h-2 rounded-full bg-muted">
+                  <span
+                    className={cn(
+                      "absolute top-0 block h-2 w-1 rounded-full",
+                      score < -3 ? "bg-orange-600" : score > 3 ? "bg-prairie" : "bg-foreground",
+                    )}
+                    style={{ left: `calc(${scorePosition}% - 0.125rem)` }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.metricLabel}</p>
+              </div>
+
+              <p className="mt-3 line-clamp-4 text-sm leading-6 text-muted-foreground">{item.evidence}</p>
+
+              <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3 text-xs text-muted-foreground">
+                <span>Cadence: {item.cadence}</span>
+                <span>Latest row: {item.period ? wheatPeriodLabel(item.period) : "not available in packet"}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function usdaProgressMetricClass(tone: (typeof LATEST_USDA_WHEAT_PROGRESS_UPDATE.metrics)[number]["tone"]): string {
+  if (tone === "bull") return "border-prairie/25 bg-prairie/8 text-prairie";
+  if (tone === "bear") return "border-amber-600/25 bg-amber-500/8 text-amber-800 dark:text-amber-300";
+  return "border-border bg-background/80 text-foreground";
+}
+
+function WheatUsdaProgressUpdateCard() {
+  const update = LATEST_USDA_WHEAT_PROGRESS_UPDATE;
+
+  return (
+    <section
+      className="overflow-hidden rounded-lg border border-orange-600/35 bg-orange-500/8 p-4 shadow-sm sm:p-5"
+      aria-labelledby="wheat-usda-update-heading"
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+            <span className="text-muted-foreground">Latest update</span>
+            <span className="text-muted-foreground">USDA</span>
+            <span className="text-muted-foreground">{reportDateLabel(update.releasedAt)}</span>
+          </div>
+          <h2 id="wheat-usda-update-heading" className="font-display text-2xl font-semibold leading-tight text-foreground">
+            Wheat Crop Progress - {reportDateLabel(update.releasedAt)}
+          </h2>
+          <p className="sr-only">Wheat crop progress - week ending {update.weekEnding}</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{update.read}</p>
+        </div>
+        <Badge variant="outline" className="w-fit border-orange-600/30 bg-background/80 text-orange-700 dark:text-orange-300">
+          Supply / weather pressure
+        </Badge>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {update.metrics.map((metricItem) => (
+          <div
+            key={metricItem.label}
+            className={cn("min-w-0 rounded-lg border bg-background/70 p-3", usdaProgressMetricClass(metricItem.tone))}
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-canola/20 bg-canola/8 text-canola">
+                <WheatIcon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <p className="text-sm font-medium leading-5 text-foreground">{metricItem.label}</p>
+            </div>
+            <p className="text-3xl font-semibold tabular-nums">{metricItem.value}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{metricItem.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <p>Source: {update.sourceName}</p>
+        <Link
+          href={update.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 font-semibold text-canola transition-colors hover:text-canola/80"
+        >
+          View full report
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function WheatVisualPressureMeter({ score }: { score: number }) {
+  const position = wheatPressureMarkerPosition(score);
+  const segments = [
+    "bg-orange-700",
+    "bg-orange-600",
+    "bg-orange-500",
+    "bg-muted",
+    "bg-muted",
+    "bg-muted",
+    "bg-prairie/40",
+    "bg-prairie/60",
+    "bg-prairie/80",
+  ];
+
+  return (
+    <span className="block min-w-0 max-w-full overflow-hidden">
+      <span className="relative grid h-3 grid-cols-9 gap-1" aria-label={`Wheat pressure score ${score}`}>
+        {segments.map((className, index) => (
+          <span key={index} className={cn("h-full rounded-sm", className)} aria-hidden="true" />
+        ))}
+        <span
+          className="absolute -top-1 h-5 w-1 rounded-full bg-foreground shadow-sm"
+          style={{ left: `calc(${position}% - 0.125rem)` }}
+          aria-hidden="true"
+        />
+      </span>
+      <span className={cn("mt-2 block text-xs font-semibold", wheatPressureReadClass(score))}>
+        {wheatPressureReadLabel(score)}
+      </span>
+    </span>
+  );
+}
+
+function wheatLaneExpansionCopy(lane: WheatVisualLaneRow): string {
+  if (lane.id === "weather") {
+    return "Crop condition and weather are early supply clues. They matter most when poor condition, harvest delays, or moisture stress are confirmed by later balance-sheet, export, or price data.";
+  }
+  if (lane.id === "supply") {
+    return "Supply rows anchor the bear side when stocks, carryout, or production leave enough grain available. Tightening stocks or a production shock would move this lane toward bull support.";
+  }
+  if (lane.id === "demand") {
+    return "Demand rows test whether buyers are absorbing Wheat fast enough. Strong export sales or shipment pace can offset supply pressure, but demand does not overrule fresh supply risk by itself.";
+  }
+  if (lane.id === "movement") {
+    return "Movement rows show whether grain is actually flowing through country elevators, rail, terminals, and ports. Slow flow can weaken demand proof even when sales look supportive.";
+  }
+  if (lane.id === "price") {
+    return "Price and currency are confirmation. If futures and basis agree with the official data, confidence rises; if price fights the data, the board should stay cautious.";
+  }
+  if (lane.id === "positioning") {
+    return "Positioning is timing and crowding context. It can warn about short-covering or liquidation risk, but fundamentals still decide the main direction.";
+  }
+  return "Watch leads tell the desk what to inspect next. They do not move the Wheat read unless tied back to an admitted official or market source.";
+}
+
+function wheatLaneScoreCopy(lane: WheatVisualLaneRow): string {
+  const direction =
+    lane.score < -3
+      ? "bearish pressure"
+      : lane.score > 3
+        ? "bullish support"
+        : "near neutral pressure";
+  return `${signedNumber(lane.score)} points of ${direction}.`;
+}
+
+function WheatPressureDecisionMatrix({ row }: { row: ThesisComparisonRow }) {
+  const lanes = wheatVisualLaneRows(row);
+
+  return (
+    <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-canola/25 bg-background shadow-sm" aria-labelledby="wheat-pressure-matrix-heading">
+      <div className="grid grid-cols-1 border-b border-border bg-background/80 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-foreground md:grid-cols-[1.2fr_1fr_0.8fr] md:px-5">
+        <p id="wheat-pressure-matrix-heading">Source (what we watch)</p>
+        <p className="hidden md:block">Pressure (bull <span aria-hidden="true">{"<->"}</span> bear)</p>
+        <p className="hidden md:block">Read (what it means)</p>
+      </div>
+      <div className="divide-y divide-border">
+        {lanes.map((lane) => {
+          const Icon = lane.icon;
+          const ReadIcon = lane.score < -3 ? TrendingDown : lane.score > 3 ? TrendingUp : Info;
+          return (
+            <details
+              key={lane.id}
+              className="group"
+            >
+              <summary className="grid min-w-0 cursor-pointer list-none gap-3 px-4 py-3 transition-colors hover:bg-canola/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canola/45 md:grid-cols-[1.2fr_1fr_0.8fr] md:items-center md:px-5 [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 max-w-full gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-canola/20 bg-background text-prairie">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="break-words font-semibold text-foreground">{lane.title}</span>
+                      {lane.impact ? (
+                        <Badge variant="outline" className="border-orange-600/25 bg-orange-500/10 text-[10px] text-orange-700 dark:text-orange-300">
+                          {lane.impact}
+                        </Badge>
+                      ) : null}
+                    </span>
+                    <span className="mt-1 line-clamp-2 break-words text-sm leading-5 text-muted-foreground">{lane.evidence}</span>
+                    <span className="mt-1 line-clamp-1 break-words text-[11px] leading-4 text-muted-foreground">
+                      {lane.sources.length ? lane.sources.map(sourceDisplayName).join(" + ") : lane.detail}
+                    </span>
+                  </span>
+                </span>
+                <span className="min-w-0">
+                  <WheatVisualPressureMeter score={lane.score} />
+                </span>
+                <span className="flex min-w-0 items-center justify-between gap-3 border-t border-border pt-2 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <ReadIcon
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        lane.score < -3
+                          ? "text-orange-700 dark:text-orange-300"
+                          : lane.score > 3
+                            ? "text-prairie"
+                            : "text-muted-foreground",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className={cn("text-sm font-semibold leading-5", wheatPressureReadClass(lane.score))}>
+                      {wheatReadOutcomeLabel(lane)}
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t border-border/70 bg-card/55 px-4 py-3 text-sm leading-6 md:grid-cols-[1.2fr_1fr_0.8fr] md:px-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What this means</p>
+                  <p className="mt-1 text-foreground">{wheatLaneExpansionCopy(lane)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Score effect</p>
+                  <p className={cn("mt-1 font-semibold", wheatPressureReadClass(lane.score))}>{wheatLaneScoreCopy(lane)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sources</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {lane.sources.length ? lane.sources.map(sourceDisplayName).join(", ") : lane.detail}
+                  </p>
+                </div>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-4 border-t border-border px-4 py-3 text-xs text-muted-foreground md:px-5">
+        <span className="inline-flex items-center gap-2 text-orange-700 dark:text-orange-300">
+          <TrendingDown className="h-4 w-4" aria-hidden="true" />
+          Bearish pressure
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="h-3 w-3 rounded-sm bg-muted" aria-hidden="true" />
+          Neutral
+        </span>
+        <span className="inline-flex items-center gap-2 text-prairie">
+          <TrendingUp className="h-4 w-4" aria-hidden="true" />
+          Bullish pressure
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function WheatWatchLeadsStrip({ row }: { row: ThesisComparisonRow }) {
+  const leadCards = [
+    {
+      label: "Next crop progress",
+      detail: "Condition, harvest pace, and heading.",
+      score: -6,
+    },
+    {
+      label: "CGC export pace",
+      detail: row.strongestBullPoints[0]?.title ?? "Whether demand keeps absorbing deliveries.",
+      score: 6,
+    },
+    {
+      label: "Basis / FX",
+      detail: "Cash support versus currency and futures pressure.",
+      score: -4,
+    },
+    {
+      label: "Fund positioning",
+      detail: "Crowded short or short-covering risk.",
+      score: 0,
+    },
+  ];
+
+  return (
+    <section className="rounded-lg border border-border bg-background p-4 shadow-sm" aria-labelledby="wheat-watch-leads-heading">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 id="wheat-watch-leads-heading" className="text-sm font-semibold uppercase tracking-wide text-foreground">
+          Watch leads (what could change the thesis)
+        </h2>
+        <Badge variant="outline" className="border-border bg-background text-muted-foreground">
           Wheat only
         </Badge>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {lanes.map((lane) => (
-          <div key={lane.domain} className="rounded-md border border-border bg-background p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">{lane.label}</p>
-              <span className={cn("text-sm font-semibold tabular-nums", stanceClass(lane.score))}>
-                {lane.score > 0 ? `+${lane.score}` : lane.score}
-              </span>
+        {leadCards.map((lead) => {
+          const Icon = lead.score < 0 ? TrendingDown : lead.score > 0 ? TrendingUp : Info;
+          return (
+            <div key={lead.label} className="min-w-0 rounded-md border border-border bg-card px-3 py-3">
+              <div className="flex gap-3">
+                <Icon
+                  className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0",
+                    lead.score < 0
+                      ? "text-orange-700 dark:text-orange-300"
+                      : lead.score > 0
+                        ? "text-prairie"
+                        : "text-muted-foreground",
+                  )}
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">{lead.label}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{lead.detail}</p>
+                </div>
+              </div>
             </div>
-            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{lane.evidence}</p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {lane.sourceCount > 0
-                ? lane.sources.map(sourceDisplayName).join(" + ")
-                : "No active source in this lane"}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
-    </div>
+    </section>
+  );
+}
+
+function WheatEvidenceDetails({ row }: { row: ThesisComparisonRow }) {
+  const bullPoint = row.strongestBullPoints[0] ?? null;
+  const bearPoint = row.strongestBearPoints[0] ?? null;
+  const sources = Array.from(
+    new Set(
+      rowItems(row).flatMap((item) =>
+        item.ratingScorecard.domains.flatMap((domain) => domain.sources),
+      ),
+    ),
+  );
+
+  const sections = [
+    {
+      title: "Why the board is leaning this way",
+      body: `${rowActionCue(row).detail} ${wheatExplanationDisplay(row)}`,
+      icon: Info,
+    },
+    {
+      title: "Bull case",
+      body: bullPoint
+        ? `${bullPoint.title}: ${bullPoint.metricLabel}: ${bullPoint.body}`
+        : "No bullish Wheat driver is active in the current packets.",
+      icon: TrendingUp,
+    },
+    {
+      title: "Bear case",
+      body: bearPoint
+        ? `${bearPoint.title}: ${bearPoint.metricLabel}: ${bearPoint.body}`
+        : "No bearish Wheat driver is active in the current packets.",
+      icon: TrendingDown,
+    },
+    {
+      title: "Source rows behind the read",
+      body: sources.length
+        ? `Active official inputs: ${sources.map(sourceDisplayName).join(", ")}. Source geography is evidence context; this screen keeps one Wheat read.`
+        : "No active source rows are attached to the current Wheat packet.",
+      icon: DatabaseZap,
+    },
+  ];
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 shadow-sm" aria-labelledby="wheat-evidence-detail-heading">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 id="wheat-evidence-detail-heading" className="text-sm font-semibold uppercase tracking-wide text-foreground">
+            Read the evidence
+          </h2>
+          <p className="text-xs leading-5 text-muted-foreground">
+            The top board is visual-first. These notes explain the same scoring for anyone who wants the longer read.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
+          One Wheat read
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        {sections.map((section) => {
+          const Icon = section.icon;
+          return (
+            <details key={section.title} className="group rounded-lg border border-border bg-background px-4 py-3">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 items-center gap-2">
+                  <Icon className="h-4 w-4 shrink-0 text-canola" aria-hidden="true" />
+                  {section.title}
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+              </summary>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{section.body}</p>
+            </details>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
 function WheatDecisionSurface({
   row,
-  localContext,
+  priceHistory,
+  exportHistory,
 }: {
   row: ThesisComparisonRow | null;
-  localContext: WheatLocalContextSummary;
+  priceHistory: WheatPriceHistoryRow[];
+  exportHistory: WheatExportHistoryRow[];
 }) {
   if (!row) {
     return (
@@ -2047,57 +3820,21 @@ function WheatDecisionSurface({
   const action = rowActionCue(row);
 
   return (
-    <section className="space-y-3" aria-labelledby="wheat-decision-heading">
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-canola/30 bg-gradient-to-br from-canola/15 via-background to-prairie/12 p-4 shadow-[0_24px_70px_-48px_rgba(42,38,30,0.8)] sm:p-5">
-        <WheatIcon className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 text-canola opacity-[0.06]" aria-hidden="true" />
-        <div className="relative">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <Badge variant="outline" className="mb-2 border-canola/35 bg-background/70 text-canola sm:mb-3">
-                Wheat Bull/Bear
-              </Badge>
-              <h1 id="wheat-decision-heading" className="font-display text-2xl font-semibold leading-tight text-foreground sm:text-3xl md:text-4xl">
-                Canada vs USA Wheat Bull/Bear
-              </h1>
-            </div>
-            <div className="hidden flex-wrap gap-2 sm:flex lg:justify-end">
-              <Badge variant="outline" className={comparisonClass(row.status)}>
-                {row.statusLabel}
-              </Badge>
-              <Badge variant="outline" className={actionCueClass(row.status)}>
-                {action.label}
-              </Badge>
-              <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                {wheatCoverageLabel(row)}
-              </Badge>
-            </div>
-          </div>
-        </div>
-        <div className="relative mt-4">
-          <WheatMobileDecisionSnapshot row={row} score={score} confidence={confidence} localContext={localContext} />
-        </div>
-        <div className="relative mt-5 hidden gap-4 sm:grid">
-          <div className="grid gap-4 sm:grid-cols-3 sm:items-stretch">
-            <WheatCountryDecisionCard item={row.canada} lane="canada" />
-            <WheatCountrySplitGraphic row={row} score={score} confidence={confidence} />
-            <WheatCountryDecisionCard item={row.us} lane="us" />
-          </div>
-
-          <WheatLeadEvidencePanel row={row} />
-
-          <div className="rounded-lg border border-border bg-background/75 p-3">
-            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Flag className="h-4 w-4 text-canola" aria-hidden="true" />
-              Current read
-            </div>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {action.detail} {row.explanation} Use this to inspect the evidence stack, not as an instruction to market grain.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <WheatDataFlowStrip />
+    <section className="min-w-0 max-w-full space-y-3" aria-labelledby="wheat-decision-heading">
+      <WheatDecisionBoard
+        row={row}
+        score={score}
+        confidence={confidence}
+        action={action}
+      />
+      <WheatPressureDecisionMatrix row={row} />
+      <WheatUsdaProgressUpdateCard />
+      <WheatWatchLeadsStrip row={row} />
+      <WheatReconciliationJudgeCard row={row} />
+      <WheatRelationshipSpiderweb row={row} />
+      <WheatUsdaSourceSweep row={row} />
+      <WheatPriceBasketProof row={row} history={priceHistory} />
+      <WheatHistoricalExportContext history={exportHistory} />
     </section>
   );
 }
@@ -2219,7 +3956,7 @@ function dailyOverlayCoverage(
       matchedUpdates.push(update);
       overlaidLabels.push(dailyOverlayItemLabel(item, "review-gated daily overlay"));
     } else {
-      weeklyLabels.push(dailyOverlayItemLabel(item, "weekly packet score"));
+      weeklyLabels.push(dailyOverlayItemLabel(item, weeklyScoreStateLabel(item)));
     }
   }
 
@@ -3777,7 +5514,7 @@ function WheatPressureMapPanel({
 }) {
   const wheatRow = rows.find((row) => row.grain === "Wheat") ?? null;
   const model = wheatRow ? buildWheatPressureMapModel(wheatRow, { xPulseWatch, sourceRuns }) : null;
-  if (!model) return null;
+  if (!wheatRow || !model) return null;
 
   const activeDrivers = model.driverNodes;
   const rule = model.responseRules[model.aggregateTone === "mixed" ? 0 : 1] ?? model.responseRules[0];
@@ -3800,7 +5537,7 @@ function WheatPressureMapPanel({
           </p>
         </div>
         <Badge variant="outline" className={cn("w-fit", pressureMapToneClass(model.aggregateTone))}>
-          {model.statusLabel} / {signedNumber(model.aggregateScore)}
+          {wheatStatusDisplayLabel(wheatRow)} / {signedNumber(model.aggregateScore)}
         </Badge>
       </div>
 
@@ -3879,7 +5616,9 @@ function WheatPressureMapPanel({
                 <p className={cn("text-3xl font-semibold tabular-nums", stanceClass(model.aggregateScore))}>
                   {signedNumber(model.aggregateScore)}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">{model.statusDetail}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {wheatExplanationDisplay(wheatRow)}
+                </p>
               </div>
             </div>
 
@@ -4285,7 +6024,7 @@ function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boo
   const href = item.lane === "canada" ? `/grain/${item.slug}` : `/us/${item.slug}`;
 
   return (
-    <Card className="rounded-lg py-5 shadow-sm">
+    <Card className="min-w-0 overflow-hidden rounded-lg py-5 shadow-sm">
       <CardHeader className="gap-4 px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
@@ -4310,8 +6049,8 @@ function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boo
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5 px-5">
-        <div className="grid gap-3 lg:grid-cols-2">
+      <CardContent className="min-w-0 space-y-5 px-5">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
           <DriverList title="Bull Case" tone="bull" drivers={item.bullDrivers} />
           <DriverList title="Bear Case" tone="bear" drivers={item.bearDrivers} />
         </div>
@@ -4357,12 +6096,12 @@ function ThesisCard({ item, auditMode }: { item: ThesisBoardItem; auditMode: boo
 
         {auditMode && <ImpactMapAuditPanel item={item} />}
 
-        <details className="rounded-lg border border-border bg-background px-4 py-3">
+        <details className="min-w-0 overflow-hidden rounded-lg border border-border bg-background px-4 py-3">
           <summary className="cursor-pointer text-sm font-semibold text-foreground">
             Source provenance
           </summary>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-xs">
+          <div className="mt-3 block max-w-full overflow-x-auto">
+            <table className="w-max min-w-full text-left text-xs">
               <thead className="text-muted-foreground">
                 <tr className="border-b border-border">
                   <th className="py-2 pr-4 font-medium">Source</th>
@@ -4554,13 +6293,15 @@ export default async function ThesisPage({
   const auditMode = params?.audit === "1";
   const cookieStore = await cookies();
   const area = areaFromFsa(cookieStore.get(AREA_FSA_COOKIE)?.value);
-  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, provincialFlow, areaBids] =
+  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, wheatExportHistory, provincialFlow, areaBids] =
     await Promise.all([
       getThesisBoardData(),
       getXPulseWatchSummary(),
       getLatestSourceRunSummaries(WEEKLY_DATA_SOURCE_RUN_NAMES),
       getLatestDailyThesisUpdates(4),
       getLocalTrack54ReadinessSnapshot(),
+      getWheatPriceHistory(60),
+      getWheatExportHistory(16),
       area?.provinceName ? getProvincialFlow(area.provinceName) : Promise.resolve(null),
       area ? getAreaBids(area.fsa) : Promise.resolve([]),
     ]);
@@ -4570,19 +6311,10 @@ export default async function ThesisPage({
   const activeAreaBids = areaBids.filter((bid) => isActiveFarmerThesisGrain(bid.grain));
   const wheatComparisonRow = farmerData.comparisonRows.find((row) => row.grain === "Wheat") ?? null;
   const wheatCards = [...farmerData.canadaItems, ...farmerData.usItems];
-  const wheatLocalContext: WheatLocalContextSummary = area?.provinceName
-    ? {
-        label: `${area.fsa} ${area.provinceName} context is filtered to Wheat.`,
-        detail: `${activeAreaFlows.length} movement row${activeAreaFlows.length === 1 ? "" : "s"}; ${activeAreaBids.length} posted Wheat bid${activeAreaBids.length === 1 ? "" : "s"}.`,
-      }
-    : {
-        label: "Postal code stays on this device only.",
-        detail: "Set your postal code below for Wheat-only local movement and posted bids.",
-      };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6">
-      <WheatDecisionSurface row={wheatComparisonRow} localContext={wheatLocalContext} />
+    <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-2rem)] space-y-4 overflow-x-hidden pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6 xl:max-w-7xl">
+      <WheatDecisionSurface row={wheatComparisonRow} priceHistory={wheatPriceHistory} exportHistory={wheatExportHistory} />
 
       <MarketUseNotice />
 
@@ -4593,7 +6325,7 @@ export default async function ThesisPage({
         bids={activeAreaBids}
       />
 
-      {wheatComparisonRow ? <WheatPressureLaneBreakdown row={wheatComparisonRow} /> : null}
+      {wheatComparisonRow ? <WheatEvidenceDetails row={wheatComparisonRow} /> : null}
 
       {wheatComparisonRow ? <GrainReadLinkage grain="Wheat" /> : null}
 
@@ -4677,7 +6409,7 @@ export default async function ThesisPage({
           </Badge>
         </div>
         {wheatCards.length > 0 ? (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
             {wheatCards.map((item) => (
               <ThesisCard key={item.id} item={item} auditMode={auditMode} />
             ))}

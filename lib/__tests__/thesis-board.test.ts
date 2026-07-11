@@ -219,6 +219,128 @@ describe("thesis board packet normalization", () => {
     expect(item.stanceLabel).toBe("Lean bull");
   });
 
+  it("uses deterministic scorecard output as the Wheat weekly-packet headline read", () => {
+    const canadaItem = buildCanadaThesisBoardItem(wheat, {
+      lane: "canada",
+      grain: "Wheat",
+      crop_year: "2025-2026",
+      grain_week: 45,
+      packet_generated_at: "2026-06-24T00:32:06Z",
+      demand: {
+        producer_deliveries_current_week: {
+          total_kt: 642.8,
+          process_deliveries_kt: 12.9,
+        },
+        exports: {
+          current_week_kt: 193.9,
+        },
+      },
+      supply: {
+        total_supply_kt: 36_609,
+        carry_out_kt: 5_100,
+      },
+      prices: [
+        {
+          grain: "Spring Wheat",
+          contract: "MWK26",
+          exchange: "MGEX",
+          source: "barchart",
+          settlement_price: 7.11,
+          change_pct: -0.594,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-24",
+        },
+        {
+          grain: "Wheat",
+          contract: "ZW",
+          exchange: "CBOT",
+          source: "yahoo-finance",
+          settlement_price: 5.975,
+          change_pct: -1.362,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+        {
+          grain: "HRW Wheat",
+          contract: "KE",
+          exchange: "KCBT",
+          source: "yahoo-finance",
+          settlement_price: 6.335,
+          change_pct: -1.63,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+      ],
+      freshness: [
+        { source_name: "cgc_observations", freshness_status: "strong" },
+        { source_name: "supply_disposition", freshness_status: "strong" },
+        { source_name: "grain_prices", freshness_status: "strong" },
+      ],
+      quality_warnings: [],
+    });
+    const usItem = buildUsThesisBoardItem(usWheat, {
+      lane: "us",
+      market_name: "Wheat",
+      market_year: 2025,
+      packet_generated_at: "2026-06-24T00:32:06Z",
+      supply: {
+        crop_progress: {
+          us_total: {
+            good_excellent_pct: 26,
+            ge_pct_yoy_change: -23,
+          },
+        },
+        wasde: {
+          ending_stocks_direction: "up",
+          ending_stocks_mmt: 23.0,
+          stocks_to_use_pct: 46.045,
+        },
+      },
+      prices: [
+        {
+          grain: "Wheat",
+          contract: "ZW",
+          exchange: "CBOT",
+          source: "yahoo-finance",
+          settlement_price: 5.975,
+          change_pct: -1.362,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+        {
+          grain: "HRW Wheat",
+          contract: "KE",
+          exchange: "KCBT",
+          source: "yahoo-finance",
+          settlement_price: 6.335,
+          change_pct: -1.63,
+          currency: "USD",
+          unit: "$/bu",
+          price_date: "2026-06-22",
+        },
+      ],
+      freshness: [
+        { source_name: "usda_crop_progress", freshness_status: "strong" },
+        { source_name: "usda_wasde_mapped", freshness_status: "strong" },
+        { source_name: "grain_prices", freshness_status: "strong" },
+      ],
+      quality_warnings: [],
+    });
+
+    expect(canadaItem.ratingScorecard.domains.length).toBeGreaterThan(0);
+    expect(canadaItem.stanceScore).toBe(Math.round(canadaItem.ratingScorecard.overall_score));
+    expect(canadaItem.confidenceScore).toBe(canadaItem.ratingScorecard.confidence_score);
+    expect(canadaItem.confidence).toBe(canadaItem.ratingScorecard.confidence_label);
+    expect(usItem.ratingScorecard.domains.length).toBeGreaterThan(0);
+    expect(usItem.stanceScore).toBe(Math.round(usItem.ratingScorecard.overall_score));
+    expect(usItem.confidenceScore).toBe(usItem.ratingScorecard.confidence_score);
+    expect(usItem.confidence).toBe(usItem.ratingScorecard.confidence_label);
+  });
+
   it("turns WASDE month-over-month revisions into US thesis drivers", () => {
     const tighterBalance = buildUsThesisBoardItem(corn, {
       supply: {
@@ -880,8 +1002,10 @@ describe("thesis board packet normalization", () => {
     expect(wheatRow?.status).toBe("mixed");
     expect(wheatRow?.readinessLabel).toBe("Source-backed");
     expect(wheatRow?.readinessDetail).toContain("Canada and US packets are present");
-    expect(wheatRow?.explanation).toContain("CA +36 Bull tilt");
-    expect(wheatRow?.explanation).toContain("US -24 Bear tilt");
+    expect(canadaItem.stanceScore).toBe(Math.round(canadaItem.ratingScorecard.overall_score));
+    expect(usItem.stanceScore).toBe(Math.round(usItem.ratingScorecard.overall_score));
+    expect(wheatRow?.explanation).toContain(`CA +${canadaItem.stanceScore} ${canadaItem.stanceLabel}`);
+    expect(wheatRow?.explanation).toContain(`US ${usItem.stanceScore} ${usItem.stanceLabel}`);
     expect(wheatRow?.strongestBullPoints.map((point) => point.country)).toContain("CA");
     expect(wheatRow?.strongestBearPoints.map((point) => point.country)).toContain("US");
   });
