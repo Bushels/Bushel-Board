@@ -57,6 +57,10 @@ if (values.help) {
   process.exit(0);
 }
 
+function hasNpmBooleanFlag(name: string): boolean {
+  return process.env[`npm_config_${name.replace(/-/g, "_")}`] === "true";
+}
+
 function listValue(value: string | undefined, fallback: string[]): string[] {
   if (!value) return fallback;
   return value
@@ -246,6 +250,7 @@ async function main() {
     values["us-markets"],
     [...THESIS_BOARD_MAJOR_US_MARKET_NAMES],
   );
+  const force = values.force || hasNpmBooleanFlag("force");
   const expectedCount = canadaGrains.length + usMarkets.length;
 
   if (grainWeekRaw && !Number.isInteger(grainWeek)) {
@@ -267,7 +272,7 @@ async function main() {
     usMarkets,
   });
   const before = await readCacheState(supabase, cropYear, marketYear);
-  if (!values.force && cacheIsFresh(before, expectedCount)) {
+  if (!force && cacheIsFresh(before, expectedCount)) {
     await recordRun(supabase, {
       status: "skipped",
       startedAt,

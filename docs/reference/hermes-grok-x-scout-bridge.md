@@ -2,6 +2,8 @@
 
 Use this when Hermes is open in the Desktop app with Grok 4.3 selected and the goal is X sentiment/evidence discovery for Track 54.
 
+Current closeout note (2026-06-24): Hermes terminal with xAI OAuth is the working no-write scout path. Grok Composer 2.5 / `grok-composer-2.5-fast` remains blocked until Grok CLI auth is repaired or `XAI_API_KEY` is configured.
+
 Hermes is a shadow scout only. It does not write thesis rows, Supabase rows, `x_market_signals`, `x_scout_runs`, `score_trajectory`, `us_score_trajectory`, `market_analysis`, `us_market_analysis`, or `thesis_packet_cache`.
 
 ## Workflow

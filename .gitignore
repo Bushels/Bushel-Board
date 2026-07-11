@@ -97,3 +97,12 @@ supabase/functions/_shared/commodity-knowledge.ts
 .claude/settings.local.json
 .agents/
 /.baoyu-skills/
+
+# design-sync (claude.ai/design sync) — staged scripts, build output, machine state
+.ds-sync/
+.ds-probe/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+.design-sync/compiled.css

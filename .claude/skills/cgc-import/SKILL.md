@@ -70,6 +70,7 @@ npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"
 3. Confirm the latest `cgc_imports` row is `success` or explain `failed` / `partial`.
 4. Confirm `MAX(grain_week)` moved forward when a new CGC week was published.
 5. Confirm `collector_cgc` heartbeats were written for CAD grains.
+6. If source fetch fails, test the HTML page URL and CSV URL separately. The CSV request must accept `text/csv`, `application/octet-stream`, or `*/*`; do not reuse an HTML-only `Accept` header for CSV files.
 
 ## Common Issues
 
@@ -78,6 +79,7 @@ npm run backfill -- --csv "data/CGC Weekly/gsw-shg-en.csv"
 | `secret_missing` | Local env lacks the internal secret | Load `.env.local`; do not use anon JWTs |
 | `rows_inserted: 0` | CSV not yet published or already current | Report as already-current; do not retry in the same run |
 | HTTP 410 from `/api/pipeline/run` | Old Grok orchestrator was called | Stop and use `npm run import-cgc` |
+| `source_fetch` fails while the CGC page loads | CSV endpoint rejected an HTML-oriented `Accept` header | Use the importer path with CSV-specific headers; test page and CSV fetch contracts separately |
 | Internal calls return 401 | Missing or wrong `BUSHEL_INTERNAL_FUNCTION_SECRET` | Use the local Codex importer; it handles the internal auth path |
 | Canola deliveries undercounted | Formula omitted BC Primary or Producer Cars | Use the canonical country-delivery path: `Primary (AB/SK/MB/BC) + Process + Producer Cars`, with `grade=''` on aggregate rows |
 | Duplicate week import | Already imported | Safe to ignore - upsert handles it |

@@ -9,9 +9,15 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".ds-sync/**",
+    ".playwright-mcp/**",
     "out/**",
     "build/**",
+    "ds-bundle/**",
+    "graphify-out/**",
+    "scratch/**",
     ".claude/**",
+    ".codex/**",
     "tmp/**",
     "docs/design-handoffs/**",
     "next-env.d.ts",

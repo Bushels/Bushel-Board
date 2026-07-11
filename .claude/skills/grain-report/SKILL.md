@@ -80,6 +80,52 @@ LIMIT 20;
 4. Treat `grain_intelligence` as historical archive only.
 5. Present the report as a compact markdown table or narrative.
 
+## Wheat Bull/Bear Relationship Loop
+
+When the task is the Wheat thesis board or a Wheat bullish/bearish rating, use the current loop contract instead of a generic grain report:
+
+```text
+official data rows -> lane score -> price confirmation -> watch leads -> one Wheat read
+```
+
+Use `docs/plans/2026-06-23-wheat-metric-relationship-loop.md` as the active handoff. Current loop findings:
+
+- Official rows and price context support a lean bear / balanced-to-bear read until U.S. crop stress is confirmed by price, demand, or a fresher supply shock.
+- Wheat price scoring now uses a three-contract basket across Spring Wheat, HRW, and SRW when the packet carries multiple Wheat-class futures. Basket agreement sets direction; contract disagreement lowers confidence. Focused proof: `npx vitest run lib/__tests__/thesis-rating-domain-mappers.test.ts --pool=threads --maxWorkers=1 --no-file-parallelism --environment=node`.
+- Wheat weekly-packet headline scores now come from the deterministic rating scorecard when a Wheat scorecard is populated; driver counts remain explanation copy, not the Wheat headline score. Daily overlays remain the only current-day override.
+- `/thesis` now has a first reconciliation judge, relationship-spiderweb ring view, and Spring Wheat / HRW / SRW price-basket proof strip. These are visual/explanation layers over the existing scorecard, not new score authority.
+- Positioning is a timing/crowding modifier, not a primary direction creator.
+- Grok/Hermes X pulse is watch-only unless an accepted signal is tied back to official or admitted market data.
+- The farmer-facing board should show one Wheat read; Canada and the U.S. are evidence geography, not separate product lanes.
+
+Recommended v1 weights for the next scoring repair:
+
+| Lane | Weight | Role |
+| --- | ---: | --- |
+| Supply/weather | 30% | Production and balance-sheet driver |
+| Demand/export flow | 25% | Disappearance confirmation |
+| Movement/logistics | 15% | Execution and basis pressure |
+| Price/FX/basis | 15% | Market confirmation |
+| Positioning/timing | 10% | Crowding and liquidation context |
+| Watch leads | 0% | Review priority only |
+
+Relationship visual status: the first Wheat pressure map model/panel exists on `/thesis`; the next visual pass should make the distance/weight metaphor more obvious, with the Wheat read in the center, high-authority score lanes close, and watch/context lanes farther away.
+
+## Crop Progress And Wheat Thesis Overlay
+
+When the user asks how Prairie crop progress changes the Wheat bull/bear thesis:
+
+1. Inspect or run the weekly package with `npm run report:prairie-crop-progress` and read `output/prairie-crop-progress/latest/summary.json`.
+2. Compare the crop-progress facts against the latest Wheat `market_analysis`; do not overwrite, publish, or refresh thesis rows from this skill.
+3. Treat crop-progress data as a bounded weather/supply/quality pressure overlay:
+   - Manitoba crop reports may provide seeding, flooding, disease, and field-access evidence, but the current report format does not provide structured Excellent/Good/Fair/Poor crop-quality buckets.
+   - Saskatchewan provides full Excellent/Good/Fair/Poor/Very Poor regional crop-condition tables; if averaged, label it as a simple regional average unless acreage weighting is implemented.
+   - Alberta currently publishes Good-to-Excellent condition only; do not split it into Excellent/Good/Fair/Poor without a source table.
+4. For Wheat specifically, classify prairie crop-progress pressure before changing the read:
+   - Bullish risk: Manitoba flooding/unseeded exposure, Saskatchewan development lag or surplus moisture, weak Alberta/North West crop condition.
+   - Bearish/neutral offset: Saskatchewan spring wheat mostly seeded and mostly Good/Excellent.
+5. Use "acre-equivalent exposure" for derived estimates. Do not write "lost acres", "damaged acres", or "affected acres" unless the province publishes that number.
+
 ## Hard Stop
 
 Do not manually trigger `generate-intelligence`, `analyze-grain-market`, or

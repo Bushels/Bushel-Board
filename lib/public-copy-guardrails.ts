@@ -30,6 +30,17 @@ export const PUBLIC_ADVICE_FORBIDDEN_TERMS = [
   "sell",
 ] as const;
 
+export const PUBLIC_WHEAT_CLASS_PRODUCT_FORBIDDEN_TERMS = [
+  "Spring Wheat Bull/Bear",
+  "Winter Wheat Bull/Bear",
+  "Spring Wheat mapping",
+  "Winter Wheat mapping",
+  "Spring Wheat row",
+  "Winter Wheat row",
+  "Spring Wheat card",
+  "Winter Wheat card",
+] as const;
+
 export const PUBLIC_ADVICE_SANITIZE_TERMS = [
   ...PUBLIC_ADVICE_FORBIDDEN_TERMS,
   "trade",
@@ -44,7 +55,8 @@ export const X_SIGNAL_ADVICE_FORBIDDEN_TERMS = [
 ] as const;
 
 export const PUBLIC_BOARD_FORBIDDEN_TERMS = [
-  ...PUBLIC_PARKED_GRAIN_LABELS,
+  ...PUBLIC_PARKED_GRAIN_LABELS.filter((label) => label !== "Spring Wheat" && label !== "Winter Wheat"),
+  ...PUBLIC_WHEAT_CLASS_PRODUCT_FORBIDDEN_TERMS,
   ...PUBLIC_ADVICE_FORBIDDEN_TERMS,
 ] as const;
 

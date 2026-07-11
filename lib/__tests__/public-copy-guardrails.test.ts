@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   PUBLIC_BOARD_FORBIDDEN_TERMS,
   PUBLIC_PARKED_GRAIN_LABELS,
+  PUBLIC_WHEAT_CLASS_PRODUCT_FORBIDDEN_TERMS,
   containsXSignalAdviceLanguage,
   findPublicForbiddenTerms,
   publicForbiddenTermPatternSpecs,
@@ -13,13 +14,18 @@ import {
 } from "@/lib/public-copy-guardrails";
 
 describe("public copy guardrails", () => {
-  it("keeps parked public grain labels in the rendered-board forbidden list", () => {
+  it("keeps parked product lanes and advice terms in the rendered-board forbidden list", () => {
     expect(PUBLIC_BOARD_FORBIDDEN_TERMS).toEqual(
-      expect.arrayContaining([...PUBLIC_PARKED_GRAIN_LABELS]),
+      expect.arrayContaining(PUBLIC_PARKED_GRAIN_LABELS.filter((label) => label !== "Spring Wheat" && label !== "Winter Wheat")),
+    );
+    expect(PUBLIC_BOARD_FORBIDDEN_TERMS).toEqual(
+      expect.arrayContaining([...PUBLIC_WHEAT_CLASS_PRODUCT_FORBIDDEN_TERMS]),
     );
     expect(PUBLIC_BOARD_FORBIDDEN_TERMS).toEqual(
       expect.arrayContaining(["pricing recommendation", "pricing call", "hedging advice"]),
     );
+    expect(PUBLIC_BOARD_FORBIDDEN_TERMS).not.toContain("Spring Wheat");
+    expect(PUBLIC_BOARD_FORBIDDEN_TERMS).not.toContain("Winter Wheat");
     expect(PUBLIC_BOARD_FORBIDDEN_TERMS).not.toContain("trade");
   });
 
@@ -80,8 +86,9 @@ describe("public copy guardrails", () => {
 
   it("finds forbidden terms with the shared rendered-text scanner", () => {
     expect(
-      findPublicForbiddenTerms("Spring-Wheat and pricing/recommendation copy", PUBLIC_BOARD_FORBIDDEN_TERMS),
-    ).toEqual(["Spring Wheat", "pricing recommendation"]);
+      findPublicForbiddenTerms("Spring-Wheat mapping and pricing/recommendation copy", PUBLIC_BOARD_FORBIDDEN_TERMS),
+    ).toEqual(["Spring Wheat mapping", "pricing recommendation"]);
+    expect(findPublicForbiddenTerms("Spring Wheat futures are lower.", PUBLIC_BOARD_FORBIDDEN_TERMS)).toEqual([]);
     expect(findPublicForbiddenTerms("buyer interest and seller count", PUBLIC_BOARD_FORBIDDEN_TERMS)).toEqual([]);
   });
 

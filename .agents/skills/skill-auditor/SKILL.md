@@ -16,11 +16,13 @@ Audit an existing skill after real usage. Score what actually happened, propose 
 
 ## Read These First
 
-- `eval-core/framework.md`
-- `eval-core/rubric.md`
-- `eval-core/replay-policy.md`
-- `eval-core/promotion-rules.md`
-- `eval-core/report-template.md`
+These files live in the shared project evaluator folder, relative to this skill:
+
+- `../_eval-core/framework.md`
+- `../_eval-core/rubric.md`
+- `../_eval-core/replay-policy.md`
+- `../_eval-core/promotion-rules.md`
+- `../_eval-core/report-template.md`
 
 ## Inputs To Gather
 
@@ -44,12 +46,12 @@ Extract the skill's expected behavior from:
 
 ### 2. Score the observed run
 
-Use the skill rubric from `eval-core/rubric.md`.
+Use the skill rubric from the shared evaluator core.
 
 If you want a deterministic total, run:
 
 ```bash
-python eval-core/scripts/score_audit.py --mode skill --evidence-level observed --scores-json '{"task_success":4,"instruction_compliance":4,"trigger_quality":3,"resource_leverage":3,"tool_hygiene":4,"safety":5,"efficiency":3}' --pretty
+python ../_eval-core/scripts/score_audit.py --mode skill --evidence-level observed --scores-json '{"task_success":4,"instruction_compliance":4,"trigger_quality":3,"resource_leverage":3,"tool_hygiene":4,"safety":5,"efficiency":3}' --pretty
 ```
 
 ### 3. Identify the smallest meaningful patch
@@ -74,7 +76,7 @@ For long tasks, replay:
 
 ### 5. Decide promotion status
 
-Use the disposition rules in `eval-core/promotion-rules.md`.
+Use the disposition rules in the shared evaluator core.
 
 If the evidence is only hypothetical, label it `forecast` and hold the candidate.
 

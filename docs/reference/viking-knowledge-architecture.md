@@ -127,7 +127,7 @@ When Viking book knowledge, model pre-training, and live source data disagree:
 - **Current market conditions:** verified live data wins. Books are durable principles, not live facts. Current conditions must come from admitted source lanes such as CGC, Grain Monitor, prices, COT, AAFC/StatsCan, weather, or a direct X API signal lane once wired.
 - **General principles:** Viking should shape the prairie framing, especially basis, carry, hedging, storage, logistics, and risk language.
 
-Never use Grok/xAI `x_search` as a fallback. The retired Grok analysis workflow is no longer an operating path.
+Never use Grok/xAI `x_search` as a production advisor or desk fallback. The retired Grok analysis workflow is no longer an operating path. Track 54 Grok/Hermes X scouting is a separate no-write evidence-artifact lane and must stay behind its artifact gate.
 
 ## Sync Requirement
 
