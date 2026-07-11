@@ -146,6 +146,10 @@ All on branch `claude/wheat-desk-audit-swarm-c5drpe`:
 
 **Docs:** CLAUDE.md (V2 section: 4 specialists, FLAGSHIP, swapped schedule, pipeline_runs traps, statcan/sk-cash tables + monitoring queries), STATUS.md track entry, issues.md lessons-learned entry, this audit report.
 
+## 4.5 Scope decision — WHEAT ONLY (2026-07-11 PM, operator)
+
+After the refit merged, Kyle confirmed the desk itself should be **Wheat-only** (not 16-grain-with-FLAGSHIP). Applied: Step 0.2 active list = `['Wheat']`, Wave B parked, `pipeline_runs` arrays scoped, meta-review checks given Wheat-only forms. The 16-grain engine, tier budgets, and parked re-enable list are retained in the prompt as the re-widening contract. Note: a "Hindsight" memory with post-June-17 decisions exists outside this repo — it was NOT readable from this session (connector unauthorized); reconcile this scope decision against it when available.
+
 ## 5. Validation run (Ultracode wheat desk swarm)
 
 The refit design was exercised end-to-end on 2026-07-11: 6 scouts → 4 wheat-scoped specialists (Wave A) → chief (FLAGSHIP resolution + mandatory deep pass) → adversarial meta-review. Result: **Wheat +2 (Neutral, basis-vetoed from ~+12), confidence 55, meta-review PASS_WITH_FIXES (0 farmer-facing errors)**. Full report: `docs/plans/2026-07-11-wheat-desk-run.md`. No database writes (sandbox); the run validates the FLAGSHIP machinery — the deep pass, the basis veto, the debate protocol, the class lens, and provenance discipline all fired as designed.
