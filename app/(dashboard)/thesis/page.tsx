@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -10,9 +11,11 @@ import {
   DatabaseZap,
   Flag,
   Radar,
+  Scale,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
+  Wheat as WheatIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cookies } from "next/headers";
@@ -31,12 +34,14 @@ import {
 } from "@/components/ui/card";
 import {
   getThesisBoardData,
-  buildFarmerReadSummary,
   buildMajorThesisComparisonRows,
+  filterThesisBoardDataForActiveFarmerDisplay,
   buildSourceHealthRead,
   type ThesisBoardData,
   type ThesisFreshnessRow,
   type ThesisBoardItem,
+  type ThesisLane,
+  type ThesisCountryCode,
   type ThesisComparisonPoint,
   type ThesisComparisonRow,
   type ThesisDriver,
@@ -59,6 +64,7 @@ import {
   type Track54ReadinessModeGateSnapshot,
   type Track54ReadinessSnapshot,
 } from "@/lib/queries/track54-readiness";
+import { isActiveFarmerThesisGrain } from "@/lib/thesis/active-grain-display";
 import {
   publicWheatGapLabels,
   sanitizePublicAdviceCopy,
@@ -193,17 +199,6 @@ function stanceFillClass(score: number): string {
   return "bg-muted-foreground";
 }
 
-function confidenceScaledHalfWidth(item: ThesisBoardItem): number {
-  const target = 50 + item.stanceScore / 2;
-  const confidence = Math.max(0, Math.min(100, item.confidenceScore)) / 100;
-  const scaledPosition = 50 + (target - 50) * confidence;
-  return Math.min(50, Math.abs(scaledPosition - 50));
-}
-
-function confidenceScaledWidth(item: ThesisBoardItem): string {
-  return `${confidenceScaledHalfWidth(item).toFixed(2)}%`;
-}
-
 function comparisonClass(status: ThesisComparisonRow["status"]): string {
   if (status === "aligned_bullish") {
     return "border-prairie/25 bg-prairie/10 text-prairie";
@@ -268,13 +263,6 @@ function actionCueClass(status: ThesisComparisonRow["status"]): string {
   }
   if (status === "mapping_needed") return "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300";
   return "border-border bg-background/70 text-muted-foreground";
-}
-
-function missingMarketCopy(row: ThesisComparisonRow, country: "CA" | "US"): string {
-  if (row.status === "mapping_needed") return `${country}: class mapping pending`;
-  if (row.grain === "Durum" && country === "US") return "US: not modeled in V1";
-  if (row.grain === "Canola" && country === "US") return "US: Canada-first lane";
-  return `${country}: not modeled in V1`;
 }
 
 function shortSourceHealthRead(data: Awaited<ReturnType<typeof getThesisBoardData>>): string {
@@ -1497,9 +1485,79 @@ function ScoreSourceBadge({ item }: { item: ThesisBoardItem }) {
   );
 }
 
+function rowItems(row: ThesisComparisonRow): ThesisBoardItem[] {
+  return [row.canada, row.us].filter((item): item is ThesisBoardItem => item !== null);
+}
+
+function aggregateRowScore(row: ThesisComparisonRow): number | null {
+  return weightedBoardReadScore(rowItems(row));
+}
+
+function aggregateRowConfidence(row: ThesisComparisonRow): number | null {
+  return averageBoardReadConfidence(rowItems(row));
+}
+
+function confidenceScaledPosition(score: number, confidence: number): number {
+  const target = 50 + score / 2;
+  const scale = Math.max(0, Math.min(100, confidence)) / 100;
+  return Math.max(0, Math.min(100, 50 + (target - 50) * scale));
+}
+
+function wheatCoverageLabel(row: ThesisComparisonRow): string {
+  if (row.canada && row.us) return "Canada + US";
+  if (row.canada) return "Canada only";
+  if (row.us) return "US only";
+  return "No active packet";
+}
+
+const WHEAT_PRESSURE_LANE_IDS = [
+  "supply",
+  "demand",
+  "movement",
+  "logistics",
+  "price",
+  "positioning",
+  "weather",
+] as const;
+
+const WHEAT_PRESSURE_LANE_LABELS: Record<(typeof WHEAT_PRESSURE_LANE_IDS)[number], string> = {
+  supply: "Supply",
+  demand: "Demand",
+  movement: "Movement",
+  logistics: "Logistics",
+  price: "Price",
+  positioning: "Positioning",
+  weather: "Weather",
+};
+
+function pressureLaneSummaries(row: ThesisComparisonRow) {
+  return WHEAT_PRESSURE_LANE_IDS.map((domain) => {
+    const domains = rowItems(row).flatMap((item) =>
+      item.ratingScorecard.domains.filter((score) => score.domain === domain),
+    );
+    const score = Math.round(domains.reduce((sum, item) => sum + item.weighted_score, 0));
+    const sources = Array.from(new Set(domains.flatMap((item) => item.sources))).slice(0, 3);
+    const positiveEvidence = domains.flatMap((item) => item.positive_evidence);
+    const negativeEvidence = domains.flatMap((item) => item.negative_evidence);
+    const evidence =
+      positiveEvidence[0] ??
+      negativeEvidence[0] ??
+      (domains.length ? "No plain-English evidence line is attached to this lane yet." : "No active packet evidence in this lane.");
+
+    return {
+      domain,
+      label: WHEAT_PRESSURE_LANE_LABELS[domain],
+      score,
+      sourceCount: sources.length,
+      sources,
+      evidence,
+    };
+  });
+}
+
 function MarketUseNotice() {
   return (
-    <div className="rounded-lg border border-border bg-card px-5 py-3 text-xs leading-5 text-muted-foreground shadow-sm">
+    <div className="rounded-lg border border-border bg-card px-4 py-2.5 text-[11px] leading-5 text-muted-foreground shadow-sm sm:px-5 sm:py-3 sm:text-xs">
       <div className="flex items-start gap-2">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-prairie" aria-hidden="true" />
         <p>
@@ -1508,6 +1566,539 @@ function MarketUseNotice() {
         </p>
       </div>
     </div>
+  );
+}
+
+function DataFlowStep({
+  label,
+  detail,
+  tone,
+}: {
+  label: string;
+  detail: string;
+  tone: "official" | "price" | "watch" | "read";
+}) {
+  const toneClass =
+    tone === "official"
+      ? "border-prairie/25 bg-prairie/10 text-prairie"
+      : tone === "price"
+        ? "border-canola/35 bg-canola/10 text-canola"
+        : tone === "watch"
+          ? "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+          : "border-border bg-background text-foreground";
+
+  return (
+    <div className={cn("min-w-0 rounded-lg border p-3", toneClass)}>
+      <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function WheatDataFlowStrip() {
+  const steps = [
+    {
+      label: "Official inputs",
+      detail: "CGC, USDA, CFTC, crop reports, logistics, and supply tables.",
+      tone: "official" as const,
+    },
+    {
+      label: "Pressure lanes",
+      detail: "Supply, demand, movement, logistics, price, positioning, and weather.",
+      tone: "official" as const,
+    },
+    {
+      label: "Wheat read",
+      detail: "Canada and US packet evidence is confidence-weighted into one visible read.",
+      tone: "read" as const,
+    },
+    {
+      label: "Watch leads",
+      detail: "X/social evidence flags what to inspect; it cannot move the read alone.",
+      tone: "watch" as const,
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Sources to Wheat Bull/Bear board</p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Official evidence can move the read. Watch-only leads only tell the desk what to inspect next.
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-canola/35 bg-canola/10 text-canola">
+          Data flow
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-stretch">
+        {steps.map((step, index) => (
+          <Fragment key={step.label}>
+            <DataFlowStep {...step} />
+            {index < steps.length - 1 ? (
+              <div className="hidden items-center justify-center text-muted-foreground md:flex" aria-hidden="true">
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            ) : null}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type WheatLocalContextSummary = {
+  label: string;
+  detail: string;
+};
+
+function countryDisplayName(lane: ThesisLane): string {
+  return lane === "canada" ? "Canada" : "USA";
+}
+
+function countryCodeLabel(lane: ThesisLane): ThesisCountryCode {
+  return lane === "canada" ? "CA" : "US";
+}
+
+function countryReadTitle(lane: ThesisLane): string {
+  return `${countryDisplayName(lane)} Wheat Bull/Bear`;
+}
+
+function countryCardClass(score: number): string {
+  if (score > 0) return "border-prairie/30 bg-gradient-to-br from-prairie/18 via-prairie/8 to-background";
+  if (score < 0) return "border-amber-600/30 bg-gradient-to-br from-amber-500/18 via-amber-500/8 to-background";
+  return "border-border bg-gradient-to-br from-muted/40 via-background to-background";
+}
+
+function countryBadgeClass(score: number): string {
+  if (score > 0) return "border-prairie/25 bg-prairie/10 text-prairie";
+  if (score < 0) return "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300";
+  return "border-border bg-background/70 text-muted-foreground";
+}
+
+function comparisonPointSummary(point: ThesisComparisonPoint | null, fallback: string): string {
+  if (!point) return fallback;
+  return `${point.country} ${point.title}: ${point.body} (${point.metricLabel} / ${sourceDisplayName(point.sourceName)}).`;
+}
+
+function CountryStanceRail({ item }: { item: ThesisBoardItem }) {
+  const position = confidenceScaledPosition(item.stanceScore, item.confidenceScore);
+
+  return (
+    <div>
+      <div
+        className="relative h-3 rounded-full bg-muted"
+        aria-label={`${countryDisplayName(item.lane)} Wheat confidence-scaled stance score ${item.stanceScore}`}
+      >
+        <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
+        <span
+          className={cn(
+            "absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-2 border-background shadow-sm",
+            item.stanceScore > 0 ? "bg-prairie" : item.stanceScore < 0 ? "bg-amber-600" : "bg-muted-foreground",
+          )}
+          data-confidence-scaled-position={`${position.toFixed(2)}%`}
+          style={{ left: `calc(${position}% - 0.75rem)` }}
+          aria-hidden="true"
+        />
+      </div>
+      <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+        <span>Bear</span>
+        <span>Balanced</span>
+        <span>Bull</span>
+      </div>
+    </div>
+  );
+}
+
+function EvidencePointCard({
+  point,
+  tone,
+}: {
+  point: ThesisComparisonPoint | null;
+  tone: "bull" | "bear";
+}) {
+  const Icon = tone === "bull" ? TrendingUp : TrendingDown;
+  const title = tone === "bull" ? "Top bull evidence" : "Top bear evidence";
+  const fallback =
+    tone === "bull"
+      ? "No bullish Wheat driver in the current packets."
+      : "No bearish Wheat driver in the current packets.";
+  const toneClass =
+    tone === "bull"
+      ? "border-prairie/20 bg-prairie/8 text-prairie"
+      : "border-amber-600/20 bg-amber-500/8 text-amber-700 dark:text-amber-300";
+
+  return (
+    <div className={cn("rounded-lg border p-3", toneClass)}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+          {title}
+        </div>
+        {point ? (
+          <Badge variant="outline" className="border-border bg-background/70 text-[10px] text-muted-foreground">
+            {point.country}
+          </Badge>
+        ) : null}
+      </div>
+      <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+        {comparisonPointSummary(point, fallback)}
+      </p>
+    </div>
+  );
+}
+
+function WheatLeadEvidencePanel({ row }: { row: ThesisComparisonRow }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <EvidencePointCard point={row.strongestBullPoints[0] ?? null} tone="bull" />
+      <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
+    </div>
+  );
+}
+
+function WheatCountryDecisionCard({
+  item,
+  lane,
+}: {
+  item: ThesisBoardItem | null;
+  lane: ThesisLane;
+}) {
+  if (!item) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-background/70 p-4">
+        <Badge variant="outline" className="mb-3 border-border bg-background/70 text-muted-foreground">
+          {countryDisplayName(lane)}
+        </Badge>
+        <h3 className="font-display text-xl font-semibold">{countryReadTitle(lane)}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          No {countryDisplayName(lane)} Wheat packet is active in this board read.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <article className={cn("relative flex min-h-[275px] flex-col justify-between overflow-hidden rounded-2xl border p-5 shadow-sm", countryCardClass(item.stanceScore))}>
+      <WheatIcon className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 text-foreground opacity-[0.06]" aria-hidden="true" />
+      <div className="relative flex items-start justify-between gap-3">
+        <div>
+          <Badge variant="outline" className={countryBadgeClass(item.stanceScore)}>
+            {countryCodeLabel(item.lane)} packet
+          </Badge>
+          <h3 className="mt-2 font-display text-lg font-semibold text-foreground">
+            {countryReadTitle(item.lane)}
+          </h3>
+        </div>
+        <div className="text-right">
+          <p className={cn("text-5xl font-semibold tabular-nums", stanceClass(item.stanceScore))}>
+            {signedNumber(item.stanceScore)}
+          </p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">score</p>
+        </div>
+      </div>
+
+      <div className="relative my-5">
+        <p className="mb-3 text-2xl font-semibold text-foreground">
+          {directionalIndicatorLabel(item.stanceScore)}
+        </p>
+        <CountryStanceRail item={item} />
+      </div>
+
+      <div className="relative flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+          {item.confidenceScore}% confidence
+        </Badge>
+        <ScoreSourceBadge item={item} />
+        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+          {item.sourceCount} sources
+        </Badge>
+      </div>
+    </article>
+  );
+}
+
+function WheatCountrySplitGraphic({
+  row,
+  score,
+  confidence,
+}: {
+  row: ThesisComparisonRow;
+  score: number | null;
+  confidence: number | null;
+}) {
+  const canadaScore = row.canada?.stanceScore ?? null;
+  const usScore = row.us?.stanceScore ?? null;
+  const safeScore = score ?? 0;
+  const safeConfidence = confidence ?? 0;
+  const combinedPosition = confidenceScaledPosition(safeScore, safeConfidence);
+  const splitDelta = canadaScore !== null && usScore !== null ? usScore - canadaScore : null;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-wheat-900/20 bg-foreground p-4 text-background shadow-lg dark:border-white/10 dark:bg-wheat-50 dark:text-wheat-900">
+      <div className="absolute inset-x-4 top-4 h-px bg-gradient-to-r from-transparent via-canola/60 to-transparent motion-safe:animate-pulse" aria-hidden="true" />
+      <WheatIcon className="pointer-events-none absolute -bottom-10 -right-8 h-36 w-36 text-canola opacity-10" aria-hidden="true" />
+      <div className="relative flex flex-col items-center text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-canola/40 bg-canola/15 text-canola shadow-sm">
+          <WheatIcon className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <Badge variant="outline" className="mt-3 border-canola/40 bg-canola/15 text-canola">
+          Combined Wheat read
+        </Badge>
+        <p className="mt-3 font-display text-2xl font-semibold">
+          {directionalIndicatorLabel(safeScore)}
+        </p>
+        <p className={cn("text-6xl font-semibold tabular-nums", stanceClass(safeScore))}>
+          {signedNumber(safeScore)}
+        </p>
+        <p className="text-xs tabular-nums opacity-75">{safeConfidence}% combined confidence</p>
+      </div>
+
+      <div className="relative mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="rounded-xl border border-background/20 bg-background/10 p-2 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">Canada</p>
+          <p className={cn("mt-1 text-2xl font-semibold tabular-nums", stanceClass(canadaScore ?? 0))}>
+            {canadaScore === null ? "n/a" : signedNumber(canadaScore)}
+          </p>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-background/25 bg-background/10 opacity-80">
+          <Scale className="h-4 w-4" aria-hidden="true" />
+        </div>
+        <div className="rounded-xl border border-background/20 bg-background/10 p-2 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">USA</p>
+          <p className={cn("mt-1 text-2xl font-semibold tabular-nums", stanceClass(usScore ?? 0))}>
+            {usScore === null ? "n/a" : signedNumber(usScore)}
+          </p>
+        </div>
+      </div>
+
+      <div className="relative mt-5">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-70">
+          Wheat stance meter
+        </p>
+        <div className="relative h-3 rounded-full bg-background/15" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
+          <span className="absolute left-1/2 top-0 h-full w-px bg-background/40" aria-hidden="true" />
+          <span
+            className="absolute top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
+            data-confidence-scaled-position={`${combinedPosition.toFixed(2)}%`}
+            style={{ left: `calc(${combinedPosition}% - 0.875rem)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[11px] font-medium opacity-70">
+          <span>Bear</span>
+          <span>Balanced</span>
+          <span>Bull</span>
+        </div>
+      </div>
+
+      <p className="relative mt-4 text-xs leading-5 opacity-75">
+        {splitDelta === null
+          ? "One country packet is missing, so the combined read is partial."
+          : `USA is ${signedNumber(splitDelta)} points versus Canada; the combined read stays confidence-weighted.`}
+      </p>
+    </div>
+  );
+}
+
+function WheatMobileDecisionSnapshot({
+  row,
+  score,
+  confidence,
+  localContext,
+}: {
+  row: ThesisComparisonRow;
+  score: number | null;
+  confidence: number | null;
+  localContext: WheatLocalContextSummary;
+}) {
+  const safeScore = score ?? 0;
+  const safeConfidence = confidence ?? 0;
+  const combinedPosition = confidenceScaledPosition(safeScore, safeConfidence);
+
+  return (
+    <div className="space-y-2 px-4 pb-4 sm:hidden">
+      <div className="grid grid-cols-2 gap-2">
+        {[row.canada, row.us].map((item, index) => (
+          <div key={item?.id ?? index} className={cn("rounded-lg border p-3", countryCardClass(item?.stanceScore ?? 0))}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {item ? countryReadTitle(item.lane) : index === 0 ? "Canada Wheat Bull/Bear" : "USA Wheat Bull/Bear"}
+            </p>
+            <p className={cn("mt-1 text-3xl font-semibold tabular-nums", stanceClass(item?.stanceScore ?? 0))}>
+              {item ? signedNumber(item.stanceScore) : "n/a"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {item ? `${directionalIndicatorLabel(item.stanceScore)} / ${item.confidenceScore}%` : "Packet missing"}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-2">
+        <EvidencePointCard point={row.strongestBullPoints[0] ?? null} tone="bull" />
+        <EvidencePointCard point={row.strongestBearPoints[0] ?? null} tone="bear" />
+      </div>
+
+      <div className="relative overflow-hidden rounded-2xl border border-wheat-900/20 bg-foreground p-4 text-background shadow-sm dark:border-white/10 dark:bg-wheat-50 dark:text-wheat-900">
+        <WheatIcon className="pointer-events-none absolute -bottom-8 -right-6 h-28 w-28 text-canola opacity-10" aria-hidden="true" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-canola">Combined Wheat read</p>
+            <p className="mt-1 text-sm font-semibold">{directionalIndicatorLabel(safeScore)}</p>
+          </div>
+          <p className={cn("text-4xl font-semibold tabular-nums", stanceClass(safeScore))}>
+            {signedNumber(safeScore)}
+          </p>
+        </div>
+        <p className="relative mt-3 text-[11px] font-semibold uppercase tracking-wide opacity-70">
+          Wheat stance meter
+        </p>
+        <div className="relative mt-2 h-3 rounded-full bg-background/15" aria-label={`Combined Wheat confidence-scaled stance score ${safeScore}`}>
+          <span className="absolute left-1/2 top-0 h-full w-px bg-background/40" aria-hidden="true" />
+          <span
+            className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-2 border-background bg-canola shadow-sm"
+            data-confidence-scaled-position={`${combinedPosition.toFixed(2)}%`}
+            style={{ left: `calc(${combinedPosition}% - 0.75rem)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <p className="relative mt-2 text-[11px] leading-4 opacity-75">
+          {safeConfidence}% confidence from Canada + USA packets.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-canola/25 bg-canola/10 p-3">
+          <p className="text-xs font-semibold text-canola">Data flow</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+            Official inputs -&gt; pressure lanes -&gt; Wheat read.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background/80 p-3">
+          <p className="text-xs font-semibold text-foreground">Your area</p>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+            {localContext.detail}
+          </p>
+        </div>
+      </div>
+      <p className="text-[11px] leading-4 text-muted-foreground">{localContext.label}</p>
+    </div>
+  );
+}
+
+function WheatPressureLaneBreakdown({ row }: { row: ThesisComparisonRow }) {
+  const lanes = pressureLaneSummaries(row);
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Pressure-lane breakdown</p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Lane scores come from the same Canada/US packet scorecards that drive the visible Wheat read.
+          </p>
+        </div>
+        <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+          Wheat only
+        </Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {lanes.map((lane) => (
+          <div key={lane.domain} className="rounded-md border border-border bg-background p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">{lane.label}</p>
+              <span className={cn("text-sm font-semibold tabular-nums", stanceClass(lane.score))}>
+                {lane.score > 0 ? `+${lane.score}` : lane.score}
+              </span>
+            </div>
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{lane.evidence}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {lane.sourceCount > 0
+                ? lane.sources.map(sourceDisplayName).join(" + ")
+                : "No active source in this lane"}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WheatDecisionSurface({
+  row,
+  localContext,
+}: {
+  row: ThesisComparisonRow | null;
+  localContext: WheatLocalContextSummary;
+}) {
+  if (!row) {
+    return (
+      <Card className="rounded-lg border-dashed py-6 shadow-none">
+        <CardContent className="px-5 text-sm leading-6 text-muted-foreground">
+          Wheat is the active farmer-facing grain, but no Wheat thesis packet is available in the current board data.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const score = aggregateRowScore(row);
+  const confidence = aggregateRowConfidence(row);
+  const action = rowActionCue(row);
+
+  return (
+    <section className="space-y-3" aria-labelledby="wheat-decision-heading">
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-canola/30 bg-gradient-to-br from-canola/15 via-background to-prairie/12 p-4 shadow-[0_24px_70px_-48px_rgba(42,38,30,0.8)] sm:p-5">
+        <WheatIcon className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 text-canola opacity-[0.06]" aria-hidden="true" />
+        <div className="relative">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <Badge variant="outline" className="mb-2 border-canola/35 bg-background/70 text-canola sm:mb-3">
+                Wheat Bull/Bear
+              </Badge>
+              <h1 id="wheat-decision-heading" className="font-display text-2xl font-semibold leading-tight text-foreground sm:text-3xl md:text-4xl">
+                Canada vs USA Wheat Bull/Bear
+              </h1>
+            </div>
+            <div className="hidden flex-wrap gap-2 sm:flex lg:justify-end">
+              <Badge variant="outline" className={comparisonClass(row.status)}>
+                {row.statusLabel}
+              </Badge>
+              <Badge variant="outline" className={actionCueClass(row.status)}>
+                {action.label}
+              </Badge>
+              <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
+                {wheatCoverageLabel(row)}
+              </Badge>
+            </div>
+          </div>
+        </div>
+        <div className="relative mt-4">
+          <WheatMobileDecisionSnapshot row={row} score={score} confidence={confidence} localContext={localContext} />
+        </div>
+        <div className="relative mt-5 hidden gap-4 sm:grid">
+          <div className="grid gap-4 sm:grid-cols-3 sm:items-stretch">
+            <WheatCountryDecisionCard item={row.canada} lane="canada" />
+            <WheatCountrySplitGraphic row={row} score={score} confidence={confidence} />
+            <WheatCountryDecisionCard item={row.us} lane="us" />
+          </div>
+
+          <WheatLeadEvidencePanel row={row} />
+
+          <div className="rounded-lg border border-border bg-background/75 p-3">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Flag className="h-4 w-4 text-canola" aria-hidden="true" />
+              Current read
+            </div>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {action.detail} {row.explanation} Use this to inspect the evidence stack, not as an instruction to market grain.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <WheatDataFlowStrip />
+    </section>
   );
 }
 
@@ -1920,7 +2511,8 @@ function DailyUpdateStatusPanel({
           {" "}
           {overlayCoverage.todayOverlaidRows} of those are stamped today.
           {" "}
-          {overlayCoverage.weeklyRows} row{overlayCoverage.weeklyRows === 1 ? "" : "s"} remain on weekly packet
+          {overlayCoverage.weeklyRows} row{overlayCoverage.weeklyRows === 1 ? "" : "s"}{" "}
+          {overlayCoverage.weeklyRows === 1 ? "remains" : "remain"} on weekly packet
           scores until a matching daily row exists.
           {overlayCoverage.latestOverlayAt
             ? ` Latest overlay row ${formatDateTime(overlayCoverage.latestOverlayAt)}.`
@@ -2311,375 +2903,6 @@ function metricLabel(item: ThesisBoardItem): string {
   return `Market year ${item.marketYear ?? "latest"}`;
 }
 
-function CountryTag({ country }: { country: "CA" | "US" }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-      <Flag className="h-3 w-3" aria-hidden="true" />
-      {country}
-    </span>
-  );
-}
-
-function MarketIndicator({
-  item,
-  country,
-  missingLabel,
-}: {
-  item: ThesisBoardItem | null;
-  country: "CA" | "US";
-  missingLabel: string;
-}) {
-  if (!item) {
-    return (
-      <div className="space-y-2">
-        <CountryTag country={country} />
-        <p className="text-sm font-medium text-muted-foreground">{missingLabel}</p>
-      </div>
-    );
-  }
-
-  const halfWidth = confidenceScaledWidth(item);
-  const positive = item.stanceScore > 0;
-
-  return (
-    <div className="min-w-44 space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <CountryTag country={country} />
-        <Badge variant="outline" className={confidenceClass(item.confidence)}>
-          {item.confidenceScore}% confidence
-        </Badge>
-        <ScoreSourceBadge item={item} />
-      </div>
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className={cn("text-2xl font-semibold tabular-nums", stanceClass(item.stanceScore))}>
-            {item.stanceScore > 0 ? `+${item.stanceScore}` : item.stanceScore}
-          </p>
-          <p className="text-xs font-medium text-muted-foreground">
-            {directionalIndicatorLabel(item.stanceScore)}
-          </p>
-        </div>
-        <div
-          className="relative mb-1 h-2 w-28 rounded-full bg-muted"
-          aria-label={`${country} confidence-scaled stance score ${item.stanceScore}`}
-        >
-          <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
-          <span
-            className={cn(
-              "absolute top-0 h-full rounded-full",
-              stanceFillClass(item.stanceScore),
-              positive ? "left-1/2" : "right-1/2",
-            )}
-            data-confidence-scaled-width={halfWidth}
-            style={{ width: halfWidth }}
-            aria-hidden="true"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ComparisonPointList({
-  points,
-  emptyLabel,
-}: {
-  points: ThesisComparisonPoint[];
-  emptyLabel: string;
-}) {
-  if (points.length === 0) {
-    return <p className="text-sm leading-6 text-muted-foreground">{emptyLabel}</p>;
-  }
-
-  return (
-    <div className="space-y-2">
-      {points.slice(0, 4).map((point) => (
-        <div
-          key={`${point.country}-${point.sourceName}-${point.title}-${point.tone}`}
-          className="space-y-1 border-l-2 border-border pl-3"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <CountryTag country={point.country} />
-            <p className="text-sm font-semibold text-foreground">{point.title}</p>
-            <Badge variant="outline" className={confidenceClass(point.confidence)}>
-              {point.confidence}
-            </Badge>
-          </div>
-          <p className="text-xs font-medium text-muted-foreground">
-            {point.metricLabel} / {sourceDisplayName(point.sourceName)}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-type RowMarketRead = {
-  kind: "row";
-  row: ThesisComparisonRow;
-  score: number;
-  confidence: number;
-  coverageLabel: "CA+US" | "CA only" | "US only";
-  oneCountry: boolean;
-  convictionScore: number;
-};
-
-type CountryMarketRead = {
-  kind: "country";
-  row: ThesisComparisonRow;
-  country: "CA" | "US";
-  score: number;
-  confidence: number;
-  convictionScore: number;
-};
-
-type TakeawayMarketRead = RowMarketRead | CountryMarketRead;
-
-function rowMarketRead(row: ThesisComparisonRow): RowMarketRead | null {
-  const entries = [
-    row.canada ? { country: "CA" as const, item: row.canada } : null,
-    row.us ? { country: "US" as const, item: row.us } : null,
-  ].filter((entry): entry is { country: "CA" | "US"; item: ThesisBoardItem } => Boolean(entry));
-
-  if (entries.length === 0) return null;
-
-  const weightSum = entries.reduce((sum, entry) => sum + Math.max(1, entry.item.confidenceScore), 0);
-  const score = Math.round(
-    entries.reduce(
-      (sum, entry) => sum + entry.item.stanceScore * Math.max(1, entry.item.confidenceScore),
-      0,
-    ) / weightSum,
-  );
-  const confidence = Math.round(weightSum / entries.length);
-  const oneCountry = entries.length === 1;
-  const coverageLabel: RowMarketRead["coverageLabel"] =
-    entries.length === 2 ? "CA+US" : entries[0].country === "CA" ? "CA only" : "US only";
-  const coverageFactor = oneCountry ? 0.75 : 1;
-
-  return {
-    kind: "row",
-    row,
-    score,
-    confidence,
-    coverageLabel,
-    oneCountry,
-    convictionScore: Math.round(Math.abs(score) * (confidence / 100) * coverageFactor),
-  };
-}
-
-function splitMarketRead(row: ThesisComparisonRow, tone: "bull" | "bear"): CountryMarketRead | null {
-  if (!row.canada || !row.us) return null;
-  if (row.canada.stanceScore * row.us.stanceScore >= 0) return null;
-
-  const target = tone === "bull"
-    ? (item: ThesisBoardItem) => item.stanceScore > 0
-    : (item: ThesisBoardItem) => item.stanceScore < 0;
-  const entries = [
-    { country: "CA" as const, item: row.canada },
-    { country: "US" as const, item: row.us },
-  ].filter((entry) => target(entry.item));
-  const entry = entries[0];
-  if (!entry) return null;
-
-  return {
-    kind: "country",
-    row,
-    country: entry.country,
-    score: entry.item.stanceScore,
-    confidence: entry.item.confidenceScore,
-    convictionScore: Math.round(Math.abs(entry.item.stanceScore) * (entry.item.confidenceScore / 100)),
-  };
-}
-
-function strongestSplitMarketRead(
-  rows: ThesisComparisonRow[],
-  tone: "bull" | "bear",
-): CountryMarketRead | null {
-  return rows.reduce<CountryMarketRead | null>((best, row) => {
-    const entry = splitMarketRead(row, tone);
-    if (!entry) return best;
-    if (!best) return entry;
-    if (entry.convictionScore > best.convictionScore) return entry;
-    if (entry.convictionScore < best.convictionScore) return best;
-    return tone === "bull"
-      ? entry.score > best.score ? entry : best
-      : entry.score < best.score ? entry : best;
-  }, null);
-}
-
-function strongestDirectionalRead(
-  aggregateRead: RowMarketRead | null,
-  splitRead: CountryMarketRead | null,
-): TakeawayMarketRead | null {
-  if (!aggregateRead) return splitRead;
-  if (!splitRead) return aggregateRead;
-  if (splitRead.convictionScore > aggregateRead.convictionScore) return splitRead;
-  return aggregateRead;
-}
-
-function signedMarketRead(read: Pick<TakeawayMarketRead, "score">): string {
-  return read.score > 0 ? `+${read.score}` : String(read.score);
-}
-
-function confidenceCopy(read: RowMarketRead): string {
-  return read.oneCountry ? `${read.confidence}% confidence` : `${read.confidence}% avg confidence`;
-}
-
-function marketReadLine(read: TakeawayMarketRead, tone: "bull" | "bear"): string {
-  if (read.kind === "country") {
-    return `${read.row.grain} shows the strongest source-backed ${tone} pressure in the ${read.country} read at ${signedMarketRead(read)} (${read.confidence}% confidence).`;
-  }
-
-  const directionCopy = read.oneCountry ? `one-country ${tone}` : `confidence-weighted ${tone}`;
-  return `${read.row.grain} shows the strongest source-backed ${directionCopy} pressure at ${signedMarketRead(read)} (${read.coverageLabel}, ${confidenceCopy(read)}).`;
-}
-
-function marketEvidenceLine(read: TakeawayMarketRead, tone: "bull" | "bear"): string | null {
-  const points = tone === "bull" ? read.row.strongestBullPoints : read.row.strongestBearPoints;
-  const point = points[0];
-  if (!point) return null;
-  return `Lead evidence: ${point.country} ${point.title} (${point.metricLabel} / ${sourceDisplayName(point.sourceName)}).`;
-}
-
-function rowInspectionPriority(row: ThesisComparisonRow): number {
-  if (row.status === "mixed") return 0;
-  if (row.status === "mapping_needed" || (!row.canada && !row.us)) return 1;
-  if (row.status === "canada_only" || row.status === "us_only") return 2;
-  if (row.status === "aligned_bullish" || row.status === "aligned_bearish") return 3;
-  return 4;
-}
-
-function rowInspectionReason(row: ThesisComparisonRow): string {
-  if (row.status === "mixed") return "country split";
-  if (row.status === "mapping_needed" || (!row.canada && !row.us)) return "source gap";
-  if (row.status === "canada_only") return "Canada-only read";
-  if (row.status === "us_only") return "US-only read";
-  if (row.status === "aligned_bullish") return "confirmed bull read";
-  if (row.status === "aligned_bearish") return "confirmed bear read";
-  return "monitor";
-}
-
-function inspectionQueueLine(rows: ThesisComparisonRow[]): string {
-  const queue = rows
-    .map((row) => ({ row, priority: rowInspectionPriority(row) }))
-    .filter((entry) => entry.priority < 4)
-    .sort((a, b) => a.priority - b.priority || a.row.grain.localeCompare(b.row.grain))
-    .slice(0, 3);
-
-  if (queue.length === 0) {
-    return "No priority rows right now; monitor for a stronger source move before relying on the board.";
-  }
-
-  return `Start with: ${queue.map((entry) => `${entry.row.grain} (${rowInspectionReason(entry.row)})`).join(", ")}.`;
-}
-
-function TopTakeawayCard({ rows }: { rows: ThesisComparisonRow[] }) {
-  const scoredRows = rows
-    .map(rowMarketRead)
-    .filter((entry): entry is RowMarketRead => entry !== null);
-  const strongestAggregateBull = scoredRows.reduce<RowMarketRead | null>(
-    (best, entry) =>
-      entry.score > 0 &&
-      (!best ||
-        entry.convictionScore > best.convictionScore ||
-        (entry.convictionScore === best.convictionScore && entry.score > best.score))
-        ? entry
-        : best,
-    null,
-  );
-  const strongestAggregateBear = scoredRows.reduce<RowMarketRead | null>(
-    (best, entry) =>
-      entry.score < 0 &&
-      (!best ||
-        entry.convictionScore > best.convictionScore ||
-        (entry.convictionScore === best.convictionScore && entry.score < best.score))
-        ? entry
-        : best,
-    null,
-  );
-  const strongestBull = strongestDirectionalRead(
-    strongestAggregateBull,
-    strongestSplitMarketRead(rows, "bull"),
-  );
-  const strongestBear = strongestDirectionalRead(
-    strongestAggregateBear,
-    strongestSplitMarketRead(rows, "bear"),
-  );
-  const countrySplits = rows.filter((row) => row.status === "mixed" && (row.canada || row.us)).length;
-  const sourceMappingGaps = rows.filter((row) => !row.canada && !row.us).length;
-
-  const farmerSummary = buildFarmerReadSummary(rows);
-
-  const leadLine = strongestBull
-    ? marketReadLine(strongestBull, "bull")
-    : "No grain has a confidence-backed bull lean in the current packets.";
-  const riskLine = strongestBear
-    ? marketReadLine(strongestBear, "bear")
-    : "No grain has a confidence-backed bear lean in the current packets.";
-  const leadEvidence = strongestBull ? marketEvidenceLine(strongestBull, "bull") : null;
-  const riskEvidence = strongestBear ? marketEvidenceLine(strongestBear, "bear") : null;
-  const inspectionQueue = inspectionQueueLine(rows);
-
-  return (
-    <Card className="rounded-lg border-canola/30 bg-gradient-to-br from-canola/10 via-card to-prairie/8 py-5 shadow-sm">
-      <CardHeader className="gap-3 px-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <Badge variant="outline" className="mb-3 border-canola/35 bg-background/70 text-canola">
-              Farmer read first
-            </Badge>
-            <CardTitle className="font-display text-2xl">Source-backed pressure summary</CardTitle>
-            <CardDescription className="mt-2 max-w-3xl text-sm leading-6">
-              One pass before the big table: {farmerSummary.coverageLine}
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-              {countrySplits} country split{countrySplits === 1 ? "" : "s"}
-            </Badge>
-            {sourceMappingGaps > 0 ? (
-              <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                {sourceMappingGaps} source gap{sourceMappingGaps === 1 ? "" : "s"}
-              </Badge>
-            ) : null}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-3 px-5 lg:grid-cols-3">
-        <div className="rounded-lg border border-prairie/20 bg-background/70 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-prairie">
-            <TrendingUp className="h-4 w-4" aria-hidden="true" />
-            Most constructive
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">{leadLine}</p>
-          {leadEvidence && (
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{leadEvidence}</p>
-          )}
-        </div>
-        <div className="rounded-lg border border-amber-600/20 bg-background/70 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
-            <TrendingDown className="h-4 w-4" aria-hidden="true" />
-            Most cautious
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">{riskLine}</p>
-          {riskEvidence && (
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{riskEvidence}</p>
-          )}
-        </div>
-        <div className="rounded-lg border border-border bg-background/70 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Flag className="h-4 w-4 text-canola" aria-hidden="true" />
-            How to use it
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {inspectionQueue} Use it to choose what to inspect next, not as an instruction to market grain.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function xPulseToneClass(sentiment: XPulseSignalSummary["sentiment"]): string {
   if (sentiment === "bullish") return "border-prairie/25 bg-prairie/10 text-prairie";
   if (sentiment === "bearish") {
@@ -3023,98 +3246,6 @@ function ProductionGateAuditPanel({ snapshot }: { snapshot: Track54ReadinessSnap
             </CardContent>
           </Card>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function MajorThesisMatrix({ rows }: { rows: ThesisComparisonRow[] }) {
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Major Grain Thesis Matrix</h2>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Canada and US major-grain calls in one read. Country markers show where
-            the evidence differs; V1 excludes smaller CGC labels plus US rice and cotton.
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Score guide: negative leans bearish, positive leans bullish; confidence reflects source
-            completeness and freshness, not a marketing instruction.
-          </p>
-        </div>
-        <Badge variant="outline" className="w-fit border-border bg-white/60">
-          {rows.length} grain rows
-        </Badge>
-      </div>
-
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-[1180px] text-left text-sm">
-            <caption className="sr-only">
-              Major Canada and US grain thesis matrix with stance, confidence, and strongest
-              bull and bear evidence.
-            </caption>
-            <thead className="border-b border-border bg-muted/35 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="w-36 px-4 py-3 font-semibold">Grain</th>
-                <th className="w-56 px-4 py-3 font-semibold">Canada</th>
-                <th className="w-56 px-4 py-3 font-semibold">US</th>
-                <th className="w-64 px-4 py-3 font-semibold">Strongest Bull Points</th>
-                <th className="w-64 px-4 py-3 font-semibold">Strongest Bear Points</th>
-                <th className="w-72 px-4 py-3 font-semibold">Country Read</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const action = rowActionCue(row);
-                return (
-                  <tr key={row.grain} className="border-b border-border/70 align-top last:border-b-0">
-                    <td className="px-4 py-4">
-                      <p className="font-semibold text-foreground">{row.grain}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <MarketIndicator item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
-                    </td>
-                    <td className="px-4 py-4">
-                      <MarketIndicator item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
-                    </td>
-                    <td className="px-4 py-4">
-                      <ComparisonPointList
-                        points={row.strongestBullPoints}
-                        emptyLabel="No bullish driver in the current packets."
-                      />
-                    </td>
-                    <td className="px-4 py-4">
-                      <ComparisonPointList
-                        points={row.strongestBearPoints}
-                        emptyLabel="No bearish driver in the current packets."
-                      />
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className={actionCueClass(row.status)}>
-                            {action.label}
-                          </Badge>
-                          <Badge variant="outline" className={comparisonClass(row.status)}>
-                            {row.statusLabel}
-                          </Badge>
-                          <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                            {row.readinessLabel}
-                          </Badge>
-                        </div>
-                        <p className="text-sm leading-6 text-foreground">{action.detail}</p>
-                        <p className="text-sm leading-6 text-muted-foreground">{row.explanation}</p>
-                        <p className="text-xs leading-5 text-muted-foreground">{row.readinessDetail}</p>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
       </div>
     </section>
   );
@@ -4297,191 +4428,6 @@ function SummaryCard({
   );
 }
 
-function CompactMarketSignal({
-  item,
-  country,
-  missingLabel,
-}: {
-  item: ThesisBoardItem | null;
-  country: "CA" | "US";
-  missingLabel: string;
-}) {
-  if (!item) {
-    return (
-      <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground">
-        {missingLabel}
-      </div>
-    );
-  }
-
-  const halfWidth = confidenceScaledWidth(item);
-  const positive = item.stanceScore > 0;
-
-  return (
-    <Link
-      href={item.lane === "canada" ? `/grain/${item.slug}` : `/us/${item.slug}`}
-      className="block rounded-md border border-border bg-background px-3 py-2 transition-colors hover:border-canola/40 hover:bg-canola/5"
-    >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-muted-foreground">{country}</span>
-        <span className={cn("text-lg font-semibold tabular-nums", stanceClass(item.stanceScore))}>
-          {item.stanceScore > 0 ? `+${item.stanceScore}` : item.stanceScore}
-        </span>
-      </div>
-      <div className="relative h-2 rounded-full bg-muted" aria-label={`${country} confidence-scaled stance score ${item.stanceScore}`}>
-        <span className="absolute left-1/2 top-0 h-full w-px bg-border" aria-hidden="true" />
-        <span
-          className={cn(
-            "absolute top-0 h-full rounded-full",
-            stanceFillClass(item.stanceScore),
-            positive ? "left-1/2" : "right-1/2",
-          )}
-          data-confidence-scaled-width={halfWidth}
-          style={{ width: halfWidth }}
-          aria-hidden="true"
-        />
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{item.stanceLabel}</span>
-        <span>{item.confidenceScore}%</span>
-      </div>
-      <div className="mt-2">
-        <ScoreSourceBadge item={item} />
-      </div>
-    </Link>
-  );
-}
-
-function quickGlanceLegendItems(rows: ThesisComparisonRow[]) {
-  const statuses = new Set(rows.map((row) => row.status));
-  const hasOneCountry = statuses.has("canada_only") || statuses.has("us_only");
-  return [
-    statuses.has("aligned_bullish")
-      ? {
-          key: "aligned_bullish",
-          label: "Confirmed bull = CA and US both constructive",
-          className: "border-prairie/25 bg-prairie/10 text-prairie",
-        }
-      : null,
-    statuses.has("aligned_bearish")
-      ? {
-          key: "aligned_bearish",
-          label: "Confirmed bear = CA and US both defensive",
-          className: "border-amber-600/25 bg-amber-500/10 text-amber-800 dark:text-amber-300",
-        }
-      : null,
-    statuses.has("mixed")
-      ? {
-          key: "mixed",
-          label: "Country split = evidence disagrees",
-          className: "border-canola/30 bg-canola/10 text-canola",
-        }
-      : null,
-    hasOneCountry
-      ? {
-          key: "one_country",
-          label: "One-country = V1 has only CA or US modeled",
-          className: "border-border bg-background/70 text-muted-foreground",
-        }
-      : null,
-    statuses.has("aligned_balanced")
-      ? {
-          key: "aligned_balanced",
-          label: "Balanced = no strong current lean",
-          className: "border-border bg-background/70 text-muted-foreground",
-        }
-      : null,
-    statuses.has("mapping_needed")
-      ? {
-          key: "mapping_needed",
-          label: "Source gap = class-safe mapping not admitted",
-          className: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300",
-        }
-      : null,
-  ].filter((item): item is { key: string; label: string; className: string } => item !== null);
-}
-
-function ThesisQuickGlanceBoard({ rows }: { rows: ThesisComparisonRow[] }) {
-  if (rows.length === 0) return null;
-  const legendItems = quickGlanceLegendItems(rows);
-
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="font-display text-2xl font-semibold">All Grains at a Glance</h2>
-          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-            Quick scan first: every V1 grain, Canada and US side by side, with the current
-            bull/bear lean. The reasoning breakdown stays below for the rows worth digging into.
-          </p>
-        </div>
-        <Badge variant="outline" className="w-fit border-border bg-white/60">
-          {rows.length} grain rows
-        </Badge>
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        {legendItems.map((item) => (
-          <Badge key={item.key} variant="outline" className={item.className}>
-            {item.label}
-          </Badge>
-        ))}
-      </div>
-
-      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="grid grid-cols-1 border-b border-border bg-muted/35 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:gap-4">
-          <span>Grain</span>
-          <span className="hidden md:block">Canada</span>
-          <span className="hidden md:block">US</span>
-          <span className="hidden md:block">Read</span>
-        </div>
-        <div className="divide-y divide-border/70">
-          {rows.map((row) => {
-            const action = rowActionCue(row);
-            return (
-              <div
-                key={`quick-${row.grain}`}
-                className="grid gap-3 px-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_220px] md:items-center md:gap-4"
-              >
-                <div>
-                  <p className="font-semibold text-foreground">{row.grain}</p>
-                  <div className="mt-2 flex flex-wrap gap-2 md:hidden">
-                    <Badge variant="outline" className={actionCueClass(row.status)}>
-                      {action.label}
-                    </Badge>
-                    <Badge variant="outline" className={comparisonClass(row.status)}>
-                      {row.statusLabel}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground md:hidden">{action.detail}</p>
-                </div>
-                <CompactMarketSignal item={row.canada} country="CA" missingLabel={missingMarketCopy(row, "CA")} />
-                <CompactMarketSignal item={row.us} country="US" missingLabel={missingMarketCopy(row, "US")} />
-                <div className="hidden space-y-2 md:block">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className={actionCueClass(row.status)}>
-                      {action.label}
-                    </Badge>
-                    <Badge variant="outline" className={comparisonClass(row.status)}>
-                      {row.statusLabel}
-                    </Badge>
-                    <Badge variant="outline" className="border-border bg-background/70 text-muted-foreground">
-                      {row.readinessLabel}
-                    </Badge>
-                  </div>
-                  <p className="text-xs leading-5 text-foreground">{action.detail}</p>
-                  <p className="text-xs leading-5 text-muted-foreground">{row.explanation}</p>
-                  <p className="text-[11px] leading-5 text-muted-foreground">{row.readinessDetail}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function DataQualityBanner({ data }: { data: Awaited<ReturnType<typeof getThesisBoardData>> }) {
   const sourceHealthRead = buildSourceHealthRead(data.totals);
   const hasWatchSources = data.totals.uniqueWatchSourceCount > 0;
@@ -4619,43 +4565,41 @@ export default async function ThesisPage({
       area ? getAreaBids(area.fsa) : Promise.resolve([]),
     ]);
   const currentData = applyDailyTrajectoryOverlay(data, dailyUpdates);
+  const farmerData = filterThesisBoardDataForActiveFarmerDisplay(currentData);
+  const activeAreaFlows = (provincialFlow?.flows ?? []).filter((flow) => isActiveFarmerThesisGrain(flow.grain));
+  const activeAreaBids = areaBids.filter((bid) => isActiveFarmerThesisGrain(bid.grain));
+  const wheatComparisonRow = farmerData.comparisonRows.find((row) => row.grain === "Wheat") ?? null;
+  const wheatCards = [...farmerData.canadaItems, ...farmerData.usItems];
+  const wheatLocalContext: WheatLocalContextSummary = area?.provinceName
+    ? {
+        label: `${area.fsa} ${area.provinceName} context is filtered to Wheat.`,
+        detail: `${activeAreaFlows.length} movement row${activeAreaFlows.length === 1 ? "" : "s"}; ${activeAreaBids.length} posted Wheat bid${activeAreaBids.length === 1 ? "" : "s"}.`,
+      }
+    : {
+        label: "Postal code stays on this device only.",
+        detail: "Set your postal code below for Wheat-only local movement and posted bids.",
+      };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-12 pt-8">
-      <section className="max-w-4xl">
-        <Badge variant="outline" className="mb-4 border-canola/35 bg-canola/8 text-canola">
-          Live source packets
-        </Badge>
-        <h1 className="font-display text-3xl font-semibold tracking-normal text-foreground md:text-5xl">
-          Bull/Bear Thesis Board
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          Source-backed Canada and US grain calls from the live thesis packet spine. V1 stays
-          hard-gated to major grains, with smaller CGC labels and US rice/cotton kept off the
-          public board.
-        </p>
-      </section>
+    <div className="mx-auto max-w-7xl space-y-4 pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6">
+      <WheatDecisionSurface row={wheatComparisonRow} localContext={wheatLocalContext} />
 
       <MarketUseNotice />
 
-      {/* Farmer read leads: takeaway, quick scan, and the matrix come before any
-          source-health or pipeline status surface. Operator telemetry lives in audit mode. */}
-      <TopTakeawayCard rows={currentData.comparisonRows} />
-
-      <ThesisQuickGlanceBoard rows={currentData.comparisonRows} />
-
-      <MajorThesisMatrix rows={currentData.comparisonRows} />
-
       <YourAreaCard
         area={area}
-        flows={provincialFlow?.flows ?? []}
+        flows={activeAreaFlows}
         grainWeek={provincialFlow?.grainWeek ?? null}
-        bids={areaBids}
+        bids={activeAreaBids}
       />
 
-      <DataQualityBanner data={currentData} />
+      {wheatComparisonRow ? <WheatPressureLaneBreakdown row={wheatComparisonRow} /> : null}
 
-      <CurrentSnapshotCard data={currentData} />
+      {wheatComparisonRow ? <GrainReadLinkage grain="Wheat" /> : null}
+
+      <DataQualityBanner data={farmerData} />
+
+      <CurrentSnapshotCard data={farmerData} />
 
       {auditMode ? (
         <DailyUpdateStatusPanel
@@ -4675,7 +4619,7 @@ export default async function ThesisPage({
       ) : null}
 
       <WheatPressureMapPanel
-        rows={currentData.comparisonRows}
+        rows={farmerData.comparisonRows}
         xPulseWatch={xPulseWatch}
         sourceRuns={sourceRuns}
       />
@@ -4723,46 +4667,23 @@ export default async function ThesisPage({
       <section className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-display text-2xl font-semibold">Canada Major Grains</h2>
+            <h2 className="font-display text-2xl font-semibold">Wheat Packet Details</h2>
             <p className="text-sm text-muted-foreground">
-              CGC movement, Grain Monitor logistics, producer cars, prices, COT, and source freshness.
+              Canada and US Wheat packet cards with source freshness, bull/bear cases, and provenance.
             </p>
           </div>
           <Badge variant="outline" className="w-fit border-border bg-white/60">
-            {currentData.canadaItems.length} packets
+            {wheatCards.length} packets
           </Badge>
         </div>
-        {currentData.canadaItems.length > 0 ? (
+        {wheatCards.length > 0 ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            {currentData.canadaItems.map((item) => (
+            {wheatCards.map((item) => (
               <ThesisCard key={item.id} item={item} auditMode={auditMode} />
             ))}
           </div>
         ) : (
-          <EmptyLaneState label="Canada grain" />
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-display text-2xl font-semibold">US Markets</h2>
-            <p className="text-sm text-muted-foreground">
-              USDA crop progress, export sales, WASDE, prices, COT, and source freshness.
-            </p>
-          </div>
-          <Badge variant="outline" className="w-fit border-border bg-white/60">
-            {currentData.usItems.length} packets
-          </Badge>
-        </div>
-        {currentData.usItems.length > 0 ? (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {currentData.usItems.map((item) => (
-              <ThesisCard key={item.id} item={item} auditMode={auditMode} />
-            ))}
-          </div>
-        ) : (
-          <EmptyLaneState label="US market" />
+          <EmptyLaneState label="Wheat" />
         )}
       </section>
     </div>
