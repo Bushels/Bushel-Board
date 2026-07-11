@@ -38,7 +38,7 @@ function routeResult(
     screenshot_bytes: 12_345,
     screenshot_dimensions: viewport === "desktop"
       ? { width: 1024, height: 768 }
-      : { width: 390, height: 844 },
+      : { width: 375, height: 812 },
     screenshot_visual: {
       sample_pixels: 6912,
       distinct_colors: 42,
@@ -77,7 +77,7 @@ describe("Track 54 browser smoke proof", () => {
     expect(proof.output).toContain("desktop /thesis: screenshot_bytes=12345");
     expect(proof.output).toContain("desktop /thesis: screenshot_dimensions=1024x768");
     expect(proof.output).toContain("desktop /thesis: screenshot_visual=sample_pixels=6912 distinct_colors=42 non_white_ratio=0.38 luma_range=196.4");
-    expect(proof.output).toContain("mobile /thesis: screenshot_dimensions=390x844");
+    expect(proof.output).toContain("mobile /thesis: screenshot_dimensions=375x812");
   });
 
   it("prefixes failures with viewport and route so readiness reports point at the broken surface", () => {

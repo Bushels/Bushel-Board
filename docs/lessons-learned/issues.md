@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-11 - Production reverted to the all-grain board because the Wheat UI was deployed from an unmerged branch
+
+**Symptom:** After merging PR #18 (a docs/agent-prompt-only change), the production Bushel Board site visually reverted: the Wheat-first decision cockpit disappeared and the old all-grain /thesis board came back.
+
+**Root cause:** The Wheat-first UI (codex/wheat-first-thesis, 4 commits, June 16-17) was deployed to Vercel from its branch but never merged to master. Production was effectively pinned to that side-branch deployment. Vercel rebuilds production from master on every push — so the first master merge (even docs-only) rebuilt production from code that still contained the all-grain board. Nothing was "put back"; master never had the Wheat UI.
+
+**Fix:** codex/wheat-first-thesis merged into the mainline (this branch → master), restoring the Wheat cockpit in master's lineage. The old hidden components/overview/* (dead since the 2026-06-10 /overview redirect, grep-verified unimported) were deleted outright per operator direction instead of retire-pattern retention.
+
+**Prevention:** (1) A production deployment must never outlive its branch unmerged — merge before or immediately after promoting a branch deploy, or any later master push reverts the site. (2) When auditing a repo, treat "deployed-from-unmerged-branch" as a live hazard to surface loudly, not a footnote action item. (3) The retire-don't-recreate pattern needs an expiry: components hidden for 30+ days with no re-enable plan get deleted (git history is the archive).
+
+**Tags:** #vercel #deployment #unmerged-branch #production-revert #wheat-first
+
+---
+
 ## 2026-07-11 - The outage fix's fail-loud rows still could not land: every pipeline_runs INSERT in both desk prompts violated NOT NULL constraints
 
 **Symptom:** Wheat-desk audit re-checked the 2026-06-09 outage repair against migration `20260418100300_parallel_pipeline.sql` and found ALL 8 `pipeline_runs` INSERTs across both swarm prompts (4 CAD + 4 US) still could not execute: every one omitted `grains_requested text[] NOT NULL` (no default), all four US inserts passed `NULL` into NOT NULL `crop_year`/`grain_week`, one US insert had 6 VALUES for a 5-column list, and the CAD Step 5.4 success insert still used the nonexistent `source`/`metadata` columns the June fix had removed only from the US prompt.

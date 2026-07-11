@@ -2,15 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES,
   THESIS_BOARD_MAJOR_US_MARKET_NAMES,
+  THESIS_BOARD_ACTIVE_FARMER_CANADA_GRAIN_NAMES,
+  THESIS_BOARD_ACTIVE_FARMER_GRAIN_LANES,
+  THESIS_BOARD_ACTIVE_FARMER_US_MARKET_NAMES,
   THESIS_BOARD_V1_GRAIN_LANES,
   buildCanadaThesisBoardItem,
   buildFarmerReadSummary,
   buildMajorThesisComparisonRows,
   buildSourceHealthRead,
   buildSourceHealthSummary,
+  filterThesisBoardDataForActiveFarmerDisplay,
   cacheStatusForSourceState,
   buildUsThesisBoardItem,
   selectCanadaCropProgressRunContext,
+  type ThesisBoardData,
 } from "@/lib/queries/thesis-board";
 
 const canola = { name: "Canola", slug: "canola", defaultBushelWeightLbs: 50 };
@@ -720,6 +725,15 @@ describe("thesis board packet normalization", () => {
     ]);
   });
 
+  it("centralizes the active farmer display allowlist to Wheat without shrinking the V1 harness", () => {
+    expect(THESIS_BOARD_ACTIVE_FARMER_GRAIN_LANES).toEqual(["Wheat"]);
+    expect(THESIS_BOARD_ACTIVE_FARMER_CANADA_GRAIN_NAMES).toEqual(["Wheat"]);
+    expect(THESIS_BOARD_ACTIVE_FARMER_US_MARKET_NAMES).toEqual(["Wheat"]);
+    expect(THESIS_BOARD_V1_GRAIN_LANES).toContain("Canola");
+    expect(THESIS_BOARD_V1_GRAIN_LANES).toContain("Corn");
+    expect(THESIS_BOARD_V1_GRAIN_LANES).toContain("Oats");
+  });
+
   it("uses only source-backed Canada packets needed for the V1 board", () => {
     expect(THESIS_BOARD_MAJOR_CANADA_GRAIN_NAMES).toEqual([
       "Corn",
@@ -751,6 +765,70 @@ describe("thesis board packet normalization", () => {
     ]);
     expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).not.toContain("Rice");
     expect(THESIS_BOARD_MAJOR_US_MARKET_NAMES).not.toContain("Cotton");
+  });
+
+  it("filters normal farmer display data to active Wheat while keeping source-health counts scoped", () => {
+    const canolaItem = buildCanadaThesisBoardItem(canola, {
+      lane: "canada",
+      grain: "Canola",
+      crop_year: "2025-2026",
+      grain_week: 38,
+      demand: { exports: { current_week_kt: 260 } },
+      freshness: [{ source_name: "cgc_observations", freshness_status: "strong" }],
+    });
+    const canadaWheat = buildCanadaThesisBoardItem(wheat, {
+      lane: "canada",
+      grain: "Wheat",
+      crop_year: "2025-2026",
+      grain_week: 38,
+      demand: { exports: { current_week_kt: 260 } },
+      freshness: [
+        { source_name: "cgc_observations", freshness_status: "strong" },
+        { source_name: "grain_prices", freshness_status: "empty" },
+      ],
+      quality_warnings: [{ source_name: "grain_prices", status: "empty" }],
+    });
+    const usWheatItem = buildUsThesisBoardItem(usWheat, {
+      lane: "us",
+      market_name: "Wheat",
+      market_year: 2025,
+      demand: { export_sales: { net_sales_mt: 620_000, export_pace_pct: 95 } },
+      freshness: [{ source_name: "usda_export_sales", freshness_status: "strong" }],
+    });
+    const fullRows = buildMajorThesisComparisonRows([canolaItem, canadaWheat], [usWheatItem]);
+    const data = {
+      generatedAt: "2026-06-16T12:00:00Z",
+      packetMode: "cached",
+      cacheStatus: "fresh",
+      sourceRunWatermark: "2026-06-16T12:00:00Z",
+      latestAvailableSourceRunAt: "2026-06-16T12:00:00Z",
+      cacheItemCount: 3,
+      sourceRunContext: { canadaCropProgress: null },
+      canadaItems: [canolaItem, canadaWheat],
+      usItems: [usWheatItem],
+      comparisonRows: fullRows,
+      totals: {
+        itemCount: 3,
+        strongSourceCount: 3,
+        staleSourceCount: 1,
+        watchSourceInstanceCount: 1,
+        uniqueWatchSourceCount: 1,
+        optionalSourceCount: 0,
+        blockerCount: 1,
+      },
+      sourceHealth: buildSourceHealthSummary([canolaItem, canadaWheat, usWheatItem]),
+    } satisfies ThesisBoardData;
+
+    const filtered = filterThesisBoardDataForActiveFarmerDisplay(data);
+
+    expect(filtered.comparisonRows.map((row) => row.grain)).toEqual(["Wheat"]);
+    expect(filtered.canadaItems.map((item) => item.name)).toEqual(["Wheat"]);
+    expect(filtered.usItems.map((item) => item.name)).toEqual(["Wheat"]);
+    expect(filtered.comparisonRows[0]?.canada).toBe(canadaWheat);
+    expect(filtered.comparisonRows[0]?.us).toBe(usWheatItem);
+    expect(filtered.totals.itemCount).toBe(2);
+    expect(filtered.totals.uniqueWatchSourceCount).toBe(1);
+    expect(filtered.sourceHealth.uniqueWatchSources.map((source) => source.sourceName)).toEqual(["grain_prices"]);
   });
 
   it("builds country comparison rows with split explanations and strongest points", () => {
