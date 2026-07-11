@@ -146,7 +146,11 @@ All on branch `claude/wheat-desk-audit-swarm-c5drpe`:
 
 **Docs:** CLAUDE.md (V2 section: 4 specialists, FLAGSHIP, swapped schedule, pipeline_runs traps, statcan/sk-cash tables + monitoring queries), STATUS.md track entry, issues.md lessons-learned entry, this audit report.
 
-## 5. Follow-ups for the operator (Kyle)
+## 5. Validation run (Ultracode wheat desk swarm)
+
+The refit design was exercised end-to-end on 2026-07-11: 6 scouts → 4 wheat-scoped specialists (Wave A) → chief (FLAGSHIP resolution + mandatory deep pass) → adversarial meta-review. Result: **Wheat +2 (Neutral, basis-vetoed from ~+12), confidence 55, meta-review PASS_WITH_FIXES (0 farmer-facing errors)**. Full report: `docs/plans/2026-07-11-wheat-desk-run.md`. No database writes (sandbox); the run validates the FLAGSHIP machinery — the deep pass, the basis veto, the debate protocol, the class lens, and provenance discipline all fired as designed.
+
+## 6. Follow-ups for the operator (Kyle)
 
 1. **Run the live data audit** (§2.3) from a Supabase-connected session; backfill weeks 37–48 if missing.
 2. **Confirm the Friday Routines are firing** — if `market_analysis` is still parked at week 36, re-create `grain-desk-weekly` + `us-desk-weekly` from the updated prompt docs.
