@@ -158,6 +158,22 @@ Rollback / pause instructions:
 - If daily review writes look noisy, pause only `daily-thesis-review`; Friday swarms can still read official packets and the accepted Friday X bundle manually.
 - Never re-enable `/api/pipeline/run` or the retired Grok Edge Function chain as a rollback path.
 
+## Routine → Model Matrix (added 2026-07-11)
+
+Which model tier each Routine should run on. Rule of thumb: **the model does the judgment, the script does the work** — mechanical script-wrapper collectors get the cheapest tier; anything that parses prose/PDFs or builds SQL from parsed data gets Sonnet; anything that reconciles conflicting evidence or authors farmer-facing prose gets Opus-class or higher. Never pin a dated model id in a Routine config — use the current alias/tier so a model refresh can't kill the Routine.
+
+| Routine | Model tier | Why |
+|---|---|---|
+| `collect-cgc`, `collect-producer-cars`, `collect-export-sales`, `collect-cftc-cot`, `collect-sk-prices`, `collect-statcan` | **Haiku** (current: Haiku 4.5) | Mechanical script wrappers — fetch, run importer, verify counts, heartbeat. No judgment. |
+| `collect-crop-progress`, `collect-canada-crop-progress-{mb,sk,ab}`, `collect-grain-monitor` | **Sonnet** | Narrative crop-report / PDF parsing with Tier-2 auto-fix judgment (see the grain-monitor charter). |
+| `collect-wasde`, `collect-wasde-archive` | **Sonnet** | .xls parsing + batched SQL construction. ⚠️ The live CCR trigger `Bushel Board — collect-wasde-archive` is pinned to **`claude-sonnet-4-6` (outdated dated id)** — re-pin to the current Sonnet alias before the next monthly fire (13th). |
+| `grain-desk-weekly`, `us-desk-weekly` (Friday desk chiefs) | **Opus-class OR HIGHER** (Opus 4.8+, or Claude-5-family / Mythos-class) | Divergence resolution, anomaly investigation, farmer-facing prose. Step 0.0 aborts below the floor — and (fixed 2026-07-11) must NOT abort above it. NEVER Sonnet/Haiku. |
+| Saturday meta-reviewers (`desk-meta-reviewer`, `us-desk-meta-reviewer`) | **Opus-class or higher** | Calibration judgment + authoring prompt-level improvement recommendations (agent frontmatter: `opus`). |
+| `desk-output-watchdog`, `source-freshness-watchdog-*` | **Haiku** | Runs a script, reads an exit code, notifies. |
+| Swarm subagents (dispatched BY the chiefs) | Per agent frontmatter | Already correct and alias-pinned: CAD scouts haiku (sentiment + macro sonnet), 4 CAD specialists sonnet; US scouts haiku (us-macro sonnet), US specialists sonnet. Do not override in the Routine. |
+
+**Verified 2026-07-11 (agent frontmatter grep):** supply/demand/basis/logistics-scout=haiku · sentiment/macro-scout=sonnet · export/domestic/risk/price-analyst=sonnet · desk-meta-reviewer=opus · us-*-scouts=haiku (us-macro-scout=sonnet) · us-*-analysts=sonnet · us-desk-meta-reviewer=opus. All tier aliases, no dated pins — the only dated pin found anywhere is the `collect-wasde-archive` CCR trigger above.
+
 ## Design Notes
 
 - Times deliberately off-round to avoid API congestion

@@ -4,7 +4,7 @@
 > Saved here for version control — the actual Routine reads this prompt.
 > **Trigger:** Claude Desktop Routine / Schedule `grain-desk-weekly` — NOT Vercel cron, NOT Grok, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
 > **Schedule:** Friday 7:45 PM scheduler-local MT / 9:45 PM ET (`45 19 * * 5` — Claude Desktop Routine crons fire in America/Edmonton local time per `collector-task-configs.md`) — **CHANGED 2026-07-11: the CAD desk now runs AFTER the US desk** (US at 6:47 PM MT). Rationale: /thesis is Wheat-first and R-CA-WHT-01 makes the US desk's Wheat read the directional anchor for CWRS — running CAD first meant the flagship wheat read consumed a week-old US stance. All Friday inputs (USDA export sales Thu AM, CFTC COT Fri ~3:30 PM ET) are settled before either desk. **Operator action: re-register both `grain-desk-weekly` and `us-desk-weekly` Claude Desktop Routines with the swapped times.**
-> **Model:** Opus-class only (`claude-opus-4-8` or a newer Opus-generation flagship) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class model so a routine model refresh cannot silently kill the Friday desk.
+> **Model:** Opus-class **or higher** (`claude-opus-4-8`, a newer Opus-generation flagship, or an above-Opus frontier tier such as Anthropic's Mythos-class / Claude 5 family) — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check, and do not abort on models ABOVE Opus class: the gate is a floor, not an allowlist (clarified 2026-07-11 — the old "Opus-class only" wording would have aborted the desk under a Claude-5-family model).
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and
 > author farmer-facing prose. If this task fires under any other model, abort in Phase 0.
 > **Claude-only by policy:** No xAI / Grok LLM anywhere in the V2 loop. External search is Anthropic native `web_search_20250305` plus the X API v2 gateway Edge Function. A Codex-validated X signal bundle may include posts discovered by the quarantined Grok scout, but those posts are untrusted evidence inputs only; Grok never writes, ranks, or authors the desk thesis.
@@ -19,7 +19,7 @@ Before dispatching any agents, verify your model and establish the current data 
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as an Opus-class model (`claude-opus-4-8` or a newer Opus-generation flagship). If you are running as Sonnet, Haiku, or any other non-Opus-class model, write a failure row and abort immediately:
+Confirm you are running at or above Opus class (`claude-opus-4-8`, a newer Opus-generation flagship, or an above-Opus tier such as a Claude-5-family / Mythos-class model). The check is a FLOOR: abort only if you are running BELOW Opus class (Sonnet, Haiku, or any lighter tier) — never abort for being above it. On a below-floor model, write a failure row and abort immediately:
 
 ```sql
 INSERT INTO pipeline_runs (crop_year, grain_week, status, grains_requested, triggered_by, failure_details)
@@ -37,7 +37,7 @@ VALUES (
 >
 > **`grains_requested` NOT NULL trap (found 2026-07-11):** `pipeline_runs.grains_requested text[]` is NOT NULL with **no default** (migration `20260418100300_parallel_pipeline.sql`). EVERY insert into this table — failure rows included — must supply the array or the insert itself dies with a NOT NULL violation and the run leaves zero trace, which is exactly the silent-death mode the fail-loud rows exist to prevent. Use the full 16-grain array (or the actual subset being run).
 
-Do not proceed with the swarm under any non-Opus model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
+Do not proceed with the swarm under any below-Opus-class model. Reasoning layer quality depends on Opus for anomaly investigation and divergence resolution (see `feedback_grain_desk_uses_opus.md` memory).
 
 **Step 0.1:** Query Supabase MCP to find the current grain week and crop year:
 
