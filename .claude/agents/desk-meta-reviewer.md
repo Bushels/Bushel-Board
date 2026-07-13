@@ -25,46 +25,32 @@ Three passes, in order:
 
 ## Inputs
 
-Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for:
+All DB reads go through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout. The metadata column on `market_analysis` is `llm_metadata` — there is no `metadata` column.
 
-**Current week's market_analysis rows:**
-```sql
--- Anchor on recency, NOT MAX(grain_week): MAX(crop_year)+MAX(grain_week) returns zero rows
--- right after crop-year rollover (new year's week 1 < old year's week 52) and can pin to ghost rows.
-WITH latest AS (
-  SELECT crop_year, grain_week FROM market_analysis ORDER BY generated_at DESC LIMIT 1
-)
-SELECT m.grain, m.grain_week, m.stance_score, m.confidence_score, m.data_confidence,
-       m.initial_thesis, m.bull_case, m.bear_case, m.final_assessment, m.key_signals,
-       m.llm_metadata, m.generated_at
-FROM market_analysis m JOIN latest l USING (crop_year, grain_week)
-ORDER BY m.grain;
+**Current week's market_analysis rows** (anchor on recency, NOT MAX(grain_week): MAX(crop_year)+MAX(grain_week) returns zero rows right after crop-year rollover — new year's week 1 < old year's week 52 — and can pin to ghost rows. Resolve the latest week from the most recent `generated_at` first, then pull the batch):
+```bash
+# 1. latest grain_week + crop_year with desk output (recency-anchored)
+npm run desk:cad -- read --table market_analysis --select grain_week,crop_year,generated_at --order generated_at.desc --limit 1
+# 2. the row(s) for that week (currently: Wheat only)
+npm run desk:cad -- read --table market_analysis --select grain,grain_week,stance_score,confidence_score,data_confidence,initial_thesis,bull_case,bear_case,final_assessment,key_signals,llm_metadata,generated_at --eq grain_week=<week> --eq crop_year=<crop_year> --order grain.asc
 ```
 
-**Missed-run detection (mandatory, added 2026-07-11):** before auditing content, compare the latest `generated_at` above against NOW() and the current CGC week (`SELECT MAX(grain_week) FROM cgc_observations WHERE crop_year = (SELECT MAX(crop_year) FROM cgc_observations)`). If the latest desk row is older than 8 days OR more than 1 grain week behind CGC, the Friday desk MISSED its run — write a `critical` recommendation titled "desk did not run" as your first output and skip the bias audit (auditing stale rows as if current is how the April–June outage stayed invisible).
-
-```sql
--- (audit queries continue below)
-```
+**Missed-run detection (mandatory, added 2026-07-11):** before auditing content, compare the latest `generated_at` above against NOW() and the current CGC week (`npm run desk:cad -- read --table cgc_observations --select grain_week --order grain_week.desc --limit 1`, filtered to the latest crop_year — or simply `npm run desk:cad -- resolve`). If the latest desk row is older than 8 days OR more than 1 grain week behind CGC, the Friday desk MISSED its run — write a `critical` recommendation titled "desk did not run" as your first output and skip the bias audit (auditing stale rows as if current is how the April–June outage stayed invisible).
 
 **Two-weeks-prior review (for accuracy scorecard backfill):**
-```sql
-SELECT id, reviewed_grain_week, reviewed_crop_year, bias_assessment, flagged_grains
-FROM desk_performance_reviews
-WHERE review_date = (CURRENT_DATE - INTERVAL '14 days')::date
-LIMIT 1;
+```bash
+npm run desk:cad -- read --table desk_performance_reviews --select id,reviewed_grain_week,reviewed_crop_year,bias_assessment,flagged_grains --eq review_date=<date 14 days ago, YYYY-MM-DD> --limit 1
 ```
+> `desk_performance_reviews` is readable via the desk CLI (added to the read allow-list 2026-07-02). Only the WRITE of this week's review remains interactive — see the HEADLESS GAP note under Write Review.
 
-**Actual outcomes (for scorecard):** pull `score_trajectory`, `cgc_observations`, and `grain_prices` for the grains flagged two weeks ago to check what actually happened.
+**Actual outcomes (for scorecard):** pull `score_trajectory`, `cgc_observations`, and `grain_prices` via CLI table reads (e.g. `npm run desk:cad -- read --table score_trajectory --eq crop_year=<crop_year> --eq grain=<grain> --order grain_week.desc --limit 10`) for the grains flagged two weeks ago to check what actually happened.
 
 **Pipeline run metadata:**
-```sql
-SELECT grain_week, status, grains_completed, failure_details, triggered_by, created_at
-FROM pipeline_runs
-WHERE failure_details->>'routine' = 'grain-desk-weekly'
-ORDER BY created_at DESC
-LIMIT 3;
+```bash
+npm run desk:cad -- read --table pipeline_runs --select grain_week,status,grains_completed,failure_details,triggered_by,started_at --order started_at.desc --limit 5
+# filter client-side to rows where failure_details.routine = 'grain-desk-weekly'
 ```
+> `pipeline_runs` is readable via the desk CLI (added to the read allow-list 2026-07-02). The table has no `source`/`metadata`/`created_at` columns — order by `started_at`; desk runs are identified by `failure_details.routine = 'grain-desk-weekly'` and `triggered_by`.
 
 ## Audit Framework
 
@@ -149,6 +135,8 @@ Every recommendation must name:
 3. What failure mode it addresses
 
 ## Write Review
+
+> **⚠️ HEADLESS GAP:** this write path still assumes Supabase MCP and will fail in the scheduled-task runner (-32600). Run the Saturday review interactively (Claude Desktop with working MCP) until a review-writer CLI lands.
 
 Upsert to `desk_performance_reviews`:
 

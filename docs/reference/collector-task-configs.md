@@ -12,6 +12,7 @@
 | Task ID | Cron (local / MT) | Day | Time (MT) | Time (ET, DST) | Source | Target Table |
 |---------|-------------------|-----|-----------|----------------|--------|-------------|
 | `collect-crop-progress` | `32 16 * * 1` | Mon | 4:32 PM | 6:32 PM | USDA NASS | `usda_crop_progress` |
+| `collect-gee-crop-stress` | `0 11 * * 5` | Fri | 11:00 AM | 1:00 PM | Google Earth Engine (MODIS NDVI + SMAP /008 + CDL/ESA WorldCover) | `gee_crop_stress` |
 | `collect-canada-crop-progress-mb` | `45 12 * * 2` / `30 10 * * 3` | Tue + Wed retry | 12:45 PM Tue / 10:30 AM Wed | 2:45 PM Tue / 12:30 PM Wed | Manitoba Agriculture Crop Report | `canada_crop_progress` |
 | `collect-grain-monitor` | `17 14 * * 3` | Wed | 2:17 PM | 4:17 PM | grainmonitor.ca (weekly PDF) | `grain_monitor_snapshots` |
 | `collect-canada-crop-progress-sk` | `15 11 * * 4` | Thu | 11:15 AM | 1:15 PM | Saskatchewan Crop Report / Publications Saskatchewan | `canada_crop_progress` |
@@ -221,6 +222,7 @@ Full Opus prompt + decision framework: `docs/reference/collector-soft-update-pro
 | Collector | Phase 1 Script / Endpoint | Phase 2 Soft Review | Notes |
 |---|---|---|---|
 | `collect-crop-progress` | `npm run collect:crop-progress` -> `scripts/import-usda-crop-progress.py` -> `npm run refresh-thesis-cache` | `scripts/write-collector-soft-update.py --side us --scan-type opus_review_crop_progress` | USDA NASS QuickStats API |
+| `collect-gee-crop-stress` | `npm run collect:gee-crop-stress` -> `scripts/gee/collect-all-belts.mjs` (US_HRW, RU_WINTER, RU_SPRING via `import-gee-crop-stress.py`) -> `npm run refresh-thesis-cache` | None — WATCH-ONLY, not scored (no trajectory tick) until multi-season validation (V2 §16.3 / scoping doc P-G5) | Earth Engine; personal token (org policy blocks SA keys); `py -3.13`. Needs the `monette-494717` EE creds present on the host. **Moved to Fri 11:00 AM MT (2026-06-15) to land ahead of the Fri evening desk swarm**; composite window ends at run-date (freshest), `week_ending` normalized to the prior Sunday for NASS-pairing. |
 | `collect-canada-crop-progress-mb` | `npm run collect:canada-crop-progress:mb` -> `scripts/import-canada-crop-progress.py --province MB` -> `npm run refresh-thesis-cache` | Not scheduled for v1 soft review | Manitoba-only partial package; records `prairie_week_status=partial_mb_only`. |
 | `collect-canada-crop-progress-sk` | `npm run collect:canada-crop-progress:mb-sk` -> `scripts/import-canada-crop-progress.py --province MB --province SK` -> `npm run refresh-thesis-cache` | Not scheduled for v1 soft review | Thursday MB+SK bundle; records `prairie_week_status=partial_mb_sk` and remains partial. |
 | `collect-canada-crop-progress-ab` | `npm run collect:canada-crop-progress:all` -> `scripts/import-canada-crop-progress.py --province all` -> `npm run refresh-thesis-cache` | Not scheduled for v1 soft review | Friday full Prairie checkpoint after Alberta metadata advances; fallback is `npm run collect:canada-crop-progress:missing-ab` only after the Alberta retry window fails. |

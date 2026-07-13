@@ -44,7 +44,6 @@ export const ALLOWED_RELATIONS = new Set<string>([
   "cgc_imports",
   "grain_prices",
   "posted_prices",
-  "grain_sentiment_votes",
   "x_market_signals",
   "grain_monitor_snapshots",
   "producer_car_allocations",
@@ -57,6 +56,10 @@ export const ALLOWED_RELATIONS = new Set<string>([
   "market_analysis",
   "us_market_analysis",
   "friday_x_signal_bundle_v1",
+  // Saturday meta-reviewer reads (write path stays interactive — see HEADLESS GAP in the reviewer defs)
+  "pipeline_runs",
+  "desk_performance_reviews",
+  "us_desk_performance_reviews",
 ]);
 
 export async function runRpcRead(
@@ -87,6 +90,11 @@ export async function runTableRead(client: SupabaseClient, spec: TableReadSpec):
   if (!ALLOWED_RELATIONS.has(spec.table)) {
     throw new Error(
       `Relation "${spec.table}" is not in the desk read allow-list. Add it to ALLOWED_RELATIONS in scripts/desk/reads.ts if intended.`,
+    );
+  }
+  if (spec.select?.includes("(")) {
+    throw new Error(
+      "embedded/aggregate selects are not allowed (PostgREST embedding can reach non-allow-listed relations); select plain columns only",
     );
   }
   let query = client.from(spec.table).select(spec.select ?? "*");

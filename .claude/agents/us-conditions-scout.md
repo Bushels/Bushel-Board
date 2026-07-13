@@ -24,17 +24,14 @@ Return structured JSON with directional signals per market. No thesis.
 
 ## Data Sources
 
-### A) USDA NASS Crop Progress (Supabase MCP)
+### A) USDA NASS Crop Progress (desk CLI — service-role, read-only)
 
-1. **Conditions RPC:** Call `get_usda_crop_conditions(p_cgc_grain, p_weeks_back)` with `p_weeks_back = 4`. Returns `good_excellent_pct`, `condition_index`, `ge_pct_yoy_change`, `planted_pct`, `planted_pct_vs_avg`.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
+
+1. **Conditions RPC:** `npm run desk:us -- read --rpc get_usda_crop_conditions --args '{"p_cgc_grain":"<market>","p_weeks_back":4}'`. Returns `good_excellent_pct`, `condition_index`, `ge_pct_yoy_change`, `planted_pct`, `planted_pct_vs_avg`.
 2. **Raw crop progress (commodity is UPPERCASE; `cgc_grain` may be NULL — filter by `commodity` instead):**
-   ```sql
-   SELECT commodity, state, crop_year, week_ending,
-          statisticcat_desc, unit_desc, value_pct, reference_period_desc
-   FROM usda_crop_progress
-   WHERE commodity = $1  -- one of: CORN, SOYBEANS, WHEAT, OATS (UPPERCASE)
-     AND state = 'US TOTAL'
-   ORDER BY week_ending DESC LIMIT 24;
+   ```bash
+   npm run desk:us -- read --table usda_crop_progress --select commodity,state,crop_year,week_ending,statisticcat_desc,unit_desc,value_pct,reference_period_desc --eq "commodity=<CORN | SOYBEANS | WHEAT | OATS>" --eq "state=US TOTAL" --order week_ending.desc --limit 24
    ```
 
 Pull both CONDITION rows (G/E, Poor/Very Poor) and PROGRESS rows (planted, emerged, harvested, silking, dough, etc.).

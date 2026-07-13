@@ -330,6 +330,59 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         provincial_soil = next(row for row in moisture_rows if row["region_code"] == "PROV")
         self.assertAlmostEqual(provincial_soil["value_pct"], 87.4)
 
+    def test_alberta_parser_uses_narrative_seeding_when_abbreviated_report_drops_seeding_table(self):
+        pdf_text = """
+        Alberta Crop Report
+        Crop conditions as of June 9, 2026
+        (Abbreviated Report)
+        Provincial seeding progress of major crops has reached 97 per cent, nearing the 5-year average of 100
+        per cent. Seeding progress for major crops by region (5-year avg) is reported at 100 (100) per cent in the South Region, 100
+        (100) per cent in the Central Region, 93 (100) per cent in the North East Region, 95 (100) per cent in the North West Region
+        and 97 (99) per cent in the Peace Region.
+        Provincial emergence of major crops is reported at 80 per cent, below the 5-year average of 88 per cent.
+        Table 1: Alberta Emergence of Major Crops as of June 9, 2026
+        Source: AGI/AFSC Crop Reporting Survey
+        (c)2026 Government of Alberta | June 12, 2026 | Agriculture and Irrigation
+        Table 2: Alberta Surface Soil Moisture Ratings as of June 9, 2026
+                              Poor     Fair     Good     Excellent     Excessive
+        South                 0.7%    11.6%    58.6%      28.1%          1.0%
+        Central               0.0%     3.9%    65.4%      25.6%          5.0%
+        North East            0.0%     8.8%    34.2%      40.7%         16.2%
+        North West            0.0%     1.3%    32.9%      46.5%         19.4%
+        Peace                 0.0%     9.3%    57.1%      32.0%          1.6%
+        Alberta               0.2%     7.5%    53.1%      32.2%          7.0%
+        Source: AGI/AFSC Crop Reporting Survey
+        """
+
+        with patch.object(canada, "pdf_to_text", return_value=(pdf_text, "https://example.test/ab-brief.pdf")):
+            rows, document_url = canada.parse_alberta("https://example.test/ab-brief.pdf")
+
+        self.assertEqual(document_url, "https://example.test/ab-brief.pdf")
+        seeded_rows = [row for row in rows if row["metric"] == "seeded_pct"]
+        self.assertEqual(len(seeded_rows), 6)
+        seeded_by_region = {row["region_code"]: row for row in seeded_rows}
+        self.assertEqual(seeded_by_region["PROV"]["value_pct"], 97.0)
+        self.assertEqual(seeded_by_region["PROV"]["five_year_avg_pct"], 100.0)
+        self.assertEqual(seeded_by_region["SOUTH"]["value_pct"], 100.0)
+        self.assertEqual(seeded_by_region["CENTRAL"]["five_year_avg_pct"], 100.0)
+        self.assertEqual(seeded_by_region["NE"]["value_pct"], 93.0)
+        self.assertEqual(seeded_by_region["NW"]["value_pct"], 95.0)
+        self.assertEqual(seeded_by_region["PEACE"]["five_year_avg_pct"], 99.0)
+        self.assertTrue(all(row["crop_name"] == "All Crops" for row in seeded_rows))
+        self.assertEqual(seeded_by_region["PROV"]["region_scope"], "province")
+        self.assertEqual(seeded_by_region["SOUTH"]["region_scope"], "crop_region")
+        self.assertTrue(all(row["report_date"] == "2026-06-09" for row in seeded_rows))
+
+        emergence_rows = [row for row in rows if row["metric"] == "emerged_pct"]
+        self.assertEqual(len(emergence_rows), 1)
+        self.assertEqual(emergence_rows[0]["value_pct"], 80.0)
+        self.assertEqual(emergence_rows[0]["five_year_avg_pct"], 88.0)
+
+        soil_rows = [row for row in rows if row["metric"] == "soil_moisture_adequate_surplus_pct"]
+        self.assertEqual(len(soil_rows), 6)
+        provincial_soil = next(row for row in soil_rows if row["region_code"] == "PROV")
+        self.assertAlmostEqual(provincial_soil["value_pct"], 92.3)
+
     def test_collect_records_discovery_evidence_per_province(self):
         fake_row = {
             "report_date": "2026-05-20",

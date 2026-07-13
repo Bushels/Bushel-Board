@@ -38,10 +38,11 @@ Cash basis at US processing hubs (Decatur IL for soy, Iowa corn belt for ethanol
 
 ## L2 Deep Knowledge
 
-For each market, query `get_knowledge_context` via Supabase MCP with:
-- query: "US domestic demand [market] crush OR ethanol OR feed"
-- topics: ["grain_specifics", "basis_pricing"]
-- limit: 3
+For each market, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:us -- knowledge --query "US domestic demand [market] crush OR ethanol OR feed" --topics grain_specifics,basis_pricing --limit 3
+```
 
 Apply any retrieved book passages to your thesis.
 

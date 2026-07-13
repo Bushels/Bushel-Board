@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { cookies } from "next/headers";
 import { GrainImpactGraphPanel } from "@/components/dashboard/grain-impact-graph-panel";
 import { GrainReadLinkage } from "@/components/dashboard/grain-read-linkage";
+import { WheatXPulseCard } from "@/components/dashboard/wheat-x-pulse-card";
 import { YourAreaCard } from "@/components/dashboard/your-area-card";
 import { getAreaBids, getProvincialFlow } from "@/lib/queries/area-read";
 import { AREA_FSA_COOKIE, areaFromFsa } from "@/lib/utils/area";
@@ -73,6 +74,11 @@ import {
   type WheatExportHistoryRow,
 } from "@/lib/queries/wheat-export-history";
 import {
+  getWheatUsdaProgressUpdate,
+  type WheatUsdaProgressTone,
+  type WheatUsdaProgressUpdate,
+} from "@/lib/queries/wheat-crop-progress";
+import {
   getLocalTrack54ReadinessSnapshot,
   type Track54ReadinessModeGateSnapshot,
   type Track54ReadinessSnapshot,
@@ -111,6 +117,7 @@ import {
   type WheatPressureSourceNode,
   type WheatPressureSourceReadiness,
 } from "@/lib/thesis/wheat-pressure-map";
+import { computeWheatXSentiment } from "@/lib/thesis/x-pulse-sentiment";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -1572,42 +1579,8 @@ const WHEAT_PRESSURE_LANE_LABELS: Record<(typeof WHEAT_PRESSURE_LANE_IDS)[number
   weather: "Weather",
 };
 
-const LATEST_USDA_WHEAT_PROGRESS_UPDATE = {
-  releasedAt: "2026-06-22",
-  weekEnding: "2026-06-21",
-  sourceName: "USDA Crop Progress",
-  sourceUrl: "https://esmis.nal.usda.gov/sites/default/release-files/795947/prog2526.txt",
-  lane: "Supply/weather pressure",
-  scoreRole: "Condition feeds the weather score; harvest and heading explain crop stage.",
-  read:
-    "The winter crop condition remains poor while harvest is moving fast. The spring crop is normal on heading and close to last year on condition.",
-  metrics: [
-    {
-      label: "Winter harvested",
-      value: "40%",
-      detail: "25% last week; 18% last year; 24% 5-year average",
-      tone: "bear" as const,
-    },
-    {
-      label: "Winter good/excellent",
-      value: "26%",
-      detail: "27% last week; 49% last year",
-      tone: "bull" as const,
-    },
-    {
-      label: "Spring good/excellent",
-      value: "54%",
-      detail: "55% last week; 54% last year",
-      tone: "balanced" as const,
-    },
-    {
-      label: "Spring headed",
-      value: "16%",
-      detail: "6% last week; 15% last year; 16% 5-year average",
-      tone: "balanced" as const,
-    },
-  ],
-} as const;
+const WHEAT_USDA_PROGRESS_FALLBACK_READ =
+  "USDA weekly crop progress rows are not loaded right now. New reports land Monday afternoons during the growing season.";
 
 function pressureLaneSummaries(row: ThesisComparisonRow) {
   return WHEAT_PRESSURE_LANE_IDS.map((domain) => {
@@ -1760,7 +1733,7 @@ const WHEAT_USDA_SWEEP_CONFIGS: WheatUsdaSweepConfig[] = [
     role: "Condition, harvest, and heading pressure",
     decisionRole: "Condition signal",
     cadence: "Weekly in season",
-    emptyEvidence: LATEST_USDA_WHEAT_PROGRESS_UPDATE.read,
+    emptyEvidence: WHEAT_USDA_PROGRESS_FALLBACK_READ,
   },
   {
     id: "wasde",
@@ -1817,7 +1790,10 @@ const WHEAT_USDA_RELATIONSHIP_STEPS = [
   },
 ];
 
-function wheatVisualLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
+function wheatVisualLaneRows(
+  row: ThesisComparisonRow,
+  usdaProgressRead: string | null = null,
+): WheatVisualLaneRow[] {
   const summaries = pressureLaneSummaries(row);
   const byDomain = new Map(summaries.map((lane) => [lane.domain, lane]));
 
@@ -1830,7 +1806,7 @@ function wheatVisualLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
     const sources = Array.from(new Set(activeLanes.flatMap((lane) => lane?.sources ?? []))).slice(0, 3);
     const evidence =
       config.id === "weather"
-        ? LATEST_USDA_WHEAT_PROGRESS_UPDATE.read
+        ? usdaProgressRead ?? WHEAT_USDA_PROGRESS_FALLBACK_READ
         : activeLanes.find((lane) => lane?.evidence)?.evidence ??
           (config.id === "watch"
             ? "Watch-only leads can change what the desk inspects next, but they do not move the read by themselves."
@@ -1935,7 +1911,10 @@ function wheatUsdaDecisionDetail(config: WheatUsdaSweepConfig, relationLabel: st
   return "Inventory test: quarterly stocks check the actual cushion. A surprise can challenge WASDE, but between releases this stays cadence-bound context.";
 }
 
-function wheatUsdaSweepItems(row: ThesisComparisonRow): WheatUsdaSweepItem[] {
+function wheatUsdaSweepItems(
+  row: ThesisComparisonRow,
+  usdaProgressRead: string | null = null,
+): WheatUsdaSweepItem[] {
   const datums = wheatDomainDatums(row);
   const strongest = strongestDatum(datums, "absolute");
 
@@ -1955,8 +1934,10 @@ function wheatUsdaSweepItems(row: ThesisComparisonRow): WheatUsdaSweepItem[] {
     if (config.id === "export-sales" && Math.round(datum?.weightedScore ?? 0) === 0) {
       relationLabel = "Cadence-limited";
     }
+    const fallbackEvidence =
+      config.id === "crop-progress" && usdaProgressRead ? usdaProgressRead : config.emptyEvidence;
     const evidence =
-      datum?.evidence && datum.evidence !== "No evidence line is attached yet." ? datum.evidence : config.emptyEvidence;
+      datum?.evidence && datum.evidence !== "No evidence line is attached yet." ? datum.evidence : fallbackEvidence;
     return {
       ...config,
       datum,
@@ -2511,8 +2492,11 @@ function wheatDriverFillStyle(score: number): React.CSSProperties {
   };
 }
 
-function wheatPriorityLaneRows(row: ThesisComparisonRow): WheatVisualLaneRow[] {
-  return [...wheatVisualLaneRows(row)]
+function wheatPriorityLaneRows(
+  row: ThesisComparisonRow,
+  usdaProgressRead: string | null = null,
+): WheatVisualLaneRow[] {
+  return [...wheatVisualLaneRows(row, usdaProgressRead)]
     .filter((lane) => lane.id !== "watch")
     .sort((left, right) => {
       const scoreDelta = Math.abs(right.score) - Math.abs(left.score);
@@ -2633,8 +2617,14 @@ function WheatStanceMeter({
   );
 }
 
-function WheatTopDriversStrip({ row }: { row: ThesisComparisonRow }) {
-  const drivers = wheatPriorityLaneRows(row);
+function WheatTopDriversStrip({
+  row,
+  usdaProgressRead = null,
+}: {
+  row: ThesisComparisonRow;
+  usdaProgressRead?: string | null;
+}) {
+  const drivers = wheatPriorityLaneRows(row, usdaProgressRead);
 
   return (
     <div className="min-w-0" aria-labelledby="wheat-top-drivers-heading">
@@ -2689,11 +2679,13 @@ function WheatDecisionBoard({
   score,
   confidence,
   action,
+  usdaProgressRead = null,
 }: {
   row: ThesisComparisonRow;
   score: number | null;
   confidence: number | null;
   action: ReturnType<typeof rowActionCue>;
+  usdaProgressRead?: string | null;
 }) {
   const safeScore = score ?? 0;
   const safeConfidence = confidence ?? 0;
@@ -2794,7 +2786,7 @@ function WheatDecisionBoard({
             </p>
           </div>
         </div>
-        <WheatTopDriversStrip row={row} />
+        <WheatTopDriversStrip row={row} usdaProgressRead={usdaProgressRead} />
       </div>
     </div>
   );
@@ -3320,8 +3312,14 @@ function WheatPriceBasketProof({
   );
 }
 
-function WheatUsdaSourceSweep({ row }: { row: ThesisComparisonRow }) {
-  const items = wheatUsdaSweepItems(row);
+function WheatUsdaSourceSweep({
+  row,
+  usdaProgressRead = null,
+}: {
+  row: ThesisComparisonRow;
+  usdaProgressRead?: string | null;
+}) {
+  const items = wheatUsdaSweepItems(row, usdaProgressRead);
 
   return (
     <section className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm" aria-labelledby="wheat-usda-sweep-heading">
@@ -3425,14 +3423,30 @@ function WheatUsdaSourceSweep({ row }: { row: ThesisComparisonRow }) {
   );
 }
 
-function usdaProgressMetricClass(tone: (typeof LATEST_USDA_WHEAT_PROGRESS_UPDATE.metrics)[number]["tone"]): string {
+function usdaProgressMetricClass(tone: WheatUsdaProgressTone): string {
   if (tone === "bull") return "border-prairie/25 bg-prairie/8 text-prairie";
   if (tone === "bear") return "border-amber-600/25 bg-amber-500/8 text-amber-800 dark:text-amber-300";
   return "border-border bg-background/80 text-foreground";
 }
 
-function WheatUsdaProgressUpdateCard() {
-  const update = LATEST_USDA_WHEAT_PROGRESS_UPDATE;
+function WheatUsdaProgressUpdateCard({ update }: { update: WheatUsdaProgressUpdate | null }) {
+  if (!update) {
+    return (
+      <section
+        className="overflow-hidden rounded-lg border border-orange-600/35 bg-orange-500/8 p-4 shadow-sm sm:p-5"
+        aria-labelledby="wheat-usda-update-heading"
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+          <span className="text-muted-foreground">Latest update</span>
+          <span className="text-muted-foreground">USDA</span>
+        </div>
+        <h2 id="wheat-usda-update-heading" className="font-display text-2xl font-semibold leading-tight text-foreground">
+          Wheat Crop Progress
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{WHEAT_USDA_PROGRESS_FALLBACK_READ}</p>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -3444,12 +3458,11 @@ function WheatUsdaProgressUpdateCard() {
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide">
             <span className="text-muted-foreground">Latest update</span>
             <span className="text-muted-foreground">USDA</span>
-            <span className="text-muted-foreground">{reportDateLabel(update.releasedAt)}</span>
+            <span className="text-muted-foreground">Released {reportDateLabel(update.releasedAt)}</span>
           </div>
           <h2 id="wheat-usda-update-heading" className="font-display text-2xl font-semibold leading-tight text-foreground">
-            Wheat Crop Progress - {reportDateLabel(update.releasedAt)}
+            Wheat Crop Progress - Week ending {reportDateLabel(update.weekEnding)}
           </h2>
-          <p className="sr-only">Wheat crop progress - week ending {update.weekEnding}</p>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{update.read}</p>
         </div>
         <Badge variant="outline" className="w-fit border-orange-600/30 bg-background/80 text-orange-700 dark:text-orange-300">
@@ -3556,8 +3569,14 @@ function wheatLaneScoreCopy(lane: WheatVisualLaneRow): string {
   return `${signedNumber(lane.score)} points of ${direction}.`;
 }
 
-function WheatPressureDecisionMatrix({ row }: { row: ThesisComparisonRow }) {
-  const lanes = wheatVisualLaneRows(row);
+function WheatPressureDecisionMatrix({
+  row,
+  usdaProgressRead = null,
+}: {
+  row: ThesisComparisonRow;
+  usdaProgressRead?: string | null;
+}) {
+  const lanes = wheatVisualLaneRows(row, usdaProgressRead);
 
   return (
     <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-canola/25 bg-background shadow-sm" aria-labelledby="wheat-pressure-matrix-heading">
@@ -3800,10 +3819,16 @@ function WheatDecisionSurface({
   row,
   priceHistory,
   exportHistory,
+  xPulseWatch,
+  usdaProgress,
+  auditMode = false,
 }: {
   row: ThesisComparisonRow | null;
   priceHistory: WheatPriceHistoryRow[];
   exportHistory: WheatExportHistoryRow[];
+  xPulseWatch: XPulseWatchSummary;
+  usdaProgress: WheatUsdaProgressUpdate | null;
+  auditMode?: boolean;
 }) {
   if (!row) {
     return (
@@ -3818,6 +3843,7 @@ function WheatDecisionSurface({
   const score = aggregateRowScore(row);
   const confidence = aggregateRowConfidence(row);
   const action = rowActionCue(row);
+  const wheatXSentiment = computeWheatXSentiment(xPulseWatch, score);
 
   return (
     <section className="min-w-0 max-w-full space-y-3" aria-labelledby="wheat-decision-heading">
@@ -3826,13 +3852,15 @@ function WheatDecisionSurface({
         score={score}
         confidence={confidence}
         action={action}
+        usdaProgressRead={usdaProgress?.read ?? null}
       />
-      <WheatPressureDecisionMatrix row={row} />
-      <WheatUsdaProgressUpdateCard />
+      <WheatPressureDecisionMatrix row={row} usdaProgressRead={usdaProgress?.read ?? null} />
+      <WheatUsdaProgressUpdateCard update={usdaProgress} />
       <WheatWatchLeadsStrip row={row} />
       <WheatReconciliationJudgeCard row={row} />
+      <WheatXPulseCard sentiment={wheatXSentiment} auditMode={auditMode} />
       <WheatRelationshipSpiderweb row={row} />
-      <WheatUsdaSourceSweep row={row} />
+      <WheatUsdaSourceSweep row={row} usdaProgressRead={usdaProgress?.read ?? null} />
       <WheatPriceBasketProof row={row} history={priceHistory} />
       <WheatHistoricalExportContext history={exportHistory} />
     </section>
@@ -6293,7 +6321,7 @@ export default async function ThesisPage({
   const auditMode = params?.audit === "1";
   const cookieStore = await cookies();
   const area = areaFromFsa(cookieStore.get(AREA_FSA_COOKIE)?.value);
-  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, wheatExportHistory, provincialFlow, areaBids] =
+  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, wheatExportHistory, wheatUsdaProgress, provincialFlow, areaBids] =
     await Promise.all([
       getThesisBoardData(),
       getXPulseWatchSummary(),
@@ -6302,6 +6330,7 @@ export default async function ThesisPage({
       getLocalTrack54ReadinessSnapshot(),
       getWheatPriceHistory(60),
       getWheatExportHistory(16),
+      getWheatUsdaProgressUpdate(),
       area?.provinceName ? getProvincialFlow(area.provinceName) : Promise.resolve(null),
       area ? getAreaBids(area.fsa) : Promise.resolve([]),
     ]);
@@ -6314,7 +6343,14 @@ export default async function ThesisPage({
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-2rem)] space-y-4 overflow-x-hidden pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6 xl:max-w-7xl">
-      <WheatDecisionSurface row={wheatComparisonRow} priceHistory={wheatPriceHistory} exportHistory={wheatExportHistory} />
+      <WheatDecisionSurface
+        row={wheatComparisonRow}
+        priceHistory={wheatPriceHistory}
+        exportHistory={wheatExportHistory}
+        xPulseWatch={xPulseWatch}
+        usdaProgress={wheatUsdaProgress}
+        auditMode={auditMode}
+      />
 
       <MarketUseNotice />
 

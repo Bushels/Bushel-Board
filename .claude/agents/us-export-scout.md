@@ -16,20 +16,16 @@ You are a USDA FAS export-sales data extraction agent for the Bushel Board US de
 
 Query Supabase for the latest weekly USDA FAS export sales for the 4 US markets, compute pace vs USDA target, and report top destinations. No thesis — just data + directional signals.
 
-## Data Sources (Supabase MCP)
+## Data Sources (desk CLI — service-role, read-only)
 
-> **IMPORTANT — use the US-specific RPC.** The `get_usda_export_context` RPC filters by `cgc_grain`, where US soybeans are stored under `cgc_grain='Canola'` with `mapping_type='proxy'` (Canadian canola benchmarked against US soy). Calling it with `'Soybeans'` returns 0 rows. Use `get_us_export_context(p_us_market, p_weeks_back)` instead — it filters by USDA commodity directly.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
 
-1. **US export context RPC (primary):** Call `get_us_export_context(p_us_market, p_weeks_back)` with `p_us_market ∈ {'Corn','Soybeans','Wheat','Oats'}` and `p_weeks_back = 4`. Returns `net_sales_mt`, `exports_mt`, `outstanding_mt`, `cumulative_exports_mt`, `export_pace_pct`, `top_buyers` JSONB.
+> **IMPORTANT — use the US-specific RPC.** The `get_usda_export_context` RPC filters by `cgc_grain`, where US soybeans are stored under `cgc_grain='Canola'` with `mapping_type='proxy'` (Canadian canola benchmarked against US soy). Calling it with `'Soybeans'` returns 0 rows. Use `get_us_export_context` instead — it filters by USDA commodity directly.
+
+1. **US export context RPC (primary):** `npm run desk:us -- read --rpc get_us_export_context --args '{"p_us_market":"<market>","p_weeks_back":4}'` with `p_us_market ∈ {'Corn','Soybeans','Wheat','Oats'}`. Returns `net_sales_mt`, `exports_mt`, `outstanding_mt`, `cumulative_exports_mt`, `export_pace_pct`, `top_buyers` JSONB.
 2. **Raw export sales (commodity is UPPERCASE; wheat is `ALL WHEAT`):**
-   ```sql
-   SELECT commodity, market_year, week_ending,
-          net_sales_mt, exports_mt, outstanding_mt, total_commitments_mt,
-          cumulative_exports_mt, export_pace_pct, top_buyers
-   FROM usda_export_sales
-   WHERE commodity = $1  -- CORN | SOYBEANS | ALL WHEAT | OATS
-     AND market_year = $2
-   ORDER BY week_ending DESC LIMIT 12;
+   ```bash
+   npm run desk:us -- read --table usda_export_sales --select commodity,market_year,week_ending,net_sales_mt,exports_mt,outstanding_mt,total_commitments_mt,cumulative_exports_mt,export_pace_pct,top_buyers --eq "commodity=<CORN | SOYBEANS | ALL WHEAT | OATS>" --eq market_year=<year> --order week_ending.desc --limit 12
    ```
 
 ## US Market → USDA Commodity Mapping

@@ -31,34 +31,23 @@ You receive the same structured JSON briefs as the other specialists from 6 scou
 
 ## Direct Data Access (beyond scout briefs)
 
-Query Supabase MCP (project: `ibgsloyjxdopkvwqcqwh`) for the raw price tables:
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout. Raw price reads:
 
-1. **Recent futures settles** (column names verified against migration `20260318120000` — the view has NO `settlement_date`/`settle_price_cad`/`pct_change_*` columns):
-   ```sql
-   SELECT grain, contract, exchange, price_date, settlement_price, change_amount, change_pct, currency, unit
-   FROM v_latest_grain_prices
-   WHERE grain = $1;
+1. **Recent futures settles** (column names verified against migration `20260318120000`: `grain, contract, exchange, price_date, settlement_price, change_amount, change_pct, currency, unit` — the view has NO `settlement_date`/`settle_price_cad`/`pct_change_*` columns):
+   ```bash
+   npm run desk:cad -- read --table v_latest_grain_prices --eq grain=<grain>
    ```
    `change_pct` is the 1-DAY change. Compute 1-week / 4-week changes yourself from the trajectory query below.
 
-2. **4-week price trajectory:**
-   ```sql
-   SELECT price_date, settlement_price
-   FROM grain_prices
-   WHERE grain = $1
-     AND price_date >= NOW() - INTERVAL '28 days'
-   ORDER BY price_date DESC;
+2. **4-week price trajectory** (date column is `price_date`, value column is `settlement_price`):
+   ```bash
+   npm run desk:cad -- read --table grain_prices --select price_date,settlement_price,contract --eq grain=<grain> --gte price_date=<ISO date 28 days ago> --order price_date.desc
    ```
    Weekly change = latest settle vs settle 5 trading days back; 4-week = vs the oldest row returned.
 
 3. **Current local elevator/crusher bids by area:**
-   ```sql
-   SELECT business_type, grain, price_per_tonne, basis, posted_at
-   FROM posted_prices
-   WHERE grain = $1
-     AND expires_at > NOW()
-   ORDER BY posted_at DESC
-   LIMIT 20;
+   ```bash
+   npm run desk:cad -- read --table posted_prices --select business_type,grain,price_per_tonne,basis,posted_at --eq grain=<grain> --gte expires_at=<current ISO timestamp> --order posted_at.desc --limit 20
    ```
 
 4. **Basis history from basis-scout findings** — use the scout's structured findings for basis direction, don't re-derive.
@@ -76,11 +65,16 @@ Basis is your price signal. Cash price is the farmer's truth — futures are a h
 
 ## L2 Deep Knowledge
 
-For each grain where price action is diverging from fundamentals, query `get_knowledge_context` via Supabase MCP with:
-- `p_query`: 1–3 keywords only (e.g. `"basis widening"`, `"contango carry"`, `"dead flat"`). NEVER pass a full sentence — `websearch_to_tsquery` uses AND semantics and will return the framework meta-doc instead of real Viking content.
-- `p_grain`: the grain name
-- `p_topics`: pick 1–3 from `['basis','futures','storage','spreads','seasonality','farmer_marketing']`
-- `p_limit`: 3 (MAJOR), 2 (MID), 1 (MINOR)
+For each grain where price action is diverging from fundamentals, retrieve Viking L2 via the desk CLI `knowledge` command (it calls `get_knowledge_context` under the hood):
+
+```bash
+npm run desk:cad -- knowledge --query "<keywords>" --grain <grain> --topics <topic,topic> --limit <n>
+```
+
+- `--query`: 1–3 keywords only (e.g. `"basis widening"`, `"contango carry"`, `"dead flat"`). NEVER pass a full sentence — `websearch_to_tsquery` uses AND semantics and will return the framework meta-doc instead of real Viking content.
+- `--grain`: the grain name
+- `--topics`: pick 1–3 from `basis,futures,storage,spreads,seasonality,farmer_marketing`
+- `--limit`: 3 (MAJOR), 2 (MID), 1 (MINOR)
 
 **Validation:** if all returned rows have `title = 'grain market intelligence framework v2'` and `rank < 0.5`, your query returned zero real Viking hits. Retry with different keywords before citing L2.
 

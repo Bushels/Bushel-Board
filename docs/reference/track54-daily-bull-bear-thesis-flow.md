@@ -44,6 +44,10 @@ Friday accepted X bundle
 4. Daily updates are bounded trajectory ticks, not a new thesis of record.
 5. Friday desk swarms own the thesis of record.
 
+## External Review Lane
+
+For Gemini-family second-opinion reviews, use AGY CLI with `Gemini 3.5 Flash (High)` and follow `docs/reference/agy-gemini-review-routing.md`. Do not use the deprecated Gemini CLI. AGY review is adversarial QA only: it can flag stale evidence, missing data, bad prompts, rating contradictions, and publish risk, but the Wheat board rating still has to trace back to source-backed rows.
+
 ## Data Lanes
 
 ### Official Source Lane

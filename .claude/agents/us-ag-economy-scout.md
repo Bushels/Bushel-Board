@@ -29,9 +29,9 @@ Gather weekly signals on US farm financial health and demand destruction, return
 
 Claude's built-in `web_search_20250305` tool. Use via standard tool-use invocation. Prefer this over third-party search.
 
-### 2. Supabase MCP — for historical context only
+### 2. Desk data CLI — for historical context only (service-role, read-only)
 
-Query `usda_wasde_estimates` or `grain_prices` to sanity-check that an economic stress signal is consistent with observable price action.
+All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Read `usda_wasde_mapped` (`npm run desk:us -- read --table usda_wasde_mapped --eq market_name=<market> --order report_month.desc --limit 6`) or `grain_prices` (`npm run desk:us -- read --table grain_prices --eq grain=<grain> --order price_date.desc --limit 10`) to sanity-check that an economic stress signal is consistent with observable price action. (The deprecated `usda_wasde_estimates` table is empty and not readable through the CLI.)
 
 ## Query Budget Per Run
 

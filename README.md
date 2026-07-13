@@ -28,6 +28,7 @@ Compressed snapshots of what's been delivered, most recent first.
 
 | # | Feature | Last Worked | Snapshot |
 |---|---------|-------------|---------|
+| 56 | Desk Swarm Headless Runner | 2026-07-02 | Friday desk swarms cut over from Supabase MCP (blocked `-32600` in the scheduled runner) to a service-role desk CLI: `npm run desk:cad` / `desk:us` / `desk:postcheck` wrapping `scripts/desk/desk-cli.ts` (preflight SLA gate, allow-listed reads, zod-validated approval-gated writes, fail-loud `pipeline_runs` logging). Both swarm prompts + all desk agent defs converted; live preflights green. Routines remain disabled pending explicit enable + `DESK_WRITE_APPROVAL`. |
 | 55 | World Veg-Oil Balance — Bounded Canola Demand Context | 2026-06-09 | USDA PSD world rows (rapeseed, rapeseed oil, palm oil, soybean oil; `/world/` endpoint, country `00`) imported into `usda_wasde_raw`. Canola packets carry a `demand.global_veg_oil` YoY stocks/use block; new weight-neutral `bounded_context` class applies at most a ±6 demand tilt inside an active CGC demand read at strong freshness. China policy stays watch-only. |
 | 48 | My Farm Storage Tracker — "Grain in your bin" | 2026-04-28 | Two simple inputs per tracked grain (total tonnes + remaining tonnes) with peer comparison: *"X% of farmers have more &lt;grain&gt; in the bin than you."* Reuses `crop_plans.starting_grain_kt` + `volume_left_to_sell_kt`; new RPC `get_grain_storage_comparison` with ≥5-farmer privacy gate. Sentiment voting on /my-farm paused — components and tables retained for future restoration. |
 | 47 | Public-First Auth + Nav Reorder + Landing Retirement | 2026-04-28 | Auth model flipped: middleware now denylists only `/my-farm`. `/`, `/overview`, `/grain/[slug]`, `/us`, `/seeding` are publicly accessible; root redirects to `/overview`. The Prairie Landing Page + Bio Trial Signup were deleted (`components/landing/`, `/api/trial-notify`). My Farm tab moved to far-right of header; mobile sheet reordered. |
@@ -57,7 +58,7 @@ Compressed snapshots of what's been delivered, most recent first.
 
 ## Current Focus Areas
 
-- **Claude Agent Desk** — Friday swarm live: 6 scouts + 3 specialists + desk chief. First automated run this Friday. Replaces single-pass Grok; Grok fallback is retired.
+- **Claude Agent Desk** — Friday swarms converted to the headless service-role desk CLI (2026-07-02) after the Apr–Jun silent outage; preflights verified live. Awaiting explicit enable of `grain-desk-weekly` / `us-desk-weekly` + `DESK_WRITE_APPROVAL` to resume automated Friday runs.
 - **Chat Alpha** — Bushy chat live at /chat. Testing end-to-end conversation quality.
 - **Unified Pricing Board** — Operators post daily prices, farmers query conversationally (Track 39).
 - **iOS App** — Bushels iOS app designed, Xcode skeleton built. Pending Mac transition for development.

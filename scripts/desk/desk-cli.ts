@@ -21,6 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../../lib/supabase/admin";
 import {
   assertDeskSide,
+  assertFailStatus,
   marketListFor,
   WEEKLY_SCAN_TYPE,
   CAD_ANALYSIS_CONFLICT,
@@ -35,7 +36,7 @@ import {
   buildUsMarketAnalysisRow,
   buildUsTrajectoryRow,
   buildPipelineRunRow,
-  type PipelineRunStatus,
+  usTrajectoryDeleteBound,
 } from "./row-builders";
 import {
   evaluateFreshness,
@@ -63,12 +64,16 @@ Commands:
        [--order col.desc] [--limit N]    Allow-listed select-only read; print JSON.
   knowledge --query "<kw>" [--grain G | --market M] [--topics a,b] [--limit N]
                             Viking L2 via get_knowledge_context RPC; print JSON.
-  write --input <file|->     Validate the chief's rows; DRY-RUN by default.
+  write --input <file|->     Validate the chief's rows; DRY-RUN by default. The envelope
+                            must match the CURRENT resolved week/market-year unless
+                            --allow-historical is passed (guards published history).
        [--write --approve "<phrase>"]    Persist (gated): upsert analysis + delete/insert
                             trajectory + pipeline_runs completed row.
-  fail --reason "<r>" [--status failed|partial] [--details '<json>']
+  fail --reason "<r>" [--status failed|partial] [--details '<json>' | --details -]
                             Write a pipeline_runs failure/partial row (failure logging is
-                            never gated — a miss must never be silent).
+                            never gated — a miss must never be silent). Status is limited
+                            to failed|partial; --details - reads JSON from stdin (use for
+                            any free text — never interpolate it into inline JSON).
   postcheck                 Run check:desk-freshness + refresh thesis cache.
 
 Options:
@@ -91,7 +96,7 @@ interface ParsedArgs {
 }
 
 const REPEATABLE = new Set(["eq", "gte"]);
-const BOOLEAN_FLAGS = new Set(["write", "help"]);
+const BOOLEAN_FLAGS = new Set(["write", "help", "allow-historical"]);
 
 function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string | string[] | boolean> = {};
@@ -353,7 +358,14 @@ interface WritePlan {
   trajectoryTable: string;
   trajectoryRows: Record<string, unknown>[];
   pipelineRow: Record<string, unknown>;
-  trajectoryScope: { cropYear: string; weekCol: string; weekVal: string | number; nameCol: string; names: string[] };
+  trajectoryScope: {
+    cropYear: string;
+    weekCol: string;
+    weekVal: string | number;
+    nameCol: string;
+    names: string[];
+    recordedAtFloor?: string;
+  };
 }
 
 function buildWritePlan(env: WriteEnvelope): WritePlan {
@@ -391,7 +403,14 @@ function buildWritePlan(env: WriteEnvelope): WritePlan {
       grainsRequested: env.grains_requested ?? marketListFor("us"),
       grainsCompleted: names,
     }),
-    trajectoryScope: { cropYear: env.crop_year, weekCol: "market_year", weekVal: env.market_year, nameCol: "market_name", names },
+    trajectoryScope: {
+      cropYear: env.crop_year,
+      weekCol: "market_year",
+      weekVal: env.market_year,
+      nameCol: "market_name",
+      names,
+      recordedAtFloor: usTrajectoryDeleteBound(env.week_ending),
+    },
   };
 }
 
@@ -403,6 +422,7 @@ function planSummary(plan: WritePlan): Record<string, unknown> {
     trajectory_table: plan.trajectoryTable,
     trajectory_rows: plan.trajectoryRows.length,
     markets: plan.trajectoryScope.names,
+    trajectory_delete_floor: plan.trajectoryScope.recordedAtFloor ?? null,
     pipeline_status: plan.pipelineRow.status,
   };
 }
@@ -414,13 +434,19 @@ async function performWrites(client: SupabaseClient, plan: WritePlan): Promise<R
   if (up.error) throw new Error(`${plan.analysisTable} upsert failed: ${up.error.message}`);
 
   // Idempotent weekly anchor: clear this run's weekly_debate rows, then insert.
-  const del = await client
+  // US has no week column — recordedAtFloor bounds the delete to this run's week so a
+  // re-run cannot wipe prior Fridays' anchors (H-1, 2026-07-02 security audit).
+  let delQuery = client
     .from(plan.trajectoryTable)
     .delete()
     .eq("crop_year", plan.trajectoryScope.cropYear)
     .eq(plan.trajectoryScope.weekCol, plan.trajectoryScope.weekVal)
     .eq("scan_type", WEEKLY_SCAN_TYPE)
     .in(plan.trajectoryScope.nameCol, plan.trajectoryScope.names);
+  if (plan.trajectoryScope.recordedAtFloor) {
+    delQuery = delQuery.gte("recorded_at", plan.trajectoryScope.recordedAtFloor);
+  }
+  const del = await delQuery;
   if (del.error) throw new Error(`${plan.trajectoryTable} delete failed: ${del.error.message}`);
   const ins = await client.from(plan.trajectoryTable).insert(plan.trajectoryRows);
   if (ins.error) throw new Error(`${plan.trajectoryTable} insert failed: ${ins.error.message}`);
@@ -441,6 +467,36 @@ async function cmdWrite(side: DeskSide, client: SupabaseClient, p: ParsedArgs): 
   if (env.side !== side) {
     throw new Error(`--side ${side} does not match envelope.side=${env.side}`);
   }
+
+  // Guard published history: the envelope must target the CURRENT resolved context
+  // unless --allow-historical is passed (M-2, 2026-07-02 security audit).
+  if (!boolFlag(p, "allow-historical")) {
+    const ctx =
+      env.side === "cad" ? await resolveCadContext(client) : await resolveUsContext(client, new Date());
+    const mismatches: string[] = [];
+    if (env.crop_year !== ctx.crop_year) {
+      mismatches.push(`crop_year ${env.crop_year} != current ${ctx.crop_year}`);
+    }
+    if (env.side === "cad") {
+      if (env.grain_week !== ctx.grain_week) {
+        mismatches.push(`grain_week ${env.grain_week} != current ${ctx.grain_week}`);
+      }
+    } else {
+      if (env.market_year !== ctx.market_year) {
+        mismatches.push(`market_year ${env.market_year} != current ${ctx.market_year}`);
+      }
+      if (env.week_ending !== ctx.week_ending) {
+        mismatches.push(`week_ending ${env.week_ending} != current ${ctx.week_ending}`);
+      }
+    }
+    if (mismatches.length > 0) {
+      throw new Error(
+        `write envelope does not match the current resolved context (${mismatches.join("; ")}). ` +
+          "Re-run preflight and rebuild the envelope, or pass --allow-historical for a deliberate historical correction.",
+      );
+    }
+  }
+
   const plan = buildWritePlan(env);
 
   if (!boolFlag(p, "write")) {
@@ -471,8 +527,9 @@ async function cmdWrite(side: DeskSide, client: SupabaseClient, p: ParsedArgs): 
 
 async function cmdFail(side: DeskSide, client: SupabaseClient, p: ParsedArgs): Promise<number> {
   const reason = strFlag(p, "reason") ?? "unspecified";
-  const status = (strFlag(p, "status") ?? "failed") as PipelineRunStatus;
-  const detailsRaw = strFlag(p, "details");
+  const status = assertFailStatus(strFlag(p, "status") ?? "failed");
+  const detailsFlag = strFlag(p, "details");
+  const detailsRaw = detailsFlag === "-" ? readFileSync(0, "utf-8") : detailsFlag;
   const details = detailsRaw ? (JSON.parse(detailsRaw) as Record<string, unknown>) : {};
 
   const cropYearFlag = strFlag(p, "crop-year");

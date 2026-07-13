@@ -8,6 +8,7 @@ import type { SourceRunSummary } from "@/lib/queries/source-runs";
 import type { DailyThesisUpdateSummary } from "@/lib/queries/daily-thesis-updates";
 import type { WheatPriceHistoryRow } from "@/lib/queries/wheat-price-history";
 import type { WheatExportHistoryRow } from "@/lib/queries/wheat-export-history";
+import type { WheatUsdaProgressUpdate } from "@/lib/queries/wheat-crop-progress";
 import type { Track54ReadinessSnapshot } from "@/lib/queries/track54-readiness";
 import {
   PUBLIC_ADVICE_FORBIDDEN_TERMS,
@@ -22,6 +23,7 @@ const {
   getLatestDailyThesisUpdatesMock,
   getWheatPriceHistoryMock,
   getWheatExportHistoryMock,
+  getWheatUsdaProgressUpdateMock,
   getLocalTrack54ReadinessSnapshotMock,
   cookieGetMock,
   getProvincialFlowMock,
@@ -33,6 +35,7 @@ const {
   getLatestDailyThesisUpdatesMock: vi.fn<() => Promise<DailyThesisUpdateSummary[]>>(),
   getWheatPriceHistoryMock: vi.fn<() => Promise<WheatPriceHistoryRow[]>>(),
   getWheatExportHistoryMock: vi.fn<() => Promise<WheatExportHistoryRow[]>>(),
+  getWheatUsdaProgressUpdateMock: vi.fn<() => Promise<WheatUsdaProgressUpdate | null>>(),
   getLocalTrack54ReadinessSnapshotMock: vi.fn<() => Promise<Track54ReadinessSnapshot | null>>(),
   cookieGetMock: vi.fn<(name: string) => { value: string } | undefined>(),
   getProvincialFlowMock: vi.fn(),
@@ -79,6 +82,10 @@ vi.mock("@/lib/queries/wheat-price-history", () => ({
 
 vi.mock("@/lib/queries/wheat-export-history", () => ({
   getWheatExportHistory: getWheatExportHistoryMock,
+}));
+
+vi.mock("@/lib/queries/wheat-crop-progress", () => ({
+  getWheatUsdaProgressUpdate: getWheatUsdaProgressUpdateMock,
 }));
 
 vi.mock("@/lib/queries/track54-readiness", () => ({
@@ -870,6 +877,22 @@ function readinessSnapshot(overrides: Partial<Track54ReadinessSnapshot> = {}): T
   };
 }
 
+function wheatUsdaProgressUpdate(): WheatUsdaProgressUpdate {
+  return {
+    weekEnding: "2026-07-05",
+    releasedAt: "2026-07-06",
+    sourceName: "USDA Crop Progress",
+    sourceUrl: "https://www.nass.usda.gov/Publications/National_Crop_Progress/",
+    read: "Harvest of the winter crop is moving fast at 59% complete, ahead of 53% a year ago.",
+    metrics: [
+      { label: "Winter harvested", value: "59%", detail: "48% last week; 53% last year", tone: "bear" },
+      { label: "Winter good/excellent", value: "26%", detail: "26% last week; 48% last year", tone: "bull" },
+      { label: "Spring headed", value: "54%", detail: "32% last week; 61% last year", tone: "balanced" },
+      { label: "Condition index (1-5)", value: "2.63 / 5", detail: "2.62 last week; 3.40 last year", tone: "bull" },
+    ],
+  };
+}
+
 describe("ThesisPage scorecard audit mode", () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -879,6 +902,7 @@ describe("ThesisPage scorecard audit mode", () => {
     getLatestDailyThesisUpdatesMock.mockResolvedValue([]);
     getWheatPriceHistoryMock.mockResolvedValue(wheatPriceHistoryRows());
     getWheatExportHistoryMock.mockResolvedValue(wheatExportHistoryRows());
+    getWheatUsdaProgressUpdateMock.mockResolvedValue(wheatUsdaProgressUpdate());
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
     cookieGetMock.mockReturnValue(undefined);
     getProvincialFlowMock.mockResolvedValue(null);
@@ -1138,7 +1162,8 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Crop condition adds supply pressure");
     expect(html).toContain("One Wheat read");
     expect(html).toContain("Source geography is evidence context; this screen keeps one Wheat read.");
-    expect(html).toContain("Wheat crop progress - week ending 2026-06-21");
+    expect(html).toContain("Wheat Crop Progress - Week ending Jul 5, 2026");
+    expect(html).toContain("Released Jul 6, 2026");
     expect(html).toContain("Winter harvested");
     expect(html).toContain("Watch leads (what could change the thesis)");
     expect(html).not.toContain("Country split");

@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-12 - Hardcoded /thesis Wheat Crop Progress card went silently stale; consolidated WHEAT row shifts crop class mid-season
+
+**Symptom:** The `/thesis` "Wheat Crop Progress" panel was a hardcoded constant (`LATEST_USDA_WHEAT_PROGRESS_UPDATE`) frozen at week ending 2026-06-21 while `usda_crop_progress` had rows through 2026-07-05. It also labeled week-ending-Jun-21 data as "Jun 22" (the release date), making the board look stale.
+
+**Root cause:** The card was authored as a static literal instead of reading the table. Two deeper traps surfaced during the live rewrite: (1) `usda_crop_progress` stores one consolidated `WHEAT` row per week whose columns silently shift crop class mid-season - `headed_pct` flipped from winter (95%) to spring (16%) on 2026-06-21 when NASS retired the winter series, and `good_excellent_pct` (winter now) will flip to spring in late July - so static "Winter"/"Spring" tile labels become wrong at each NASS transition. (2) "Spring good/excellent" is not derivable from the table at all while winter condition is still published (the consolidation keeps only the winter pick); that tile came from the USDA text report.
+
+**Fix status:** `lib/queries/wheat-crop-progress(-utils).ts` builds the card from live rows: cumulative-series drop detection dates the winter->spring flip (cumulative progress never decreases within one class), condition uses calendar windows plus a >=12-point June/July level-shift check, tones derive from prior-week/prior-year comparisons (364-day match), and the header now uses the USDA convention ("Week ending <Sunday>" + "Released <Monday>"). The unavailable Spring G/E tile was replaced with the condition index (documented deviation). Vitest seatbelt: `lib/__tests__/wheat-crop-progress.test.ts`. Also fixed in passing: `page.test.tsx` had 41 masked failures once the new unmocked query ran, which hid a real guardrail violation - the X-pulse admission-rules caveat contained standalone "buy"/"sell" and tripped `PUBLIC_ADVICE_FORBIDDEN_TERMS` in audit mode (reworded in `lib/thesis/x-pulse-sentiment.ts`).
+
+**Prevention:** Never ship dated market data as literals on board surfaces - if a card names a report date, it must read the table that the collector feeds. When consuming consolidated `usda_crop_progress` wheat columns, never attach a static crop-class label; derive it (or omit it) because column semantics change with the NASS reporting calendar. Label USDA weekly data by week ending, not release date.
+
+**Tags:** #thesis #usda #crop-progress #wheat #stale-data #hardcoded
+
+---
+
 ## 2026-07-11 - Production reverted to the all-grain board because the Wheat UI was deployed from an unmerged branch
 
 **Symptom:** After merging PR #18 (a docs/agent-prompt-only change), the production Bushel Board site visually reverted: the Wheat-first decision cockpit disappeared and the old all-grain /thesis board came back.
@@ -25,6 +39,8 @@
 **Prevention:** (1) Every SQL statement embedded in a prompt doc or agent def must be validated against the migration that defines the table — treat prompt-SQL as production code in review. (2) After writing a fail-loud path, force-fire it once (insert a synthetic failure row) and confirm the row lands; an unexercised failure logger is a liability, not a safety net. (3) When a repair claims "fixed," grep for the same defect class in EVERY sibling file (the US prompt was fixed; the CAD success path and both meta-reviewers were not).
 
 **Tags:** #friday-desk #pipeline-runs #not-null #silent-failure #fail-loud #wheat-desk
+
+---
 
 ## 2026-06-24 - Terminal Disposition export rows are a cross-check, not an additive CGC export component
 
@@ -1755,3 +1771,11 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 **Fix:** Stop scanning month columns when encountering "YTD AVG" or "YTD" labels, which marks the boundary between real data and variance/comparison columns.
 
 **Tags:** #import #grain-monitor #excel #parsing-bug
+
+## 2026-06-11 - Grain Monitor Week 43: OCT bullet drops unreported ports
+
+**Symptom:** collect-grain-monitor failed with 'Could not parse OCT metrics from page 1 summary bullets' on GMPGOCWeek202543.pdf.
+
+**Root cause:** The Week 43 report omitted Prince Rupert from the OCT summary bullet ('At the time of publishing, Prince Rupert had not yet reported Week 43 OCT'). The regex required all three ports (Vancouver, Prince Rupert, Thunder Bay) in fixed order.
+
+**Fix (Tier 2 mechanical, charter-compliant):** scripts/grain-monitor/parsers.ts now matches the total/previous OCT sentence first, then extracts per-port percentages individually; missing ports persist as NULL and are reported in missing_fields. Vitest seatbelt (12 tests) passed before re-import. Week 43 upserted with out_of_car_time_prince_rupert_pct = NULL.

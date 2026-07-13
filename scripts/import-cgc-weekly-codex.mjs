@@ -626,17 +626,42 @@ async function main() {
         ? await getLatestValidation(supabase, source.cropYear, newLatestWeek)
         : { error: "new_latest_week_unavailable", row: null };
 
+    // Contiguity gate (Stance Model V2 retro, P0): the validator already flags a
+    // skipped week, but the importer used to still exit 0/"success" on a gap (DB
+    // jumped 42->44 in the 2026-06 incident). A "success" import that skipped a
+    // week is a MISSING-WEEK INCIDENT, not a pass — force a non-zero exit so
+    // automation/CI backfills the gap before treating the import as done.
+    const weekContinuityFailed =
+      latestValidation?.row?.checks?.week_continuity?.passed === false;
+    if (weekContinuityFailed) {
+      process.exitCode = 1;
+      console.error(
+        `MISSING-WEEK INCIDENT: ${
+          latestValidation?.row?.checks?.week_continuity?.detail ??
+          "week_continuity check failed"
+        }. Backfill the skipped week(s) and re-validate before treating this import as done.`,
+      );
+    }
+
     const verdict =
       importStatus === "partial"
         ? "PARTIAL_IMPORT"
-        : importStatus === "success" && delta !== null && delta >= 1
-          ? "NEW_WEEK_IMPORTED"
-          : importStatus === "success" && delta === 0
-            ? "ALREADY_CURRENT"
-            : "FAILED";
+        : importStatus !== "success"
+          ? "FAILED"
+          : weekContinuityFailed
+            ? "MISSING_WEEK_INCIDENT"
+            : delta !== null && delta >= 1
+              ? "NEW_WEEK_IMPORTED"
+              : "ALREADY_CURRENT";
 
     const sourceRunStatus =
-      importStatus === "partial" ? "partial" : importStatus === "success" ? "success" : "failed";
+      importStatus === "partial"
+        ? "partial"
+        : importStatus !== "success"
+          ? "failed"
+          : weekContinuityFailed
+            ? "partial"
+            : "success";
     const sourceRun = await writeSourceRun(supabase, {
       source_name: "cgc_observations",
       source_lane: "canada",

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "hindsight": {
+      "type": "http",
+      "url": "http://localhost:8888/mcp/bushel-board/"
+    },
+    "graphify": {
+      "command": "C:\\Users\\kyle\\.local\\bin\\graphify-mcp.exe",
+      "args": ["C:\\Users\\kyle\\Agriculture\\bushel-board-app\\graphify-out\\graph.json"]
+    }
+  }
+}

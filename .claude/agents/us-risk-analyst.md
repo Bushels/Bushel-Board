@@ -42,10 +42,11 @@ ABCD trade houses front-run public data. If macro-scout reports a flash sale, it
 
 ## L2 Deep Knowledge
 
-For each market, query `get_knowledge_context` via Supabase MCP with:
-- query: "tail risk [market] OR concentration risk OR policy cliff"
-- topics: ["risk_management", "market_structure"]
-- limit: 3
+For each market, retrieve Viking L2 via the desk data CLI through the Bash tool (Supabase MCP is unavailable in the headless runner):
+
+```bash
+npm run desk:us -- knowledge --query "tail risk [market] OR concentration risk OR policy cliff" --topics risk_management,market_structure --limit 3
+```
 
 Apply any retrieved book passages to your risk assessment.
 

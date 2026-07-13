@@ -702,10 +702,16 @@ function mapCftcPositioningDomain(packet: JsonRecord): BuildRatingDomainInput | 
       : []),
   ];
 
+  // Rule 9 (agent-debate-rules.md): "COT informs TIMING, not direction." Positioning
+  // is a modest timing lean, NOT a direction-setter — so its directional magnitude is
+  // bounded to ±10 (was ±20). The full combined-COT de-dup (positioning domain +
+  // future `divergence_timing` relation must not both subtract directionally; cap the
+  // combined COT contribution at ≤|5|) lands with the relations layer — see Stance
+  // Model V2 §16.1.
   if (net > 0 && (wow === null || wow >= 0)) {
     return requiredDomain({
       domain: "positioning",
-      score: 20,
+      score: 10,
       source: CFTC_COT_SOURCE,
       freshness,
       metrics,
@@ -720,7 +726,7 @@ function mapCftcPositioningDomain(packet: JsonRecord): BuildRatingDomainInput | 
   if (net < 0 || (wow !== null && wow < 0)) {
     return requiredDomain({
       domain: "positioning",
-      score: -20,
+      score: -10,
       source: CFTC_COT_SOURCE,
       freshness,
       metrics,

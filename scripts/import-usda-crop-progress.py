@@ -1194,6 +1194,31 @@ def main() -> None:
         verify_warning = verification_warning(verification)
         if verify_warning:
             warnings.append(verify_warning)
+        # Record the no-new-data run in the ledger (and define source_run for the
+        # summary below — previously unbound here, which crashed the collector).
+        source_run: dict[str, Any] | None = None
+        try:
+            source_run = write_source_run(
+                supabase_url,
+                service_key,
+                source_name="usda_crop_progress",
+                source_lane="us",
+                collector_name="import-usda-crop-progress",
+                status="skipped",
+                source_period_start=min((row["week_ending"] for row in all_rows), default=None),
+                source_period_end=latest_source_week,
+                latest_source_label=latest_source_week,
+                rows_inserted=0,
+                rows_skipped=len(all_rows),
+                started_at=run_started_at,
+                metadata={
+                    "reason": "no_new_data",
+                    "season_active": season_active(),
+                    "markets": [market["market_name"] for market in markets],
+                },
+            )
+        except SourceRunError as exc:
+            warnings.append(f"source_runs write failed: {exc}")
         print(
             json.dumps(
                 {
