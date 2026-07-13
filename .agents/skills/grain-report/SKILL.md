@@ -124,7 +124,8 @@ Closeout guidance for the next Wheat session:
    - Price basket and historical futures context are confirmation, especially when Spring Wheat, HRW, and SRW agree.
    - CFTC is timing/crowding context, not a primary direction creator.
    - Hermes/Grok X pulse is watch-only unless accepted evidence ties back to official or admitted market data.
-5. Reuse the existing lane-agent and reconciliation-judge contract. Do not create a new Wheat agent unless a new source family needs a durable owner.
+5. For Gemini-family second opinions, use AGY CLI with `Gemini 3.5 Flash (High)`; do not use the deprecated Gemini CLI. See `docs/reference/agy-gemini-review-routing.md`.
+6. Reuse the existing lane-agent and reconciliation-judge contract. Do not create a new Wheat agent unless a new source family needs a durable owner.
 
 Source-freshness sequence for Wheat loops:
 

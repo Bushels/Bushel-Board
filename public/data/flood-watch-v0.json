@@ -1,14 +1,14 @@
 {
   "acre_totals": {
-    "excess_moisture_acres": 7456.0,
+    "excess_moisture_acres": 3411.3,
     "forecast_3day_at_risk_acres": 0.0,
     "forecast_7day_at_risk_acres": 0.0,
     "forecast_at_risk_acres": 0.0,
-    "observed_inundation_acres": 3891.6,
-    "watch_acres": 23362.4
+    "observed_inundation_acres": 0.0,
+    "watch_acres": 14945.5
   },
   "claim_boundary": "Acres are at risk/watch acres from satellite, rainfall, forecast, and terrain screening; they are not confirmed damaged acres or crop-loss proof.",
-  "computed_at": "2026-06-25T11:38:49+00:00",
+  "computed_at": "2026-07-10T11:38:19+00:00",
   "datasets": {
     "aafc_aci": "AAFC/ACI",
     "gfs": "NOAA/GFS0P25",
@@ -21,9 +21,9 @@
   },
   "event": {
     "aoi": "Western Canada plus contiguous US cropland envelope",
-    "end": "2026-06-25",
-    "label": "2026-06-18 to 2026-06-25 Western Canada/US moisture watch",
-    "start": "2026-06-18"
+    "end": "2026-07-10",
+    "label": "2026-07-03 to 2026-07-10 Western Canada/US moisture watch",
+    "start": "2026-07-03"
   },
   "method": {
     "forecast_layer": "GFS 3-day/7-day precipitation risk on cropland with wetness, recent-rain, or lowland susceptibility context.",
@@ -46,7 +46,7 @@
       "description": "SMOS-derived percent-saturated surface soil moisture anomaly for the top 5 cm.",
       "id": "aafc_smos_weekly_anomaly",
       "label": "AAFC weekly surface soil moisture anomaly",
-      "latest_at": "2026-06-21T12:00:00+00:00",
+      "latest_at": "2026-07-05T12:00:00+00:00",
       "provider": "Agriculture and Agri-Food Canada",
       "resolution": "0.25 degrees",
       "service": "ArcGIS ImageServer",
@@ -58,8 +58,8 @@
       "description": "Crop-CASMA SMAP hybrid weekly anomaly layer used as official U.S. visual context.",
       "id": "crop_casma_smap_hybrid_1km_weekly_anomaly",
       "label": "Crop-CASMA weekly SMAP hybrid soil moisture anomaly",
-      "latest_at": "2026-06-28T23:59:59+00:00",
-      "layer_name": "SMAP-HYB-1KM-ANOMALY-WEEKLY_2026_26_2026.06.22_2026.06.28",
+      "latest_at": "2026-07-12T23:59:59+00:00",
+      "layer_name": "SMAP-HYB-1KM-ANOMALY-WEEKLY_2026_28_2026.07.06_2026.07.12",
       "map": "/WMS/SMAP-HYB-1KM-ANOMALY-WEEKLY_2026.map",
       "provider": "USDA NASS, NASA, and George Mason University",
       "resolution": "1 km hybrid weekly anomaly",
@@ -69,6 +69,22 @@
   ],
   "ok": true,
   "rows": [
+    {
+      "center_lat": 50.25,
+      "center_lon": -98.75,
+      "east": -97.5,
+      "excess_moisture_acres": 0.0,
+      "forecast_3day_at_risk_acres": 0.0,
+      "forecast_7day_at_risk_acres": 0.0,
+      "forecast_at_risk_acres": 0.0,
+      "grid_id": "grid_m100p00_49p00",
+      "north": 51.5,
+      "observed_inundation_acres": 0.0,
+      "south": 49,
+      "total_watch_layer_acres": 4802.8,
+      "watch_acres": 4802.8,
+      "west": -100
+    },
     {
       "center_lat": 50.25,
       "center_lon": -101.25,
@@ -81,78 +97,30 @@
       "north": 51.5,
       "observed_inundation_acres": 0.0,
       "south": 49,
-      "total_watch_layer_acres": 12311.1,
-      "watch_acres": 12311.1,
+      "total_watch_layer_acres": 2636.8,
+      "watch_acres": 2636.8,
       "west": -102.5
-    },
-    {
-      "center_lat": 47.75,
-      "center_lon": -101.25,
-      "east": -100,
-      "excess_moisture_acres": 0.0,
-      "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 0.0,
-      "forecast_at_risk_acres": 0.0,
-      "grid_id": "grid_m102p50_46p50",
-      "north": 49,
-      "observed_inundation_acres": 0.0,
-      "south": 46.5,
-      "total_watch_layer_acres": 5940.5,
-      "watch_acres": 5940.5,
-      "west": -102.5
-    },
-    {
-      "center_lat": 50.25,
-      "center_lon": -103.75,
-      "east": -102.5,
-      "excess_moisture_acres": 0.0,
-      "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 0.0,
-      "forecast_at_risk_acres": 0.0,
-      "grid_id": "grid_m105p00_49p00",
-      "north": 51.5,
-      "observed_inundation_acres": 0.0,
-      "south": 49,
-      "total_watch_layer_acres": 3008.4,
-      "watch_acres": 3008.4,
-      "west": -105
-    },
-    {
-      "center_lat": 47.75,
-      "center_lon": -68.75,
-      "east": -67.5,
-      "excess_moisture_acres": 2698.5,
-      "forecast_3day_at_risk_acres": 0.0,
-      "forecast_7day_at_risk_acres": 0.0,
-      "forecast_at_risk_acres": 0.0,
-      "grid_id": "grid_m70p00_46p50",
-      "north": 49,
-      "observed_inundation_acres": 0.0,
-      "south": 46.5,
-      "total_watch_layer_acres": 2698.5,
-      "watch_acres": 0.0,
-      "west": -70
     }
   ],
-  "rows_returned": 4,
-  "runtime_seconds": 303.35,
+  "rows_returned": 2,
+  "runtime_seconds": 336.26,
   "source_freshness": {
     "aafc_aci_latest": "2024-01-01T00:00:00+00:00",
     "gfs_168h": {
       "horizon_hours": 168,
       "image_count": 136,
-      "latest_creation_time": "2026-06-25T06:00:00+00:00"
+      "latest_creation_time": "2026-07-10T06:00:00+00:00"
     },
     "gfs_72h": {
       "horizon_hours": 72,
       "image_count": 72,
-      "latest_creation_time": "2026-06-25T06:00:00+00:00"
+      "latest_creation_time": "2026-07-10T06:00:00+00:00"
     },
-    "imerg_latest_in_event_window": "2026-06-24T03:30:00+00:00",
+    "imerg_latest_in_event_window": "2026-07-09T03:30:00+00:00",
     "jrc_surface_water": "static JRC/GSW1_4 occurrence/seasonality",
     "merit_hydro": "static MERIT/Hydro v1_0_1 HAND/water",
-    "sentinel1_latest_in_event_window": "2026-06-25T08:32:20+00:00",
-    "smap_l4_latest_in_context_window": "2026-06-21T22:30:00+00:00",
+    "sentinel1_latest_in_event_window": "2026-07-10T08:46:14+00:00",
+    "smap_l4_latest_in_context_window": "2026-07-07T22:30:00+00:00",
     "usda_cdl_latest": "2025-01-01T00:00:00+00:00"
   },
   "watch_only": true
