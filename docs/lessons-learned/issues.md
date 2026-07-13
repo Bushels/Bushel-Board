@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-12 - Hardcoded /thesis Wheat Crop Progress card went silently stale; consolidated WHEAT row shifts crop class mid-season
+
+**Symptom:** The `/thesis` "Wheat Crop Progress" panel was a hardcoded constant (`LATEST_USDA_WHEAT_PROGRESS_UPDATE`) frozen at week ending 2026-06-21 while `usda_crop_progress` had rows through 2026-07-05. It also labeled week-ending-Jun-21 data as "Jun 22" (the release date), making the board look stale.
+
+**Root cause:** The card was authored as a static literal instead of reading the table. Two deeper traps surfaced during the live rewrite: (1) `usda_crop_progress` stores one consolidated `WHEAT` row per week whose columns silently shift crop class mid-season - `headed_pct` flipped from winter (95%) to spring (16%) on 2026-06-21 when NASS retired the winter series, and `good_excellent_pct` (winter now) will flip to spring in late July - so static "Winter"/"Spring" tile labels become wrong at each NASS transition. (2) "Spring good/excellent" is not derivable from the table at all while winter condition is still published (the consolidation keeps only the winter pick); that tile came from the USDA text report.
+
+**Fix status:** `lib/queries/wheat-crop-progress(-utils).ts` builds the card from live rows: cumulative-series drop detection dates the winter->spring flip (cumulative progress never decreases within one class), condition uses calendar windows plus a >=12-point June/July level-shift check, tones derive from prior-week/prior-year comparisons (364-day match), and the header now uses the USDA convention ("Week ending <Sunday>" + "Released <Monday>"). The unavailable Spring G/E tile was replaced with the condition index (documented deviation). Vitest seatbelt: `lib/__tests__/wheat-crop-progress.test.ts`. Also fixed in passing: `page.test.tsx` had 41 masked failures once the new unmocked query ran, which hid a real guardrail violation - the X-pulse admission-rules caveat contained standalone "buy"/"sell" and tripped `PUBLIC_ADVICE_FORBIDDEN_TERMS` in audit mode (reworded in `lib/thesis/x-pulse-sentiment.ts`).
+
+**Prevention:** Never ship dated market data as literals on board surfaces - if a card names a report date, it must read the table that the collector feeds. When consuming consolidated `usda_crop_progress` wheat columns, never attach a static crop-class label; derive it (or omit it) because column semantics change with the NASS reporting calendar. Label USDA weekly data by week ending, not release date.
+
+**Tags:** #thesis #usda #crop-progress #wheat #stale-data #hardcoded
+
+---
+
 ## 2026-06-24 - Terminal Disposition export rows are a cross-check, not an additive CGC export component
 
 **Symptom:** The Wheat loop recorded Canada current-week exports as 319.3 kt and export/delivery ratio as 49.7%, making the latest CGC demand row look mildly supportive. Re-auditing the source rows showed the documented CGC export formula produced 193.9 kt and a 30.2% ratio for week 45.
