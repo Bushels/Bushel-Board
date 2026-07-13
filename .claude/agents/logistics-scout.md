@@ -25,6 +25,7 @@ All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is 
 3. **Grain Monitor:** `npm run desk:cad -- read --table grain_monitor_snapshots ...` for the latest grain_week — see schema and query pattern below
 4. **Producer cars:** `npm run desk:cad -- read --table producer_car_allocations --eq crop_year=<crop_year> --eq grain=<grain> --order grain_week.desc --limit 8` for forward rail commitments by grain/province/destination
 5. **Logistics snapshot:** `npm run desk:cad -- read --rpc get_logistics_snapshot --args '{"p_crop_year":"<crop_year>","p_grain_week":<week>}'` for combined Grain Monitor + Producer Car JSON
+6. **Wheat class flow (Wheat only, added 2026-07-11):** For Wheat, also return the terminal-flow class mix — aggregate Terminal Receipts/Exports per-grade rows into class families (CWRS/CWAD/CPS/Winter/Other) via a server-side aggregate ONLY (`SUM(ktonnes) GROUP BY` grade family — never row-fetch; Terminal Receipts has ~3,648 rows/grain vs the 1,000-row PostgREST cap). If no aggregate RPC is exposed through `npm run desk:cad -- read --rpc ...`, flag `class_mix_unavailable` in findings rather than row-fetching. The chief's FLAGSHIP wheat treatment consumes this as the class lens (R-CA-WHT-05); a >5-pt WoW class-share shift is a named signal.
 
 ### grain_monitor_snapshots Schema (key columns)
 

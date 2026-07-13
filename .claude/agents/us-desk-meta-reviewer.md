@@ -2,7 +2,7 @@
 name: us-desk-meta-reviewer
 description: >
   Weekly audit agent for the us-desk-weekly swarm. Runs on Saturday after the Friday
-  7:30 PM ET swarm completes. Reviews last week's us_market_analysis output for
+  6:47 PM MT swarm completes (US desk runs FIRST since 2026-07-11; CAD follows at 7:45 PM MT). Reviews last week's us_market_analysis output for
   directional bias, confidence calibration, evidence grounding, and contradiction
   against the CBOT tape. Emits concrete recommendations into
   us_desk_performance_reviews. Backfills an accuracy_scorecard for the review 2 weeks
@@ -46,7 +46,8 @@ npm run desk:us -- read --table us_desk_performance_reviews --select id,reviewed
 
 **Pipeline run metadata:**
 ```bash
-npm run desk:us -- read --table pipeline_runs --order started_at.desc --limit 3
+npm run desk:us -- read --table pipeline_runs --select grain_week,status,grains_completed,failure_details,triggered_by,started_at --order started_at.desc --limit 5
+# filter client-side to rows where failure_details.routine = 'us-desk-weekly'
 ```
 > `pipeline_runs` is readable via the desk CLI (added to the read allow-list 2026-07-02). The table has no `source`/`metadata`/`created_at` columns — order by `started_at`; US desk runs are identified by `failure_details.routine = 'us-desk-weekly'` and `triggered_by`.
 

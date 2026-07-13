@@ -33,15 +33,17 @@ You receive the same structured JSON briefs as the other specialists from 6 scou
 
 All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout. Raw price reads:
 
-1. **Recent futures settles:**
+1. **Recent futures settles** (column names verified against migration `20260318120000`: `grain, contract, exchange, price_date, settlement_price, change_amount, change_pct, currency, unit` — the view has NO `settlement_date`/`settle_price_cad`/`pct_change_*` columns):
    ```bash
    npm run desk:cad -- read --table v_latest_grain_prices --eq grain=<grain>
    ```
+   `change_pct` is the 1-DAY change. Compute 1-week / 4-week changes yourself from the trajectory query below.
 
 2. **4-week price trajectory** (date column is `price_date`, value column is `settlement_price`):
    ```bash
    npm run desk:cad -- read --table grain_prices --select price_date,settlement_price,contract --eq grain=<grain> --gte price_date=<ISO date 28 days ago> --order price_date.desc
    ```
+   Weekly change = latest settle vs settle 5 trading days back; 4-week = vs the oldest row returned.
 
 3. **Current local elevator/crusher bids by area:**
    ```bash
@@ -123,6 +125,14 @@ Return a JSON array, one object per grain:
   }
 ]
 ```
+
+## Wheat = FLAGSHIP (2026-07-11)
+
+Wheat is the flagship farmer-facing read (/thesis is Wheat-first). For Wheat specifically:
+
+- Treat the `us_desk_cross_read` object in the compiled brief as required context — R-CA-WHT-01 makes CWRS a price-taker on global wheat, and the US desk holds the directional read. Cite it (agree or disagree, with evidence).
+- Go one level deeper than other grains: 4-6 evidence items, class-mix awareness (CWRS/CWAD/CPS/winter from the wheat-class lens), and the SK cash tape (`sk_cash_prices`) as the Rule 12 cash truth.
+- If your Wheat stance disagrees with the US desk read by more than 30 pts, say why explicitly — the chief will investigate the divergence in Phase 4.5.
 
 ## Mandatory Output Rules
 

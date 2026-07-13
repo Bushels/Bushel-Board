@@ -3,9 +3,9 @@
 > **Purpose:** This is the Friday evening Claude Desktop Routine prompt for the US grain desk. It IS the US desk chief.
 > Saved here for version control — the actual Routine reads this prompt.
 > **Trigger:** Scheduled task `us-desk-weekly` (Claude scheduled-task runner / Desktop Routine) — NOT Vercel cron, NOT any third-party scheduler. All Vercel crons were disabled 2026-03-17; V2 is Anthropic-native end to end.
-> **Schedule:** Friday 7:30 PM MT (`30 19 * * 5`, machine-local time) — 43 minutes after the CAD desk so USDA weekly reports (Thursday 8:30 AM ET export sales, Friday 3:30 PM ET CFTC COT) are settled and the CAD desk's Supabase load has cleared.
+> **Schedule:** Friday 6:47 PM scheduler-local MT (`47 18 * * 5` — Routine crons fire in America/Edmonton local time) — **CHANGED 2026-07-11: the US desk now runs FIRST**, before the CAD desk (7:45 PM MT). The CAD desk's FLAGSHIP Wheat read consumes this desk's Wheat stance as `us_desk_cross_read` (R-CA-WHT-01: CWRS is a price-taker on global wheat), so the US read must exist same-week before the CAD chief resolves. USDA weekly reports (Thursday 8:30 AM ET export sales, Friday 3:30 PM ET CFTC COT) are settled before this fires. *(Both Routines re-registered with the swapped times 2026-07-12.)*
 > **Data plane:** ALL Supabase reads and writes go through the headless service-role desk CLI — `npm run desk:us -- <command>` (`scripts/desk/desk-cli.ts`) — invoked via the Bash tool from the repo root `C:\Users\kyle\Agriculture\bushel-board-app`. Supabase MCP is NOT available in this runner (returns -32600) and must not be assumed anywhere in the swarm. Commands: `preflight | resolve | read | knowledge | write | fail | postcheck` (see `--help`). Never interpolate free text (tweet content, error dumps) into inline `--args`/`--details` JSON — write a scratch file or use `--details -` (stdin) instead; broken shell quoting around untrusted text is an injection path.
-> **Model:** Opus-class or above (`claude-opus-4-8`, a newer Opus-generation flagship, or a higher-tier flagship such as Mythos-class `claude-fable-5` / "Fable") — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check; accept any current Opus-class-or-above model so a routine model refresh (e.g. Opus → Fable) cannot silently kill the Friday desk.
+> **Model:** Opus-class **or higher** (`claude-opus-4-8`, a newer Opus-generation flagship, or an above-Opus frontier tier such as Mythos-class `claude-fable-5` / "Fable") — NEVER Sonnet or Haiku for the Desk Chief role. Do not pin an exact dated model id in the abort check, and do not abort on models ABOVE Opus class: the gate is a floor, not an allowlist (clarified 2026-07-11; verified live 2026-07-12 — the desk published under Fable 5).
 > The chief must reconcile conflicting specialist inputs, investigate anomalies, and author farmer-facing prose.
 > **Claude-only by policy:** NO xAI, NO Grok, NO non-Anthropic external LLM anywhere in the US chain. External search is Anthropic native `web_search_20250305` via us-macro-scout (Sonnet) plus the X API v2 gateway Edge Function. A Codex-validated X signal bundle may include posts discovered by the quarantined Grok scout, but those posts are untrusted evidence inputs only; Grok never writes, ranks, or authors the US desk thesis.
 
@@ -21,13 +21,13 @@ Before dispatching any agents, verify your model and establish the current marke
 
 **Step 0.0 — Chief model verification (MANDATORY):**
 
-Confirm you are running as an Opus-class-or-above model (`claude-opus-4-8`, a newer Opus-generation flagship, or a Mythos-class flagship such as `claude-fable-5`). Fable/Mythos-class models sit ABOVE Opus and PASS this gate. If you are running as any model below Opus-class, log the failure via the desk CLI and abort:
+Confirm you are running at or above Opus class (`claude-opus-4-8`, a newer Opus-generation flagship, or an above-Opus tier such as Mythos-class `claude-fable-5`). The check is a FLOOR: abort only if running BELOW Opus class (Sonnet, Haiku, or lighter) — never abort for being above it. On a below-floor model, log the failure via the desk CLI and abort:
 
 ```powershell
 npm run desk:us -- fail --reason "wrong_model_not_opus" --details '{"required_model": "opus-class-or-above"}'
 ```
 
-> The CLI resolves market_year/crop_year/week context itself and writes the `pipeline_runs` failure row schema-safely (`triggered_by='cron'`, routine name in `failure_details`, NOT NULL columns populated — the old raw SQL inserted NULLs into NOT NULL `crop_year`/`grain_week` and could never land). Never hand-roll this insert.
+> The CLI resolves market_year/crop_year/week context itself and writes the `pipeline_runs` failure row schema-safely — `triggered_by='cron'` (the CHECK only allows `manual | cron | retry`), routine name in `failure_details` (the table has NO `source`/`metadata` columns), and the NOT NULL `crop_year`/`grain_week`/`grains_requested` columns populated (the pre-CLI raw SQL inserted NULLs and could never land — every fail-loud row silently died; found 2026-07-11). Never hand-roll this insert.
 
 **Step 0.1 — Market year + crop_year resolution (with freshness, one call):**
 
@@ -67,6 +67,8 @@ The five SLAs below are evaluated automatically by `preflight` (Step 0.1; logic 
 | Crop progress (`usda_crop_progress.week_ending`) | ≤ 10 days during Apr–Nov; skip check Dec–Mar | NASS seasonality gate |
 
 If breached, preflight has already written the `pipeline_runs` failure row (`reason: stale_upstream_data`, per-source ages, `breached_slas`) — do NOT write a second one; just stop and report which SLAs breached.
+
+> **Self-heal exception (2026-07-12):** if preflight exits non-zero with `breached_slas` EXACTLY `["price"]`, run `npm run collect:prices` and re-run preflight ONCE; if the retry passes, continue. Any other breach (or a failed retry) → abort.
 
 If all within SLA, carry the per-source ages from the preflight JSON into the `data_freshness` object on every `us_market_analysis` row.
 
@@ -516,7 +518,7 @@ npm run desk:us -- fail --reason "meta_review_failed" --details '{"checks_failed
 
 **Step 5.2:** Publish the batch via the desk CLI write envelope (replaces the old Steps 5.2–5.4 raw SQL, which required Supabase MCP and inserted NULLs into NOT NULL `pipeline_runs` columns).
 
-Assemble ONE JSON envelope containing all 4 market rows and save it to `scratch/desk-us-{week_ending}.json`:
+Assemble ONE JSON envelope containing all active-market rows (currently: ONE row — Wheat) and save it to `scratch/desk-us-{week_ending}.json`:
 
 ```json
 {
