@@ -46,6 +46,8 @@ Agriculture-in-drought table: `https://droughtmonitor.unl.edu/DmData/DataTables.
 
 Pull the current-week CONUS totals AND state-level percentages for the corn belt, soy belt, HRW belt, HRS belt.
 
+> **Extraction reality check (2026-07-12 run):** generic web search returns USDM navigation pages, not the data tables — search snippets rarely carry state-level D0–D4 percentages. Try fetching the DataTables/ComprehensiveStatistics URLs directly first; if belt-weighted D1+ percentages still cannot be extracted after 2 attempts, emit `drought: { coverage_gap: true, usdm_week_ending: <date>, note: ... }` and let stances rely on G/E% only (per the desk error-handling table). NEVER fill the gap with "abnormal dryness"/D0 language — that trips the desk's drought-granularity gate.
+
 **USDM classification (memorize):**
 - D0 — Abnormally Dry (precursor, NOT drought)
 - D1 — Moderate Drought

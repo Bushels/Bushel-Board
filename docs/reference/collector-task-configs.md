@@ -297,3 +297,25 @@ The phase-2 `opus_review_*` rows feed the Friday swarm as "weekday signal accumu
 
 **Trusted handles:** the scout's allowed-handle batches live in `lib/x-api/trusted-accounts.ts` (Kyle's X follows reconciled 2026-06-10; GrainStats tier1, GRAINSOILSEEDS tier2, IGCgrains tier3 added).
 
+
+## Routine model + Fable effort matrix (WHEAT-ONLY era, 2026-07-13)
+
+All Bushel Board Routines run on **Fable-class (`claude-fable-5`) — the model is never downgraded** (feedback_always_use_best_model; the desk gate is Opus-class-or-above, a floor). What varies per routine is **effort** — set it in the Claude Desktop Routine settings; the scheduled-task API exposes no model/effort field, so each task's `description` carries the contract for audit.
+
+| Routine | Schedule (MT, local cron) | Fable effort | Rationale |
+|---|---|---|---|
+| `us-desk-weekly` | Fri 6:47 PM (`47 18 * * 5`) — runs FIRST | **high** | Wheat desk chief: divergence resolution, anomaly investigation, farmer prose. Wheat-only scope makes high-effort depth affordable. |
+| `grain-desk-weekly` | Fri 7:45 PM (`45 19 * * 5`) — runs SECOND | **high** | CAD wheat chief + FLAGSHIP deep pass; consumes the US desk's same-week stance as `us_desk_cross_read`. |
+| `collect-grain-monitor` | Wed 2:17 PM (`17 14 * * 3`) | **medium** | The one collector with judgment: Tier-2 parser self-heal charter (docs/hermes/skills/import-grain-monitor.md). |
+| `collect-crop-progress` | Mon 4:32 PM (`32 16 * * 1`) | low | Mechanical npm wrapper; verify JSON, lead report with Wheat. |
+| `collect-export-sales` | Thu 9:03 AM (`3 9 * * 4`) | low | Mechanical; ALL WHEAT primary. |
+| `collect-cgc` | Thu 1:35 PM (`35 13 * * 4`) | low | Mechanical 16-grain data import (data ≠ analysis; feeds the Wheat packet). |
+| `collect-producer-cars` | Thu 4:07 PM (`7 16 * * 4`) | low | Mechanical; Wheat staging/logistics lane. Retry once on grainscanada.gc.ca ECONNRESET. |
+| `collect-sk-prices` | Fri 12:37 PM (`37 12 * * 5`) | low | Mechanical; the CWRS cash tape (Rule 12). Created 2026-07-12 after the lane sat 5 weeks stale with no Routine. |
+| `collect-prices` | Fri 1:07 PM (`7 13 * * 5`) | low | Mechanical; keeps `grain_prices` inside the 4-day desk SLA (created 2026-07-12 after two desk aborts). |
+| `collect-cftc-cot` | Fri 2:02 PM (`0 14 * * 5`) | low | Mechanical; 3 wheat classes primary. |
+| `collect-wasde` | 10th–14th 12:33 PM (`33 12 10-14 * *`) | low | Mechanical monthly PSD snapshot. |
+
+**Scope rule (Kyle, repeated, firm — memory `feedback_wheat_only`):** LLM analysis is Wheat ONLY. Collectors import multi-grain data mechanically (that carve-out is deliberate — wheat context needs class spreads, corn substitution, world balance), but no Routine spends reasoning tokens analyzing any grain but Wheat, and every collector report leads with Wheat.
+
+**Fable effort guidance (from the Claude API reference):** effort levels are low/medium/high/xhigh/max; Fable at low effort still typically exceeds prior-flagship max-effort quality on routine work, so `low` collectors are not a quality downgrade — the model is unchanged.
