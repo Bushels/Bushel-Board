@@ -44,6 +44,12 @@ Query with `grain_prices.contract = '<symbol>'` and `grain_prices.grain = '<CGC 
 
 **Column name trap:** the date column is `price_date` (NOT `settlement_date`). The price value column is `settlement_price`.
 
+## Verified data traps (found live 2026-07-12 — check ALL THREE every run)
+
+1. **`change_pct` is a 1-DAY change, not weekly.** Never report it as a weekly move. Compute true 1W/4W changes yourself from raw `settlement_price` rows (e.g. settle 5 trading days ago vs latest). The 2026-07-12 run initially mislabeled 1-day prints as "5-day changes" until verified against raw settles.
+2. **Frozen-feed detection.** If `settlement_price` AND `change_pct` repeat identically across every `price_date` for ~5+ trading days (bonus tell: `volume` null), the feed is DEAD — report that leg as `data_status: "UNAVAILABLE (frozen feed since <date>)"`, never as dead-flat price action (Rule 14 false-bearish trap). Live examples: MGEX `MWK26` frozen since 2026-05-14, ICE Canola `RSK26` since 2026-05-15 — which also makes the MW–KE protein spread NOT computable; say so explicitly.
+3. **Thin-volume guard.** A large 1-day move on trivial volume is a bad tick, not a rally: ZO printed +23.5% on 248 contracts after 0–7-contract sessions while external quotes sat at multi-year lows. Flag any move >10% on volume <500 contracts as `magnitude_unreliable` (direction may be noted at low confidence).
+
 ## Spreads to compute
 
 **Soy/Corn ratio** (planting-decision signal):
