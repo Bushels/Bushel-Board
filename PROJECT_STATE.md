@@ -1,5 +1,9 @@
 # Bushel Board - Current State
 
+**Hermes + Grok 4.5 control-plane cutover (2026-07-15 MT):** Schedules and automations for Bushel Board now live under **Hermes Agent cron**, not Claude Desktop Routines. Mechanical collectors, source/desk watchdogs, and no-write Wheat X Pulse wrappers are registered as Hermes `--no-agent` jobs; daily operator brief + Friday desk orchestrator are Grok 4.5 agent jobs (preflight/report; desk **writes still approval-gated**). Canonical map: `docs/reference/hermes-bushel-board-schedule.md`. Wrappers: `scripts/hermes/*.sh` + `%LOCALAPPDATA%\hermes\scripts\bushel-*.sh`. **Grok is the operator/X scout model — not a thesis writer.** Tombstoned Grok thesis endpoints stay 410.
+
+**Wheat cleanup pass (2026-07-15 MT):** Deep audit scored the app **74/100** (`docs/audits/2026-07-15-wheat-centric-board-deep-audit.md`). Executed P0: deleted **33 orphan multi-grain UI/lib modules** (~safe dead set), demoted Source Spine / Data Flow from primary nav (farmer nav = Thesis · Wheat Data · Environmental · My Farm), rewrote `README.md` to Wheat-centric + Hermes ownership. Kept re-home candidates for Wheat Data P2 (COT, terminal flow, delivery-gap, etc.). Thesis page split still open (`app/(dashboard)/thesis/page.tsx` ~6.5k lines).
+
 **Current repair checkpoint (2026-07-14 MT):** The Wheat Bull/Bear pipeline has been rebuilt and republished against the current futures basket. Live thesis-of-record: U.S. Wheat **+32 Mild Bull / 45 confidence** and Canadian Wheat **+22 Mild Bull / 42 confidence**; Canada recommends patience with a 20-30% old-crop CWRS de-risk into current strength. Price proof is SRW/ZW **$6.27**, HRW/KE **$6.5525**, and active HRSpring/**MWU26 $6.58** resolved through Barchart `MW*0`; expired `MWK26` rows after its 2026-05-14 final real session were removed. USDA Wheat progress is physically class-safe (`winter` and `spring` rows; 2,502 source records processed for 2024-2026, producing 2,488 class-safe live rows and all 528 replaced mixed rows removed). Prairie crop progress is phase-safe: the July Saskatchewan report produces headed-stage rows instead of reusing an old seeding table, Manitoba emits only explicit Spring Wheat condition percentages, and Alberta remains crop-specific. CGC week 48 was manually recovered (4,415 rows; validation pass; 16/16 heartbeats), both Claude desks completed their full gated runs in U.S.-then-Canada order, and `thesis_packet_cache` refreshed 12/12 with zero failures.
 
 **Public thesis authority repair (2026-07-15 MT):** `/thesis` now promotes same-period published Wheat desk rows from `market_analysis` and `us_market_analysis` to the farmer-facing weekly headline. The deterministic packet scorecard remains the mechanical evidence cross-check and fallback; reviewed daily overlays remain the current-day override. This closes the production mismatch where Vercel displayed the cached mechanical **-6 Lean Bear** read and a confidence-scaled **43% rail position** even though the live published desks were Canadian **+22 / 42** and U.S. **+32 / 45**. The combined public read is **+27 Mild Bull / 44 confidence**.
@@ -12,13 +16,20 @@
 **As of:** 2026-07-15
 
 ## Active task
-Current focus is the **Wheat Bull/Bear Thesis decision board** on `/thesis`, with Track 54 daily/X evidence boundaries preserved. The farmer-facing route shows one active grain (Wheat), one visible read, and CA/US data only as supporting evidence geography while the shared multi-grain data/model harness remains available for later re-enable and for audit/operator proof.
+Current focus: **Wheat board cleanup + Hermes/Grok ops ownership**, then Wheat Data P2 and thesis monofile split.
 
-**Strategic direction (2026-06-15): WHEAT-FIRST — depth before breadth.** Perfect and validate the full bull/bear pipeline on wheat (the most data-rich grain) before deepening the other 15; the weekly desk still publishes all 16. Two workstreams remain live alongside the Wheat board:
-1. **Stance Model V2** (`docs/plans/2026-06-12-stance-model-v2-design.md`): deterministic relation-overlay rating, bounded international/FX/on-farm-stocks contexts, **GEE satellite crop-stress** lane (`gee_crop_stress`; US HRW + Russia winter/spring belts; validated vs NASS r=0.93/0.98; collects Fri 11am MT ahead of the desk swarm; **watch-only** until multi-season validation), and a stance-change ledger (debate Rules 20–21).
-2. **Wheat-first site redesign** (`docs/plans/2026-06-15-wheat-first-data-viz-redesign.md`): data-rich visualizations + mapping + a dedicated data page (the GEE crop-stress map is the hero viz; start from that doc's §10 handoff).
+Farmer product remains **Wheat-only** on normal `/thesis` (`lib/thesis/active-grain-display.ts`). Multi-grain harness stays for audit/re-enable.
 
-**Collector/desk operational state (updated 2026-07-03):** the `npm run collect:*` wrapper migration from the 2026-06-15 handoff is complete — collectors registered and running (CGC, COT, export sales, crop progress, grain monitor, WASDE all green in `check:source-freshness`). The Friday desk swarms run headless via the service-role desk CLI (`npm run desk:cad|desk:us`, enabled 2026-07-02 with `DESK_WRITE_APPROVAL`). `collect:gee-crop-stress` was restored by merging `codex/data-layer-foundation-v1` (the collector had been stranded on that branch, which is why GEE writes stopped after 2026-06-15). Historical detail: `docs/plans/handoff/2026-06-15-session-handoff.md`.
+**Strategic direction: WHEAT-FIRST — depth before breadth** (desk also Wheat-only as of 2026-07-11).
+
+**Automation owner (updated 2026-07-15):** **Hermes Agent + Grok 4.5**. Claude Desktop Routines are legacy for this project — disable them after one clean Hermes week. Desk CLI remains the write plane; Hermes Friday job defaults to **preflight only**.
+
+**Next actions:**
+1. Confirm Hermes jobs fire (tomorrow export-sales / prices / X pulse windows).
+2. Split `thesis/page.tsx` into farmer vs audit modules.
+3. Wheat Data P2: re-home kept charts (COT, terminal flow, delivery gap) onto `/data`.
+4. Disable remaining Claude Desktop Bushel Routines once heartbeats prove Hermes coverage.
+5. Optional: point Hermes brief/desk delivery at Telegram/home channel (`deliver=telegram|all`) so briefs are not local-only.
 
 ---
 
