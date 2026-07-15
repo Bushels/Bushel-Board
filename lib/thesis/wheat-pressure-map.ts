@@ -37,7 +37,7 @@ export interface WheatPressureCountryNode {
   score: number;
   stanceLabel: string;
   confidenceScore: number;
-  scoreSource: "weekly_packet" | "daily_overlay";
+  scoreSource: "weekly_packet" | "published_thesis" | "daily_overlay";
   scoreSourceDate: string | null;
 }
 
@@ -71,7 +71,7 @@ export interface WheatPressurePacketContribution {
   evidence: string[];
   blockedClaims: string[];
   periodAnchor: string;
-  scoreSource: "weekly_packet" | "daily_overlay";
+  scoreSource: "weekly_packet" | "published_thesis" | "daily_overlay";
   includedInPressure: boolean;
 }
 
@@ -487,7 +487,9 @@ function packetContributionsForItem(
         evidence,
         blockedClaims: [...domain.blocked_claims],
         periodAnchor: item.ratingScorecard.period_anchor,
-        scoreSource: item.scoreSource?.kind ?? "weekly_packet",
+        // These contributions are always the mechanical scorecard audit,
+        // even when a same-period published desk thesis owns the public stance.
+        scoreSource: "weekly_packet",
         includedInPressure: contributionIncluded,
       } satisfies WheatPressurePacketContribution;
     });

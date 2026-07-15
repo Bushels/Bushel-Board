@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-15 - Republished Wheat desk rows did not control the public `/thesis` headline
+
+**Symptom:** The Wheat desks successfully published Canadian +22/confidence 42 and U.S. +32/confidence 45, but Vercel still showed Lean Bear -6. The stance rail also showed 43%, which looked like thesis confidence even though it was the confidence-scaled position of the -6 score.
+
+**Root cause:** `getThesisBoardData()` built the public board exclusively from `thesis_packet_cache` and promoted its deterministic `ratingScorecard` to the visible stance. It never read the published `market_analysis` or `us_market_analysis` thesis rows, so republishing could not change the page. The first repair attempt also used the anonymous route client against tables whose RLS is authenticated-only; the visual smoke correctly proved that this silently fell back to -6. The rail encoded a directional position on a 0-100 track but displayed the position as a percentage without naming it.
+
+**Fix:** The board now fetches bounded published Wheat fields through the server-only service client and promotes them only when their crop year and grain week/market year match the active packet. Raw thesis tables remain non-public. Published stance, confidence, bull case, bear case, and exact desk tier own the farmer-facing weekly read; the deterministic scorecard remains the mechanical evidence cross-check and fallback. Reviewed daily overlays still apply afterward. The rail displays a signed stance score, while its position remains confidence-scaled. Focused tests lock same-period promotion, stale-row rejection, published-tier rendering, and the separation between position and confidence.
+
+**Prevention:** A successful thesis publish must have an end-to-end read-path test proving the public route consumes the published row. Never label a visual position as a percentage unless the percentage itself is a named product metric. Keep weekly desk authority, deterministic audit evidence, and current-day overlays as three explicit layers.
+
+**Tags:** #thesis #wheat #vercel #published-read #scorecard #confidence
+
+---
+
 ## 2026-07-14 - Wheat thesis combined incompatible crop classes, a frozen futures contract, and mismatched Prairie report phases
 
 **Symptom:** The Wheat Bull/Bear thesis appeared current but some inputs were not. U.S. Winter and Spring Wheat measures occupied one synthetic row; MGEX `MWK26` remained at $7.11 and was re-dated after its final 2026-05-14 session; and the July Saskatchewan crop-stage report was paired with an older seeding table. A delayed U.S. desk run also rejected the latest official Export Sales period as stale because its SLA ignored USDA's publication lag.

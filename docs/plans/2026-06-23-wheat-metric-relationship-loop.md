@@ -188,15 +188,15 @@ Use one canonical Wheat judge for both the headline and the visual lane bars:
 | Positioning/timing | 10% | Crowding, liquidation, short-cover risk |
 | Watch leads | 0% | Review priority only |
 
-Important: the first score mismatch is repaired for Wheat weekly packets.
+Important: the first score mismatch was repaired for Wheat weekly packets in June. The headline-authority rule below is superseded as of 2026-07-15: same-period published Wheat desk rows own the weekly public headline, while the deterministic scorecard remains the mechanical evidence cross-check and fallback.
 
-- The visible Wheat weekly stance now uses the deterministic rating scorecard when a Wheat scorecard is populated.
+- Historical June behavior: the visible Wheat weekly stance used the deterministic rating scorecard when populated.
 - Bull/bear driver counting remains useful explanation copy, but it no longer sets the Wheat weekly headline score.
 - Daily overlays remain visibly separate because they are current-day ticks, not a rebuild of the weekly lane scorecard.
 
 V1 implementation repair status:
 
-1. Done: make the deterministic rating scorecard the source of the Wheat weekly headline score.
+1. Superseded 2026-07-15: use the deterministic rating scorecard as the mechanical audit/fallback beneath a same-period published desk headline.
 2. Done: render daily overlays as a separate current-day tick unless they rebuild lane contributions.
 3. Done in the mapper: change Wheat price from "latest row wins" to a Wheat price basket.
 4. Done as a first UI pass: add a reconciliation judge that explains the deciding datum when evidence is mixed.

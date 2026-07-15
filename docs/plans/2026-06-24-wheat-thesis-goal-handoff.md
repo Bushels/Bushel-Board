@@ -1,5 +1,7 @@
 # Wheat Thesis Goal Handoff - 2026-06-24
 
+> **Superseded authority note (2026-07-15):** This document records the June scorecard-owned headline implementation. Current `/thesis` behavior promotes same-period published Wheat desk rows to the weekly public thesis-of-record. The deterministic scorecard remains the mechanical evidence cross-check and fallback; reviewed daily overlays remain the current-day override.
+
 ## Start Here
 
 Next session should start a Wheat-only goal, not a broad grain-board redesign.
@@ -46,7 +48,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
 - `/thesis` now also shows 60-day historical Wheat futures context under the price proof strip. Migration `20260624192708_get_wheat_price_history` is applied live and exposes bounded public RPC `get_wheat_price_history(60)` for Spring Wheat, HRW, and SRW only; anon proof returned 103 rows across the three legs.
 - `/thesis` now shows bounded historical Wheat export context below the price proof. Migration `20260625000843_get_wheat_export_history` is applied live, with follow-up performance migrations `20260625001442`, `20260625001726`, and `20260625001912`; anon proof returned 32 public REST rows for the 16-week check in under one second while raw anon `usda_export_sales` still returned 0 rows.
 - Canada Wheat CGC export math was repaired in `get_canada_thesis_packet()`: exports are Terminal Exports + Primary Shipment Distribution Export Destinations + Producer Cars Shipment Distribution Export. Terminal Disposition Export Destinations is a cross-check, not an additive component. After cache refresh, the cached week-45 Wheat packet shows 193.9 kt current-week exports and 19,663.9 kt crop-year exports.
-- Wheat weekly-packet headline scores now resolve from the deterministic rating scorecard when a Wheat scorecard is populated. Driver counts still build bull/bear explanation copy, but the visible Wheat weekly score and confidence come from `ratingScorecard.overall_score` and `ratingScorecard.confidence_score`; daily trajectory overlays remain the only current-day override.
+- Historical June behavior: Wheat weekly-packet headline scores resolved from the deterministic rating scorecard. Superseded 2026-07-15 by the published-desk authority contract above.
 - `/thesis` now has a farmer-facing reconciliation judge, a node-and-edge relationship spiderweb, and visible Spring Wheat / HRW / SRW price-basket proof strip. The judge chooses the largest weighted scorecard datum, shows freshness proof, compares the main counterweight, and keeps the visual layers as explanation over the existing scorecard rather than new scoring authority.
 - `/thesis` now has a USDA Wheat source-sweep panel that shows Crop Progress, WASDE balance, Export Sales, and Quarterly Stocks with source freshness, cadence, latest row date, weighted score effect, and relation labels such as deciding row, bear pressure, bull support, or cadence-limited context.
 - `/thesis` now shows the USDA relationship chain from condition signal to balance anchor to demand confirmation to inventory check to price confirmation, plus source-specific judge copy and `Decision role` blocks for each USDA source card.
@@ -89,7 +91,7 @@ Build a Wheat-first Bull/Bear thesis system that fully traces USDA, CGC, price, 
    - show disagreement as lower confidence
    - current UI has packet-window trend context, public-safe 60-day price history, and public-safe 16-week export-demand history
 3. Extend the reconciliation judge after the full Wheat source sweep.
-   - headline score is already scorecard-backed for Wheat weekly packets
+   - the mechanical scorecard remains the evidence cross-check; a same-period published desk row owns the weekly headline
    - judge card now shows the deciding datum, freshness proof, and strongest counterweight on `/thesis`
    - CFTC, Grain Monitor, and producer cars are refreshed; next loop should verify and refine source-specific explanations for USDA exports, stocks, WASDE, crop progress, and price confirmation
    - daily overlays should stay visibly separate from weekly scorecard truth

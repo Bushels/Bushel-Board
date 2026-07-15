@@ -137,7 +137,7 @@ const ROUTES: RouteSmokeConfig[] = [
     markers: [
       "Current stance",
       "Thesis confidence",
-      "Reconciliation judge",
+      "Evidence cross-check",
       "Relationship spiderweb",
       "Source (what we watch)",
       "Price basket proof",
@@ -181,7 +181,7 @@ const ROUTES: RouteSmokeConfig[] = [
     markers: [
       "Current stance",
       "Thesis confidence",
-      "Reconciliation judge",
+      "Evidence cross-check",
       "Relationship spiderweb",
       "Source health",
       "Price basket proof",

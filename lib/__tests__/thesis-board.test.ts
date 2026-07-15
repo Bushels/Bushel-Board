@@ -7,6 +7,7 @@ import {
   THESIS_BOARD_ACTIVE_FARMER_US_MARKET_NAMES,
   THESIS_BOARD_V1_GRAIN_LANES,
   buildCanadaThesisBoardItem,
+  applyPublishedThesisReads,
   buildFarmerReadSummary,
   buildMajorThesisComparisonRows,
   buildSourceHealthRead,
@@ -339,6 +340,127 @@ describe("thesis board packet normalization", () => {
     expect(usItem.stanceScore).toBe(Math.round(usItem.ratingScorecard.overall_score));
     expect(usItem.confidenceScore).toBe(usItem.ratingScorecard.confidence_score);
     expect(usItem.confidence).toBe(usItem.ratingScorecard.confidence_label);
+  });
+
+  it("promotes matching-period published Wheat desk reads above the mechanical packet headline", () => {
+    const canadaItem = buildCanadaThesisBoardItem(wheat, {
+      lane: "canada",
+      grain: "Wheat",
+      crop_year: "2025-2026",
+      grain_week: 48,
+      packet_generated_at: "2026-07-15T01:24:32Z",
+      freshness: [],
+      quality_warnings: [],
+    });
+    const usItem = buildUsThesisBoardItem(usWheat, {
+      lane: "us",
+      market_name: "Wheat",
+      market_year: 2025,
+      packet_generated_at: "2026-07-15T01:24:35Z",
+      freshness: [],
+      quality_warnings: [],
+    });
+    const data = {
+      canadaItems: [canadaItem],
+      usItems: [usItem],
+      comparisonRows: buildMajorThesisComparisonRows([canadaItem], [usItem]),
+    } as ThesisBoardData;
+
+    const overlaid = applyPublishedThesisReads(data, [
+      {
+        lane: "canada",
+        name: "Wheat",
+        cropYear: "2025-2026",
+        grainWeek: 48,
+        marketYear: null,
+        initialThesis: "Mild bull Canada read",
+        bullCase: "Canadian bull case",
+        bearCase: "Canadian bear case",
+        finalAssessment: "Canadian final assessment",
+        stanceScore: 22,
+        stanceTier: "Mild Bull",
+        confidenceScore: 42,
+        dataConfidence: "medium",
+        recommendation: null,
+        modelUsed: "claude-agent-desk-v1-opus",
+        generatedAt: "2026-07-15T01:24:15Z",
+      },
+      {
+        lane: "us",
+        name: "Wheat",
+        cropYear: "2025-2026",
+        grainWeek: null,
+        marketYear: 2025,
+        initialThesis: "Mild bull US read",
+        bullCase: "US bull case",
+        bearCase: "US bear case",
+        finalAssessment: "US final assessment",
+        stanceScore: 32,
+        stanceTier: "Mild Bull",
+        confidenceScore: 45,
+        dataConfidence: "medium",
+        recommendation: "PATIENCE",
+        modelUsed: "claude-agent-us-desk-v1-opus",
+        generatedAt: "2026-07-15T01:09:54Z",
+      },
+    ]);
+
+    expect(overlaid.canadaItems[0]).toMatchObject({
+      stanceScore: 22,
+      stanceLabel: "Mild Bull",
+      confidenceScore: 42,
+      confidence: "medium",
+      scoreSource: { kind: "published_thesis" },
+    });
+    expect(overlaid.usItems[0]).toMatchObject({
+      stanceScore: 32,
+      stanceLabel: "Mild Bull",
+      confidenceScore: 45,
+      confidence: "medium",
+      scoreSource: { kind: "published_thesis" },
+    });
+    expect(overlaid.comparisonRows.find((row) => row.grain === "Wheat")?.status).toBe("aligned_bullish");
+  });
+
+  it("does not promote a published Canada Wheat read from a different grain week", () => {
+    const canadaItem = buildCanadaThesisBoardItem(wheat, {
+      lane: "canada",
+      grain: "Wheat",
+      crop_year: "2025-2026",
+      grain_week: 48,
+      packet_generated_at: "2026-07-15T01:24:32Z",
+      freshness: [],
+      quality_warnings: [],
+    });
+    const data = {
+      canadaItems: [canadaItem],
+      usItems: [],
+      comparisonRows: buildMajorThesisComparisonRows([canadaItem], []),
+    } as ThesisBoardData;
+
+    const overlaid = applyPublishedThesisReads(data, [
+      {
+        lane: "canada",
+        name: "Wheat",
+        cropYear: "2025-2026",
+        grainWeek: 47,
+        marketYear: null,
+        initialThesis: null,
+        bullCase: null,
+        bearCase: null,
+        finalAssessment: null,
+        stanceScore: 34,
+        stanceTier: "Mild Bull",
+        confidenceScore: 50,
+        dataConfidence: "medium",
+        recommendation: null,
+        modelUsed: "older-desk",
+        generatedAt: "2026-07-14T20:45:19Z",
+      },
+    ]);
+
+    expect(overlaid.canadaItems[0].scoreSource).toBeUndefined();
+    expect(overlaid.canadaItems[0].stanceScore).toBe(canadaItem.stanceScore);
   });
 
   it("turns WASDE month-over-month revisions into US thesis drivers", () => {
