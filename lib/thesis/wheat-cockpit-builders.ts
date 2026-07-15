@@ -388,6 +388,7 @@ export function buildPriceBasketLegsFromHistory(
 export function buildPriceBasketCardModel(legs: PriceBasketLegModel[]): PriceBasketCardModel {
   const withChange = legs.filter((l) => l.changePct != null);
   let agreementLabel = "Price context";
+  let agreement: PriceBasketCardModel["agreement"] = "neutral";
   let takeaway =
     "Futures confirm the official read — they do not override supply or desk truth alone.";
 
@@ -397,18 +398,21 @@ export function buildPriceBasketCardModel(legs: PriceBasketLegModel[]): PriceBas
     const allDown = signs.every((s) => s < 0);
     if (allUp) {
       agreementLabel = "Contracts agree ↑";
+      agreement = "up";
       takeaway =
         "Spring, HRW, and SRW are moving together higher — price confirmation leans constructive.";
     } else if (allDown) {
       agreementLabel = "Contracts agree ↓";
+      agreement = "down";
       takeaway =
         "The three Wheat classes are softer together — price confirmation leans cautious.";
     } else {
       agreementLabel = "Contracts split";
+      agreement = "split";
       takeaway =
         "Wheat classes disagree on direction — treat price as lower-confidence confirmation only.";
     }
   }
 
-  return { legs, agreementLabel, takeaway };
+  return { legs, agreementLabel, agreement, takeaway };
 }

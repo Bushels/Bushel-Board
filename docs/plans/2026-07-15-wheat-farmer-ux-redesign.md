@@ -1,7 +1,7 @@
 # Wheat Farmer UX Redesign — Visual Decision Board
 
 **Date:** 2026-07-15  
-**Status:** Phase 1 **complete** (pillars wired on `/thesis`); Phase 2–3 still open  
+**Status:** Phase 1–2 **complete** (pillars + map/motion polish); Phase 3 still open  
 **Product goal:** A prairie farmer should open `/thesis` and *see* the Wheat story in under 10 seconds — not scroll a dense operator report.
 
 ## Problem (farmer voice)
@@ -102,10 +102,11 @@ Operator panels stay behind `?audit=1` or direct URLs.
 - Browser smoke markers for new section titles
 - **Shipped 2026-07-15:** `WheatVisualPillars` under published-desk stance on `/thesis`; builders normalize real package flags; tests + `track54:browser-smoke` green.
 
-### Phase 2 — Map polish (1 session)
+### Phase 2 — Map polish (1 session) ✅
 - Prairie progress mini-map or three-province visual
 - GEE mini-map thumbnail linking to `/data`
 - Price basket agreement animation
+- **Shipped 2026-07-15:** stylized Prairie AB/SK/MB mini-map, GEE stress thumbnail (watch-only pulse + link to `/data`), price agreement converge/diverge motion. Mobile keeps a vertical stack so all cards stay scroll-reachable; horizontal swipe carousel deferred to Phase 3 with smoke-aware probing.
 
 ### Phase 3 — Story polish (1 session)
 - Icon language for bull/bear drivers

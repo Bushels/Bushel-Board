@@ -2,6 +2,8 @@
 
 **Hermes + Grok 4.5 control-plane cutover (2026-07-15 MT):** Schedules and automations for Bushel Board now live under **Hermes Agent cron**, not Claude Desktop Routines. Mechanical collectors, source/desk watchdogs, and no-write Wheat X Pulse wrappers are registered as Hermes `--no-agent` jobs; daily operator brief + Friday desk orchestrator are Grok 4.5 agent jobs (preflight/report; desk **writes still approval-gated**). Canonical map: `docs/reference/hermes-bushel-board-schedule.md`. Wrappers: `scripts/hermes/*.sh` + `%LOCALAPPDATA%\hermes\scripts\bushel-*.sh`. **Grok is the operator/X scout model — not a thesis writer.** Tombstoned Grok thesis endpoints stay 410.
 
+**Wheat farmer visual pillars Phase 2 (2026-07-15 MT):** Map/motion polish on farmer `/thesis` pillars — stylized Prairie AB/SK/MB mini-map, GEE belt stress thumbnail (watch-only pulse, links to `/data`), price agreement converge/diverge animation. Mobile stays a vertical stack (scroll-reachable); horizontal swipe carousel deferred to Phase 3. No new score authority.
+
 **Wheat farmer visual pillars Phase 1 (2026-07-15 MT):** Wired `WheatVisualPillars` into farmer `/thesis` immediately under the published-desk stance hero. Three cards: Prairie progress (MB/SK/AB package status from `canada_crop_progress` source-run context), GEE satellite moisture/stress (watch-only via `getLatestCropStress()`, deep-link to `/data`), and Spring/HRW/SRW price basket from `getWheatPriceHistory(60)`. Display only — **no score authority**; published desk headline + scorecard fallback unchanged. Builders: `lib/thesis/wheat-cockpit-builders.ts` (normalizes `partial_mb_sk` etc.). Proof: focused builders + thesis page tests 51/51, `npm run build`, `track54:browser-smoke` desktop+mobile `/thesis` + audit all markers green.
 
 **Wheat cleanup pass (2026-07-15 MT):** Deep audit scored the app **74/100** (`docs/audits/2026-07-15-wheat-centric-board-deep-audit.md`). Executed P0: deleted **33 orphan multi-grain UI/lib modules** (~safe dead set), demoted Source Spine / Data Flow from primary nav (farmer nav = Thesis · Wheat Data · Environmental · My Farm), rewrote `README.md` to Wheat-centric + Hermes ownership. Kept re-home candidates for Wheat Data P2 (COT, terminal flow, delivery-gap, etc.). Thesis page split still open (`app/(dashboard)/thesis/page.tsx` ~6.5k lines).
@@ -18,7 +20,7 @@
 **As of:** 2026-07-15
 
 ## Active task
-Current focus: **Wheat farmer UX Phase 1 complete** (visual pillars on `/thesis`). Next: Phase 2 map polish + thesis monofile split + Wheat Data P2, while Hermes owns collectors/watchdogs/X pulse and Friday desk stays approval-gated.
+Current focus: **Wheat farmer UX Phase 2 complete** (mini-map + motion polish). Next: Phase 3 story polish / thesis monofile split / Wheat Data P2, while Hermes owns collectors/watchdogs/X pulse and Friday desk stays approval-gated.
 
 Farmer product remains **Wheat-only** on normal `/thesis` (`lib/thesis/active-grain-display.ts`). Multi-grain harness stays for audit/re-enable.
 
@@ -27,9 +29,9 @@ Farmer product remains **Wheat-only** on normal `/thesis` (`lib/thesis/active-gr
 **Automation owner (updated 2026-07-15):** **Hermes Agent + Grok 4.5**. Claude Desktop Routines are legacy for this project — disable them after one clean Hermes week. Desk CLI remains the write plane; Hermes Friday job defaults to **preflight only**.
 
 **Next actions:**
-1. Commit/PR Wheat farmer UX Phase 1 (pillars wired) when ready.
+1. Commit/PR Wheat farmer UX Phase 2 when ready.
 2. Friday desk swarm (US then CAD, postcheck) remains the weekly board of record — Hermes orchestrator stays preflight-only until explicit write approval.
-3. Phase 2: Prairie mini-map / GEE thumbnail / price agreement animation + mobile swipe polish.
+3. Phase 3: icon language for drivers + collapse dense sections under “How we got here”.
 4. Split `thesis/page.tsx` into farmer vs audit modules.
 5. Wheat Data P2: re-home kept charts (COT, terminal flow, delivery gap) onto `/data`.
 6. Disable remaining Claude Desktop Bushel Routines once heartbeats prove Hermes coverage.

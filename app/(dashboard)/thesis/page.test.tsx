@@ -985,15 +985,21 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Prairie + US condition");
     expect(html).toContain("MB · SK · AB this week");
     expect(html).toContain("Full Prairie package");
+    expect(html).toContain("Prairie map");
+    expect(html).toContain('data-testid="wheat-prairie-mini-map"');
     expect(html).toContain("Canada Prairie");
     expect(html).toContain("United States");
     expect(html).toContain("Weather domain");
     expect(html).toContain("Satellite moisture");
     expect(html).toContain("Crop-stress belts");
+    expect(html).toContain("Stress thumbnail");
+    expect(html).toContain('data-testid="wheat-gee-mini-map"');
     expect(html).toContain("Watch-only");
     expect(html).toContain("Open full Wheat Data map");
     expect(html).toContain("Price proof");
     expect(html).toContain("Spring · HRW · SRW");
+    expect(html).toContain("Agreement motion");
+    expect(html).toContain('data-testid="wheat-price-agreement"');
     // Pillars explain data; they do not own the desk headline.
     expect(html).toContain("Current stance");
   });

@@ -145,6 +145,16 @@ describe("wheat cockpit builders", () => {
       { symbol: "SRW", lastPrice: 5.9, changePct: 0.4, series: [5.8, 5.85, 5.9] },
     ]);
     expect(model.agreementLabel.toLowerCase()).toContain("split");
+    expect(model.agreement).toBe("split");
+  });
+
+  it("marks all-up basket as agreement up", () => {
+    const model = buildPriceBasketCardModel([
+      { symbol: "Spring Wheat", lastPrice: 6.5, changePct: 0.5, series: [6.1, 6.5] },
+      { symbol: "HRW", lastPrice: 6.4, changePct: 0.3, series: [6.2, 6.4] },
+      { symbol: "SRW", lastPrice: 5.9, changePct: 0.2, series: [5.8, 5.9] },
+    ]);
+    expect(model.agreement).toBe("up");
   });
 
   it("builds Spring/HRW/SRW legs from price history rows", () => {

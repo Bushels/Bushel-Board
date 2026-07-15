@@ -87,6 +87,8 @@ export interface PriceBasketLegModel {
 export interface PriceBasketCardModel {
   legs: PriceBasketLegModel[];
   agreementLabel: string;
+  /** Drives converge/diverge animation on the farmer price pillar. */
+  agreement: "up" | "down" | "split" | "neutral";
   takeaway: string;
 }
 

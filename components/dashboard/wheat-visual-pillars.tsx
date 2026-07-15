@@ -6,9 +6,11 @@ import { motion, useReducedMotion } from "framer-motion";
 import type {
   CropLean,
   CropProgressSignal,
+  GeeBeltChip,
   GeeMoistureCardModel,
   GeographyCropRead,
   PrairieProgressCardModel,
+  PrairieProvincePill,
   PriceBasketCardModel,
 } from "@/lib/thesis/wheat-cockpit-models";
 import { AnimatedCard } from "@/components/motion/animated-card";
@@ -35,6 +37,203 @@ function signalValueClass(lean: CropLean): string {
   if (lean === "bull") return "text-prairie";
   if (lean === "bear") return "text-orange-700 dark:text-orange-300";
   return "text-foreground";
+}
+
+/** Stylized Prairie trio — not geo-precise; AB west → SK → MB east. */
+function PrairieMiniMap({
+  provinces,
+  reduce,
+}: {
+  provinces: PrairieProvincePill[];
+  reduce: boolean | null;
+}) {
+  const byCode = Object.fromEntries(provinces.map((p) => [p.code, p])) as Record<
+    string,
+    PrairieProvincePill | undefined
+  >;
+  // Geographic west→east for the map visual.
+  const order = [
+    { code: "AB" as const, d: "M8 28h52v52H8z", labelX: 34, labelY: 58 },
+    { code: "SK" as const, d: "M66 18h68v72H66z", labelX: 100, labelY: 58 },
+    { code: "MB" as const, d: "M140 30h52v50h-52z", labelX: 166, labelY: 58 },
+  ];
+
+  return (
+    <div data-testid="wheat-prairie-mini-map" className="rounded-2xl border border-white/30 bg-background/40 p-2 dark:border-white/10">
+      <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        Prairie map
+      </p>
+      <svg viewBox="0 0 200 100" className="h-auto w-full" role="img" aria-label="Prairie package map for Alberta, Saskatchewan, and Manitoba">
+        <rect x="0" y="0" width="200" height="100" rx="12" className="fill-wheat-100/40 dark:fill-white/5" />
+        {order.map((shape, i) => {
+          const p = byCode[shape.code];
+          const present = p?.present ?? false;
+          const fill = present ? "var(--canola, #c4a035)" : "var(--muted, #d6d0c2)";
+          const opacity = present ? (p?.progressPct != null ? 0.55 + (p.progressPct / 100) * 0.4 : 0.75) : 0.28;
+          return (
+            <g key={shape.code}>
+              <motion.path
+                d={shape.d}
+                fill={fill}
+                fillOpacity={opacity}
+                stroke="rgba(42,38,30,0.25)"
+                strokeWidth={1.2}
+                initial={reduce ? false : { opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.45, delay: reduce ? 0 : i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                style={{ transformOrigin: "center" }}
+              />
+              <text
+                x={shape.labelX}
+                y={shape.labelY}
+                textAnchor="middle"
+                className="fill-foreground text-[11px] font-semibold"
+                style={{ fontSize: 12, fontWeight: 600 }}
+              >
+                {shape.code}
+              </text>
+              <text
+                x={shape.labelX}
+                y={shape.labelY + 14}
+                textAnchor="middle"
+                style={{ fontSize: 9, fill: "currentColor", opacity: 0.65 }}
+              >
+                {present ? (p?.progressPct != null ? `${Math.round(p.progressPct)}%` : "in") : "wait"}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** Lightweight belt thumbnail — Mapbox stays on /data. */
+function GeeMiniMapThumbnail({
+  belts,
+  reduce,
+}: {
+  belts: GeeBeltChip[];
+  reduce: boolean | null;
+}) {
+  const byBelt = Object.fromEntries(belts.map((b) => [b.cropBelt, b]));
+  const slots = [
+    { id: "US_HRW", label: "US HRW", x: 8, w: 58 },
+    { id: "RU_WINTER", label: "RU winter", x: 72, w: 58 },
+    { id: "RU_SPRING", label: "RU spring", x: 136, w: 56 },
+  ];
+
+  return (
+    <div
+      data-testid="wheat-gee-mini-map"
+      className="rounded-2xl border border-white/30 bg-background/40 p-2 dark:border-white/10"
+    >
+      <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        Stress thumbnail
+      </p>
+      <svg viewBox="0 0 200 72" className="h-auto w-full" role="img" aria-label="Crop-stress belt thumbnail">
+        <rect x="0" y="0" width="200" height="72" rx="10" className="fill-wheat-100/40 dark:fill-white/5" />
+        {slots.map((slot, i) => {
+          const belt = byBelt[slot.id];
+          const color = belt?.color ?? "#d6d0c2";
+          return (
+            <g key={slot.id}>
+              <motion.rect
+                x={slot.x}
+                y={14}
+                width={slot.w}
+                height={36}
+                rx={8}
+                fill={color}
+                initial={reduce ? false : { opacity: 0.35 }}
+                animate={
+                  reduce || !belt
+                    ? { opacity: belt ? 0.9 : 0.35 }
+                    : { opacity: [0.55, 0.95, 0.55] }
+                }
+                transition={
+                  reduce || !belt
+                    ? { duration: 0.35, delay: i * 0.05 }
+                    : { duration: 2.4, delay: i * 0.15, repeat: Infinity, ease: "easeInOut" }
+                }
+              />
+              <text
+                x={slot.x + slot.w / 2}
+                y={64}
+                textAnchor="middle"
+                style={{ fontSize: 9, fill: "currentColor", opacity: 0.7 }}
+              >
+                {slot.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function PriceAgreementStrip({
+  model,
+  reduce,
+}: {
+  model: PriceBasketCardModel;
+  reduce: boolean | null;
+}) {
+  const tone =
+    model.agreement === "up"
+      ? "text-prairie"
+      : model.agreement === "down"
+        ? "text-error"
+        : "text-muted-foreground";
+
+  return (
+    <div
+      data-testid="wheat-price-agreement"
+      className="mt-3 rounded-2xl border border-white/30 bg-background/40 px-3 py-2 dark:border-white/10"
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        Agreement motion
+      </p>
+      <div className="mt-2 flex h-10 items-end justify-center gap-3">
+        {model.legs.map((leg, i) => {
+          const change = leg.changePct ?? 0;
+          const up = change >= 0;
+          const height =
+            model.agreement === "split"
+              ? 18 + Math.min(18, Math.abs(change) * 4)
+              : model.agreement === "neutral"
+                ? 16
+                : 22 + Math.min(14, Math.abs(change) * 3);
+          const xShift =
+            model.agreement === "split" ? (i === 0 ? -6 : i === 2 ? 6 : 0) : 0;
+          const yShift =
+            model.agreement === "up" ? -4 : model.agreement === "down" ? 4 : 0;
+          return (
+            <div key={leg.symbol} className="flex w-12 flex-col items-center gap-1">
+              <motion.div
+                className={cn(
+                  "w-3 rounded-full",
+                  model.agreement === "up"
+                    ? "bg-prairie"
+                    : model.agreement === "down"
+                      ? "bg-error"
+                      : up
+                        ? "bg-prairie/70"
+                        : "bg-error/70",
+                )}
+                initial={reduce ? false : { height: 8, x: 0, y: 0 }}
+                animate={{ height, x: xShift, y: yShift }}
+                transition={{ duration: 0.55, delay: reduce ? 0 : i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+              />
+              <span className="text-[10px] text-muted-foreground">{leg.symbol === "Spring Wheat" ? "Spr" : leg.symbol}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className={cn("mt-1 text-center text-xs font-medium", tone)}>{model.agreementLabel}</p>
+    </div>
+  );
 }
 
 function GeographyReadBlock({ read }: { read: GeographyCropRead }) {
@@ -122,6 +321,10 @@ export function PrairieProgressPillar({ model }: { model: PrairieProgressCardMod
           <p className="mt-1 text-xs text-muted-foreground">Package week ending {model.weekEnding}</p>
         ) : null}
 
+        <div className="mt-3">
+          <PrairieMiniMap provinces={model.provinces} reduce={reduce} />
+        </div>
+
         <div className="mt-3 grid gap-2">
           <GeographyReadBlock read={model.canada} />
           <GeographyReadBlock read={model.us} />
@@ -167,6 +370,8 @@ export function PrairieProgressPillar({ model }: { model: PrairieProgressCardMod
 }
 
 export function GeeMoisturePillar({ model }: { model: GeeMoistureCardModel }) {
+  const reduce = useReducedMotion();
+
   return (
     <AnimatedCard index={1} className="h-full">
       <section
@@ -190,6 +395,16 @@ export function GeeMoisturePillar({ model }: { model: GeeMoistureCardModel }) {
         {model.latestWeek ? (
           <p className="mt-1 text-xs text-muted-foreground">Week ending {model.latestWeek}</p>
         ) : null}
+
+        <div className="mt-3">
+          <Link
+            href={model.dataHref}
+            className="block rounded-2xl outline-none ring-offset-2 transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-canola"
+            aria-label="Open full Wheat Data crop-stress map"
+          >
+            <GeeMiniMapThumbnail belts={model.belts} reduce={reduce} />
+          </Link>
+        </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {model.belts.length === 0 ? (
@@ -255,6 +470,8 @@ export function PriceBasketPillar({ model }: { model: PriceBasketCardModel }) {
           </span>
         </div>
 
+        <PriceAgreementStrip model={model} reduce={reduce} />
+
         <div className="mt-4 grid gap-3">
           {model.legs.map((leg, i) => {
             const max = Math.max(...leg.series, 1);
@@ -308,7 +525,11 @@ export function PriceBasketPillar({ model }: { model: PriceBasketCardModel }) {
   );
 }
 
-/** Horizontal swipe row of the three farmer pillars (Phase 1 shell). */
+/**
+ * Farmer visual pillars.
+ * Mobile: vertical stack (smoke/scroll-reachable). Desktop: 3-column grid.
+ * Phase 2 map/motion polish lives inside each card.
+ */
 export function WheatVisualPillars({
   prairie,
   gee,
