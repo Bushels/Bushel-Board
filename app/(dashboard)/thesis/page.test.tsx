@@ -24,6 +24,7 @@ const {
   getWheatPriceHistoryMock,
   getWheatExportHistoryMock,
   getWheatUsdaProgressUpdateMock,
+  getLatestCropStressMock,
   getLocalTrack54ReadinessSnapshotMock,
   cookieGetMock,
   getProvincialFlowMock,
@@ -36,6 +37,7 @@ const {
   getWheatPriceHistoryMock: vi.fn<() => Promise<WheatPriceHistoryRow[]>>(),
   getWheatExportHistoryMock: vi.fn<() => Promise<WheatExportHistoryRow[]>>(),
   getWheatUsdaProgressUpdateMock: vi.fn<() => Promise<WheatUsdaProgressUpdate | null>>(),
+  getLatestCropStressMock: vi.fn(),
   getLocalTrack54ReadinessSnapshotMock: vi.fn<() => Promise<Track54ReadinessSnapshot | null>>(),
   cookieGetMock: vi.fn<(name: string) => { value: string } | undefined>(),
   getProvincialFlowMock: vi.fn(),
@@ -86,6 +88,10 @@ vi.mock("@/lib/queries/wheat-export-history", () => ({
 
 vi.mock("@/lib/queries/wheat-crop-progress", () => ({
   getWheatUsdaProgressUpdate: getWheatUsdaProgressUpdateMock,
+}));
+
+vi.mock("@/lib/queries/gee-crop-stress", () => ({
+  getLatestCropStress: getLatestCropStressMock,
 }));
 
 vi.mock("@/lib/queries/track54-readiness", () => ({
@@ -453,6 +459,27 @@ function boardData(): ThesisBoardData {
           blocked_claims: [],
         },
         {
+          domain: "weather",
+          score: 12,
+          weight: 0.16,
+          weighted_score: 1.92,
+          confidence: "medium",
+          freshness_status: "strong",
+          sources: ["canada_crop_progress"],
+          metrics: [
+            {
+              source: "canada_crop_progress",
+              label: "Behind-normal development proxy",
+              value: "63%",
+              numericValue: 63,
+              unit: "pct",
+            },
+          ],
+          positive_evidence: ["Canada crop-development timing proxy is delayed."],
+          negative_evidence: [],
+          blocked_claims: [],
+        },
+        {
           domain: "supply",
           score: 30,
           weight: 0.18,
@@ -680,11 +707,11 @@ function boardData(): ThesisBoardData {
     cacheItemCount: 1,
     sourceRunContext: {
       canadaCropProgress: {
-        prairieWeekStatus: null,
+        prairieWeekStatus: "complete_mb_sk_ab",
         finishedAt: "2026-05-08T18:00:00Z",
         sourcePeriodEnd: "2026-05-08",
-        latestSourceLabel: null,
-        loadedProvinces: [],
+        latestSourceLabel: "MB+SK+AB crop reports",
+        loadedProvinces: ["MB", "SK", "AB"],
         missingProvinces: [],
         status: "success",
       },
@@ -903,6 +930,25 @@ describe("ThesisPage scorecard audit mode", () => {
     getWheatPriceHistoryMock.mockResolvedValue(wheatPriceHistoryRows());
     getWheatExportHistoryMock.mockResolvedValue(wheatExportHistoryRows());
     getWheatUsdaProgressUpdateMock.mockResolvedValue(wheatUsdaProgressUpdate());
+    getLatestCropStressMock.mockResolvedValue({
+      latestWeek: "2026-07-10",
+      rows: [],
+      beltSummaries: [
+        {
+          cropBelt: "US_HRW",
+          regionCode: "BELT",
+          regionName: "US HRW",
+          weekEnding: "2026-07-10",
+          ndviZ: -0.4,
+          smZ: -0.3,
+          stressIndex: -0.35,
+          reading: "stressed-mild",
+        },
+      ],
+      sourceDatasets: ["MODIS"],
+      computedAt: "2026-07-11T12:00:00Z",
+      takeaway: "This week, the US winter-wheat belt is showing crop stress.",
+    });
     getLocalTrack54ReadinessSnapshotMock.mockResolvedValue(null);
     cookieGetMock.mockReturnValue(undefined);
     getProvincialFlowMock.mockResolvedValue(null);
@@ -924,6 +970,32 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).not.toContain("Overall rating: 37.5 / bull");
     expect(html).not.toContain("movement_without_current_week_cgc");
     expect(html).not.toContain("Soybeans and soy products are the main public cross-market context for canola.");
+  });
+
+  it("renders farmer visual pillars after the Wheat stance on the normal board", async () => {
+    const html = await renderThesisPage();
+
+    expect(html).toContain('data-testid="wheat-visual-pillars"');
+    expect(html).toContain('data-testid="wheat-pillar-prairie"');
+    expect(html).toContain('data-testid="wheat-pillar-gee"');
+    expect(html).toContain('data-testid="wheat-pillar-prices"');
+    expect(html).toContain('data-testid="wheat-crop-ca"');
+    expect(html).toContain('data-testid="wheat-crop-us"');
+    expect(html).toContain("Crop progress");
+    expect(html).toContain("Prairie + US condition");
+    expect(html).toContain("MB · SK · AB this week");
+    expect(html).toContain("Full Prairie package");
+    expect(html).toContain("Canada Prairie");
+    expect(html).toContain("United States");
+    expect(html).toContain("Weather domain");
+    expect(html).toContain("Satellite moisture");
+    expect(html).toContain("Crop-stress belts");
+    expect(html).toContain("Watch-only");
+    expect(html).toContain("Open full Wheat Data map");
+    expect(html).toContain("Price proof");
+    expect(html).toContain("Spring · HRW · SRW");
+    // Pillars explain data; they do not own the desk headline.
+    expect(html).toContain("Current stance");
   });
 
   it("keeps the normal farmer board clear of shared public forbidden terms", async () => {

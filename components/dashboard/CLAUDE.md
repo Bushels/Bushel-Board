@@ -33,7 +33,7 @@ Component-to-route map. New dashboard work should reuse these before introducing
 | Component | Where used |
 |---|---|
 | `your-area-card.tsx` | `/thesis` (normal + audit) - "Your area" localization: postal/FSA entry via cookie server actions, province-level CGC delivery pace, and local posted bids with honest empty state. Read-only; no scoring authority. |
-| `wheat-visual-pillars.tsx` | `/thesis` (Phase 1 UX — wire next) - farmer visual pillars: Prairie progress (MB/SK/AB), GEE moisture/stress (watch-only, link to `/data`), price basket. Built from `lib/thesis/wheat-cockpit-builders.ts`. Display only; no scoring authority. |
+| `wheat-visual-pillars.tsx` | `/thesis` (normal + audit) - farmer visual pillars: Prairie progress (MB/SK/AB), GEE moisture/stress (watch-only, link to `/data`), price basket. Built from `lib/thesis/wheat-cockpit-builders.ts`. Display only; no scoring authority. |
 | `wheat-x-pulse-card.tsx` | `/thesis` (normal + audit) - Wheat X Pulse watch-only card under reconciliation judge. Shows ranked X lean, tension vs official board, provenance, ranking weights, top posts, and thematic watches (EU heat / US dryness). Desk swarm reference only; score authority = none. |
 | `grain-read-linkage.tsx` | Normal `/thesis` grain cards - farmer-facing "What feeds this read" strip (official-input/price-context/watch-lead counts + top lanes) derived from the same impact graph as the audit surface. Display only; adds no scoring authority. |
 | `data-universe-scene.tsx` | `/data-universe` - farmer-facing React Three Fiber system graph (sources -> pressure lanes -> grains -> board) with flow particles, hover/click selection, WebGL-context-loss self-healing remount, and jsdom/WebGL fallback. Built from `lib/thesis/data-universe.ts`; display only. |

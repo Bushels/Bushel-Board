@@ -1,7 +1,7 @@
 # Wheat Farmer UX Redesign — Visual Decision Board
 
 **Date:** 2026-07-15  
-**Status:** Direction for next sessions (post Hermes cleanup commit)  
+**Status:** Phase 1 **complete** (pillars wired on `/thesis`); Phase 2–3 still open  
 **Product goal:** A prairie farmer should open `/thesis` and *see* the Wheat story in under 10 seconds — not scroll a dense operator report.
 
 ## Problem (farmer voice)
@@ -95,11 +95,12 @@ Operator panels stay behind `?audit=1` or direct URLs.
 
 ## Implementation phases
 
-### Phase 1 — Cockpit skeleton (1 session)
+### Phase 1 — Cockpit skeleton (1 session) ✅
 - Extract farmer hero + visual pillars into components (starts thesis monofile split)
 - Wire Prairie package status + GEE latest week into top cards
 - Add motion with reduced-motion fallback
 - Browser smoke markers for new section titles
+- **Shipped 2026-07-15:** `WheatVisualPillars` under published-desk stance on `/thesis`; builders normalize real package flags; tests + `track54:browser-smoke` green.
 
 ### Phase 2 — Map polish (1 session)
 - Prairie progress mini-map or three-province visual

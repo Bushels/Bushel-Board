@@ -1,5 +1,5 @@
 /**
- * Client-safe types for the farmer visual pillars on /thesis (UX Phase 1).
+ * Client-safe types for the farmer visual pillars on /thesis (UX Phase 1+).
  * Keep free of server-only imports.
  */
 
@@ -12,6 +12,9 @@ export type PrairiePackageStatus =
   | "unknown"
   | "empty";
 
+/** Market lean implied by crop condition (stressed crop → bullish supply). */
+export type CropLean = "bull" | "bear" | "balanced" | "none";
+
 export interface PrairieProvincePill {
   code: PrairieProvinceCode;
   label: string;
@@ -23,12 +26,37 @@ export interface PrairieProvincePill {
   present: boolean;
 }
 
+/** One scored or display metric inside a geography crop read. */
+export interface CropProgressSignal {
+  label: string;
+  value: string;
+  detail: string | null;
+  lean: CropLean;
+  /** True when this metric is admitted into the mechanical weather domain. */
+  scores: boolean;
+}
+
+export interface GeographyCropRead {
+  code: "CA" | "US";
+  label: string;
+  weekEnding: string | null;
+  lean: CropLean;
+  leanLabel: string;
+  /** Short scorecard hint, e.g. "Weather domain −4.8 on US scorecard". */
+  scoreHint: string | null;
+  signals: CropProgressSignal[];
+}
+
 export interface PrairieProgressCardModel {
   weekEnding: string | null;
   packageStatus: PrairiePackageStatus;
   packageLabel: string;
   takeaway: string;
   provinces: PrairieProvincePill[];
+  /** Canada weather-domain read (scored when admitted). */
+  canada: GeographyCropRead;
+  /** US crop-progress / weather-domain read (scored when admitted). */
+  us: GeographyCropRead;
 }
 
 export interface GeeBeltChip {
@@ -70,4 +98,30 @@ export interface WheatCockpitHeroModel {
   caChip: string | null;
   usChip: string | null;
   scoreSourceLabel: string;
+}
+
+/** Minimal weather-domain slice from a board scorecard (client-safe). */
+export interface WeatherDomainSlice {
+  score: number;
+  weightedScore: number;
+  confidence?: string | null;
+  metrics?: Array<{
+    label: string;
+    value: string;
+    numericValue?: number | null;
+  }>;
+  positiveEvidence?: string[];
+  negativeEvidence?: string[];
+}
+
+/** Minimal USDA progress update for the US side of the crop pillar. */
+export interface UsdaProgressSlice {
+  weekEnding: string | null;
+  read: string | null;
+  metrics: Array<{
+    label: string;
+    value: string;
+    detail: string;
+    tone: "bull" | "bear" | "balanced";
+  }>;
 }

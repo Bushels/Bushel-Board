@@ -4,7 +4,10 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 
 import type {
+  CropLean,
+  CropProgressSignal,
   GeeMoistureCardModel,
+  GeographyCropRead,
   PrairieProgressCardModel,
   PriceBasketCardModel,
 } from "@/lib/thesis/wheat-cockpit-models";
@@ -21,6 +24,71 @@ function packageBadgeClass(status: PrairieProgressCardModel["packageStatus"]): s
   return "bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/30";
 }
 
+function leanBadgeClass(lean: CropLean): string {
+  if (lean === "bull") return "border-prairie/30 bg-prairie/10 text-prairie";
+  if (lean === "bear") return "border-orange-600/30 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+  if (lean === "balanced") return "border-border bg-background/70 text-muted-foreground";
+  return "border-border bg-muted/40 text-muted-foreground";
+}
+
+function signalValueClass(lean: CropLean): string {
+  if (lean === "bull") return "text-prairie";
+  if (lean === "bear") return "text-orange-700 dark:text-orange-300";
+  return "text-foreground";
+}
+
+function GeographyReadBlock({ read }: { read: GeographyCropRead }) {
+  return (
+    <div
+      data-testid={read.code === "CA" ? "wheat-crop-ca" : "wheat-crop-us"}
+      className="rounded-2xl border border-white/30 bg-background/45 p-3 dark:border-white/10"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {read.code === "CA" ? "Canada" : "United States"}
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">{read.label}</p>
+        </div>
+        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-medium", leanBadgeClass(read.lean))}>
+          {read.leanLabel}
+        </span>
+      </div>
+      {read.weekEnding ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">Week ending {read.weekEnding}</p>
+      ) : null}
+      {read.scoreHint ? (
+        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{read.scoreHint}</p>
+      ) : null}
+
+      <div className="mt-2 space-y-1.5">
+        {read.signals.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No scored condition metric yet for this side.</p>
+        ) : (
+          read.signals.map((signal: CropProgressSignal, index) => (
+            <div
+              key={`${read.code}-${signal.label}-${index}`}
+              className="flex items-baseline justify-between gap-2 text-xs"
+            >
+              <span className="min-w-0 text-muted-foreground">
+                {signal.label}
+                {signal.scores ? (
+                  <span className="ml-1 rounded bg-canola/15 px-1 py-px text-[10px] font-medium text-canola">
+                    scores
+                  </span>
+                ) : null}
+              </span>
+              <span className={cn("shrink-0 tabular-nums font-medium", signalValueClass(signal.lean))}>
+                {signal.value}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PrairieProgressPillar({ model }: { model: PrairieProgressCardModel }) {
   const reduce = useReducedMotion();
 
@@ -33,11 +101,12 @@ export function PrairieProgressPillar({ model }: { model: PrairieProgressCardMod
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Prairie progress
+              Crop progress
             </p>
             <h3 className="mt-1 font-display text-lg font-semibold text-foreground">
-              MB · SK · AB this week
+              Prairie + US condition
             </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">MB · SK · AB this week</p>
           </div>
           <span
             className={cn(
@@ -50,10 +119,18 @@ export function PrairieProgressPillar({ model }: { model: PrairieProgressCardMod
         </div>
 
         {model.weekEnding ? (
-          <p className="mt-1 text-xs text-muted-foreground">Week ending {model.weekEnding}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Package week ending {model.weekEnding}</p>
         ) : null}
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 grid gap-2">
+          <GeographyReadBlock read={model.canada} />
+          <GeographyReadBlock read={model.us} />
+        </div>
+
+        <div className="mt-3 space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Prairie package
+          </p>
           {model.provinces.map((p, i) => {
             const width = p.progressPct == null ? 0 : Math.max(0, Math.min(100, p.progressPct));
             return (
@@ -83,7 +160,7 @@ export function PrairieProgressPillar({ model }: { model: PrairieProgressCardMod
           })}
         </div>
 
-        <p className="mt-auto pt-4 text-sm leading-6 text-foreground">{model.takeaway}</p>
+        <p className="mt-auto pt-3 text-sm leading-6 text-foreground">{model.takeaway}</p>
       </section>
     </AnimatedCard>
   );
