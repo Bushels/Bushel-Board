@@ -156,7 +156,7 @@ export interface GrainImpactGraphBoardRead {
   canadaConfidence: number | null;
   usScore: number | null;
   usConfidence: number | null;
-  scoreSource: "weekly_packet" | "daily_overlay" | "mixed" | "none";
+  scoreSource: "weekly_packet" | "published_thesis" | "daily_overlay" | "mixed" | "none";
 }
 
 const DOMAIN_LABELS: Record<RatingDomainId, string> = {

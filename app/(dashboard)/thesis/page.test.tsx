@@ -1085,9 +1085,9 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain("Source coverage: Canada + US");
     expect(html).toContain("High conviction: fresh sources are lined up");
-    expect(html).toContain("Top pressure drivers");
+    expect(html).toContain("Mechanical evidence pressure");
     expect(html).toContain("Proof rows below");
-    expect(html).toContain("Reconciliation judge");
+    expect(html).toContain("Evidence cross-check");
     expect(html).toContain("Deciding datum");
     expect(html).toContain("+15 weighted points from CGC weekly grain stats");
     expect(html).toContain("Strong source proof");
@@ -1120,8 +1120,8 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Latest row: Jun 21, 2026");
     expect(html).toContain("Latest row: Jun 11, 2026");
     expect(html).toContain("Relationship spiderweb");
-    expect(html).toContain("Distance shows impact on the Wheat read");
-    expect(html).toContain("Closer nodes carry more score weight.");
+    expect(html).toContain("Distance shows mechanical scorecard impact");
+    expect(html).toContain("Closer nodes carry more deterministic score weight.");
     expect(html).toContain("Bear pressure sits left");
     expect(html).toContain("Inner: high impact");
     expect(html).toContain("Source (what we watch)");
@@ -1934,6 +1934,78 @@ describe("ThesisPage scorecard audit mode", () => {
 
     expect(html).toContain("Wheat bull bear pressure score 0");
     expect(html).toContain('data-confidence-scaled-position="50.00%"');
+  });
+
+  it("renders the matching published Wheat desk thesis as the headline without presenting rail position as confidence", async () => {
+    const data = boardData();
+    const canadaWheat = data.canadaItems.find((entry) => entry.name === "Wheat")!;
+    const usWheat = data.usItems.find((entry) => entry.name === "Wheat")!;
+    const publishedAt = "2026-07-15T01:24:15Z";
+
+    Object.assign(canadaWheat, {
+      stanceScore: 22,
+      stanceLabel: "Mild Bull",
+      confidenceScore: 42,
+      confidence: "medium",
+      publishedThesis: {
+        lane: "canada",
+        name: "Wheat",
+        cropYear: "2025-2026",
+        grainWeek: 42,
+        marketYear: null,
+        initialThesis: "Mild bull Canada read",
+        bullCase: "Canadian bull case",
+        bearCase: "Canadian bear case",
+        finalAssessment: "Canadian final assessment",
+        stanceScore: 22,
+        stanceTier: "Mild Bull",
+        confidenceScore: 42,
+        dataConfidence: "medium",
+        recommendation: null,
+        modelUsed: "claude-agent-desk-v1-opus",
+        generatedAt: publishedAt,
+      },
+      scoreSource: { kind: "published_thesis", recordedAt: publishedAt },
+    });
+    Object.assign(usWheat, {
+      stanceScore: 32,
+      stanceLabel: "Mild Bull",
+      confidenceScore: 45,
+      confidence: "medium",
+      publishedThesis: {
+        lane: "us",
+        name: "Wheat",
+        cropYear: "2025-2026",
+        grainWeek: null,
+        marketYear: 2025,
+        initialThesis: "Mild bull US read",
+        bullCase: "US bull case",
+        bearCase: "US bear case",
+        finalAssessment: "US final assessment",
+        stanceScore: 32,
+        stanceTier: "Mild Bull",
+        confidenceScore: 45,
+        dataConfidence: "medium",
+        recommendation: "PATIENCE",
+        modelUsed: "claude-agent-us-desk-v1-opus",
+        generatedAt: publishedAt,
+      },
+      scoreSource: { kind: "published_thesis", recordedAt: publishedAt },
+    });
+    const wheatRow = data.comparisonRows.find((row) => row.grain === "Wheat")!;
+    wheatRow.status = "aligned_bullish";
+    wheatRow.statusLabel = "Aligned bullish";
+    getThesisBoardDataMock.mockResolvedValue(data);
+
+    const html = await renderThesisPage();
+
+    expect(html).toContain("Mild Bull");
+    expect(html).toContain("Board score +27. 44% confidence.");
+    expect(html).toContain("Published desk thesis-of-record · CA +22 / 42% · US +32 / 45%");
+    expect(html).toContain("Wheat bull bear pressure score 27 at 44% confidence");
+    expect(html).toContain('data-confidence-scaled-position="55.94%"');
+    expect(html).toContain("Mechanical 0 / 80%");
+    expect(html).not.toContain(">43%</span>");
   });
 
   it("renders scorecard audit details only when audit=1 is present", async () => {

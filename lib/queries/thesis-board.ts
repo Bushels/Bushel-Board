@@ -1,5 +1,6 @@
 import { ALL_GRAINS, type GrainDef } from "@/lib/constants/grains";
 import { US_OVERVIEW_MARKETS, type UsMarketDef } from "@/lib/constants/us-markets";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_CROP_YEAR } from "@/lib/utils/crop-year";
 import { CURRENT_US_MARKET_YEAR } from "@/lib/queries/us-intelligence";
@@ -12,6 +13,7 @@ import {
   ACTIVE_FARMER_THESIS_GRAIN_LANES,
   isActiveFarmerThesisGrain,
 } from "@/lib/thesis/active-grain-display";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type JsonRecord = Record<string, unknown>;
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -143,11 +145,31 @@ export interface ThesisBoardItem {
   vikingL2Chunks: VikingL2Chunk[];
   ratingScorecard: ThesisRatingScorecard;
   priceRows?: ThesisPriceRow[];
+  publishedThesis?: ThesisPublishedRead;
   scoreSource?: {
-    kind: "weekly_packet" | "daily_overlay";
+    kind: "weekly_packet" | "published_thesis" | "daily_overlay";
     recordedAt?: string | null;
     trigger?: string | null;
   };
+}
+
+export interface ThesisPublishedRead {
+  lane: ThesisLane;
+  name: string;
+  cropYear: string | null;
+  grainWeek: number | null;
+  marketYear: number | null;
+  initialThesis: string | null;
+  bullCase: string | null;
+  bearCase: string | null;
+  finalAssessment: string | null;
+  stanceScore: number;
+  stanceTier: string | null;
+  confidenceScore: number | null;
+  dataConfidence: ThesisConfidence | null;
+  recommendation: string | null;
+  modelUsed: string | null;
+  generatedAt: string | null;
 }
 
 export interface ThesisComparisonPoint {
@@ -723,6 +745,112 @@ function stanceLabel(score: number): string {
   if (score <= -20) return "Bear tilt";
   if (score < 0) return "Lean bear";
   return "Balanced";
+}
+
+function confidenceLabelForPublishedRead(
+  value: unknown,
+  confidenceScore: number | null,
+): ThesisConfidence {
+  if (value === "high" || value === "medium" || value === "low") return value;
+  if ((confidenceScore ?? 0) >= 70) return "high";
+  if ((confidenceScore ?? 0) >= 45) return "medium";
+  return "low";
+}
+
+function publishedStanceTier(row: JsonRecord): string | null {
+  const metadata = asRecord(row.llm_metadata);
+  return textValue(asRecord(metadata.track_46), "stance_tier");
+}
+
+function normalizePublishedThesisRead(
+  lane: ThesisLane,
+  value: unknown,
+): ThesisPublishedRead | null {
+  const row = asRecord(value);
+  const name = textValue(row, lane === "canada" ? "grain" : "market_name");
+  const stanceScore = numberValue(row, "stance_score");
+  if (!name || stanceScore === null) return null;
+
+  const confidenceScore = numberValue(row, "confidence_score");
+  const dataConfidenceValue = textValue(row, "data_confidence");
+  const dataConfidence =
+    dataConfidenceValue === "high" || dataConfidenceValue === "medium" || dataConfidenceValue === "low"
+      ? dataConfidenceValue
+      : null;
+
+  return {
+    lane,
+    name,
+    cropYear: textValue(row, "crop_year"),
+    grainWeek: numberValue(row, "grain_week"),
+    marketYear: numberValue(row, "market_year"),
+    initialThesis: textValue(row, "initial_thesis"),
+    bullCase: textValue(row, "bull_case"),
+    bearCase: textValue(row, "bear_case"),
+    finalAssessment: textValue(row, "final_assessment"),
+    stanceScore,
+    stanceTier: publishedStanceTier(row),
+    confidenceScore,
+    dataConfidence,
+    recommendation: textValue(row, "recommendation"),
+    modelUsed: textValue(row, "model_used"),
+    generatedAt: textValue(row, "generated_at"),
+  };
+}
+
+function publishedReadMatchesItem(
+  item: ThesisBoardItem,
+  read: ThesisPublishedRead,
+): boolean {
+  if (item.lane !== read.lane || item.name.toLowerCase() !== read.name.toLowerCase()) return false;
+  if (item.cropYear && read.cropYear && item.cropYear !== read.cropYear) return false;
+  if (item.lane === "canada" && item.grainWeek !== null && read.grainWeek !== null) {
+    return item.grainWeek === read.grainWeek;
+  }
+  if (item.lane === "us" && item.marketYear !== null && read.marketYear !== null) {
+    return item.marketYear === read.marketYear;
+  }
+  return true;
+}
+
+function applyPublishedReadToItem(
+  item: ThesisBoardItem,
+  reads: readonly ThesisPublishedRead[],
+): ThesisBoardItem {
+  const read = reads.find((candidate) => publishedReadMatchesItem(item, candidate));
+  if (!read) return item;
+
+  const confidenceScore = read.confidenceScore ?? item.confidenceScore;
+  return {
+    ...item,
+    stanceScore: read.stanceScore,
+    stanceLabel: read.stanceTier ?? stanceLabel(read.stanceScore),
+    confidenceScore,
+    confidence: confidenceLabelForPublishedRead(read.dataConfidence, confidenceScore),
+    bullCase: read.bullCase ?? item.bullCase,
+    bearCase: read.bearCase ?? item.bearCase,
+    publishedThesis: read,
+    scoreSource: {
+      kind: "published_thesis",
+      recordedAt: read.generatedAt,
+      trigger: "Published weekly desk thesis-of-record",
+    },
+  };
+}
+
+export function applyPublishedThesisReads(
+  data: ThesisBoardData,
+  reads: readonly ThesisPublishedRead[],
+): ThesisBoardData {
+  if (reads.length === 0) return data;
+  const canadaItems = data.canadaItems.map((item) => applyPublishedReadToItem(item, reads));
+  const usItems = data.usItems.map((item) => applyPublishedReadToItem(item, reads));
+  return {
+    ...data,
+    canadaItems,
+    usItems,
+    comparisonRows: buildMajorThesisComparisonRows(canadaItems, usItems),
+  };
 }
 
 function scoreDrivers(bullDrivers: ThesisDriver[], bearDrivers: ThesisDriver[]): number {
@@ -2242,6 +2370,39 @@ async function fetchCachedBoardPackets(
   return parseCachedBoardPackets(data);
 }
 
+async function fetchLatestPublishedWheatReads(
+  supabase: SupabaseClient,
+): Promise<ThesisPublishedRead[]> {
+  const [canadaResult, usResult] = await Promise.all([
+    supabase
+      .from("market_analysis")
+      .select(
+        "grain,crop_year,grain_week,initial_thesis,bull_case,bear_case,final_assessment,stance_score,confidence_score,data_confidence,model_used,generated_at,llm_metadata",
+      )
+      .eq("grain", "Wheat")
+      .eq("crop_year", CURRENT_CROP_YEAR)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("us_market_analysis")
+      .select(
+        "market_name,crop_year,market_year,initial_thesis,bull_case,bear_case,final_assessment,stance_score,confidence_score,recommendation,data_confidence,model_used,generated_at,llm_metadata",
+      )
+      .eq("market_name", "Wheat")
+      .eq("market_year", CURRENT_US_MARKET_YEAR)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const reads = [
+    canadaResult.error ? null : normalizePublishedThesisRead("canada", canadaResult.data),
+    usResult.error ? null : normalizePublishedThesisRead("us", usResult.data),
+  ];
+  return reads.filter((read): read is ThesisPublishedRead => read !== null);
+}
+
 async function fetchLiveFallbackBoardData(
   supabase: SupabaseServerClient,
   latestAvailableSourceRunAt: string | null,
@@ -2274,21 +2435,35 @@ async function fetchLiveFallbackBoardData(
 
 export async function getThesisBoardData(): Promise<ThesisBoardData> {
   const supabase = await createClient();
-  const [cachedPackets, sourceContext] = await Promise.all([
+  // The published thesis tables deliberately remain authenticated-only under RLS.
+  // This route is public, so read the bounded Wheat fields through the server-only
+  // service client when available; never expose that client to browser code.
+  const publishedThesisClient =
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createAdminClient()
+      : supabase;
+  const [cachedPackets, sourceContext, publishedWheatReads] = await Promise.all([
     fetchCachedBoardPackets(supabase),
     fetchSourceRunContext(supabase),
+    fetchLatestPublishedWheatReads(publishedThesisClient),
   ]);
   const { latestAvailableSourceRunAt, sourceRunContext } = sourceContext;
 
   if (cachedPackets && cachedPackets.cacheItemCount > 0) {
     const cacheStatus = cacheStatusFor(cachedPackets, latestAvailableSourceRunAt);
-    return await buildBoardDataFromCachedPackets(
+    const boardData = await buildBoardDataFromCachedPackets(
       cachedPackets,
       cacheStatus,
       latestAvailableSourceRunAt,
       sourceRunContext,
     );
+    return applyPublishedThesisReads(boardData, publishedWheatReads);
   }
 
-  return fetchLiveFallbackBoardData(supabase, latestAvailableSourceRunAt, sourceRunContext);
+  const boardData = await fetchLiveFallbackBoardData(
+    supabase,
+    latestAvailableSourceRunAt,
+    sourceRunContext,
+  );
+  return applyPublishedThesisReads(boardData, publishedWheatReads);
 }

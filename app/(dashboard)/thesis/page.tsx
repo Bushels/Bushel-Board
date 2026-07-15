@@ -160,7 +160,9 @@ function graphBoardReadSource(items: ThesisBoardItem[]): GrainImpactGraphBoardRe
   if (items.length === 0) return "none";
   const sourceKinds = new Set(items.map((item) => item.scoreSource?.kind ?? "weekly_packet"));
   if (sourceKinds.size > 1) return "mixed";
-  return sourceKinds.has("daily_overlay") ? "daily_overlay" : "weekly_packet";
+  if (sourceKinds.has("daily_overlay")) return "daily_overlay";
+  if (sourceKinds.has("published_thesis")) return "published_thesis";
+  return "weekly_packet";
 }
 
 function weightedBoardReadScore(items: ThesisBoardItem[]): number | null {
@@ -1355,6 +1357,16 @@ function currentStanceLabel(score: number): string {
   return "Balanced";
 }
 
+function publishedWheatStanceLabel(row: ThesisComparisonRow, fallbackScore: number): string {
+  const publishedTiers = rowItems(row)
+    .map((item) => item.publishedThesis?.stanceTier)
+    .filter((tier): tier is string => Boolean(tier));
+  if (publishedTiers.length > 0 && new Set(publishedTiers.map((tier) => tier.toLowerCase())).size === 1) {
+    return publishedTiers[0];
+  }
+  return currentStanceLabel(fallbackScore);
+}
+
 function confidenceFromScore(score: number): ThesisBoardItem["confidence"] {
   if (score >= 70) return "high";
   if (score >= 45) return "medium";
@@ -1476,12 +1488,17 @@ function dailyOverlayItemLabel(item: ThesisBoardItem, state: string): string {
 }
 
 function weeklyScoreStateLabel(item: ThesisBoardItem): string {
+  if (item.scoreSource?.kind === "published_thesis") return "published desk thesis";
   return item.name === "Wheat" && item.ratingScorecard.domains.length > 0
     ? "deterministic scorecard"
     : "weekly packet score";
 }
 
 function scoreSourceLabel(item: ThesisBoardItem): string {
+  if (item.scoreSource?.kind === "published_thesis") {
+    const dateKey = localDateKeyFromTimestamp(item.scoreSource.recordedAt);
+    return dateKey ? `Published desk thesis ${dateLabelFromKey(dateKey)}` : "Published desk thesis";
+  }
   if (item.scoreSource?.kind !== "daily_overlay") {
     return item.name === "Wheat" && item.ratingScorecard.domains.length > 0
       ? "Deterministic scorecard"
@@ -1494,7 +1511,7 @@ function scoreSourceLabel(item: ThesisBoardItem): string {
 }
 
 function scoreSourceClass(item: ThesisBoardItem): string {
-  return item.scoreSource?.kind === "daily_overlay"
+  return item.scoreSource?.kind === "daily_overlay" || item.scoreSource?.kind === "published_thesis"
     ? "border-prairie/25 bg-prairie/10 text-prairie"
     : "border-border bg-background/70 text-muted-foreground";
 }
@@ -1517,6 +1534,34 @@ function aggregateRowScore(row: ThesisComparisonRow): number | null {
 
 function aggregateRowConfidence(row: ThesisComparisonRow): number | null {
   return averageBoardReadConfidence(rowItems(row));
+}
+
+function mechanicalScorecardItems(row: ThesisComparisonRow): Array<{ stanceScore: number; confidenceScore: number }> {
+  return rowItems(row)
+    .filter((item) => item.ratingScorecard.domains.length > 0)
+    .map((item) => ({
+      stanceScore: Math.round(item.ratingScorecard.overall_score),
+      confidenceScore: item.ratingScorecard.confidence_score,
+    }));
+}
+
+function aggregateMechanicalScorecardScore(row: ThesisComparisonRow): number | null {
+  const items = mechanicalScorecardItems(row);
+  if (items.length === 0) return null;
+  const confidenceTotal = items.reduce((sum, item) => sum + Math.max(0, item.confidenceScore), 0);
+  if (confidenceTotal <= 0) {
+    return Math.round(items.reduce((sum, item) => sum + item.stanceScore, 0) / items.length);
+  }
+  return Math.round(
+    items.reduce((sum, item) => sum + item.stanceScore * Math.max(0, item.confidenceScore), 0) /
+      confidenceTotal,
+  );
+}
+
+function aggregateMechanicalScorecardConfidence(row: ThesisComparisonRow): number | null {
+  const items = mechanicalScorecardItems(row);
+  if (items.length === 0) return null;
+  return Math.round(items.reduce((sum, item) => sum + item.confidenceScore, 0) / items.length);
 }
 
 function confidenceScaledPosition(score: number, confidence: number): number {
@@ -2556,7 +2601,6 @@ function WheatStanceMeter({
   score: number;
   confidence: number;
 }) {
-  const pressurePosition = wheatPressureMarkerPosition(score);
   const confidenceScaledStancePosition = confidenceScaledPosition(score, confidence);
   const segments = [
     "bg-orange-700",
@@ -2578,7 +2622,7 @@ function WheatStanceMeter({
       <div className="min-w-0">
         <div
           className="relative grid h-3.5 w-full max-w-full grid-cols-9 gap-1"
-          aria-label={`Wheat bull bear pressure score ${score}`}
+          aria-label={`Wheat bull bear pressure score ${score} at ${confidence}% confidence`}
         >
           {segments.map((className, index) => (
             <span key={index} className={cn("h-full rounded-sm", className)} aria-hidden="true" />
@@ -2589,10 +2633,10 @@ function WheatStanceMeter({
               "absolute -top-6 -translate-x-1/2 rounded-md px-2 py-0.5 text-xs font-semibold text-white shadow-sm sm:-top-7 sm:px-2.5 sm:py-1 sm:text-sm",
               score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-600" : "bg-foreground",
             )}
-            style={{ left: `${pressurePosition}%` }}
+            style={{ left: `${confidenceScaledStancePosition}%` }}
             aria-hidden="true"
           >
-            {Math.round(pressurePosition)}%
+            {signedNumber(score)}
           </span>
           <span
             className={cn(
@@ -2600,14 +2644,14 @@ function WheatStanceMeter({
               score > 0 ? "bg-prairie" : score < 0 ? "bg-orange-700" : "bg-foreground",
             )}
             data-confidence-scaled-position={`${confidenceScaledStancePosition.toFixed(2)}%`}
-            style={{ left: `calc(${pressurePosition}% - 0.125rem)` }}
+            style={{ left: `calc(${confidenceScaledStancePosition}% - 0.125rem)` }}
             aria-hidden="true"
           />
         </div>
         <div className="mt-3 flex w-full justify-between text-xs font-medium text-muted-foreground">
-          <span>0%</span>
-          <span>50%</span>
-          <span>100%</span>
+          <span>Bear</span>
+          <span>Balanced</span>
+          <span>Bull</span>
         </div>
       </div>
       <span className="flex h-9 w-9 items-center justify-center rounded-full border border-prairie/35 bg-prairie/10 text-prairie shadow-sm sm:h-11 sm:w-11">
@@ -2630,7 +2674,7 @@ function WheatTopDriversStrip({
     <div className="min-w-0" aria-labelledby="wheat-top-drivers-heading">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p id="wheat-top-drivers-heading" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Top pressure drivers
+          Mechanical evidence pressure
         </p>
         <p className="hidden text-[11px] font-medium text-muted-foreground sm:block">Proof rows below</p>
       </div>
@@ -2692,6 +2736,8 @@ function WheatDecisionBoard({
   const isBear = safeScore < 0;
   const isBull = safeScore > 0;
   const StanceIcon = isBull ? TrendingUp : isBear ? TrendingDown : Info;
+  const stanceLabel = publishedWheatStanceLabel(row, safeScore);
+  const publishedItems = rowItems(row).filter((item) => item.scoreSource?.kind === "published_thesis");
 
   return (
     <div className="relative min-w-0 max-w-full overflow-hidden rounded-lg border border-canola/35 bg-background p-3 shadow-[0_18px_55px_-42px_rgba(42,38,30,0.9)] sm:rounded-xl sm:p-6">
@@ -2720,7 +2766,7 @@ function WheatDecisionBoard({
             <span className="sr-only">Current Wheat read</span>
             <div className="mt-2 flex flex-wrap items-center gap-2.5">
               <p className={cn("text-2xl font-semibold leading-none sm:text-3xl", wheatStanceToneClass(safeScore))}>
-                {currentStanceLabel(safeScore)}
+                {stanceLabel}
               </p>
               <span
                 className={cn(
@@ -2739,6 +2785,11 @@ function WheatDecisionBoard({
             <p className="mt-2 text-sm text-muted-foreground">
               Board score {signedNumber(safeScore)}. {wheatConfidenceDisplay(safeConfidence)}.
             </p>
+            {publishedItems.length > 0 ? (
+              <p className="mt-1 text-xs font-medium text-prairie">
+                Published desk thesis-of-record · {publishedItems.map((item) => `${item.lane === "canada" ? "CA" : "US"} ${signedNumber(item.stanceScore)} / ${item.confidenceScore}%`).join(" · ")}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -2798,7 +2849,10 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
   const strongestBull = strongestDatum(datums, "bull");
   const strongestBear = strongestDatum(datums, "bear");
   const counterweight = wheatJudgeCounterweight(deciding, datums);
-  const score = aggregateRowScore(row) ?? 0;
+  const publishedScore = aggregateRowScore(row) ?? 0;
+  const publishedConfidence = aggregateRowConfidence(row) ?? 0;
+  const score = aggregateMechanicalScorecardScore(row) ?? 0;
+  const scorecardConfidence = aggregateMechanicalScorecardConfidence(row) ?? 0;
   const scoreTone = score < 0 ? "bear" : score > 0 ? "bull" : "balanced";
   const scoreCopy =
     scoreTone === "bear"
@@ -2811,17 +2865,22 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
     <section className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm" aria-labelledby="wheat-reconciliation-heading">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reconciliation judge</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence cross-check</p>
           <h2 id="wheat-reconciliation-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
-            Why the board lands here
+            Why the desk and scorecard can differ
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            The weekly headline is scorecard-backed. The judge starts with the largest weighted source row, then checks whether the refreshed counterweight is strong enough to overturn it.
+            The published desk thesis owns the farmer-facing headline. The deterministic scorecard remains a mechanical audit of admitted source rows, so disagreement is shown instead of silently replacing the desk call.
           </p>
         </div>
-        <Badge variant="outline" className={cn("w-fit", score < 0 ? "border-orange-600/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" : score > 0 ? "border-prairie/25 bg-prairie/10 text-prairie" : "border-border bg-background text-muted-foreground")}>
-          {signedNumber(Math.round(score))} / {currentStanceLabel(score)}
-        </Badge>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="w-fit border-prairie/25 bg-prairie/10 text-prairie">
+            Published {signedNumber(Math.round(publishedScore))} / {publishedConfidence}%
+          </Badge>
+          <Badge variant="outline" className={cn("w-fit", score < 0 ? "border-orange-600/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" : score > 0 ? "border-prairie/25 bg-prairie/10 text-prairie" : "border-border bg-background text-muted-foreground")}>
+            Mechanical {signedNumber(Math.round(score))} / {scorecardConfidence}%
+          </Badge>
+        </div>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
@@ -2885,13 +2944,14 @@ function WheatReconciliationJudgeCard({ row }: { row: ThesisComparisonRow }) {
         </div>
       </div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Current judge read: {scoreCopy}. Canada and the U.S. stay as evidence geography; this is still one Wheat read.
+        Mechanical cross-check: {scoreCopy}. The published desk call remains {publishedWheatStanceLabel(row, publishedScore)} because the weekly desk also reconciles bounded macro/event evidence and specialist disagreement that is not allowed to write directly into the deterministic source scorecard.
       </p>
     </section>
   );
 }
 
 function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
+  const mechanicalScore = aggregateMechanicalScorecardScore(row) ?? 0;
   const datums = wheatDomainDatums(row)
     .filter((datum) => datum.weightedScore !== 0)
     .sort((left, right) => Math.abs(right.weightedScore) - Math.abs(left.weightedScore));
@@ -2920,10 +2980,10 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relationship spiderweb</p>
           <h2 id="wheat-spiderweb-heading" className="font-display text-xl font-semibold leading-tight text-foreground">
-            Distance shows impact on the Wheat read
+            Distance shows mechanical scorecard impact
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Closer nodes carry more score weight. Bear pressure sits left, bull support sits right, and thicker edges mean bigger weighted points.
+            Closer nodes carry more deterministic score weight. Bear pressure sits left, bull support sits right, and thicker edges mean bigger weighted points. The published desk thesis remains the headline above.
           </p>
         </div>
         <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
@@ -2963,7 +3023,7 @@ function WheatRelationshipSpiderweb({ row }: { row: ThesisComparisonRow }) {
               Wheat
             </text>
             <text x="150" y="164" textAnchor="middle" className="fill-foreground text-[12px] font-semibold">
-              {currentStanceLabel(aggregateRowScore(row) ?? 0)}
+              {currentStanceLabel(mechanicalScore)}
             </text>
             {points.map((point) => (
               <g key={`node-${point.index}-${point.country}-${point.domain.domain}`}>
@@ -5276,6 +5336,9 @@ function pressureMapDriverIconClass(driver: WheatPressureDriverNode): string {
 function wheatPressureScoreSourceLabel(node: WheatPressureCountryNode): string {
   if (node.scoreSource === "daily_overlay") {
     return `Daily overlay${node.scoreSourceDate ? ` ${formatDateTime(node.scoreSourceDate)}` : ""}`;
+  }
+  if (node.scoreSource === "published_thesis") {
+    return `Published desk thesis${node.scoreSourceDate ? ` ${formatDateTime(node.scoreSourceDate)}` : ""}`;
   }
   return "Weekly packet";
 }

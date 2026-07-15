@@ -2,7 +2,7 @@
 
 Purpose: define how Bushel Board turns admitted source facts into a transparent bull/bear rating before any LLM writes farmer-facing prose.
 
-Status as of 2026-06-03: V1 is implemented as a deterministic parallel scorecard/audit layer. The core code lives in `lib/thesis/rating-model.ts`, `lib/thesis/rating-domain-mappers.ts`, `lib/thesis/grain-impact-map.ts`, `lib/thesis/grain-data-coverage.ts`, `lib/thesis/scorecard-llm-guardrails.ts`, and `lib/queries/thesis-board.ts`; audit details render only on `/thesis?audit=1`. The scorecard does not replace visible farmer-facing stance fields yet.
+Status as of 2026-07-15: V1 is implemented as a deterministic scorecard/audit layer. The core code lives in `lib/thesis/rating-model.ts`, `lib/thesis/rating-domain-mappers.ts`, `lib/thesis/grain-impact-map.ts`, `lib/thesis/grain-data-coverage.ts`, `lib/thesis/scorecard-llm-guardrails.ts`, and `lib/queries/thesis-board.ts`; audit details render on `/thesis?audit=1`. For Wheat, a same-period published desk row owns the farmer-facing weekly stance. The scorecard remains the mechanical evidence cross-check and fallback when no matching published row exists; reviewed daily overlays remain the current-day override.
 
 Use with:
 
