@@ -20,23 +20,25 @@ const CANOLA_SPEC: GrainPriceSpec = {
 
 const SPRING_WHEAT_SPEC: GrainPriceSpec = {
   grain: "Spring Wheat",
-  contract: "MWK26",
+  contract: "MW*0",
   exchange: "MGEX",
   currency: "USD",
   unit: "$/bu",
   centsToBase: false,
-  barchartSymbol: "MWK26",
+  barchartSymbol: "MW*0",
 };
 
 describe("parseBarchartOverview", () => {
   it("extracts latest close and daily change from barchart overview html", () => {
-    const html = '<html><body>{"dailyLastPrice":720.5,"priceChange":8.25}</body></html>';
+    const html = '<html><body>{"symbol":"MWU26","dailyLastPrice":720.5,"priceChange":8.25,"sessionDateDisplayLong":"Tue, Jul 14th, 2026"}</body></html>';
     const snapshot = parseBarchartOverview(html);
 
     expect(snapshot).toEqual({
       settlementPrice: 720.5,
       changeAmount: 8.25,
       changePct: 1.158,
+      contract: "MWU26",
+      priceDate: "2026-07-14",
     });
   });
 
@@ -49,7 +51,7 @@ describe("buildLatestRowFromSnapshot", () => {
   it("builds a barchart-backed row for canola without cents conversion", () => {
     const row = buildLatestRowFromSnapshot(
       CANOLA_SPEC,
-      { settlementPrice: 720.5, changeAmount: 8.25, changePct: 1.158 },
+      { settlementPrice: 720.5, changeAmount: 8.25, changePct: 1.158, contract: null, priceDate: null },
       "2026-04-13",
     );
 
@@ -67,13 +69,25 @@ describe("buildLatestRowFromSnapshot", () => {
   it("keeps MGEX spring wheat in dollars per bushel, not cents", () => {
     const row = buildLatestRowFromSnapshot(
       SPRING_WHEAT_SPEC,
-      { settlementPrice: 6.4825, changeAmount: 0.11, changePct: 1.726 },
-      "2026-04-13",
+      { settlementPrice: 6.4825, changeAmount: 0.11, changePct: 1.726, contract: "MWU26", priceDate: "2026-07-14" },
+      "2026-07-15",
     );
 
-    expect(row.settlement_price).toBe(6.4825);
-    expect(row.change_amount).toBe(0.11);
-    expect(row.unit).toBe("$/bu");
+    expect(row?.settlement_price).toBe(6.4825);
+    expect(row?.change_amount).toBe(0.11);
+    expect(row?.unit).toBe("$/bu");
+    expect(row?.contract).toBe("MWU26");
+    expect(row?.price_date).toBe("2026-07-14");
+  });
+
+  it("refuses to restamp an unresolved continuous contract", () => {
+    const row = buildLatestRowFromSnapshot(
+      SPRING_WHEAT_SPEC,
+      { settlementPrice: 6.58, changeAmount: -0.005, changePct: -0.076, contract: null, priceDate: null },
+      "2026-07-15",
+    );
+
+    expect(row).toBeNull();
   });
 });
 
@@ -118,7 +132,7 @@ describe("GRAIN_PRICE_SPECS", () => {
         "Soybean Meal:ZM",
         "Soybean Oil:ZL",
         "Soybeans:ZS",
-        "Spring Wheat:MWK26",
+        "Spring Wheat:MW*0",
         "Wheat:ZW",
       ]),
     );

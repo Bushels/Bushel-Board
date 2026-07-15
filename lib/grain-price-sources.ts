@@ -100,8 +100,10 @@ export const GRAIN_PRICE_SPECS: GrainPriceSpec[] = [
   },
   {
     grain: "Spring Wheat",
-    contract: "MWK26",
-    barchartSymbol: "MWK26",
+    // Barchart's continuous front-month symbol resolves to the currently
+    // active MGEX contract. The resolved contract/date are stored on the row.
+    contract: "MW*0",
+    barchartSymbol: "MW*0",
     exchange: "MGEX",
     currency: "USD",
     unit: "$/bu",
@@ -119,6 +121,8 @@ export interface BarchartSnapshot {
   settlementPrice: number;
   changeAmount: number;
   changePct: number;
+  contract: string | null;
+  priceDate: string | null;
 }
 
 export async function fetchYahooChart(
@@ -227,10 +231,22 @@ export function parseBarchartOverview(html: string): BarchartSnapshot | null {
     ? Number(((changeAmount / previousClose) * 100).toFixed(3))
     : 0;
 
+  const contractMatch = html.match(/"symbol":"([A-Z0-9]+)"/);
+  const sessionDateMatch = html.match(/"sessionDateDisplayLong":"[A-Za-z]{3}, ([A-Za-z]{3}) ([0-9]{1,2})(?:st|nd|rd|th), ([0-9]{4})"/);
+  const monthNumber: Record<string, string> = {
+    Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+    Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+  };
+  const priceDate = sessionDateMatch
+    ? `${sessionDateMatch[3]}-${monthNumber[sessionDateMatch[1]]}-${sessionDateMatch[2].padStart(2, "0")}`
+    : null;
+
   return {
     settlementPrice: Number(settlementPrice.toFixed(4)),
     changeAmount: Number(changeAmount.toFixed(4)),
     changePct,
+    contract: contractMatch?.[1] ?? null,
+    priceDate,
   };
 }
 
@@ -266,13 +282,19 @@ export async function fetchBarchartSnapshot(
 export function buildLatestRowFromSnapshot(
   spec: GrainPriceSpec,
   snapshot: BarchartSnapshot,
-  priceDate: string,
-): PriceRow {
+  fallbackPriceDate: string,
+): PriceRow | null {
+  // A continuous alias is only a request key. Persisting it (or the collector
+  // clock) would recreate the frozen-contract bug this path is meant to avoid.
+  if (spec.contract.includes("*") && (!snapshot.contract || !snapshot.priceDate)) {
+    return null;
+  }
+
   return {
     grain: spec.grain,
-    contract: spec.contract,
+    contract: snapshot.contract ?? spec.contract,
     exchange: spec.exchange,
-    price_date: priceDate,
+    price_date: snapshot.priceDate ?? fallbackPriceDate,
     settlement_price: snapshot.settlementPrice,
     change_amount: snapshot.changeAmount,
     change_pct: snapshot.changePct,

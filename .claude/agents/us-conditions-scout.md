@@ -28,10 +28,10 @@ Return structured JSON with directional signals per market. No thesis.
 
 All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
 
-1. **Conditions RPC:** `npm run desk:us -- read --rpc get_usda_crop_conditions --args '{"p_cgc_grain":"<market>","p_weeks_back":4}'`. Returns `good_excellent_pct`, `condition_index`, `ge_pct_yoy_change`, `planted_pct`, `planted_pct_vs_avg`.
-2. **Raw crop progress (commodity is UPPERCASE; `cgc_grain` may be NULL — filter by `commodity` instead):**
+1. **Conditions RPC:** `npm run desk:us -- read --rpc get_usda_crop_conditions --args '{"p_cgc_grain":"<market>","p_weeks_back":4}'`. Returns one series per `wheat_class` for Wheat (`winter`, `spring`; `all` for non-Wheat), including condition, planting, heading, and harvest fields. Never merge metrics across classes.
+2. **Raw crop progress (commodity is UPPERCASE):**
    ```bash
-   npm run desk:us -- read --table usda_crop_progress --select commodity,state,crop_year,week_ending,statisticcat_desc,unit_desc,value_pct,reference_period_desc --eq "commodity=<CORN | SOYBEANS | WHEAT | OATS>" --eq "state=US TOTAL" --order week_ending.desc --limit 24
+   npm run desk:us -- read --table usda_crop_progress --select commodity,wheat_class,class_desc,state,crop_year,week_ending,good_excellent_pct,condition_index,planted_pct,emerged_pct,headed_pct,harvested_pct,ge_pct_yoy_change,planted_pct_vs_avg --eq "commodity=<CORN | SOYBEANS | WHEAT | OATS>" --eq "state=US TOTAL" --order week_ending.desc --limit 48
    ```
 
 Pull both CONDITION rows (G/E, Poor/Very Poor) and PROGRESS rows (planted, emerged, harvested, silking, dough, etc.).
@@ -60,7 +60,7 @@ Pull the current-week CONUS totals AND state-level percentages for the corn belt
 **Market → commodity mapping for raw queries:**
 - Corn → `'CORN'`
 - Soybeans → `'SOYBEANS'`
-- Wheat → `'WHEAT'` (single commodity row — winter vs spring differentiated by `reference_period_desc` / `short_desc`, not by separate commodity values in our DB)
+- Wheat → `'WHEAT'`; split rows by `wheat_class` (`winter` and `spring`). Replaced `legacy_mixed` rows were removed live; any compatibility fallback must never outrank explicit class rows.
 - Oats → `'OATS'`
 
 ## Seasonality Gates
@@ -131,7 +131,7 @@ Flag the critical-window status in each finding so specialists know how much to 
 - Filter `state = 'US TOTAL'` for national aggregate (state-level available but too granular for swarm).
 - PostgREST numeric values come back as strings — cast to `Number()`.
 - `value_pct` is 0–100, NOT a decimal fraction.
-- Year's wheat dataset splits into winter wheat and spring wheat via `commodity` field — pull both for Wheat market.
+- Wheat remains one market decision, but USDA evidence is physically split by `wheat_class`. Pull both classes, compare each only with its own prior weeks/year, then reconcile them in the one Wheat conclusion.
 
 ## Output Format
 

@@ -49,7 +49,8 @@ Wheat gets **MAJOR** treatment. The historical 4-market list (Corn, Soybeans, Oa
 
 > **Name/column traps — read before writing queries:**
 > - `grain_prices` date column is `price_date` (NOT `settlement_date`).
-> - `grain_prices.contract` is stored without exchange suffix: `ZC`, `ZS`, `ZW`, `KE`, `ZO`, `ZL`, `ZM` for CBOT/KCBT; `MWK26` for MGEX Spring Wheat (Barchart-sourced, K26 month code included).
+> - `grain_prices.contract` is stored without exchange suffix: `ZC`, `ZS`, `ZW`, `KE`, `ZO`, `ZL`, `ZM` for CBOT/KCBT. MGEX Spring Wheat is fetched through Barchart `MW*0`, but the row stores the resolved active contract (for example `MWU26`) and the source session date. Query Spring Wheat by `grain`, not a hardcoded expiry.
+> - `usda_crop_progress.wheat_class` is the class boundary: `winter` and `spring` are separate canonical rows. Replaced `legacy_mixed` rows were removed live; the RPC fallback remains migration compatibility only and must never outrank explicit class rows.
 > - `cftc_cot_positions.commodity` values are UPPERCASE: `CORN`, `SOYBEANS`, `SOYBEAN OIL`, `SOYBEAN MEAL`, plus three wheat classes: `WHEAT-SRW`, `WHEAT-HRW`, `WHEAT-HRSpring`. **There is no single "WHEAT" row — scouts must pick the class.**
 > - `usda_crop_progress.commodity` values are canonical UPPERCASE: `CORN`, `SOYBEANS`, `WHEAT`, `BARLEY`, `OATS`. `cgc_grain` is populated on canonical rows; `get_usda_crop_conditions('Canola', ...)` resolves the soybean proxy in the query layer, not in the source table.
 > - `usda_wasde_estimates` is **empty/deprecated** — do not query it directly. Use `get_usda_wasde_context('Corn'|'Soybeans'|'Wheat'|'Oats', n_months)` RPC, which reads from `usda_wasde_mapped` (sourced from `usda_wasde_raw`). `revision_direction` and `stocks_change_mmt` are NULL for the oldest report in the series.
@@ -61,7 +62,7 @@ The five SLAs below are evaluated automatically by `preflight` (Step 0.1; logic 
 | Source | SLA | Why |
 |--------|-----|-----|
 | WASDE (`usda_wasde_mapped.report_month`) | ≤ 35 days | Monthly release; 35d covers one full cycle + buffer |
-| Export sales (`usda_export_sales.week_ending`) | ≤ 10 days | Weekly release Thu 8:30 AM ET |
+| Export sales (`usda_export_sales.week_ending`) | ≤ 14 days | Thursday release reports the prior Thursday's week ending; 14d covers the normal publication lag through the next release day |
 | CBOT prices (`grain_prices.price_date`) | ≤ 4 calendar days | Weekends/holidays tolerated |
 | CFTC COT (`cftc_cot_positions.report_date`) | ≤ 10 days | Weekly release Fri 3:30 PM ET, Tuesday snapshot |
 | Crop progress (`usda_crop_progress.week_ending`) | ≤ 10 days during Apr–Nov; skip check Dec–Mar | NASS seasonality gate |

@@ -1319,7 +1319,23 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
 
   const supply = asRecord(packet.supply);
   const cropProgress = asRecord(supply.crop_progress);
-  const usTotal = asRecord(cropProgress.us_total);
+  const classRows = asArray(cropProgress.classes);
+  const informativeClassRows = classRows.filter((row) =>
+    numberValue(row, "good_excellent_pct") !== null ||
+    numberValue(row, "planted_pct_vs_avg") !== null,
+  );
+  const usTotal = informativeClassRows.find((row) =>
+    textValue(row, "wheat_class") === "spring" && numberValue(row, "good_excellent_pct") !== null,
+  ) ?? informativeClassRows.find((row) => numberValue(row, "good_excellent_pct") !== null)
+    ?? informativeClassRows[0]
+    ?? asRecord(cropProgress.us_total);
+  const wheatClass = textValue(usTotal, "wheat_class");
+  const classPrefix = wheatClass && wheatClass !== "all"
+    ? `${wheatClass.charAt(0).toUpperCase()}${wheatClass.slice(1)} `
+    : "";
+  const conditionLabel = classPrefix ? `${classPrefix}good/excellent` : "Good/excellent";
+  const conditionYoyLabel = classPrefix ? `${classPrefix}good/excellent YoY` : "Good/excellent YoY";
+  const plantingLabel = classPrefix ? `${classPrefix}planting pace vs average` : "Planting pace vs average";
   const goodExcellent = numberValue(usTotal, "good_excellent_pct");
   const geYoy = numberValue(usTotal, "ge_pct_yoy_change");
   const plantedVsAvg = numberValue(usTotal, "planted_pct_vs_avg");
@@ -1334,7 +1350,7 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
       score += 35;
       metrics.push(metric({
         source: US_CROP_PROGRESS_SOURCE,
-        label: "Good/excellent",
+        label: conditionLabel,
         value: formatPct(goodExcellent),
         numericValue: goodExcellent,
         unit: "pct",
@@ -1342,14 +1358,14 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
       if (geYoy !== null) {
         metrics.push(metric({
           source: US_CROP_PROGRESS_SOURCE,
-          label: "Good/excellent YoY",
+          label: conditionYoyLabel,
           value: formatSignedPct(geYoy),
           numericValue: geYoy,
           unit: "pct",
         }));
       }
       positive.push(
-        `US crop stress supports price: good/excellent is ${formatPct(goodExcellent)}${
+        `US ${classPrefix.toLowerCase()}crop stress supports price: good/excellent is ${formatPct(goodExcellent)}${
           geYoy !== null ? `, ${formatPct(geYoy)} versus last year` : ""
         }.`,
       );
@@ -1357,7 +1373,7 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
       score -= 30;
       metrics.push(metric({
         source: US_CROP_PROGRESS_SOURCE,
-        label: "Good/excellent",
+        label: conditionLabel,
         value: formatPct(goodExcellent),
         numericValue: goodExcellent,
         unit: "pct",
@@ -1365,14 +1381,14 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
       if (geYoy !== null) {
         metrics.push(metric({
           source: US_CROP_PROGRESS_SOURCE,
-          label: "Good/excellent YoY",
+          label: conditionYoyLabel,
           value: formatSignedPct(geYoy),
           numericValue: geYoy,
           unit: "pct",
         }));
       }
       negative.push(
-        `US crop condition adds supply cushion: good/excellent is ${formatPct(goodExcellent)}${
+        `US ${classPrefix.toLowerCase()}crop condition adds supply cushion: good/excellent is ${formatPct(goodExcellent)}${
           geYoy !== null ? `, ${formatPct(geYoy)} versus last year` : ""
         }.`,
       );
@@ -1384,22 +1400,22 @@ function mapUsCropProgressWeatherDomain(packet: JsonRecord): BuildRatingDomainIn
       score += 20;
       metrics.push(metric({
         source: US_CROP_PROGRESS_SOURCE,
-        label: "Planting pace vs average",
+        label: plantingLabel,
         value: formatSignedPct(plantedVsAvg),
         numericValue: plantedVsAvg,
         unit: "pct",
       }));
-      positive.push(`US planting pace is behind normal by ${formatPct(Math.abs(plantedVsAvg))}.`);
+      positive.push(`US ${classPrefix.toLowerCase()}planting pace is behind normal by ${formatPct(Math.abs(plantedVsAvg))}.`);
     } else if (plantedVsAvg >= 5) {
       score -= 20;
       metrics.push(metric({
         source: US_CROP_PROGRESS_SOURCE,
-        label: "Planting pace vs average",
+        label: plantingLabel,
         value: formatSignedPct(plantedVsAvg),
         numericValue: plantedVsAvg,
         unit: "pct",
       }));
-      negative.push(`US planting pace is ahead of normal by ${formatPct(plantedVsAvg)}.`);
+      negative.push(`US ${classPrefix.toLowerCase()}planting pace is ahead of normal by ${formatPct(plantedVsAvg)}.`);
     }
   }
 

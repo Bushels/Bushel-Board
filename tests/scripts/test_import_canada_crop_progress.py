@@ -108,7 +108,7 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         ):
             rows, document_url = canada.parse_saskatchewan()
 
-        self.assertEqual(document_url, "https://example.test/table.pdf")
+        self.assertEqual(document_url, "https://example.test/report.pdf")
         all_crops = next(row for row in rows if row["crop_name"] == "All Crops")
         self.assertEqual(all_crops["value_pct"], 52.0)
         self.assertEqual(all_crops["five_year_avg_pct"], 74.0)
@@ -183,6 +183,67 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertEqual(all_crops["value_pct"], 97.0)
         self.assertEqual(all_crops["five_year_avg_pct"], 99.0)
         self.assertEqual(all_crops["report_date"], "2026-06-15")
+
+    def test_saskatchewan_post_seeding_report_never_reads_stale_seeding_table(self):
+        report_text = """
+        Crop Report
+        For the Period June 30 to July 6, 2026
+        Report number 10, July 9, 2026
+        Crop Staging Tables-June 30th to July 6th, 2026
+        Winter Cereals           Tillering    Stem Elongation      Flag Leaf         Heading         Dough       Ripe
+        Provincial                 0%               2%                8%               56%             34%        0%
+        Spring Cereals         Pre Emerging      Seedling          Tillering      Stem Elongation   Flag Leaf   Heading   Dough   Ripe
+        Provincial                 1%               3%               21%               27%            34%        14%       0%     0%
+        Weekly Rainfall Summary
+        """
+
+        def fake_pdf_to_text(url, *, layout):
+            if url == "https://example.test/old-seeding-table.pdf":
+                raise AssertionError("post-seeding parser must not fetch the fallback seeding table")
+            return report_text, url
+
+        with (
+            patch.object(
+                canada,
+                "latest_saskatchewan_links",
+                return_value=(
+                    "https://example.test/report.pdf",
+                    "https://example.test/old-seeding-table.pdf",
+                ),
+            ),
+            patch.object(canada, "pdf_to_text", side_effect=fake_pdf_to_text),
+        ):
+            rows, document_url = canada.parse_saskatchewan()
+
+        self.assertEqual(document_url, "https://example.test/report.pdf")
+        self.assertFalse(any(row["metric"] == "seeded_pct" for row in rows))
+        by_crop = {row["crop_name"]: row for row in rows}
+        self.assertEqual(by_crop["Winter Cereals"]["value_pct"], 90.0)
+        self.assertEqual(by_crop["Spring Cereals"]["value_pct"], 14.0)
+
+    def test_manitoba_admits_only_numeric_spring_wheat_condition(self):
+        report_text = """
+        Spring wheat crop condition is at 50% good and 50% average.
+        Other regions report variable conditions without a numeric rating.
+        """
+        with (
+            patch.object(
+                canada,
+                "latest_manitoba_report_url",
+                return_value="https://example.test/crop-report-2026-07-07.pdf",
+            ),
+            patch.object(
+                canada,
+                "pdf_to_text",
+                return_value=(report_text, "https://example.test/crop-report-2026-07-07.pdf"),
+            ),
+        ):
+            rows, _document_url = canada.parse_manitoba()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["crop_name"], "Spring Wheat")
+        self.assertEqual(rows[0]["region_code"], "SW")
+        self.assertEqual(rows[0]["value_pct"], 50.0)
 
     def test_alberta_discovery_records_resource_metadata(self):
         payload = {

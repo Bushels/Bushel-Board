@@ -38,10 +38,10 @@ FROM cgc_imports
 ORDER BY imported_at DESC
 LIMIT 5;
 
-SELECT grain, grain_week, scan_type, model_source, created_at
+SELECT grain, grain_week, scan_type, model_source, recorded_at
 FROM score_trajectory
 WHERE scan_type = 'collector_cgc'
-ORDER BY created_at DESC
+ORDER BY recorded_at DESC
 LIMIT 20;
 ```
 

@@ -46,7 +46,10 @@ export const CAD_SLAS = { cgc: 8, cot: 8, price: 4 } as const;
 /** US freshness SLAs (days). Source: us-desk-swarm-prompt.md Phase 0.3. */
 export const US_SLAS = {
   wasde: 35,
-  export_sales: 10,
+  // The Thursday release describes the week ending the prior Thursday. A
+  // 14-day bound covers that publication lag through the next release day
+  // without treating the latest official report as stale on Mon-Wed.
+  export_sales: 14,
   price: 4,
   cot: 10,
   crop_progress: 10, // seasonal: enforced Apr–Nov, skipped Dec–Mar

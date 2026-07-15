@@ -21,7 +21,7 @@ Query Supabase for USDA/global data AND search for breaking news using Claude-na
 All DB access goes through the desk data CLI via the Bash tool (Supabase MCP is unavailable in the headless runner). Run from the repo root; output is JSON on stdout.
 
 1. **WASDE estimates:** `npm run desk:cad -- read --rpc get_usda_wasde_context --args '{"p_cgc_grain":"<grain>","p_months_back":2}'` for latest S&D estimates (ending stocks, S/U ratio, revisions). The RPC reads `usda_wasde_mapped`, sourced from `usda_wasde_raw`.
-2. **Crop progress:** `npm run desk:cad -- read --rpc get_usda_crop_conditions --args '{"p_cgc_grain":"<grain>","p_weeks_back":4}'` for planting pace, condition ratings, G/E%, YoY change
+2. **Crop progress:** `npm run desk:cad -- read --rpc get_usda_crop_conditions --args '{"p_cgc_grain":"<grain>","p_weeks_back":4}'` for planting pace, condition ratings, G/E%, YoY change. Wheat returns separate `winter` and `spring` class series; never combine their fields into a synthetic row.
 3. **WASDE raw/mapped:** `npm run desk:cad -- read --table usda_wasde_mapped --eq market_name=<market> --order report_month.desc --limit 12` for historical revision patterns. Do not query deprecated `usda_wasde_estimates`.
 4. **Crop progress raw:** `npm run desk:cad -- read --table usda_crop_progress --eq commodity=<COMMODITY> --eq "state=US TOTAL" --order week_ending.desc --limit 24` for weekly condition trajectory
 

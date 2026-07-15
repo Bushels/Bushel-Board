@@ -69,6 +69,8 @@ CGC publishes the weekly CSV Thursday ~1:00 PM MT. The `collect-cgc` slot now ru
 
 Canada crop progress is not a single weekly release. The Prairie sources are province-staggered: Manitoba normally posts Tuesday reports with Wednesday holiday/late-week exceptions, Saskatchewan publishes the Tuesday-to-Monday report/table on Thursday, and Alberta's official 2026 crop reporting calendar says Tuesday survey conditions are released publicly Friday by approximately 1:30 PM MT. See `docs/reference/canada-crop-progress-release-schedule.md` for source URLs and verification notes.
 
+**Phase integrity seatbelt:** Saskatchewan regional seeding tables may only be parsed when the current report text itself is in seeding phase. After seeding, use the staging table embedded in the current report PDF. Never pair a fallback table URL with a newer report date. Manitoba quantitative Wheat rows are admitted only when the report states a numeric Wheat condition; regional narrative stays narrative.
+
 The Friday Alberta checkpoint is the first safe point to treat the Prairie crop-progress package as complete. Earlier Manitoba/Saskatchewan imports may refresh partial source rows, but thesis automation should label the week partial until Alberta lands or the Friday retry explicitly records Alberta stale/missing. Do not let a Tuesday or Thursday Canada crop-progress run write a full-week thesis interpretation.
 
 Use these scheduler commands:

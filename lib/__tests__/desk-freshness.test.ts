@@ -48,7 +48,7 @@ describe("SLA constants + seasonal gate", () => {
     expect(CAD_SLAS).toEqual({ cgc: 8, cot: 8, price: 4 });
   });
   it("US SLAs match the prompt", () => {
-    expect(US_SLAS).toEqual({ wasde: 35, export_sales: 10, price: 4, cot: 10, crop_progress: 10 });
+    expect(US_SLAS).toEqual({ wasde: 35, export_sales: 14, price: 4, cot: 10, crop_progress: 10 });
   });
   it("crop-progress enforced Apr–Nov only", () => {
     expect(cropProgressInSeason(3)).toBe(false);
