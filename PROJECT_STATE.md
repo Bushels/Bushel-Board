@@ -2,6 +2,8 @@
 
 **Hermes + Grok 4.5 control-plane cutover (2026-07-15 MT):** Schedules and automations for Bushel Board now live under **Hermes Agent cron**, not Claude Desktop Routines. Mechanical collectors, source/desk watchdogs, and no-write Wheat X Pulse wrappers are registered as Hermes `--no-agent` jobs; daily operator brief + Friday desk orchestrator are Grok 4.5 agent jobs (preflight/report; desk **writes still approval-gated**). Canonical map: `docs/reference/hermes-bushel-board-schedule.md`. Wrappers: `scripts/hermes/*.sh` + `%LOCALAPPDATA%\hermes\scripts\bushel-*.sh`. **Grok is the operator/X scout model — not a thesis writer.** Tombstoned Grok thesis endpoints stay 410.
 
+**Wheat farmer visual pillars Phase 1 (2026-07-15 MT):** Wired `WheatVisualPillars` into farmer `/thesis` immediately under the published-desk stance hero. Three cards: Prairie progress (MB/SK/AB package status from `canada_crop_progress` source-run context), GEE satellite moisture/stress (watch-only via `getLatestCropStress()`, deep-link to `/data`), and Spring/HRW/SRW price basket from `getWheatPriceHistory(60)`. Display only — **no score authority**; published desk headline + scorecard fallback unchanged. Builders: `lib/thesis/wheat-cockpit-builders.ts` (normalizes `partial_mb_sk` etc.). Proof: focused builders + thesis page tests 51/51, `npm run build`, `track54:browser-smoke` desktop+mobile `/thesis` + audit all markers green.
+
 **Wheat cleanup pass (2026-07-15 MT):** Deep audit scored the app **74/100** (`docs/audits/2026-07-15-wheat-centric-board-deep-audit.md`). Executed P0: deleted **33 orphan multi-grain UI/lib modules** (~safe dead set), demoted Source Spine / Data Flow from primary nav (farmer nav = Thesis · Wheat Data · Environmental · My Farm), rewrote `README.md` to Wheat-centric + Hermes ownership. Kept re-home candidates for Wheat Data P2 (COT, terminal flow, delivery-gap, etc.). Thesis page split still open (`app/(dashboard)/thesis/page.tsx` ~6.5k lines).
 
 **Current repair checkpoint (2026-07-14 MT):** The Wheat Bull/Bear pipeline has been rebuilt and republished against the current futures basket. Live thesis-of-record: U.S. Wheat **+32 Mild Bull / 45 confidence** and Canadian Wheat **+22 Mild Bull / 42 confidence**; Canada recommends patience with a 20-30% old-crop CWRS de-risk into current strength. Price proof is SRW/ZW **$6.27**, HRW/KE **$6.5525**, and active HRSpring/**MWU26 $6.58** resolved through Barchart `MW*0`; expired `MWK26` rows after its 2026-05-14 final real session were removed. USDA Wheat progress is physically class-safe (`winter` and `spring` rows; 2,502 source records processed for 2024-2026, producing 2,488 class-safe live rows and all 528 replaced mixed rows removed). Prairie crop progress is phase-safe: the July Saskatchewan report produces headed-stage rows instead of reusing an old seeding table, Manitoba emits only explicit Spring Wheat condition percentages, and Alberta remains crop-specific. CGC week 48 was manually recovered (4,415 rows; validation pass; 16/16 heartbeats), both Claude desks completed their full gated runs in U.S.-then-Canada order, and `thesis_packet_cache` refreshed 12/12 with zero failures.
@@ -16,7 +18,7 @@
 **As of:** 2026-07-15
 
 ## Active task
-Current focus: **Wheat board cleanup + Hermes/Grok ops ownership**, then Wheat Data P2 and thesis monofile split.
+Current focus: **Wheat farmer UX Phase 1 complete** (visual pillars on `/thesis`). Next: Phase 2 map polish + thesis monofile split + Wheat Data P2, while Hermes owns collectors/watchdogs/X pulse and Friday desk stays approval-gated.
 
 Farmer product remains **Wheat-only** on normal `/thesis` (`lib/thesis/active-grain-display.ts`). Multi-grain harness stays for audit/re-enable.
 
@@ -25,11 +27,12 @@ Farmer product remains **Wheat-only** on normal `/thesis` (`lib/thesis/active-gr
 **Automation owner (updated 2026-07-15):** **Hermes Agent + Grok 4.5**. Claude Desktop Routines are legacy for this project — disable them after one clean Hermes week. Desk CLI remains the write plane; Hermes Friday job defaults to **preflight only**.
 
 **Next actions:**
-1. Confirm Hermes jobs fire (tomorrow export-sales / prices / X pulse windows).
-2. Split `thesis/page.tsx` into farmer vs audit modules.
-3. Wheat Data P2: re-home kept charts (COT, terminal flow, delivery gap) onto `/data`.
-4. Disable remaining Claude Desktop Bushel Routines once heartbeats prove Hermes coverage.
-5. Optional: point Hermes brief/desk delivery at Telegram/home channel (`deliver=telegram|all`) so briefs are not local-only.
+1. Commit/PR Wheat farmer UX Phase 1 (pillars wired) when ready.
+2. Friday desk swarm (US then CAD, postcheck) remains the weekly board of record — Hermes orchestrator stays preflight-only until explicit write approval.
+3. Phase 2: Prairie mini-map / GEE thumbnail / price agreement animation + mobile swipe polish.
+4. Split `thesis/page.tsx` into farmer vs audit modules.
+5. Wheat Data P2: re-home kept charts (COT, terminal flow, delivery gap) onto `/data`.
+6. Disable remaining Claude Desktop Bushel Routines once heartbeats prove Hermes coverage.
 
 ---
 

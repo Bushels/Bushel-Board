@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { cookies } from "next/headers";
 import { GrainImpactGraphPanel } from "@/components/dashboard/grain-impact-graph-panel";
 import { GrainReadLinkage } from "@/components/dashboard/grain-read-linkage";
+import { WheatVisualPillars } from "@/components/dashboard/wheat-visual-pillars";
 import { WheatXPulseCard } from "@/components/dashboard/wheat-x-pulse-card";
 import { YourAreaCard } from "@/components/dashboard/your-area-card";
 import { getAreaBids, getProvincialFlow } from "@/lib/queries/area-read";
@@ -83,6 +84,18 @@ import {
   type Track54ReadinessModeGateSnapshot,
   type Track54ReadinessSnapshot,
 } from "@/lib/queries/track54-readiness";
+import { getLatestCropStress } from "@/lib/queries/gee-crop-stress";
+import {
+  buildGeeMoistureCardModel,
+  buildPrairieProgressCardModel,
+  buildPriceBasketCardModel,
+  buildPriceBasketLegsFromHistory,
+} from "@/lib/thesis/wheat-cockpit-builders";
+import type {
+  GeeMoistureCardModel,
+  PrairieProgressCardModel,
+  PriceBasketCardModel,
+} from "@/lib/thesis/wheat-cockpit-models";
 import { isActiveFarmerThesisGrain } from "@/lib/thesis/active-grain-display";
 import {
   publicWheatGapLabels,
@@ -163,6 +176,24 @@ function graphBoardReadSource(items: ThesisBoardItem[]): GrainImpactGraphBoardRe
   if (sourceKinds.has("daily_overlay")) return "daily_overlay";
   if (sourceKinds.has("published_thesis")) return "published_thesis";
   return "weekly_packet";
+}
+
+/** Extract weather-domain slice for crop-progress pillars (display of existing score authority). */
+function weatherDomainSliceFromItem(item: ThesisBoardItem | null | undefined) {
+  const domain = item?.ratingScorecard?.domains?.find((entry) => entry.domain === "weather");
+  if (!domain) return null;
+  return {
+    score: domain.score,
+    weightedScore: domain.weighted_score,
+    confidence: domain.confidence,
+    metrics: (domain.metrics ?? []).map((metric) => ({
+      label: metric.label,
+      value: metric.value,
+      numericValue: metric.numericValue ?? null,
+    })),
+    positiveEvidence: domain.positive_evidence ?? [],
+    negativeEvidence: domain.negative_evidence ?? [],
+  };
 }
 
 function weightedBoardReadScore(items: ThesisBoardItem[]): number | null {
@@ -3881,6 +3912,7 @@ function WheatDecisionSurface({
   exportHistory,
   xPulseWatch,
   usdaProgress,
+  visualPillars,
   auditMode = false,
 }: {
   row: ThesisComparisonRow | null;
@@ -3888,6 +3920,12 @@ function WheatDecisionSurface({
   exportHistory: WheatExportHistoryRow[];
   xPulseWatch: XPulseWatchSummary;
   usdaProgress: WheatUsdaProgressUpdate | null;
+  /** Farmer visual pillars — display only; no scoring authority. */
+  visualPillars: {
+    prairie: PrairieProgressCardModel;
+    gee: GeeMoistureCardModel;
+    prices: PriceBasketCardModel;
+  };
   auditMode?: boolean;
 }) {
   if (!row) {
@@ -3913,6 +3951,12 @@ function WheatDecisionSurface({
         confidence={confidence}
         action={action}
         usdaProgressRead={usdaProgress?.read ?? null}
+      />
+      {/* Phase 1 farmer cockpit: Prairie / GEE (watch-only) / price basket. Does not move score. */}
+      <WheatVisualPillars
+        prairie={visualPillars.prairie}
+        gee={visualPillars.gee}
+        prices={visualPillars.prices}
       />
       <WheatPressureDecisionMatrix row={row} usdaProgressRead={usdaProgress?.read ?? null} />
       <WheatUsdaProgressUpdateCard update={usdaProgress} />
@@ -6384,7 +6428,7 @@ export default async function ThesisPage({
   const auditMode = params?.audit === "1";
   const cookieStore = await cookies();
   const area = areaFromFsa(cookieStore.get(AREA_FSA_COOKIE)?.value);
-  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, wheatExportHistory, wheatUsdaProgress, provincialFlow, areaBids] =
+  const [data, xPulseWatch, sourceRuns, dailyUpdates, readinessSnapshot, wheatPriceHistory, wheatExportHistory, wheatUsdaProgress, cropStress, provincialFlow, areaBids] =
     await Promise.all([
       getThesisBoardData(),
       getXPulseWatchSummary(),
@@ -6394,6 +6438,7 @@ export default async function ThesisPage({
       getWheatPriceHistory(60),
       getWheatExportHistory(16),
       getWheatUsdaProgressUpdate(),
+      getLatestCropStress(),
       area?.provinceName ? getProvincialFlow(area.provinceName) : Promise.resolve(null),
       area ? getAreaBids(area.fsa) : Promise.resolve([]),
     ]);
@@ -6404,6 +6449,34 @@ export default async function ThesisPage({
   const wheatComparisonRow = farmerData.comparisonRows.find((row) => row.grain === "Wheat") ?? null;
   const wheatCards = [...farmerData.canadaItems, ...farmerData.usItems];
 
+  // Farmer visual pillars. Crop-progress surfaces CA/US weather domains already on the scorecard;
+  // it does not invent a third combined crop score. Desk headline + scorecard remain authority.
+  const prairieContext = farmerData.sourceRunContext.canadaCropProgress;
+  const visualPillars = {
+    prairie: buildPrairieProgressCardModel({
+      weekEnding: prairieContext?.sourcePeriodEnd ?? null,
+      packageStatus: prairieContext?.prairieWeekStatus ?? null,
+      loadedProvinces: prairieContext?.loadedProvinces ?? null,
+      missingProvinces: prairieContext?.missingProvinces ?? null,
+      canadaWeatherDomain: weatherDomainSliceFromItem(wheatComparisonRow?.canada),
+      usWeatherDomain: weatherDomainSliceFromItem(wheatComparisonRow?.us),
+      usdaProgress: wheatUsdaProgress
+        ? {
+            weekEnding: wheatUsdaProgress.weekEnding,
+            read: wheatUsdaProgress.read,
+            metrics: wheatUsdaProgress.metrics.map((metric) => ({
+              label: metric.label,
+              value: metric.value,
+              detail: metric.detail,
+              tone: metric.tone,
+            })),
+          }
+        : null,
+    }),
+    gee: buildGeeMoistureCardModel(cropStress),
+    prices: buildPriceBasketCardModel(buildPriceBasketLegsFromHistory(wheatPriceHistory)),
+  };
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-[calc(100vw-2rem)] space-y-4 overflow-x-hidden pb-10 pt-3 sm:space-y-6 sm:pb-12 sm:pt-6 xl:max-w-7xl">
       <WheatDecisionSurface
@@ -6412,6 +6485,7 @@ export default async function ThesisPage({
         exportHistory={wheatExportHistory}
         xPulseWatch={xPulseWatch}
         usdaProgress={wheatUsdaProgress}
+        visualPillars={visualPillars}
         auditMode={auditMode}
       />
 
