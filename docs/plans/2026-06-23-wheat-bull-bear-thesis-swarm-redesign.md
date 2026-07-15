@@ -62,7 +62,7 @@ Each lane agent returns:
   "bear_case": "Fast harvest progress adds near-term availability.",
   "score_recommendation": 35,
   "confidence": 0.8,
-  "blocked_claims": ["Do not make spring/winter class-specific public thesis claims until class-safe mapping is admitted."],
+  "blocked_claims": ["Do not make a spring/winter class-specific claim unless the cited source row carries the matching explicit wheat_class."],
   "visual_hint": "Small metric strip plus diverging supply/weather bar."
 }
 ```

@@ -45,7 +45,7 @@ The V1 board only covers source-backed lanes:
 - Barley
 - Oats
 
-Parked until class-safe mapping exists:
+Parked as separate farmer-facing cards; class-safe rows feed the single Wheat thesis:
 
 - Spring Wheat
 - Winter Wheat

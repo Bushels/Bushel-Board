@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-14 - Wheat thesis combined incompatible crop classes, a frozen futures contract, and mismatched Prairie report phases
+
+**Symptom:** The Wheat Bull/Bear thesis appeared current but some inputs were not. U.S. Winter and Spring Wheat measures occupied one synthetic row; MGEX `MWK26` remained at $7.11 and was re-dated after its final 2026-05-14 session; and the July Saskatchewan crop-stage report was paired with an older seeding table. A delayed U.S. desk run also rejected the latest official Export Sales period as stale because its SLA ignored USDA's publication lag.
+
+**Root cause:** Source identity was being inferred downstream instead of preserved at ingestion. The USDA importer grouped Wheat variants only by commodity/state/week, the price collector stored its requested symbol and today's date instead of Barchart's resolved contract/session, and the Prairie importer searched historical seeding tables even when the current report was post-seeding. The desk freshness gate treated the export week-ending date as if it were the release timestamp.
+
+**Fix:** Added `wheat_class` to the physical USDA key and processed 2,502 source records for 2024-2026 into 2,488 class-safe live Wheat rows; a fail-closed cleanup proved replacements existed before deleting all 528 mixed rows. Spring Wheat now requests `MW*0` and stores the resolved active contract/date; 21 false post-expiry `MWK26` rows were removed. Saskatchewan seeding lookup is phase-gated, July staging is stored as `headed_pct`, and Manitoba writes only explicit crop-specific percentages. Export Sales now uses a 14-day source-period SLA. The interrupted live run also exposed a missed CGC week 48; the canonical importer recovered 4,415 rows and passed continuity, coverage, delivery, and row-count validation.
+
+**Prevention:** Preserve market/crop identity in the storage key; never reconstruct it from value discontinuities. Store an upstream contract and session date, not the requested alias and collector clock. A provincial report parser must prove the current report phase before consulting phase-specific tables. Freshness SLAs measured from source-period dates must include the publisher's normal reporting lag.
+
+**Tags:** #wheat #thesis #usda #crop-progress #mgex #cgc #data-integrity #freshness
+
+---
+
 ## 2026-07-12 - Hardcoded /thesis Wheat Crop Progress card went silently stale; consolidated WHEAT row shifts crop class mid-season
 
 **Symptom:** The `/thesis` "Wheat Crop Progress" panel was a hardcoded constant (`LATEST_USDA_WHEAT_PROGRESS_UPDATE`) frozen at week ending 2026-06-21 while `usda_crop_progress` had rows through 2026-07-05. It also labeled week-ending-Jun-21 data as "Jun 22" (the release date), making the board look stale.

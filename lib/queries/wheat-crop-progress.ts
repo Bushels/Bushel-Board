@@ -15,7 +15,7 @@ export async function getWheatUsdaProgressUpdate(): Promise<WheatUsdaProgressUpd
   const { data, error } = await supabase
     .from("usda_crop_progress")
     .select(
-      "week_ending, good_excellent_pct, harvested_pct, headed_pct, planted_pct, ge_pct_yoy_change, condition_index",
+      "wheat_class, week_ending, good_excellent_pct, harvested_pct, headed_pct, planted_pct, ge_pct_yoy_change, condition_index",
     )
     .eq("cgc_grain", "Wheat")
     .eq("state", "US TOTAL")

@@ -80,7 +80,7 @@ Source strategy:
 
   Barchart fallback (latest close only):
     RSK26  Canola (ICE)
-    MWK26  Spring Wheat (MGEX)
+    MW*0   Spring Wheat continuous front month (MGEX; resolved contract stored)
 
 Output:
   stdout  JSON summary including all tracked contracts and latest fetched rows
@@ -151,13 +151,16 @@ async function fetchRowsForSpec(spec: GrainPriceSpec, days: number): Promise<Pri
   if (spec.barchartSymbol) {
     const snapshot = await fetchBarchartSnapshot(spec.barchartSymbol);
     if (!snapshot) return [];
-    return [
-      buildLatestRowFromSnapshot(
-        spec,
-        snapshot,
-        new Date().toISOString().slice(0, 10),
-      ),
-    ];
+    const row = buildLatestRowFromSnapshot(
+      spec,
+      snapshot,
+      new Date().toISOString().slice(0, 10),
+    );
+    if (!row) {
+      console.error(`  Refusing unresolved continuous-contract snapshot for ${spec.grain}`);
+      return [];
+    }
+    return [row];
   }
 
   return [];

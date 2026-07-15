@@ -45,7 +45,7 @@ MARKETS = [
         "commodity": "CORN",
         "cgc_grain": "Corn",
         "variants": [
-            {"source_key": "primary", "commodity_desc": "CORN", "class_desc": None},
+            {"source_key": "primary", "commodity_desc": "CORN", "class_desc": None, "wheat_class": "all"},
         ],
         "condition_order": ["primary"],
         "planting_order": ["primary"],
@@ -56,7 +56,7 @@ MARKETS = [
         "commodity": "SOYBEANS",
         "cgc_grain": "Soybeans",
         "variants": [
-            {"source_key": "primary", "commodity_desc": "SOYBEANS", "class_desc": None},
+            {"source_key": "primary", "commodity_desc": "SOYBEANS", "class_desc": None, "wheat_class": "all"},
         ],
         "condition_order": ["primary"],
         "planting_order": ["primary"],
@@ -67,8 +67,8 @@ MARKETS = [
         "commodity": "WHEAT",
         "cgc_grain": "Wheat",
         "variants": [
-            {"source_key": "winter", "commodity_desc": "WHEAT", "class_desc": "WINTER"},
-            {"source_key": "spring", "commodity_desc": "WHEAT", "class_desc": "SPRING, (EXCL DURUM)"},
+            {"source_key": "winter", "commodity_desc": "WHEAT", "class_desc": "WINTER", "wheat_class": "winter"},
+            {"source_key": "spring", "commodity_desc": "WHEAT", "class_desc": "SPRING, (EXCL DURUM)", "wheat_class": "spring"},
         ],
         # Wheat stays a single v1 market. Use winter first for condition and
         # harvest-style metrics, but spring first for planting/emergence pace.
@@ -81,7 +81,7 @@ MARKETS = [
         "commodity": "BARLEY",
         "cgc_grain": "Barley",
         "variants": [
-            {"source_key": "primary", "commodity_desc": "BARLEY", "class_desc": None},
+            {"source_key": "primary", "commodity_desc": "BARLEY", "class_desc": None, "wheat_class": "all"},
         ],
         "condition_order": ["primary"],
         "planting_order": ["primary"],
@@ -92,7 +92,7 @@ MARKETS = [
         "commodity": "OATS",
         "cgc_grain": "Oats",
         "variants": [
-            {"source_key": "primary", "commodity_desc": "OATS", "class_desc": None},
+            {"source_key": "primary", "commodity_desc": "OATS", "class_desc": None, "wheat_class": "all"},
         ],
         "condition_order": ["primary"],
         "planting_order": ["primary"],
@@ -103,7 +103,7 @@ MARKETS = [
         "commodity": "SORGHUM",
         "cgc_grain": "Sorghum",
         "variants": [
-            {"source_key": "primary", "commodity_desc": "SORGHUM", "class_desc": None},
+            {"source_key": "primary", "commodity_desc": "SORGHUM", "class_desc": None, "wheat_class": "all"},
         ],
         "condition_order": ["primary"],
         "planting_order": ["primary"],
@@ -357,6 +357,8 @@ def normalize_rows(
                 "commodity": market["commodity"],
                 "cgc_grain": market["cgc_grain"],
                 "source_key": variant["source_key"],
+                "wheat_class": variant["wheat_class"],
+                "class_desc": variant.get("class_desc") or "",
                 "state": state_value,
                 "week_ending": week_ending,
                 "crop_year": year,
@@ -388,18 +390,20 @@ def pick_metric(
 def build_canonical_rows(
     rows: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     warnings: list[str] = []
     imported_at = dt.datetime.now(dt.timezone.utc).isoformat()
 
     for row in rows:
-        key = (row["commodity"], row["state"], row["week_ending"])
+        key = (row["commodity"], row["wheat_class"], row["state"], row["week_ending"])
         group = grouped.setdefault(
             key,
             {
                 "market_name": row["market_name"],
                 "commodity": row["commodity"],
                 "cgc_grain": row["cgc_grain"],
+                "wheat_class": row["wheat_class"],
+                "class_desc": row["class_desc"],
                 "state": row["state"],
                 "week_ending": row["week_ending"],
                 "crop_year": row["crop_year"],
@@ -419,9 +423,7 @@ def build_canonical_rows(
 
     for group in sorted(grouped.values(), key=lambda item: (item["commodity"], item["state"], item["week_ending"])):
         market = MARKETS_BY_COMMODITY[group["commodity"]]
-        condition_order = market["condition_order"]
-        planting_order = market["planting_order"]
-        progress_order = market["progress_order"]
+        source_order = list(group["sources"])
         sources = group["sources"]
 
         row: dict[str, Any] = {
@@ -435,22 +437,22 @@ def build_canonical_rows(
             "source": "usda_nass_quickstats",
             "imported_at": imported_at,
             "nass_load_time": group["nass_load_time"],
-            "class_desc": "",
+            "wheat_class": group["wheat_class"],
+            "class_desc": group["class_desc"],
             "statisticcat_desc": None,
             "unit_desc": None,
             "short_desc": None,
             "reference_period_desc": None,
             "value_pct": None,
             "location_desc": group["state"],
-            "agg_level_desc": "NATIONAL",
+            "agg_level_desc": "NATIONAL" if group["state"] == "US TOTAL" else "STATE",
         }
 
         for unit_desc, field_name in PROGRESS_FIELD_BY_UNIT.items():
-            order = planting_order if field_name in {"planted_pct", "emerged_pct"} else progress_order
-            row[field_name] = pick_metric(sources, order, "PROGRESS", unit_desc)
+            row[field_name] = pick_metric(sources, source_order, "PROGRESS", unit_desc)
 
         for unit_desc, field_name in CONDITION_FIELD_BY_UNIT.items():
-            row[field_name] = pick_metric(sources, condition_order, "CONDITION", unit_desc)
+            row[field_name] = pick_metric(sources, source_order, "CONDITION", unit_desc)
 
         condition_values = [row[field] for field in CONDITION_FIELD_BY_UNIT.values()]
         if all(value is not None for value in condition_values):
@@ -479,14 +481,14 @@ def build_canonical_rows(
         else:
             row["condition_index"] = None
 
-        prev_good = pick_metric(sources, condition_order, "CONDITION, PREVIOUS YEAR", "PCT GOOD")
-        prev_excellent = pick_metric(sources, condition_order, "CONDITION, PREVIOUS YEAR", "PCT EXCELLENT")
+        prev_good = pick_metric(sources, source_order, "CONDITION, PREVIOUS YEAR", "PCT GOOD")
+        prev_excellent = pick_metric(sources, source_order, "CONDITION, PREVIOUS YEAR", "PCT EXCELLENT")
         if row["good_excellent_pct"] is not None and prev_good is not None and prev_excellent is not None:
             row["ge_pct_yoy_change"] = round(row["good_excellent_pct"] - float(prev_good) - float(prev_excellent), 3)
         else:
             row["ge_pct_yoy_change"] = None
 
-        planted_avg = pick_metric(sources, planting_order, "PROGRESS, 5 YEAR AVG", "PCT PLANTED")
+        planted_avg = pick_metric(sources, source_order, "PROGRESS, 5 YEAR AVG", "PCT PLANTED")
         if row["planted_pct"] is not None and planted_avg is not None:
             row["planted_pct_vs_avg"] = round(float(row["planted_pct"]) - float(planted_avg), 3)
         else:
@@ -496,14 +498,14 @@ def build_canonical_rows(
                     f"{group['market_name']} {group['week_ending']}: missing 5-year average planting pace"
                 )
 
-        planted_previous_year = pick_metric(sources, planting_order, "PROGRESS, PREVIOUS YEAR", "PCT PLANTED")
+        planted_previous_year = pick_metric(sources, source_order, "PROGRESS, PREVIOUS YEAR", "PCT PLANTED")
         row["planted_pct_previous_year"] = planted_previous_year
         if row["planted_pct"] is not None and planted_previous_year is not None:
             row["planted_pct_yoy_change"] = round(float(row["planted_pct"]) - float(planted_previous_year), 3)
         else:
             row["planted_pct_yoy_change"] = None
 
-        emerged_previous_year = pick_metric(sources, planting_order, "PROGRESS, PREVIOUS YEAR", "PCT EMERGED")
+        emerged_previous_year = pick_metric(sources, source_order, "PROGRESS, PREVIOUS YEAR", "PCT EMERGED")
         row["emerged_pct_previous_year"] = emerged_previous_year
         if row["emerged_pct"] is not None and emerged_previous_year is not None:
             row["emerged_pct_yoy_change"] = round(float(row["emerged_pct"]) - float(emerged_previous_year), 3)
@@ -524,7 +526,7 @@ def upsert_rows(supabase_url: str, service_key: str, rows: list[dict[str, Any]])
         return 0
 
     url = supabase_url.rstrip("/") + "/rest/v1/usda_crop_progress"
-    conflict = urllib.parse.quote("commodity,state,week_ending", safe=",")
+    conflict = urllib.parse.quote("commodity,wheat_class,state,week_ending", safe=",")
     total = 0
 
     for batch in chunked(rows, UPSERT_BATCH_SIZE):
@@ -562,7 +564,7 @@ def fetch_latest_week(
             "commodity": f"eq.{commodity}",
             "cgc_grain": f"eq.{cgc_grain}",
             "state": "eq.US TOTAL",
-            "select": "commodity,cgc_grain,state,week_ending,good_excellent_pct,ge_pct_yoy_change,planted_pct,planted_pct_vs_avg",
+            "select": "commodity,cgc_grain,wheat_class,state,week_ending,good_excellent_pct,ge_pct_yoy_change,planted_pct,planted_pct_vs_avg",
             "order": "week_ending.desc",
             "limit": "1",
         }
@@ -587,22 +589,31 @@ def fetch_verification_rows(supabase_url: str, service_key: str) -> list[dict[st
     url = (
         supabase_url.rstrip("/")
         + "/rest/v1/usda_crop_progress"
-        + "?select=commodity,state,week_ending,cgc_grain"
+        + "?select=commodity,wheat_class,state,week_ending,cgc_grain"
         + "&order=commodity,state,week_ending"
     )
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "apikey": service_key,
-            "Authorization": f"Bearer {service_key}",
-            "Range-Unit": "items",
-            "Range": "0-9999",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=SUPABASE_TIMEOUT_SECONDS) as response:
-        payload = json.load(response)
-    return payload if isinstance(payload, list) else []
+    rows: list[dict[str, Any]] = []
+    page_size = 1000
+    offset = 0
+    while True:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Range-Unit": "items",
+                "Range": f"{offset}-{offset + page_size - 1}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=SUPABASE_TIMEOUT_SECONDS) as response:
+            payload = json.load(response)
+        page = payload if isinstance(payload, list) else []
+        rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return rows
 
 
 def run_verification(
@@ -620,9 +631,14 @@ def run_verification(
 
     null_cgc_grain = sum(1 for row in rows if not row.get("cgc_grain"))
 
-    key_counts: dict[tuple[str, str, str], int] = {}
+    key_counts: dict[tuple[str, str, str, str], int] = {}
     for row in rows:
-        key = (row.get("commodity") or "", row.get("state") or "", row.get("week_ending") or "")
+        key = (
+            row.get("commodity") or "",
+            row.get("wheat_class") or "",
+            row.get("state") or "",
+            row.get("week_ending") or "",
+        )
         key_counts[key] = key_counts.get(key, 0) + 1
     duplicate_keys = sum(1 for count in key_counts.values() if count > 1)
 
@@ -654,12 +670,14 @@ def fetch_prior_week_ge(
     supabase_url: str,
     service_key: str,
     commodity: str,
+    wheat_class: str,
     before_week_ending: str,
 ) -> float | None:
     """Return good_excellent_pct for the most recent US TOTAL week prior to `before_week_ending`."""
     params = urllib.parse.urlencode(
         {
             "commodity": f"eq.{commodity}",
+            "wheat_class": f"eq.{wheat_class}",
             "state": "eq.US TOTAL",
             "week_ending": f"lt.{before_week_ending}",
             "select": "week_ending,good_excellent_pct",
@@ -796,7 +814,15 @@ def pick_latest_canonical_row(
     ]
     if not candidates:
         return None
-    return max(candidates, key=lambda item: item.get("week_ending") or "")
+    latest_week = max(item.get("week_ending") or "" for item in candidates)
+    latest = [item for item in candidates if item.get("week_ending") == latest_week]
+    if commodity == "WHEAT":
+        month = int(latest_week[5:7])
+        preferred = "spring" if 4 <= month <= 8 else "winter"
+        preferred_row = next((item for item in latest if item.get("wheat_class") == preferred), None)
+        if preferred_row:
+            return preferred_row
+    return latest[0]
 
 
 def build_trajectory_row(
@@ -812,6 +838,7 @@ def build_trajectory_row(
         "severity": severity,
         "note": note,
         "week_ending": canonical_row.get("week_ending"),
+        "wheat_class": canonical_row.get("wheat_class"),
         "good_excellent_pct": canonical_row.get("good_excellent_pct"),
         "ge_pct_wow_change": round(ge_wow_change, 3) if ge_wow_change is not None else None,
         "ge_pct_yoy_change": canonical_row.get("ge_pct_yoy_change"),
@@ -921,6 +948,7 @@ def build_and_write_trajectory(
             supabase_url,
             service_key,
             market["commodity"],
+            str(canonical_row.get("wheat_class") or "all"),
             canonical_row["week_ending"],
         )
         current_ge = canonical_row.get("good_excellent_pct")
@@ -964,32 +992,6 @@ def main() -> None:
     args = parse_args()
 
     if not args.years and not season_active():
-        source_run: dict[str, Any] | None = None
-        try:
-            source_run = write_source_run(
-                supabase_url,
-                service_key,
-                source_name="usda_crop_progress",
-                source_lane="us",
-                collector_name="import-usda-crop-progress",
-                status="skipped",
-                source_period_start=min((row["week_ending"] for row in all_rows), default=None),
-                source_period_end=latest_source_week,
-                latest_source_label=latest_source_week,
-                rows_inserted=0,
-                rows_skipped=len(all_rows),
-                started_at=run_started_at,
-                metadata={
-                    "reason": "no_new_data",
-                    "season_active": season_active(),
-                    "years": years,
-                    "markets": [market["market_name"] for market in markets],
-                    "skipped_markets": skipped_markets,
-                    "verification": verification,
-                },
-            )
-        except SourceRunError as exc:
-            warnings.append(f"source_runs write failed: {exc}")
         print(
             json.dumps(
                 {
@@ -1149,6 +1151,7 @@ def main() -> None:
                     supabase_url,
                     service_key,
                     market["commodity"],
+                    str(canonical_row.get("wheat_class") or "all"),
                     canonical_row["week_ending"],
                 )
                 current_ge = canonical_row.get("good_excellent_pct")

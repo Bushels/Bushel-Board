@@ -922,6 +922,77 @@ def parse_saskatchewan_development_rows(
     return rows
 
 
+def parse_saskatchewan_heading_rows(
+    text: str,
+    *,
+    period_start: str,
+    period_end: str,
+    release_date: str,
+    report_label: str,
+    document_url: str,
+) -> list[dict[str, Any]]:
+    """Parse cumulative heading progress from the current report's staging table.
+
+    Saskatchewan publishes Spring/Winter *Cereals*, not Wheat alone. Keep that
+    source label intact so the thesis desk can use it as a cereal-development
+    proxy without falsely presenting it as a Wheat-only observation.
+    """
+    rows: list[dict[str, Any]] = []
+    table_match = re.search(r"Crop Staging Tables.*?(?=Weekly Rainfall Summary|\Z)", text, re.I | re.S)
+    if not table_match:
+        return rows
+    table_text = table_match.group(0)
+    groups = [
+        ("Winter Cereals", r"Winter Cereals.*?(?=Spring Cereals)", 6, [3, 4, 5]),
+        ("Spring Cereals", r"Spring Cereals.*?(?=Flax|Weekly Rainfall Summary|\Z)", 8, [5, 6, 7]),
+    ]
+    region_lookup = {name.lower(): (code, name) for code, name in SASKATCHEWAN_REGIONS}
+
+    for crop_name, pattern, expected_count, headed_indexes in groups:
+        group_match = re.search(pattern, table_text, re.I | re.S)
+        if not group_match:
+            continue
+        for line in group_match.group(0).splitlines()[1:]:
+            parsed = values_from_table_line(line, expected_count)
+            if not parsed:
+                continue
+            raw_region, values = parsed
+            region = region_lookup.get(raw_region.strip().lower())
+            if not region:
+                continue
+            value = sum_present_percentages(values, headed_indexes)
+            if value is None:
+                continue
+            region_code, region_name = region
+            rows.append(
+                make_row(
+                    province_code="SK",
+                    province_name="Saskatchewan",
+                    crop_year=2026,
+                    report_date=period_end,
+                    release_date=release_date,
+                    period_start=period_start,
+                    period_end=period_end,
+                    report_label=report_label,
+                    source_name="Saskatchewan Crop Report",
+                    source_url=SASKATCHEWAN_PAGE_URL,
+                    document_url=document_url,
+                    region_scope="province" if region_code == "PROV" else "crop_region",
+                    region_code=region_code,
+                    region_name="Saskatchewan" if region_code == "PROV" else region_name,
+                    crop_name=crop_name,
+                    metric="headed_pct",
+                    value_pct=value,
+                    source_excerpt=(
+                        f"Saskatchewan {crop_name} cumulative heading-or-later share "
+                        f"for the period {period_start} to {period_end}."
+                    ),
+                    confidence="high",
+                )
+            )
+    return rows
+
+
 def clean_alberta_crop_label(label: str) -> str:
     cleaned = label.replace("∗", "*")
     cleaned = re.sub(r"\s+\*", "", cleaned)
@@ -1019,8 +1090,9 @@ def parse_manitoba() -> tuple[list[dict[str, Any]], str]:
         )
         seeded = float(match.group(1)) if match else None
 
-    rows = [
-        make_row(
+    rows: list[dict[str, Any]] = []
+    if seeded is not None:
+        rows.append(make_row(
             province_code="MB",
             province_name="Manitoba",
             crop_year=2026,
@@ -1047,15 +1119,47 @@ def parse_manitoba() -> tuple[list[dict[str, Any]], str]:
                 else "Seeding Progression in 2026 Compared to Previous Years chart."
             ),
             confidence="high",
+        ))
+
+    southwest_condition = re.search(
+        r"Spring\s+wheat\s+crop\s+condition\s+is\s+at\s+([0-9]+(?:\.[0-9]+)?)%\s+good\s+and\s+([0-9]+(?:\.[0-9]+)?)%\s+average",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if southwest_condition:
+        good = float(southwest_condition.group(1))
+        rows.append(
+            make_row(
+                province_code="MB",
+                province_name="Manitoba",
+                crop_year=2026,
+                report_date=report_date,
+                release_date=report_date,
+                period_start=None,
+                period_end=report_date,
+                report_label=f"Crop Report - {report_date}",
+                source_name="Manitoba Agriculture Crop Report",
+                source_url=MANITOBA_PAGE_URL,
+                document_url=document_url,
+                region_scope="crop_region",
+                region_code="SW",
+                region_name="Southwest",
+                crop_name="Spring Wheat",
+                metric="condition_good_excellent_pct",
+                value_pct=good,
+                source_excerpt=(
+                    f"Manitoba Southwest reports Spring Wheat at {good:g}% good "
+                    f"and {float(southwest_condition.group(2)):g}% average as of {report_date}."
+                ),
+                confidence="high",
+            )
         )
-    ]
     return rows, document_url
 
 
 def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
     report_link, table_link = latest_saskatchewan_links()
-    text, document_url = pdf_to_text(table_link, layout=True)
-    report_text, report_url = pdf_to_text(report_link, layout=False)
+    report_text, report_url = pdf_to_text(report_link, layout=True)
     rows: list[dict[str, Any]] = []
 
     period_match = re.search(
@@ -1138,6 +1242,31 @@ def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
             document_url=report_url,
         )
     )
+    rows.extend(
+        parse_saskatchewan_heading_rows(
+            report_text,
+            period_start=period_start,
+            period_end=period_end,
+            release_date=release_date,
+            report_label=report_label,
+            document_url=report_url,
+        )
+    )
+
+    # Regional seeding tables are valid only while the current report itself is
+    # in seeding phase. This prevents a stale May table URL from being paired
+    # with a July report date and corrupting development percentages as seeding.
+    is_seeding_report = bool(
+        re.search(
+            r"(?:seeding progress(?: reached)?|seeding is)\s+[A-Za-z0-9.]+\s+per\s+cent",
+            report_text,
+            flags=re.IGNORECASE,
+        )
+    )
+    text = ""
+    document_url = report_url
+    if is_seeding_report:
+        text, document_url = pdf_to_text(table_link, layout=True)
 
     in_table = False
 
@@ -1193,8 +1322,8 @@ def parse_saskatchewan() -> tuple[list[dict[str, Any]], str]:
             )
 
     if not rows:
-        raise RuntimeError("Could not parse Saskatchewan regional crop-progress table.")
-    return rows, document_url
+        raise RuntimeError("Could not parse Saskatchewan crop-progress observations.")
+    return rows, report_url
 
 
 def parse_alberta(alberta_url: str | None = None) -> tuple[list[dict[str, Any]], str]:
