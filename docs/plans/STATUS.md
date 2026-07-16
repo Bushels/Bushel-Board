@@ -2,6 +2,8 @@
 
 Last updated: 2026-07-15
 
+Wheat farmer UX Phase 2 complete (2026-07-15 evening): Prairie mini-map, GEE stress thumbnail → `/data`, price agreement motion. Mobile stack remains vertical for reachability; swipe carousel deferred to Phase 3. Score authority unchanged. Plan: `docs/plans/2026-07-15-wheat-farmer-ux-redesign.md`.
+
 Wheat farmer UX Phase 1 complete (2026-07-15 evening): `WheatVisualPillars` is live on farmer `/thesis` under the published-desk stance hero — Prairie MB/SK/AB package status, GEE crop-stress (watch-only → `/data`), Spring/HRW/SRW price basket. Score authority unchanged (published desk + scorecard fallback). Builders + page tests 51/51; production build; Track 54 browser smoke desktop+mobile green. Plan: `docs/plans/2026-07-15-wheat-farmer-ux-redesign.md`. Phase 2 still open (mini-maps / swipe polish).
 
 Hermes/Grok control-plane + Wheat cleanup (2026-07-15 PM): deep audit `docs/audits/2026-07-15-wheat-centric-board-deep-audit.md` (score **74/100**). Deleted 33 orphan multi-grain dashboard/lib modules; farmer nav demoted Source Spine / Data Flow; README rewritten Wheat-centric. **Automation ownership moved to Hermes Agent** with Grok 4.5 for operator/X work: mechanical `bushel-collect-*` + watchdogs + no-write X pulse as `--no-agent` scripts; `bushel-wheat-daily-operator-brief` (17:00 MT M–F) and `bushel-wheat-friday-desk-orchestrator` (18:00 MT Fri, preflight-only default). Schedule map: `docs/reference/hermes-bushel-board-schedule.md`. Grok thesis-writing path remains tombstoned. Remaining: thesis monofile split, Wheat Data P2 re-home of kept charts, disable Claude Desktop Routines after clean Hermes week.
