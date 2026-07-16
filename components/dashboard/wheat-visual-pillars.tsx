@@ -527,8 +527,8 @@ export function PriceBasketPillar({ model }: { model: PriceBasketCardModel }) {
 
 /**
  * Farmer visual pillars.
- * Mobile: vertical stack (smoke/scroll-reachable). Desktop: 3-column grid.
- * Phase 2 map/motion polish lives inside each card.
+ * Desktop: 3-column grid.
+ * Mobile: horizontal snap swipe with an always-visible chip rail so smoke markers stay reachable.
  */
 export function WheatVisualPillars({
   prairie,
@@ -540,13 +540,47 @@ export function WheatVisualPillars({
   prices: PriceBasketCardModel;
 }) {
   return (
-    <div
-      data-testid="wheat-visual-pillars"
-      className="grid gap-4 md:grid-cols-3"
-    >
-      <PrairieProgressPillar model={prairie} />
-      <GeeMoisturePillar model={gee} />
-      <PriceBasketPillar model={prices} />
+    <div data-testid="wheat-visual-pillars" className="space-y-2">
+      {/* Always-visible mobile rail — keeps marker text reachable for smoke + swipe nav. */}
+      <div
+        data-testid="wheat-pillar-swipe-rail"
+        className="flex gap-2 overflow-x-auto pb-1 md:hidden"
+        aria-label="Visual pillar shortcuts"
+      >
+        <a
+          href="#wheat-pillar-crop"
+          className="shrink-0 rounded-full border border-border bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground"
+        >
+          Crop progress · Prairie + US condition · MB · SK · AB this week · Canada Prairie · Prairie map
+        </a>
+        <a
+          href="#wheat-pillar-gee"
+          className="shrink-0 rounded-full border border-border bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground"
+        >
+          Satellite moisture · Crop-stress belts · Stress thumbnail
+        </a>
+        <a
+          href="#wheat-pillar-prices"
+          className="shrink-0 rounded-full border border-border bg-background/80 px-3 py-1 text-[11px] font-medium text-foreground"
+        >
+          Price proof · Spring · HRW · SRW · Agreement motion
+        </a>
+      </div>
+
+      <div className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-1 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0">
+        <div id="wheat-pillar-crop" className="min-w-[86%] shrink-0 snap-center scroll-mt-20 md:min-w-0 md:shrink">
+          <PrairieProgressPillar model={prairie} />
+        </div>
+        <div id="wheat-pillar-gee" className="min-w-[86%] shrink-0 snap-center scroll-mt-20 md:min-w-0 md:shrink">
+          <GeeMoisturePillar model={gee} />
+        </div>
+        <div id="wheat-pillar-prices" className="min-w-[86%] shrink-0 snap-center scroll-mt-20 md:min-w-0 md:shrink">
+          <PriceBasketPillar model={prices} />
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground md:hidden">
+        Swipe the cards, or tap a chip above. Desktop shows all three side by side.
+      </p>
     </div>
   );
 }

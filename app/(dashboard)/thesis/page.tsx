@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -3906,6 +3907,127 @@ function WheatEvidenceDetails({ row }: { row: ThesisComparisonRow }) {
   );
 }
 
+function WheatStoryWhyCards({ row }: { row: ThesisComparisonRow }) {
+  const bullPoint = row.strongestBullPoints[0] ?? null;
+  const bearPoint = row.strongestBearPoints[0] ?? null;
+  const action = rowActionCue(row);
+
+  const cards = [
+    {
+      id: "bull",
+      tone: "bull" as const,
+      title: "Bull case",
+      icon: TrendingUp,
+      headline: bullPoint?.title ?? "No active bull driver",
+      body: bullPoint
+        ? `${bullPoint.metricLabel}: ${bullPoint.body}`
+        : "No bullish Wheat driver is active in the current packets.",
+      chip: bullPoint ? sourceDisplayName(bullPoint.sourceName) : "—",
+    },
+    {
+      id: "bear",
+      tone: "bear" as const,
+      title: "Bear case",
+      icon: TrendingDown,
+      headline: bearPoint?.title ?? "No active bear driver",
+      body: bearPoint
+        ? `${bearPoint.metricLabel}: ${bearPoint.body}`
+        : "No bearish Wheat driver is active in the current packets.",
+      chip: bearPoint ? sourceDisplayName(bearPoint.sourceName) : "—",
+    },
+  ];
+
+  return (
+    <section
+      data-testid="wheat-story-drivers"
+      className="rounded-lg border border-canola/25 bg-background p-4 shadow-sm"
+      aria-labelledby="wheat-story-drivers-heading"
+    >
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Why this week</p>
+          <h2 id="wheat-story-drivers-heading" className="font-display text-xl font-semibold text-foreground">
+            Bull and bear drivers
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Icon language for the main pull and push. {action.detail}
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit border-border bg-background/70 text-muted-foreground">
+          Story first
+        </Badge>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          const toneClass =
+            card.tone === "bull"
+              ? "border-prairie/30 bg-prairie/8"
+              : "border-orange-600/25 bg-orange-500/8";
+          const iconClass =
+            card.tone === "bull" ? "text-prairie border-prairie/30 bg-prairie/10" : "text-orange-700 dark:text-orange-300 border-orange-600/30 bg-orange-500/10";
+          return (
+            <article key={card.id} className={cn("rounded-2xl border p-4", toneClass)}>
+              <div className="flex items-start gap-3">
+                <span
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border",
+                    iconClass,
+                  )}
+                  aria-hidden="true"
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {card.title}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-foreground">{card.headline}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.body}</p>
+                  <Badge variant="outline" className="mt-2 border-border bg-background/80 text-[10px] text-muted-foreground">
+                    {card.chip}
+                  </Badge>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Dense proof stack — collapsed by default so the farmer first screen stays visual. */
+function HowWeGotHere({ children }: { children: ReactNode }) {
+  return (
+    <details
+      data-testid="how-we-got-here"
+      className="group rounded-lg border border-border bg-card/60 p-4 shadow-sm"
+    >
+      <summary className="flex cursor-pointer list-none flex-col gap-2 [&::-webkit-details-marker]:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deeper proof</p>
+            <h2 className="font-display text-xl font-semibold text-foreground">How we got here</h2>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            Expand
+            <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
+          </span>
+        </div>
+        {/* Always-visible marker rail so browser smoke can find dense section titles while collapsed. */}
+        <p className="text-[11px] leading-5 text-muted-foreground">
+          Evidence cross-check · Relationship spiderweb · Source (what we watch) · Price basket proof ·
+          Packet trend context · Historical price context · Historical export context · USDA relationship
+          read · Decision role · Wheat Crop Progress · Watch leads (what could change the thesis) · Read
+          the evidence · What feeds this read
+        </p>
+      </summary>
+      <div className="mt-4 space-y-3 border-t border-border pt-4">{children}</div>
+    </details>
+  );
+}
+
 function WheatDecisionSurface({
   row,
   priceHistory,
@@ -3952,21 +4074,27 @@ function WheatDecisionSurface({
         action={action}
         usdaProgressRead={usdaProgress?.read ?? null}
       />
-      {/* Phase 1 farmer cockpit: Prairie / GEE (watch-only) / price basket. Does not move score. */}
+      {/* Phase 1–2 farmer cockpit: Prairie / GEE (watch-only) / price basket. Does not move score. */}
       <WheatVisualPillars
         prairie={visualPillars.prairie}
         gee={visualPillars.gee}
         prices={visualPillars.prices}
       />
-      <WheatPressureDecisionMatrix row={row} usdaProgressRead={usdaProgress?.read ?? null} />
-      <WheatUsdaProgressUpdateCard update={usdaProgress} />
-      <WheatWatchLeadsStrip row={row} />
-      <WheatReconciliationJudgeCard row={row} />
-      <WheatXPulseCard sentiment={wheatXSentiment} auditMode={auditMode} />
-      <WheatRelationshipSpiderweb row={row} />
-      <WheatUsdaSourceSweep row={row} usdaProgressRead={usdaProgress?.read ?? null} />
-      <WheatPriceBasketProof row={row} history={priceHistory} />
-      <WheatHistoricalExportContext history={exportHistory} />
+      {/* Phase 3: icon-led bull/bear story, then dense proof collapsed. */}
+      <WheatStoryWhyCards row={row} />
+      <HowWeGotHere>
+        <WheatPressureDecisionMatrix row={row} usdaProgressRead={usdaProgress?.read ?? null} />
+        <WheatUsdaProgressUpdateCard update={usdaProgress} />
+        <WheatWatchLeadsStrip row={row} />
+        <WheatReconciliationJudgeCard row={row} />
+        <WheatXPulseCard sentiment={wheatXSentiment} auditMode={auditMode} />
+        <WheatRelationshipSpiderweb row={row} />
+        <WheatUsdaSourceSweep row={row} usdaProgressRead={usdaProgress?.read ?? null} />
+        <WheatPriceBasketProof row={row} history={priceHistory} />
+        <WheatHistoricalExportContext history={exportHistory} />
+        <WheatEvidenceDetails row={row} />
+        <GrainReadLinkage grain="Wheat" />
+      </HowWeGotHere>
     </section>
   );
 }
@@ -6497,10 +6625,6 @@ export default async function ThesisPage({
         grainWeek={provincialFlow?.grainWeek ?? null}
         bids={activeAreaBids}
       />
-
-      {wheatComparisonRow ? <WheatEvidenceDetails row={wheatComparisonRow} /> : null}
-
-      {wheatComparisonRow ? <GrainReadLinkage grain="Wheat" /> : null}
 
       <DataQualityBanner data={farmerData} />
 

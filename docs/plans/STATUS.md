@@ -2,6 +2,8 @@
 
 Last updated: 2026-07-15
 
+Wheat farmer UX Phase 3 complete (2026-07-15 evening): bull/bear driver icon cards; dense proof under **How we got here**; mobile pillar swipe with always-visible marker chips. Score authority unchanged. Plan: `docs/plans/2026-07-15-wheat-farmer-ux-redesign.md`.
+
 Wheat farmer UX Phase 2 complete (2026-07-15 evening): Prairie mini-map, GEE stress thumbnail → `/data`, price agreement motion. Mobile stack remains vertical for reachability; swipe carousel deferred to Phase 3. Score authority unchanged. Plan: `docs/plans/2026-07-15-wheat-farmer-ux-redesign.md`.
 
 Wheat farmer UX Phase 1 complete (2026-07-15 evening): `WheatVisualPillars` is live on farmer `/thesis` under the published-desk stance hero — Prairie MB/SK/AB package status, GEE crop-stress (watch-only → `/data`), Spring/HRW/SRW price basket. Score authority unchanged (published desk + scorecard fallback). Builders + page tests 51/51; production build; Track 54 browser smoke desktop+mobile green. Plan: `docs/plans/2026-07-15-wheat-farmer-ux-redesign.md`. Phase 2 still open (mini-maps / swipe polish).
