@@ -981,6 +981,8 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain('data-testid="wheat-pillar-prices"');
     expect(html).toContain('data-testid="wheat-crop-ca"');
     expect(html).toContain('data-testid="wheat-crop-us"');
+    expect(html).toContain('data-testid="wheat-story-drivers"');
+    expect(html).toContain('data-testid="how-we-got-here"');
     expect(html).toContain("Crop progress");
     expect(html).toContain("Prairie + US condition");
     expect(html).toContain("MB · SK · AB this week");
@@ -1000,6 +1002,10 @@ describe("ThesisPage scorecard audit mode", () => {
     expect(html).toContain("Spring · HRW · SRW");
     expect(html).toContain("Agreement motion");
     expect(html).toContain('data-testid="wheat-price-agreement"');
+    expect(html).toContain("Bull and bear drivers");
+    expect(html).toContain("How we got here");
+    expect(html).toContain("Evidence cross-check");
+    expect(html).toContain("What feeds this read");
     // Pillars explain data; they do not own the desk headline.
     expect(html).toContain("Current stance");
   });
