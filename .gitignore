@@ -113,3 +113,6 @@ ds-bundle/
 *service-account-key*.json
 *gee-sa*.json
 graphify-out/
+
+# Independent OpenAI Sites project (owns its own Git repository)
+/canola-command/

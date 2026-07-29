@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-28 - Public thesis cache exposed small-cohort farmer marketing aggregates
+
+**Symptom:** The public thesis board correctly withheld community behaviour below five contributing farms, but an anonymous PostgREST read of `thesis_packet_cache` still returned the underlying `farmer_behavior` JSON. A Canola packet with two contributors exposed aggregate starting, remaining, contracted, and uncontracted grain volumes even though the UI said the cohort was private.
+
+**Root cause:** Privacy suppression existed only in the presentation and scoring layers. The cache table retained a broad `SELECT` grant and permissive RLS policy for `anon` and `authenticated`, so a direct table read bypassed the board's minimum-cohort rule.
+
+**Fix:** Migration `20260729021216_harden_public_thesis_packet_cache.sql` makes the cache service-role-only and converts `get_thesis_board_cached()` into a bounded security-definer read that removes `farmer_behavior` from every public packet. The independent Canola site also requests only named JSON branches and never retrieves farmer behaviour or collector error text. A SQL regression test locks the table privileges and sanitized RPC output.
+
+**Prevention:** A privacy threshold must be enforced at the database/API boundary, not only where values are rendered. Public cache tables should expose purpose-built views or RPCs with an explicit field allowlist; never grant anonymous access to a JSON document that contains both public and suppressed fields.
+
+**Tags:** #privacy #rls #supabase #thesis-cache #small-cohort #canola
+
+---
+
 ## 2026-07-15 - Republished Wheat desk rows did not control the public `/thesis` headline
 
 **Symptom:** The Wheat desks successfully published Canadian +22/confidence 42 and U.S. +32/confidence 45, but Vercel still showed Lean Bear -6. The stance rail also showed 43%, which looked like thesis confidence even though it was the confidence-scaled position of the -6 score.
