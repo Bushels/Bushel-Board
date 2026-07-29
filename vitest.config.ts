@@ -8,7 +8,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     globals: true,
-    exclude: [...configDefaults.exclude, ".claude/worktrees/**"],
+    exclude: [
+      ...configDefaults.exclude,
+      ".claude/worktrees/**",
+      "canola-command/**",
+    ],
   },
   resolve: {
     alias: {

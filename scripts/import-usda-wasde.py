@@ -5,7 +5,8 @@ USDA FAS PSD / WASDE raw importer.
 Imports raw monthly PSD balance-sheet rows from the USDA FAS OpenData API into
 usda_wasde_raw. This is the balance-sheet foundation for the US thesis lane plus
 the world vegetable-oil complex (Rapeseed, Rapeseed Oil, Palm Oil, Soybean Oil
-with country_code '00') that feeds the bounded Canola demand-context lane.
+with country_code '00') and the direct US Rapeseed / Rapeseed Oil balance sheets
+that feed the bounded Canola demand-context lane.
 
 Note: the live PSD API only exposes the *latest* published estimate per
 (commodity, country/world, market_year); world veg-oil revision history accrues
@@ -27,6 +28,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import subprocess
 import sys
@@ -61,6 +63,12 @@ MARKETS = [
     {"market_name": "Rapeseed Oil", "commodity_code": "4239100", "commodity_name": "Oil, Rapeseed", "country_code": "00", "scope": "world", "desk_heartbeat": False},
     {"market_name": "Palm Oil", "commodity_code": "4243000", "commodity_name": "Oil, Palm", "country_code": "00", "scope": "world", "desk_heartbeat": False},
     {"market_name": "Soybean Oil", "commodity_code": "4232000", "commodity_name": "Oil, Soybean", "country_code": "00", "scope": "world", "desk_heartbeat": False},
+    # Direct US Rapeseed balance sheets. USDA FAS uses "Rapeseed" rather than
+    # "Canola" in PSD; preserve that source terminology and keep these distinct
+    # from both the country_code="00" world rows and soybean proxy markets.
+    # They are Canola context, not US desk heartbeat markets.
+    {"market_name": "US Rapeseed", "commodity_code": "2226000", "commodity_name": "Oilseed, Rapeseed", "country_code": "US", "desk_heartbeat": False},
+    {"market_name": "US Rapeseed Oil", "commodity_code": "4239100", "commodity_name": "Oil, Rapeseed", "country_code": "US", "desk_heartbeat": False},
 ]
 
 # Only US desk markets write collector heartbeats; world veg-oil context rows
@@ -71,6 +79,18 @@ HEARTBEAT_CLI = Path(__file__).with_name("write-collector-heartbeat.py")
 TRAJECTORY_SCAN_TYPE = "collector_wasde"
 TRAJECTORY_TRIGGER = "USDA WASDE/PSD monthly refresh"
 ENDING_STOCKS_ATTRIBUTE_ID = 176  # PSD "Ending Stocks"
+
+# Every admitted PSD market must deliver the balance-sheet fields consumed by
+# the mapped view and thesis packets. Oilseed markets additionally require the
+# crush row. The API may return other attributes, but these are the fail-closed
+# minimum needed to avoid publishing a half-populated market snapshot.
+CORE_BALANCE_ATTRIBUTE_IDS = frozenset({20, 28, 57, 86, 88, 125, 176, 178})
+OILSEED_CRUSH_MARKETS = frozenset({"Soybeans", "Rapeseed", "US Rapeseed"})
+REQUIRED_ATTRIBUTES_BY_MARKET = {
+    market["market_name"]: CORE_BALANCE_ATTRIBUTE_IDS
+    | ({7} if market["market_name"] in OILSEED_CRUSH_MARKETS else set())
+    for market in MARKETS
+}
 
 class ImporterError(Exception):
     pass
@@ -103,6 +123,111 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--market", action="append", help="Limit to specific market_name values from MARKETS.")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and normalize without writing to Supabase.")
     return parser.parse_args()
+
+
+def require_market_coverage(
+    rows: list[dict[str, Any]],
+    markets: list[dict[str, Any]],
+) -> None:
+    """Fail before writes when markets or required snapshot attributes are absent."""
+    present = set()
+    for row in rows:
+        try:
+            if math.isfinite(float(row.get("value"))):
+                present.add(str(row.get("market_name", "")))
+        except (TypeError, ValueError):
+            continue
+    missing = [
+        str(market["market_name"])
+        for market in markets
+        if str(market["market_name"]) not in present
+    ]
+    if missing:
+        raise ImporterError(
+            "No usable USDA PSD rows were returned for requested market(s): "
+            + ", ".join(missing)
+        )
+
+    snapshots: dict[tuple[str, str, int, int], set[int]] = {}
+    invalid_required_rows: list[str] = []
+    for row in rows:
+        market_name = str(row.get("market_name", ""))
+        if market_name not in REQUIRED_ATTRIBUTES_BY_MARKET:
+            continue
+        key = (
+            market_name,
+            str(row.get("market_year", "")),
+            int(row.get("calendar_year") or 0),
+            int(row.get("month") or 0),
+        )
+        valid_attributes = snapshots.setdefault(key, set())
+        try:
+            value_is_finite = math.isfinite(float(row.get("value")))
+            unit_id = int(row.get("unit_id") or 0)
+            attribute_id = int(row.get("attribute_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        required = REQUIRED_ATTRIBUTES_BY_MARKET[market_name]
+        if attribute_id in required and (not value_is_finite or unit_id != 8):
+            invalid_required_rows.append(
+                f"{market_name} MY{key[1] or '?'} "
+                f"{key[2]:04d}-{key[3]:02d} attribute {attribute_id} "
+                f"has unit_id={unit_id}, value={row.get('value')!r}"
+            )
+        elif value_is_finite and unit_id == 8:
+            valid_attributes.add(attribute_id)
+
+    if invalid_required_rows:
+        raise ImporterError(
+            "Invalid USDA PSD required attribute row(s): "
+            + "; ".join(invalid_required_rows)
+        )
+
+    incomplete: list[str] = []
+    complete_snapshots: dict[str, set[tuple[str, int, int]]] = {}
+    for (market_name, market_year, calendar_year, month), attribute_ids in sorted(
+        snapshots.items()
+    ):
+        required = REQUIRED_ATTRIBUTES_BY_MARKET[market_name]
+        missing_attributes = sorted(required - attribute_ids)
+        if missing_attributes:
+            snapshot_label = (
+                f"{calendar_year:04d}-{month:02d}"
+                if calendar_year and month
+                else "unknown report month"
+            )
+            incomplete.append(
+                f"{market_name} MY{market_year or '?'} {snapshot_label} "
+                "missing attribute(s) "
+                + ", ".join(str(attribute_id) for attribute_id in missing_attributes)
+            )
+        else:
+            complete_snapshots.setdefault(market_name, set()).add(
+                (market_year, calendar_year, month)
+            )
+
+    if incomplete:
+        raise ImporterError(
+            "Incomplete USDA PSD required attribute coverage: "
+            + "; ".join(incomplete)
+        )
+
+    requested_market_names = {
+        str(market["market_name"]) for market in markets
+    }
+    direct_us_markets = {"US Rapeseed", "US Rapeseed Oil"}
+    if direct_us_markets <= requested_market_names:
+        common_snapshots = set.intersection(
+            *(
+                complete_snapshots.get(market_name, set())
+                for market_name in sorted(direct_us_markets)
+            )
+        )
+        if not common_snapshots:
+            raise ImporterError(
+                "US Rapeseed and US Rapeseed Oil returned no common complete "
+                "market-year/report-month snapshot"
+            )
 
 
 def require_env(name: str, *alternates: str) -> str:
@@ -184,17 +309,54 @@ def normalize_rows(rows: list[dict[str, Any]], market: dict[str, Any], market_ye
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     out = []
     for row in rows:
+        expected_identity = {
+            "commodityCode": str(market["commodity_code"]),
+            "countryCode": str(market["country_code"]),
+            "marketYear": str(market_year),
+        }
+        actual_identity = {
+            key: str(row.get(key) or "")
+            for key in expected_identity
+        }
+        mismatches = [
+            f"{key}={actual_identity[key]!r} expected {expected!r}"
+            for key, expected in expected_identity.items()
+            if actual_identity[key] != expected
+        ]
+        if mismatches:
+            raise ImporterError(
+                f"USDA PSD identity mismatch for {market['market_name']}: "
+                + ", ".join(mismatches)
+            )
+        try:
+            calendar_year = int(row.get("calendarYear"))
+            month = int(row.get("month"))
+            attribute_id = int(row.get("attributeId"))
+            unit_id = int(row.get("unitId"))
+        except (TypeError, ValueError) as exc:
+            raise ImporterError(
+                f"USDA PSD malformed dimensions for {market['market_name']}: "
+                f"calendarYear={row.get('calendarYear')!r}, "
+                f"month={row.get('month')!r}, "
+                f"attributeId={row.get('attributeId')!r}, "
+                f"unitId={row.get('unitId')!r}"
+            ) from exc
+        if calendar_year < 1900 or month not in range(1, 13):
+            raise ImporterError(
+                f"USDA PSD invalid report period for {market['market_name']}: "
+                f"calendarYear={calendar_year}, month={month}"
+            )
         out.append({
             'crop_year': str(market_year),
             'market_name': market['market_name'],
-            'commodity_code': str(row.get('commodityCode') or market['commodity_code']),
+            'commodity_code': actual_identity['commodityCode'],
             'commodity_name': market['commodity_name'],
-            'country_code': str(row.get('countryCode') or market['country_code']),
-            'market_year': str(row.get('marketYear') or market_year),
-            'calendar_year': int(row.get('calendarYear')),
-            'month': int(row.get('month')),
-            'attribute_id': int(row.get('attributeId')),
-            'unit_id': int(row.get('unitId')),
+            'country_code': actual_identity['countryCode'],
+            'market_year': actual_identity['marketYear'],
+            'calendar_year': calendar_year,
+            'month': month,
+            'attribute_id': attribute_id,
+            'unit_id': unit_id,
             'value': float(row.get('value')) if row.get('value') is not None else None,
             'source': 'usda_fas_psd_api',
             'imported_at': now,
@@ -331,6 +493,21 @@ def write_heartbeats(previews: list[dict[str, Any]]) -> dict[str, Any]:
     return {'written': written, 'total': len(results), 'results': results}
 
 
+def record_source_run_or_fail(
+    supabase_url: str,
+    service_key: str,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Record collector freshness or fail after idempotent collector writes."""
+    try:
+        return write_source_run(supabase_url, service_key, **kwargs)
+    except SourceRunError as exc:
+        raise ImporterError(
+            "USDA PSD rows were upserted, but the source_runs ledger write "
+            f"failed; replay is safe and this run is not successful: {exc}"
+        ) from exc
+
+
 def main() -> None:
     run_started_at = dt.datetime.now(dt.timezone.utc).isoformat()
     load_env_files()
@@ -397,6 +574,7 @@ def main() -> None:
                     })
                     print(f"  {len(rows)} raw rows -> {len(monthly)} rows for {label}", file=os.sys.stderr)
 
+    require_market_coverage(all_rows, markets)
     heartbeat_previews = build_heartbeat_previews(all_rows, summary)
 
     if not args.dry_run:
@@ -416,30 +594,27 @@ def main() -> None:
             _wasde_source_week_ending(row['calendar_year'], row['month'])
             for row in all_rows
         ]
-        try:
-            source_run = write_source_run(
-                supabase_url,
-                service_key,
-                source_name="usda_wasde_raw",
-                source_lane="international",
-                collector_name="import-usda-wasde",
-                status="success",
-                source_period_start=min(period_dates) if period_dates else None,
-                source_period_end=max(period_dates) if period_dates else None,
-                latest_source_label=max(period_dates) if period_dates else None,
-                rows_inserted=len(all_rows),
-                started_at=run_started_at,
-                metadata={
-                    "market_years": market_years if legacy_market_year_mode else None,
-                    "report_months": [m.strftime('%Y-%m') for m in report_months] if report_months else None,
-                    "markets": [m['market_name'] for m in markets],
-                    "summary": summary,
-                    "trajectory": trajectory,
-                    "warnings": warnings,
-                },
-            )
-        except SourceRunError as exc:
-            warnings.append(f"source_runs write failed: {exc}")
+        source_run = record_source_run_or_fail(
+            supabase_url,
+            service_key,
+            source_name="usda_wasde_raw",
+            source_lane="international",
+            collector_name="import-usda-wasde",
+            status="success",
+            source_period_start=min(period_dates) if period_dates else None,
+            source_period_end=max(period_dates) if period_dates else None,
+            latest_source_label=max(period_dates) if period_dates else None,
+            rows_inserted=len(all_rows),
+            started_at=run_started_at,
+            metadata={
+                "market_years": market_years if legacy_market_year_mode else None,
+                "report_months": [m.strftime('%Y-%m') for m in report_months] if report_months else None,
+                "markets": [m['market_name'] for m in markets],
+                "summary": summary,
+                "trajectory": trajectory,
+                "warnings": warnings,
+            },
+        )
 
     payload: dict[str, Any] = {
         'status': 'success',
@@ -458,4 +633,8 @@ def main() -> None:
     print(json.dumps(payload, indent=2))
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ImporterError as exc:
+        print(json.dumps({"status": "error", "message": str(exc)}))
+        raise SystemExit(1)

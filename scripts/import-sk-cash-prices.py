@@ -157,6 +157,21 @@ def load_env_files() -> None:
                 os.environ.setdefault(key.strip(), value.strip().strip('"'))
 
 
+def record_source_run_or_fail(
+    supabase_url: str,
+    service_key: str,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Record collector freshness or fail the run after the idempotent upsert."""
+    try:
+        return write_source_run(supabase_url, service_key, **kwargs)
+    except SourceRunError as exc:
+        raise ImporterError(
+            "SK cash-price rows were upserted, but the source_runs ledger write "
+            f"failed; replay is safe and this run is not successful: {exc}"
+        ) from exc
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--since", default=None, help="ISO date floor (default: 90 days back)")
@@ -189,26 +204,30 @@ def main() -> int:
         all_rows.extend(rows)
         log(f"[{crop}] {len(rows)} rows since {since}")
 
+    empty_crops = [crop for crop in crops if per_crop.get(crop, 0) == 0]
+    if empty_crops:
+        raise ImporterError(
+            "Saskatchewan cash-price source returned no usable rows for "
+            f"requested crop(s): {', '.join(empty_crops)}"
+        )
+
     if not args.dry_run and all_rows:
         upsert_rows(supabase_url, service_key, all_rows)
         dates = sorted(row["price_date"] for row in all_rows)
-        try:
-            write_source_run(
-                supabase_url,
-                service_key,
-                source_name="sk_cash_prices",
-                source_lane="canada_official",
-                collector_name="import-sk-cash-prices",
-                status="success",
-                source_period_start=dates[0],
-                source_period_end=dates[-1],
-                latest_source_label=dates[-1],
-                rows_inserted=len(all_rows),
-                started_at=started_at,
-                metadata={"since": since.isoformat(), "per_crop": per_crop},
-            )
-        except SourceRunError as exc:
-            log(f"source_runs write failed: {exc}")
+        record_source_run_or_fail(
+            supabase_url,
+            service_key,
+            source_name="sk_cash_prices",
+            source_lane="canada",
+            collector_name="import-sk-cash-prices",
+            status="success",
+            source_period_start=dates[0],
+            source_period_end=dates[-1],
+            latest_source_label=dates[-1],
+            rows_inserted=len(all_rows),
+            started_at=started_at,
+            metadata={"since": since.isoformat(), "per_crop": per_crop},
+        )
 
     print(
         json.dumps(

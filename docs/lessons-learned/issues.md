@@ -1821,3 +1821,114 @@ Four findings from a systematic audit of the dashboard data layer during the Das
 **Root cause:** The Week 43 report omitted Prince Rupert from the OCT summary bullet ('At the time of publishing, Prince Rupert had not yet reported Week 43 OCT'). The regex required all three ports (Vancouver, Prince Rupert, Thunder Bay) in fixed order.
 
 **Fix (Tier 2 mechanical, charter-compliant):** scripts/grain-monitor/parsers.ts now matches the total/previous OCT sentence first, then extracts per-port percentages individually; missing ports persist as NULL and are reported in missing_fields. Vitest seatbelt (12 tests) passed before re-import. Week 43 upserted with out_of_car_time_prince_rupert_pct = NULL.
+
+## 2026-07-29 - Canola physical-ledger integrity findings
+
+### Finding 1: Processor deliveries are not actual crush (HIGH - FIXED)
+
+**Symptom:** The Canola score could treat grain delivered to processors as if it
+had already been crushed, then also display or score direct crush. This could
+double-count one physical demand lane.
+
+**Root cause:** `Process.Producer Deliveries` measures processor intake.
+`Process.Milled/Mfg Grain` measures seed actually processed. They are related
+stages, not interchangeable observations.
+
+**Fix:** Direct weekly CGC `Milled/Mfg Grain` is now the score-bearing crush
+observation. Processor deliveries are context-only when direct crush is absent
+and contribute zero direction and zero coverage.
+
+**Prevention:** Keep deliveries, stocks, crush, and exports as separate transfer
+stages. Tests must reject processor-intake substitution and double voting.
+
+**Tags:** #canola #cgc #crush #double-counting #scoring
+
+### Finding 2: Source-lane labels failed after successful collector work (HIGH - FIXED)
+
+**Symptom:** StatsCan collectors could fetch and write valid rows, then fail
+when recording their `source_runs` heartbeat because `canada_official` was not
+an admitted lane.
+
+**Root cause:** Collector source-lane strings drifted from the database enum.
+The late failure made a successful data write appear failed and left freshness
+tracking incomplete.
+
+**Fix:** Canadian official collectors use the admitted `canada` lane. Shared
+source-run validation now rejects unknown lanes before network or database work.
+
+**Prevention:** Every new collector must test its source lane through the shared
+validator before fetching or writing.
+
+**Tags:** #collectors #source-runs #freshness #fail-closed
+
+### Finding 3: Farm-bin inventory needs calendar and reconciliation gates (HIGH - FIXED)
+
+**Symptom:** Subtracting whole CGC weeks from a dated StatsCan stock anchor can
+misstate on-farm Canola when a reporting week straddles the anchor. Missing or
+duplicate weeks can silently make the residual look precise.
+
+**Root cause:** StatsCan stocks are point-in-time calendar observations while
+CGC movement is weekly. Their reporting boundaries do not line up exactly.
+
+**Fix:** The farm-bin model date-prorates boundary weeks, requires unique
+contiguous delivery coverage, calibrates non-CGC disappearance from the prior
+official interval, exposes a 0x-to-2x scenario envelope, and withholds the
+estimate on reconciliation failure or after crop-year rollover.
+
+**Prevention:** Label the result as modeled, never directly observed. The
+scenario envelope is not a confidence interval.
+
+**Tags:** #canola #inventory #statcan #cgc #reconciliation
+
+### Finding 4: Upstream crush and downstream fuel capacity are non-additive (MEDIUM - FIXED)
+
+**Symptom:** Seed-crush nameplate in tonnes per year, renewable-fuel refinery
+nameplate in litres per year, oil production, and actual Canola-oil feedstock
+demand could be presented as one capacity total.
+
+**Root cause:** The measures describe different stages, materials, and units.
+Renewable-diesel facilities can also switch feedstocks.
+
+**Fix:** The Canola board now presents seed crush, annual Canola-oil biofuel
+demand, downstream fuel nameplate, and monthly sector activity as separate
+lanes. Structural capacity contributes zero directional score until actual
+throughput confirms it.
+
+**Prevention:** Never add tonnes of seed, tonnes of oil, and litres of fuel.
+Treat aggregate monthly vegetable-oil inputs as sector confirmation, not
+Canola-specific demand.
+
+**Tags:** #canola #biofuel #capacity #units #lineage
+
+### Finding 5: Date-only source periods shifted in Mountain time (MEDIUM - FIXED)
+
+**Symptom:** March 31 stocks displayed as March 30, May 31 output displayed as
+May 30, and the July 19 CGC week displayed as July 18.
+
+**Root cause:** Calendar labels stored as `YYYY-MM-DD` were parsed as UTC
+midnight and then formatted in `America/Edmonton`, moving them to the prior day.
+
+**Fix:** Date-only reporting periods are formatted in UTC; true timestamps
+continue to display in Mountain time. A regression test locks the behavior.
+
+**Tags:** #dates #timezone #reporting-period #ui #data-integrity
+
+### Finding 6: Biofuel demand must not be relabelled by origin (HIGH - FIXED)
+
+**Symptom:** A U.S. Canola-oil biofuel consumption series could be read as
+Canada-origin export demand even though the EIA table does not identify where
+the oil was produced.
+
+**Root cause:** Commodity identity, consuming geography, and origin are three
+different dimensions. The official EIA series proves U.S. consumption of
+Canola oil for biofuel, but not Canadian origin.
+
+**Fix:** The collector pins the exact EIA series, unit, U.S. geography, six
+consecutive months, release dates, and `origin_scope=not_reported`. Raw rows
+remain private; the public RPC labels the result demand-confirmation-only. The
+site refuses any row that claims Canadian origin.
+
+**Prevention:** Never convert a consuming-country observation into a bilateral
+trade flow. Canada-origin U.S. demand remains a separate Census customs lane.
+
+**Tags:** #canola #eia #biofuel #origin #customs #data-integrity

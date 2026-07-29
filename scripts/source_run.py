@@ -10,6 +10,17 @@ import urllib.request
 from typing import Any
 
 SUPABASE_TIMEOUT_SECONDS = 30
+ALLOWED_SOURCE_LANES = frozenset(
+    {
+        "canada",
+        "us",
+        "cross_border",
+        "farmer_local",
+        "international",
+        "analysis",
+        "system",
+    }
+)
 
 
 class SourceRunError(Exception):
@@ -39,6 +50,12 @@ def write_source_run(
     started_at: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if source_lane not in ALLOWED_SOURCE_LANES:
+        allowed = ", ".join(sorted(ALLOWED_SOURCE_LANES))
+        raise SourceRunError(
+            f"Invalid source_lane {source_lane!r}; expected one of: {allowed}"
+        )
+
     row = {
         "source_name": source_name,
         "source_lane": source_lane,
