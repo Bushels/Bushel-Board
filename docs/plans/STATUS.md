@@ -1,6 +1,18 @@
 # Bushel Board - Feature Status Tracker
 
-Last updated: 2026-07-15
+Last updated: 2026-07-29
+
+## 2026-07-29 - Canola Command production release
+
+**Status:** Complete and privately deployed; commercial price rights and several external-source refreshes remain explicit gates.
+
+- Shipped the owner-only Canola Command release-time intelligence board at `https://prairie-canola-command.buperac.chatgpt.site`.
+- Automated and admitted CGC, AAFC, Statistics Canada, USDA PSD, EIA, and CFTC lanes with source-period release clocks and fail-closed freshness.
+- Added the observed-plus-modeled Canola physical ledger, AAFC target-versus-actual pacing, crush-capacity and renewable-fuel context, deterministic bull/bear evidence ranking, and browser-private farmgate calculator.
+- Kept COT, rail, vessel, and ambiguous logistics context outside directional score authority; scores are withheld when coverage or cash transmission is insufficient.
+- Verified exact production version on desktop and mobile with zero browser/Worker errors; 43/43 nested tests, 1,263/1,263 root TypeScript tests, and 73/73 Python collector tests passed.
+- Remaining external gates: licensed ICE/PDQ and local cash feeds, Census API key, destination-specific Canadian customs trade, and overdue Grain Monitor/Producer Cars/full Prairie releases.
+- Canonical release record: `docs/plans/2026-07-29-canola-command-production-release.md`.
 
 Wheat farmer UX Phase 3 complete (2026-07-15 evening): bull/bear driver icon cards; dense proof under **How we got here**; mobile pillar swipe with always-visible marker chips. Score authority unchanged. Plan: `docs/plans/2026-07-15-wheat-farmer-ux-redesign.md`.
 
