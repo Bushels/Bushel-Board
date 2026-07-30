@@ -1,5 +1,19 @@
 # Bushel Board - Lessons Learned
 
+## 2026-07-29 - Narrative-only Manitoba releases left a blank Prairie source watermark
+
+**Symptom:** The collector discovered Manitoba's official 2026-07-28 Crop Report but initially parsed zero structured rows. Because the source run derived its period and label only from emitted rows, the successful discovery was recorded with a null `source_period_end` and blank label; downstream package selection therefore kept the older July 14 Manitoba release.
+
+**Root cause:** Manitoba's current report did not repeat the crop-specific Spring Wheat percentage pattern used by the parser. Its only numeric condition statement described all crops in the Southwest as about 50% good and 50% average. Discovery metadata and score-eligible evidence had also been coupled: a report could not advance the official release clock unless it yielded a structured crop row.
+
+**Fix:** The importer now stores that statement as one medium-confidence Southwest `All Crops` condition row with `broad_all_crops_narrative`, no canonical grain, and an excerpt that preserves the missing crop split. Source-run period and label helpers now fall back to the discovered official report date and province when a release legitimately yields no structured rows. The full live package wrote 45 MB/SK/AB rows through 2026-07-28 and refreshed all 12 thesis cache packets without failure. The local Prairie report builder now switches to a late-season structured-watch package when current seeding rows are absent, carries Manitoba crop-stage and regional moisture narrative as context-only watch items, and removes obsolete seeding graphics instead of crashing or carrying June claims forward.
+
+**Prevention:** Treat official-report discovery, report phase, and score admission as separate gates. A verified zero-row report must advance the release clock and remain visible, while crop-specific scores must continue to require crop-specific evidence. A report generator must branch on the current admitted metrics before selecting its copy and visuals. Never turn a broad regional crop statement into a Wheat or Canola condition claim.
+
+**Tags:** #crop-progress #manitoba #source-watermark #data-integrity #thesis-cache
+
+---
+
 ## 2026-07-28 - Public thesis cache exposed small-cohort farmer marketing aggregates
 
 **Symptom:** The public thesis board correctly withheld community behaviour below five contributing farms, but an anonymous PostgREST read of `thesis_packet_cache` still returned the underlying `farmer_behavior` JSON. A Canola packet with two contributors exposed aggregate starting, remaining, contracted, and uncontracted grain volumes even though the UI said the cohort was private.

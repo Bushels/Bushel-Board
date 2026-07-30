@@ -6,11 +6,7 @@ Saskatchewan, and Alberta official crop reports, reuses the existing Canada
 crop-progress parser, adds narrative risk extraction, and writes:
   - report.md
   - summary.json
-  - infographic-seeding-crop-progress.svg
-  - infographic-risk-watch.svg
-  - infographic-major-crops-prairies.svg
-  - infographic-quality-saskatchewan.svg
-  - infographic-quality-alberta.svg
+  - phase-appropriate SVG infographics (seeding package or late-season watch)
   - index.html
 
 Usage:
@@ -423,10 +419,205 @@ def province_sources(summaries: list[dict[str, Any]]) -> dict[str, dict[str, Any
     return {summary["province"]: summary for summary in summaries}
 
 
+LATE_PHASE_METRIC_LABELS = {
+    "condition_good_excellent_pct": "good/excellent",
+    "soil_moisture_adequate_surplus_pct": "moisture adequate/surplus",
+    "development_ahead_pct": "development ahead",
+    "development_normal_pct": "development normal",
+    "development_behind_pct": "development behind",
+    "headed_pct": "headed",
+}
+
+LATE_PHASE_CROP_ORDER = {
+    "Spring Wheat": 0,
+    "Canola": 1,
+    "Barley": 2,
+    "Oats": 3,
+    "Major Crops": 4,
+    "All Crops": 5,
+    "Cropland": 6,
+    "Hayland": 7,
+    "Pasture": 8,
+}
+
+
+def late_phase_observation(row: dict[str, Any]) -> dict[str, Any]:
+    quality_flags = [str(flag) for flag in row.get("quality_flags") or []]
+    canonical_grain = row.get("canonical_grain")
+    if "broad_all_crops_narrative" in quality_flags:
+        boundary = "context_only_broad_all_crops"
+    elif canonical_grain:
+        boundary = "crop_specific_observation"
+    else:
+        boundary = "context_only_noncanonical"
+    metric = str(row.get("metric") or "")
+    crop_name = str(row.get("crop_name") or "Crop")
+    region_code = str(row.get("region_code") or "")
+    region_name = str(row.get("region_name") or "")
+    metric_label = LATE_PHASE_METRIC_LABELS.get(metric, metric.replace("_", " "))
+    region_suffix = f" - {region_name}" if region_code and region_code != "PROV" else ""
+    return {
+        "province_code": row.get("province_code"),
+        "report_date": row.get("report_date"),
+        "release_date": row.get("release_date"),
+        "crop_name": crop_name,
+        "canonical_grain": canonical_grain,
+        "region_code": region_code,
+        "region_name": region_name,
+        "metric": metric,
+        "metric_label": metric_label,
+        "display_label": f"{crop_name} {metric_label}{region_suffix}",
+        "value_pct": row.get("value_pct"),
+        "confidence": row.get("confidence"),
+        "quality_flags": quality_flags,
+        "boundary": boundary,
+        "source_excerpt": row.get("source_excerpt"),
+        "document_url": row.get("document_url"),
+    }
+
+
+def late_phase_display_observations(
+    observations: list[dict[str, Any]],
+    province_code: str,
+    *,
+    limit: int = 4,
+) -> list[dict[str, Any]]:
+    province_rows = [row for row in observations if row.get("province_code") == province_code]
+
+    def priority(row: dict[str, Any]) -> tuple[int, int, str, str]:
+        region_priority = 0 if row.get("region_code") == "PROV" else 1
+        if province_code == "MB" and "broad_all_crops_narrative" in row.get("quality_flags", []):
+            region_priority = 0
+        crop_priority = LATE_PHASE_CROP_ORDER.get(str(row.get("crop_name") or ""), 99)
+        return (
+            region_priority,
+            crop_priority,
+            str(row.get("metric") or ""),
+            str(row.get("region_code") or ""),
+        )
+
+    return sorted(province_rows, key=priority)[:limit]
+
+
+def late_phase_report_date(
+    province_code: str,
+    observations: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> str | None:
+    discovery = summary.get("discovery")
+    if isinstance(discovery, dict) and discovery.get("report_date"):
+        return str(discovery["report_date"])
+    report_dates = [
+        str(row["report_date"])
+        for row in observations
+        if row.get("province_code") == province_code and row.get("report_date")
+    ]
+    return max(report_dates, default=None)
+
+
+def extract_manitoba_late_phase_watch(text: str) -> list[str]:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    watch: list[str] = []
+    if re.search(
+        r"majority of spring cereals are in early milk to soft dough stage",
+        normalized,
+        flags=re.IGNORECASE,
+    ):
+        watch.append(
+            "Spring cereals: early milk to soft dough; FHB fungicide work is generally complete."
+        )
+    if re.search(
+        r"canola development has continued rapidly.*?stages of flowering.*?earliest fields past flowering",
+        normalized,
+        flags=re.IGNORECASE,
+    ):
+        watch.append(
+            "Canola: broadly flowering; earliest fields are past flowering and some are at pod fill."
+        )
+    if (
+        re.search(r"areas that have been under excess moisture.*?symptoms of stress", normalized, flags=re.IGNORECASE)
+        and re.search(r"field access remains a challenge", normalized, flags=re.IGNORECASE)
+    ):
+        watch.append(
+            "Northwest: excess-moisture stress, soil crusting, washout repairs, and access limits remain."
+        )
+    if re.search(
+        r"waterlogged fields.*?showing premature ripening and yellowing leaves",
+        normalized,
+        flags=re.IGNORECASE,
+    ):
+        watch.append(
+            "Interlake crops are generally robust, but waterlogged fields near Woodlands and Rosser show premature ripening and yellowing."
+        )
+    return watch
+
+
+def build_late_phase_package(
+    *,
+    started_at: str,
+    rows: list[dict[str, Any]],
+    summaries: list[dict[str, Any]],
+    sources: dict[str, dict[str, Any]],
+    narrative_watch_by_province: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
+    observations = [late_phase_observation(row) for row in rows]
+    narrative_watch_by_province = narrative_watch_by_province or {}
+    provinces: dict[str, dict[str, Any]] = {}
+    for province_code, province_name in canada.PROVINCE_NAMES.items():
+        summary = sources[province_code]
+        province_observations = [
+            row for row in observations if row.get("province_code") == province_code
+        ]
+        provinces[province_code] = {
+            "name": province_name,
+            "report_date": late_phase_report_date(province_code, observations, summary),
+            "source_url": summary.get("source_url"),
+            "row_count": len(province_observations),
+            "display_observations": late_phase_display_observations(
+                observations,
+                province_code,
+            ),
+            "observations": province_observations,
+            "narrative_watch": narrative_watch_by_province.get(province_code, []),
+        }
+
+    return {
+        "generated_at": started_at,
+        "report_phase": "condition_and_development",
+        "prairie_week_status": canada.prairie_week_status(["MB", "SK", "AB"]),
+        "source_period_end": canada.source_period_end(rows, summaries),
+        "latest_source_label": canada.latest_source_label(rows, summaries),
+        "rows_parsed": len(rows),
+        "province_summaries": summaries,
+        "provinces": provinces,
+        "structured_observations": observations,
+        "method_caveats": [
+            "This late-season package reports only structured observations admitted by the provincial parsers.",
+            "Manitoba's Southwest all-crops condition is context-only because the report does not publish a crop-specific split.",
+            "Metrics are not forced into a cross-province comparison when the provinces publish different report structures.",
+            "This evaluator does not write a Wheat or Canola thesis, move a score, or publish a pricing recommendation.",
+        ],
+    }
+
+
 def evaluate() -> dict[str, Any]:
     started_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     rows, summaries = canada.collect(["MB", "SK", "AB"])
     sources = province_sources(summaries)
+
+    mb_seeded = row_value(rows, province="MB", metric="seeded_pct", crop_name="All Crops")
+    sk_seeded = row_value(rows, province="SK", metric="seeded_pct", crop_name="All Crops")
+    if mb_seeded is None or sk_seeded is None:
+        mb_text, _ = canada.pdf_to_text(sources["MB"]["source_url"], layout=True)
+        return build_late_phase_package(
+            started_at=started_at,
+            rows=rows,
+            summaries=summaries,
+            sources=sources,
+            narrative_watch_by_province={
+                "MB": extract_manitoba_late_phase_watch(mb_text),
+            },
+        )
 
     mb_text, _ = canada.pdf_to_text(sources["MB"]["source_url"], layout=True)
     sk_report_url = sources["SK"]["discovery"].get("report_url") or sources["SK"]["source_url"]
@@ -439,8 +630,6 @@ def evaluate() -> dict[str, Any]:
     acres_sk = acres.get("Saskatchewan")
     acres_ab = acres.get("Alberta")
 
-    mb_seeded = row_value(rows, province="MB", metric="seeded_pct", crop_name="All Crops")
-    sk_seeded = row_value(rows, province="SK", metric="seeded_pct", crop_name="All Crops")
     ab_condition_all = row_value(rows, province="AB", metric="condition_good_excellent_pct", crop_name="All Crops")
     ab_condition_major = row_value(rows, province="AB", metric="condition_good_excellent_pct", crop_name="Major Crops")
     ab_seeded_prev, ab_seeded_prev_date, ab_seeded_prev_url = latest_alberta_resource_text(
@@ -1325,6 +1514,238 @@ def build_risk_svg(package: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def build_late_phase_markdown(package: dict[str, Any]) -> str:
+    lines = [
+        "# Prairie Crop Progress - Late-Season Structured Watch",
+        "",
+        f"Generated: {package['generated_at']}",
+        (
+            f"Package status: {package['prairie_week_status']} through "
+            f"{package['source_period_end']} from {package['rows_parsed']} parsed rows."
+        ),
+        "",
+        "## Read First",
+        "",
+        "- This package keeps each province inside the structure it actually published.",
+        "- Manitoba's Southwest all-crops condition is context-only; it is not a Wheat or Canola condition score.",
+        "- Saskatchewan's current structured rows are moisture context, while Alberta publishes crop-specific condition rows.",
+        "- The package does not rewrite the Wheat or Canola thesis. It is an official-source overlay for review.",
+        "",
+        "## Current Structured Observations",
+        "",
+    ]
+    for province_code in canada.PROVINCE_RELEASE_SEQUENCE:
+        province = package["provinces"][province_code]
+        lines.extend(
+            [
+                f"### {province['name']}",
+                "",
+                (
+                    f"Official report date: {province['report_date'] or 'not stated'}  \n"
+                    f"Structured rows admitted: {province['row_count']}"
+                ),
+                "",
+                "| Crop / scope | Region | Metric | Value | Evidence boundary |",
+                "|---|---|---|---:|---|",
+            ]
+        )
+        for observation in province["display_observations"]:
+            boundary = {
+                "context_only_broad_all_crops": "Context only - broad all-crops narrative",
+                "context_only_noncanonical": "Context only - no canonical grain",
+                "crop_specific_observation": "Crop-specific official observation",
+            }[observation["boundary"]]
+            lines.append(
+                "| "
+                f"{observation['crop_name']} | "
+                f"{observation['region_name'] or 'Province'} | "
+                f"{observation['metric_label']} | "
+                f"{fmt_pct(observation['value_pct'])} | "
+                f"{boundary} |"
+            )
+        if province["narrative_watch"]:
+            lines.extend(["", "Narrative watch:"])
+            lines.extend(f"- {item}" for item in province["narrative_watch"])
+        lines.extend(
+            [
+                "",
+                f"Source: {province['source_url']}",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "## Method Notes",
+            "",
+        ]
+    )
+    lines.extend(f"- {item}" for item in package["method_caveats"])
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_late_phase_svg(package: dict[str, Any]) -> str:
+    province_colors = {
+        "MB": "#385c4b",
+        "SK": "#7c8d35",
+        "AB": "#b26b2f",
+    }
+    parts = [
+        svg_header(1400, 900),
+        '<rect width="1400" height="900" fill="#f7f4ec"/>',
+        svg_text(70, 76, "Prairie Late-Season Structured Watch", size=44, weight=800, fill="#1f2c22"),
+        svg_text(
+            72,
+            116,
+            (
+                f"Official MB/SK/AB reports through {package['source_period_end']} | "
+                "different provincial metrics are not treated as directly comparable"
+            ),
+            size=20,
+            fill="#586257",
+        ),
+    ]
+    for idx, province_code in enumerate(canada.PROVINCE_RELEASE_SEQUENCE):
+        province = package["provinces"][province_code]
+        color = province_colors[province_code]
+        x = 70 + idx * 430
+        row_label = "structured row" if province["row_count"] == 1 else "structured rows"
+        parts.extend(
+            [
+                panel(x, 155, 390, 610),
+                svg_text(x + 24, 202, province["name"], size=30, weight=800, fill=color),
+                svg_text(
+                    x + 24,
+                    234,
+                    f"Report {province['report_date'] or 'date not stated'} | {province['row_count']} {row_label}",
+                    size=16,
+                    fill="#586257",
+                ),
+            ]
+        )
+        y = 270
+        for observation in province["display_observations"]:
+            label = str(observation["display_label"])
+            label_lines = wrap_words(label, 36)[:2]
+            parts.append(
+                svg_multiline(
+                    x + 24,
+                    y,
+                    label_lines,
+                    size=17,
+                    fill="#2f3a31",
+                    leading=20,
+                )
+            )
+            bar_y = y + 30 if len(label_lines) == 1 else y + 48
+            value = observation.get("value_pct")
+            pct = float(value) if value is not None else None
+            parts.append(bar(x + 24, bar_y, 270, 20, pct, color))
+            parts.append(
+                svg_text(
+                    x + 308,
+                    bar_y + 18,
+                    fmt_pct(pct),
+                    size=18,
+                    weight=800,
+                    fill="#1f2c22",
+                )
+            )
+            boundary_label = (
+                "context only"
+                if str(observation["boundary"]).startswith("context_only")
+                else "crop-specific"
+            )
+            parts.append(
+                svg_text(
+                    x + 24,
+                    bar_y + 44,
+                    boundary_label,
+                    size=14,
+                    fill="#677068",
+                )
+            )
+            y += 118
+        if province["narrative_watch"]:
+            narrative_y = max(y, 400)
+            parts.append(
+                svg_text(
+                    x + 24,
+                    narrative_y,
+                    "Narrative watch",
+                    size=17,
+                    weight=800,
+                    fill=color,
+                )
+            )
+            narrative_y += 28
+            for note in province["narrative_watch"][:3]:
+                note_lines = wrap_words(note, 39)[:3]
+                parts.append(
+                    svg_multiline(
+                        x + 24,
+                        narrative_y,
+                        [f"- {line}" if idx == 0 else f"  {line}" for idx, line in enumerate(note_lines)],
+                        size=14,
+                        fill="#4b554d",
+                        leading=18,
+                    )
+                )
+                narrative_y += len(note_lines) * 18 + 18
+
+    parts.extend(
+        [
+            panel(70, 790, 1260, 76, fill="#e8eadf"),
+            svg_text(
+                100,
+                822,
+                "Evidence boundary",
+                size=20,
+                weight=800,
+                fill="#1f2c22",
+            ),
+            svg_text(
+                100,
+                850,
+                (
+                    "Official-source overlay only. Manitoba broad crop condition stays context-only; "
+                    "no automatic Wheat/Canola thesis or score change."
+                ),
+                size=17,
+                fill="#4b554d",
+            ),
+            "</svg>",
+        ]
+    )
+    return "\n".join(parts)
+
+
+def build_late_phase_index() -> str:
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prairie Late-Season Structured Watch</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f7f4ec; color: #1f2c22; }
+    main { max-width: 1440px; margin: 0 auto; padding: 32px; }
+    img { width: 100%; height: auto; display: block; margin: 24px 0; border: 1px solid #d4d1c4; }
+    a { color: #385c4b; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Prairie Late-Season Structured Watch</h1>
+    <p><a href="report.md">Open report.md</a> | <a href="summary.json">Open summary.json</a></p>
+    <img src="infographic-late-season-watch.svg" alt="Prairie late-season structured crop watch">
+  </main>
+</body>
+</html>
+"""
+
+
 def build_index() -> str:
     return """<!doctype html>
 <html lang="en">
@@ -1356,6 +1777,48 @@ def build_index() -> str:
 
 def write_package(package: dict[str, Any], out_dir: Path) -> dict[str, str]:
     out_dir.mkdir(parents=True, exist_ok=True)
+    if package.get("report_phase") == "condition_and_development":
+        stale_names = (
+            "infographic-seeding-crop-progress.svg",
+            "infographic-risk-watch.svg",
+            "infographic-major-crops-prairies.svg",
+            "infographic-quality-saskatchewan.svg",
+            "infographic-quality-alberta.svg",
+            "infographic-quality-manitoba.svg",
+            "infographic-major-crops-prairies.preview.png",
+            "infographic-quality-saskatchewan.preview.png",
+            "infographic-quality-alberta.preview.png",
+            "infographic-quality-manitoba.preview.png",
+            "infographic-late-season-watch.preview.png",
+        )
+        for stale_name in stale_names:
+            stale_path = out_dir / stale_name
+            if stale_path.exists():
+                stale_path.unlink()
+        files = {
+            "summary_json": out_dir / "summary.json",
+            "report_md": out_dir / "report.md",
+            "late_season_svg": out_dir / "infographic-late-season-watch.svg",
+            "index_html": out_dir / "index.html",
+        }
+        files["summary_json"].write_text(
+            json.dumps(package, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        files["report_md"].write_text(
+            build_late_phase_markdown(package),
+            encoding="utf-8",
+        )
+        files["late_season_svg"].write_text(
+            build_late_phase_svg(package),
+            encoding="utf-8",
+        )
+        files["index_html"].write_text(
+            build_late_phase_index(),
+            encoding="utf-8",
+        )
+        return {key: str(path) for key, path in files.items()}
+
     for stale_name in ("infographic-quality-manitoba.svg", "infographic-quality-manitoba.preview.png"):
         stale_path = out_dir / stale_name
         if stale_path.exists():

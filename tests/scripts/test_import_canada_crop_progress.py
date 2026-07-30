@@ -245,6 +245,52 @@ class CanadaCropProgressImporterTests(unittest.TestCase):
         self.assertEqual(rows[0]["region_code"], "SW")
         self.assertEqual(rows[0]["value_pct"], 50.0)
 
+    def test_manitoba_keeps_broad_southwest_condition_outside_crop_scores(self):
+        report_text = """
+        Crops in the southwest are estimated to be about 50% good and 50% average at this stage.
+        Spring cereals range from early milk to the soft dough stage.
+        Canola crops are flowering, finishing flowering and in pod fill.
+        """
+        with (
+            patch.object(
+                canada,
+                "latest_manitoba_report_url",
+                return_value="https://example.test/crop-report-2026-07-28.pdf",
+            ),
+            patch.object(
+                canada,
+                "pdf_to_text",
+                return_value=(report_text, "https://example.test/crop-report-2026-07-28.pdf"),
+            ),
+        ):
+            rows, _document_url = canada.parse_manitoba()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["crop_name"], "All Crops")
+        self.assertEqual(rows[0]["region_code"], "SW")
+        self.assertEqual(rows[0]["value_pct"], 50.0)
+        self.assertIsNone(rows[0]["canonical_grain"])
+        self.assertEqual(rows[0]["confidence"], "medium")
+        self.assertEqual(rows[0]["quality_flags"], ["broad_all_crops_narrative"])
+        self.assertIn("does not publish a crop-specific split", rows[0]["source_excerpt"])
+
+    def test_discovered_zero_row_report_still_advances_source_clock(self):
+        summaries = [
+            {
+                "province": "MB",
+                "discovery": {
+                    "discovery_status": "discovered_latest_pdf_link",
+                    "report_date": "2026-07-28",
+                },
+            }
+        ]
+
+        self.assertEqual(canada.source_period_end([], summaries), "2026-07-28")
+        self.assertEqual(
+            canada.latest_source_label([], summaries),
+            "Manitoba Crop Report - 2026-07-28",
+        )
+
     def test_alberta_discovery_records_resource_metadata(self):
         payload = {
             "result": {

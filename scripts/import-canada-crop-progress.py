@@ -70,6 +70,12 @@ PROVINCE_SOURCE_PAGES = {
     "AB": ALBERTA_PAGE_URL,
 }
 
+PROVINCE_NAMES = {
+    "MB": "Manitoba",
+    "SK": "Saskatchewan",
+    "AB": "Alberta",
+}
+
 PROVINCE_RELEASE_SEQUENCE = ["MB", "SK", "AB"]
 
 CANONICAL_GRAIN_MAP = {
@@ -1154,6 +1160,45 @@ def parse_manitoba() -> tuple[list[dict[str, Any]], str]:
                 confidence="high",
             )
         )
+
+    southwest_all_crops_condition = re.search(
+        r"Crops\s+in\s+the\s+southwest\s+are\s+estimated\s+to\s+be\s+about\s+"
+        r"([0-9]+(?:\.[0-9]+)?)%\s+good\s+and\s+"
+        r"([0-9]+(?:\.[0-9]+)?)%\s+average",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if southwest_all_crops_condition:
+        good = float(southwest_all_crops_condition.group(1))
+        average_condition = float(southwest_all_crops_condition.group(2))
+        rows.append(
+            make_row(
+                province_code="MB",
+                province_name="Manitoba",
+                crop_year=2026,
+                report_date=report_date,
+                release_date=report_date,
+                period_start=None,
+                period_end=report_date,
+                report_label=f"Crop Report - {report_date}",
+                source_name="Manitoba Agriculture Crop Report",
+                source_url=MANITOBA_PAGE_URL,
+                document_url=document_url,
+                region_scope="crop_region",
+                region_code="SW",
+                region_name="Southwest",
+                crop_name="All Crops",
+                metric="condition_good_excellent_pct",
+                value_pct=good,
+                source_excerpt=(
+                    f"Manitoba Southwest estimates crops at about {good:g}% good "
+                    f"and {average_condition:g}% average as of {report_date}; "
+                    "the report does not publish a crop-specific split."
+                ),
+                confidence="medium",
+                quality_flags=["broad_all_crops_narrative"],
+            )
+        )
     return rows, document_url
 
 
@@ -1540,6 +1585,43 @@ def province_source_url(provinces: list[str]) -> str:
     return ",".join(PROVINCE_SOURCE_PAGES[province] for province in PROVINCE_RELEASE_SEQUENCE if province in provinces)
 
 
+def source_period_end(rows: list[dict[str, Any]], summaries: list[dict[str, Any]]) -> str | None:
+    report_dates = {
+        str(row["report_date"])
+        for row in rows
+        if row.get("report_date")
+    }
+    report_dates.update(
+        str(discovery["report_date"])
+        for summary in summaries
+        if isinstance((discovery := summary.get("discovery")), dict)
+        and discovery.get("report_date")
+    )
+    return max(report_dates, default=None)
+
+
+def latest_source_label(rows: list[dict[str, Any]], summaries: list[dict[str, Any]]) -> str:
+    labels = {
+        str(row["report_label"])
+        for row in rows
+        if row.get("report_label")
+    }
+    represented_provinces = {
+        str(row["province_code"])
+        for row in rows
+        if row.get("province_code")
+    }
+    for summary in summaries:
+        province = str(summary.get("province") or "")
+        discovery = summary.get("discovery")
+        if province in represented_provinces or not isinstance(discovery, dict):
+            continue
+        report_date = discovery.get("report_date")
+        if report_date:
+            labels.add(f"{PROVINCE_NAMES.get(province, province)} Crop Report - {report_date}")
+    return ", ".join(sorted(labels))
+
+
 def collect(provinces: list[str], *, alberta_url: str | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
@@ -1666,8 +1748,8 @@ def main() -> int:
                     collector_name="import-canada-crop-progress",
                     status=status,
                     source_period_start="2026-04-28" if any(p == "SK" for p in provinces) else None,
-                    source_period_end=max((row["report_date"] for row in rows), default=None),
-                    latest_source_label=", ".join(sorted({row["report_label"] for row in rows})),
+                    source_period_end=source_period_end(rows, summaries),
+                    latest_source_label=latest_source_label(rows, summaries),
                     rows_inserted=len(written_rows),
                     source_url=province_source_url(provinces),
                     started_at=started_at,
