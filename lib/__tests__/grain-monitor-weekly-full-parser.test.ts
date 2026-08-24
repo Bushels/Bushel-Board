@@ -293,4 +293,30 @@ describe("parseWeeklyReportFromPages", () => {
     expect(row.weather_notes).toBeNull();
     expect(missingFields).toEqual(["weather_notes"]);
   });
+
+  it("parses identically after the August crop-year rollover (2026-27 labels)", () => {
+    // The report's year label rolls over every August ("Total 2025-26" ->
+    // "Total 2026-27"). The parser must key on table structure, not a pinned
+    // crop-year string. Re-run the same fixtures with only the year swapped.
+    const roll = (text: string) =>
+      text
+        .replaceAll("2025-2026", "2026-2027")
+        .replaceAll("2025-26", "2026-27")
+        .replaceAll("25-26", "26-27")
+        .replaceAll("2025 - 2026", "2026 - 2027");
+    const next36 = {
+      1: roll(week36.page1),
+      2: roll(week36.page2),
+      3: roll(week36.page3),
+      5: roll(week36.page5),
+    };
+    const { row, missingFields } = parseWeeklyReportFromPages(next36);
+    expect(parsePageMetadata(next36[1]).canonicalCropYear).toBe("2026-2027");
+    expect(row.grain_week).toBe(36);
+    expect(row.country_deliveries_kt).toBe(1092.5);
+    expect(row.total_unloads_cars).toBe(11480);
+    expect(row.ytd_unloads_cars).toBe(331778);
+    expect(row.ytd_shipments_total_kt).toBe(31186);
+    expect(missingFields).toEqual(["weather_notes"]);
+  });
 });

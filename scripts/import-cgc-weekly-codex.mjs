@@ -58,6 +58,39 @@ const BROWSER_HEADERS = {
   "Accept-Language": "en-US,en;q=0.9",
 };
 
+// The CGC site intermittently resets connections (ECONNRESET killed the
+// 2026-08-20 scheduled run). Retry transient network faults with backoff;
+// HTTP error statuses are real answers and are returned as-is.
+const FETCH_ATTEMPTS = 4;
+
+async function sleep(ms) {
+  await new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+async function fetchWithRetry(url, options = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      const transient =
+        error?.cause?.code === "ECONNRESET" ||
+        error?.cause?.code === "ECONNREFUSED" ||
+        error?.cause?.code === "ETIMEDOUT" ||
+        error?.name === "AbortError" ||
+        error?.name === "TypeError";
+      lastError = error;
+      if (!transient || attempt === FETCH_ATTEMPTS) break;
+      const waitMs = 3000 * 2 ** (attempt - 1);
+      console.error(
+        `[retry] CGC fetch attempt ${attempt}/${FETCH_ATTEMPTS} failed (${error.cause?.code ?? error.name}); retrying in ${waitMs}ms`,
+      );
+      await sleep(waitMs);
+    }
+  }
+  throw lastError;
+}
+
 const CSV_HEADERS = {
   "User-Agent": BROWSER_HEADERS["User-Agent"],
   Accept: "text/csv,application/octet-stream,*/*;q=0.8",
@@ -230,7 +263,7 @@ function normalizeCgcDate(value) {
 
 async function fetchCgcCsv() {
   const pageStart = Date.now();
-  const pageRes = await fetch(CGC_WEEKLY_PAGE_URL, {
+  const pageRes = await fetchWithRetry(CGC_WEEKLY_PAGE_URL, {
     headers: BROWSER_HEADERS,
     cache: "no-store",
   });
@@ -242,7 +275,7 @@ async function fetchCgcCsv() {
   const csvUrl = extractCurrentCgcCsvUrl(pageHtml);
 
   const csvStart = Date.now();
-  const csvRes = await fetch(csvUrl, {
+  const csvRes = await fetchWithRetry(csvUrl, {
     headers: { ...CSV_HEADERS, Referer: CGC_WEEKLY_PAGE_URL },
     cache: "no-store",
   });

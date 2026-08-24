@@ -391,12 +391,14 @@ export function parseCountryDeliveriesAndPortPerformance(page1Text: string, page
   const page1Flat = flattenText(page1Text);
   const page3Flat = flattenText(page3Text);
 
-  const deliveryTokens = takeTokensAfter(page3Flat, /MB SK AB BC Total 2025-\d{2}/i, 5);
+  // Crop-year label is generic (e.g. "Total 2025-26" or "Total 2026-27"):
+  // the report rolls over each August and the label must not pin a year.
+  const deliveryTokens = takeTokensAfter(page3Flat, /MB SK AB BC Total 20\d{2}-\d{2}/i, 5);
   const deliveryYoyTokens = takeTokensAfter(page3Flat, /Var % to Last Year/i, 5, 1);
 
   const unloadTokens = takeTokensAfter(
     page3Flat,
-    /Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
+    /Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 20\d{2}-\d{2}/i,
     6,
   );
   const fourWeekAverageTokens = takeTokensAfter(page3Flat, /4-Wk Avg\./i, 6, 1);
@@ -406,7 +408,7 @@ export function parseCountryDeliveriesAndPortPerformance(page1Text: string, page
   // page 1 shows 331,779 but page 3 shows 331,778). Trust the detailed table.
   const ytdUnloadTokens = takeTokensAfter(
     page3Flat,
-    /YTD Unloads \(cars\) Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
+    /YTD Unloads \(cars\) Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 20\d{2}-\d{2}/i,
     6,
   );
 
@@ -454,7 +456,7 @@ export function parseShipments(page5Text: string) {
 
   const shipmentTokens = takeTokensAfter(
     page5Flat,
-    /Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 2025-\d{2}/i,
+    /Vancouver Prince Rupert West Coast Thunder Bay Churchill Total 20\d{2}-\d{2}/i,
     6,
   );
   const shipmentYoyTokens = takeTokensAfter(page5Flat, /Var % to Last Year/i, 6, 2);

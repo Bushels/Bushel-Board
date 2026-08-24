@@ -13,6 +13,39 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { writeSourceRun } from "./source-run.mjs";
 
+// The CGC site intermittently resets connections (ECONNRESET killed the
+// 2026-08-20 scheduled run). Retry transient network faults with backoff;
+// HTTP error statuses are real answers and are returned as-is.
+const FETCH_ATTEMPTS = 4;
+
+async function sleep(ms) {
+  await new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+async function fetchWithRetry(url, options = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      const transient =
+        error?.cause?.code === "ECONNRESET" ||
+        error?.cause?.code === "ECONNREFUSED" ||
+        error?.cause?.code === "ETIMEDOUT" ||
+        error?.name === "AbortError" ||
+        error?.name === "TypeError";
+      lastError = error;
+      if (!transient || attempt === FETCH_ATTEMPTS) break;
+      const waitMs = 3000 * 2 ** (attempt - 1);
+      console.error(
+        `[retry] CGC fetch attempt ${attempt}/${FETCH_ATTEMPTS} failed (${error.cause?.code ?? error.name}); retrying in ${waitMs}ms`,
+      );
+      await sleep(waitMs);
+    }
+  }
+  throw lastError;
+}
+
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   console.log(`Usage: node scripts/import-producer-cars.mjs [options]
 
@@ -98,7 +131,7 @@ async function main() {
   console.log(`Fetching CGC Producer Car CSV for ${cropYear}...`);
 
   const url = `https://www.grainscanada.gc.ca/en/grain-research/statistics/producer-car/${cropYear}/pca-hwp-en.csv`;
-  const resp = await fetch(url);
+  const resp = await fetchWithRetry(url);
   if (!resp.ok) {
     throw new Error(`HTTP ${resp.status} ${resp.statusText} from ${url}`);
   }

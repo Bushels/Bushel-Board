@@ -32,6 +32,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -279,13 +280,35 @@ def choose_markets(filters: list[str] | None) -> list[dict[str, Any]]:
     return selected
 
 
-def request_json(url: str, *, timeout: int) -> Any:
+def request_json(url: str, *, timeout: int, attempts: int = 4) -> Any:
+    """Fetch JSON with bounded retry/backoff for transient network faults.
+
+    The scheduled collector runs unattended; single-shot requests were dying to
+    occasional connection resets/timeouts (WinError 10060 on 2026-08-14).
+    HTTPError is a real API answer and is never retried.
+    """
     req = urllib.request.Request(url, headers={
         'User-Agent': 'Mozilla/5.0 (compatible; BushelBoard/1.0)',
         'Accept': 'application/json',
     })
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        return json.load(response)
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return json.load(response)
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt < attempts:
+                wait_seconds = 3 * 2 ** (attempt - 1)
+                print(
+                    f"[retry] USDA PSD attempt {attempt}/{attempts} failed ({exc}); "
+                    f"retrying in {wait_seconds}s",
+                    file=sys.stderr,
+                )
+                time.sleep(wait_seconds)
+    raise ImporterError(f"USDA PSD request failed after {attempts} attempts: {last_error}")
 
 
 def fetch_rows(market: dict[str, Any], market_year: int, api_key: str) -> list[dict[str, Any]]:

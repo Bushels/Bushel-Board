@@ -207,7 +207,9 @@ def main(argv: list[str] | None = None) -> int:
             raise FileNotFoundError(f"Bushel Board root is invalid: {root}")
         npm = resolve_npm()
     except (FileNotFoundError, ValueError) as exc:
-        print(f"FAIL Hermes launcher: {exc}", file=sys.stderr)
+        # Setup failures must use the same deliverable stdout channel as
+        # command failures; otherwise a missing npm/root can fail silently.
+        print(f"FAIL Hermes launcher: {exc}")
         return 2
 
     started = dt.datetime.now(dt.timezone.utc)
@@ -251,17 +253,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if exit_code:
         tail = "\n".join(rendered.splitlines()[-80:])
+        # Print to STDOUT, not stderr: Hermes cron captures stdout as the job
+        # result, so the FAIL block (with log path + output tail) is what gets
+        # delivered/alerted instead of dying inside an unread local log.
         print(
             f"FAIL {job_name} exit={exit_code} log={path}\n{tail}",
-            file=sys.stderr,
         )
         return exit_code
 
-    if job.mode == "watchdog":
+    # Mechanical collectors and watchdogs are alert-only: an empty stdout on
+    # success lets Hermes stay silent, while the FAIL block above is delivered.
+    # X Pulse keeps its explicit no-write success receipt for operator review.
+    if job.mode in {"collector", "watchdog"}:
         return 0
 
-    boundary = " no-write" if job.mode == "x_pulse" else ""
-    print(f"OK {job_name}{boundary} log={path}")
+    print(f"OK {job_name} no-write log={path}")
     return 0
 
 
